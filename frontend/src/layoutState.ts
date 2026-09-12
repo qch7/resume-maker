@@ -4,6 +4,7 @@ export const DEFAULT_LAYOUT = {
   settings: 280,
   guide: 86,
   editor: 520,
+  chatInput: 180,
   guideCollapsed: false,
 };
 export type Layout = typeof DEFAULT_LAYOUT;
@@ -19,6 +20,7 @@ export function restoreLayout(value: Partial<Layout> | null): Layout {
     "settings",
     "guide",
     "editor",
+    "chatInput",
   ] as const) {
     const size = value?.[key];
     if (typeof size === "number" && Number.isFinite(size))

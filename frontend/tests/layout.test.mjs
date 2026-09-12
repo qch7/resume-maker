@@ -13,11 +13,17 @@ test("layout restoration rejects corrupt sizes and preserves valid preferences",
     sidebar: "wide",
     composer: NaN,
     settings: 120,
+    chatInput: 300,
     guideCollapsed: true,
   });
   assert.equal(layout.sidebar, DEFAULT_LAYOUT.sidebar);
   assert.equal(layout.composer, DEFAULT_LAYOUT.composer);
   assert.equal(layout.settings, 120);
+  assert.equal(layout.chatInput, 300);
+  assert.equal(
+    restoreLayout({ chatInput: NaN }).chatInput,
+    DEFAULT_LAYOUT.chatInput,
+  );
   assert.equal(layout.guideCollapsed, true);
 });
 

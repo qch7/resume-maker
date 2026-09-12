@@ -998,6 +998,8 @@ export default function App() {
                 ) : remoteChat.data ? (
                   <Chat
                     key={conversationId}
+                    inputHeight={layout.chatInput}
+                    onInputHeight={(value) => resize("chatInput", value)}
                     detail={remoteChat.data}
                     project={remoteProject.data}
                     activeJob={currentJob}
