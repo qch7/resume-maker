@@ -13,9 +13,9 @@ import {
   ChevronRight,
   FolderPlus,
   LoaderCircle,
-  MessageSquarePlus,
   MoreHorizontal,
   PanelLeftClose,
+  Plus,
   RefreshCw,
   RotateCcw,
   Settings as SettingsIcon,
@@ -103,6 +103,8 @@ export default function App() {
   const [selectedConversations, setSelectedConversations] = useState<
     Record<string, string>
   >({});
+  const [creatingConversation, setCreatingConversation] = useState("");
+  const conversationCreationPending = useRef(false);
   const [mode, setMode] = useState<"edit" | "chat">("edit");
   const [folded, setFolded] = useState<Record<string, boolean>>({});
   const [sidebarSort, setSidebarSort] = useState(() =>
@@ -348,17 +350,27 @@ export default function App() {
       setFolded((v) => ({ ...v, [projectId]: false }));
     });
   }
-  async function newConversation() {
-    if (!activeProject) return;
-    const conv = await api<Conversation>(
-      `/projects/${activeProject}/conversations`,
-      "POST",
-    );
-    await reload();
-    setSelectedConversations((v) => ({ ...v, [activeProject]: conv.id }));
-    setMode("chat");
-    setFolded((v) => ({ ...v, [activeProject]: false }));
-    changed();
+  async function newConversation(projectId: string) {
+    if (conversationCreationPending.current) return;
+    conversationCreationPending.current = true;
+    setCreatingConversation(projectId);
+    const serial = ++navigation.current;
+    try {
+      const conv = await api<Conversation>(
+        `/projects/${projectId}/conversations`,
+        "POST",
+      );
+      await reload();
+      // 请求期间切换了项目时，保留用户后来的导航选择。
+      if (serial !== navigation.current) return;
+      setActiveProject(projectId);
+      setSelectedConversations((v) => ({ ...v, [projectId]: conv.id }));
+      setMode("chat");
+      setFolded((v) => ({ ...v, [projectId]: false }));
+    } finally {
+      conversationCreationPending.current = false;
+      setCreatingConversation("");
+    }
   }
   async function ensureConversation() {
     if (conversationId) return conversationId;
@@ -678,17 +690,6 @@ export default function App() {
       </div>
       <div className="workbench" ref={workbench}>
         <aside className="sidebar">
-          <button
-            className="new-chat"
-            disabled={!project}
-            onClick={() => run(newConversation)}
-          >
-            <MessageSquarePlus size={18} />
-            新会话
-          </button>
-          <span className="sidebar-caption">
-            {project ? `当前项目：${project.name}` : "先导入项目集合"}
-          </span>
           <div
             className="sidebar-sort"
             role="group"
@@ -748,9 +749,24 @@ export default function App() {
                   />
                   <button
                     className="project-name"
+                    title={p.name}
                     onClick={() => navigate(p.id)}
                   >
                     {p.name}
+                  </button>
+                  <button
+                    className="icon-button"
+                    aria-label={`为 ${p.name} 新建会话`}
+                    title={`为 ${p.name} 新建会话`}
+                    disabled={!!creatingConversation}
+                    aria-busy={creatingConversation === p.id}
+                    onClick={() => run(() => newConversation(p.id))}
+                  >
+                    {creatingConversation === p.id ? (
+                      <LoaderCircle size={15} className="spin" />
+                    ) : (
+                      <Plus size={15} />
+                    )}
                   </button>
                   <button
                     className="icon-button"

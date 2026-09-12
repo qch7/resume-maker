@@ -511,17 +511,6 @@ pre {
   background: var(--sidebar);
   border-right: 1px solid var(--line);
 }
-.new-chat {
-  justify-content: flex-start;
-  padding: 11px 13px;
-  box-shadow: 0 1px 3px #18352105;
-}
-.sidebar-caption {
-  font-size: 10px;
-  color: var(--subtle);
-  padding: 12px 8px 8px;
-  overflow-wrap: anywhere;
-}
 .sidebar-sort {
   display: flex;
   align-items: center;
@@ -557,7 +546,12 @@ pre {
 .project-row.selected {
   background: var(--selected);
 }
+.project-row > .icon-button {
+  flex-shrink: 0;
+  padding: 4px;
+}
 .project-name {
+  min-width: 0;
   font-weight: 600;
   text-align: left;
   justify-content: flex-start;
