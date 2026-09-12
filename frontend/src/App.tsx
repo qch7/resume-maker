@@ -869,12 +869,47 @@ export default function App() {
             <>
               <header className="workspace-header">
                 <div>
-                  <h1>
+                  <h1
+                    title={
+                      remoteProject.data?.working.content.title || project.name
+                    }
+                  >
                     {remoteProject.data?.working.content.title || project.name}
                   </h1>
                 </div>
+                <nav className="tabs workspace-tabs" aria-label="项目工作区">
+                  <button
+                    className={mode === "edit" ? "active" : ""}
+                    aria-current={mode === "edit" ? "page" : undefined}
+                    onClick={() => run(async () => setMode("edit"))}
+                  >
+                    经历编辑
+                  </button>
+                  <button
+                    className={mode === "chat" ? "active" : ""}
+                    aria-current={mode === "chat" ? "page" : undefined}
+                    onClick={() =>
+                      run(async () => {
+                        await ensureConversation();
+                        setMode("chat");
+                      })
+                    }
+                  >
+                    AI 会话
+                  </button>
+                </nav>
                 <button
                   data-guide="analysis"
+                  aria-label={
+                    remoteProject.data?.working.content.highlights.length
+                      ? "重新分析源码"
+                      : "分析项目"
+                  }
+                  title={
+                    remoteProject.data?.working.content.highlights.length
+                      ? "重新分析源码"
+                      : "分析项目"
+                  }
                   disabled={!!currentJob || !remoteProject.data}
                   onClick={() =>
                     run(() =>
@@ -887,30 +922,13 @@ export default function App() {
                   }
                 >
                   <Sparkles size={16} />
-                  {remoteProject.data?.working.content.highlights.length
-                    ? "重新分析源码"
-                    : "分析项目"}
+                  <span className="analysis-label">
+                    {remoteProject.data?.working.content.highlights.length
+                      ? "重新分析源码"
+                      : "分析项目"}
+                  </span>
                 </button>
               </header>
-              <nav className="tabs workspace-tabs">
-                <button
-                  className={mode === "edit" ? "active" : ""}
-                  onClick={() => run(async () => setMode("edit"))}
-                >
-                  经历编辑
-                </button>
-                <button
-                  className={mode === "chat" ? "active" : ""}
-                  onClick={() =>
-                    run(async () => {
-                      await ensureConversation();
-                      setMode("chat");
-                    })
-                  }
-                >
-                  AI 会话
-                </button>
-              </nav>
               <div className="workspace-scroll">
                 {error && <div className="error-panel">{error}</div>}
                 {!remoteProject.data ? (

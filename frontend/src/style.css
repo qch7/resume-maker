@@ -641,6 +641,7 @@ pre {
   flex-shrink: 0;
 }
 .workspace {
+  container: workspace / inline-size;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -648,16 +649,20 @@ pre {
   background: var(--surface);
 }
 .workspace-header {
-  padding: 10px 18px;
+  padding: 0 18px;
+  min-height: 50px;
+  flex-shrink: 0;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 10px;
+  gap: 20px;
+  border-bottom: 1px solid var(--line);
 }
 .workspace-header > div {
   min-width: 0;
+  max-width: 40%;
 }
-.workspace-header button {
+.workspace-header > button {
+  margin-left: auto;
   flex-shrink: 0;
   padding: 6px 10px;
   font-size: 11px;
@@ -687,10 +692,27 @@ pre {
   font-weight: 600;
 }
 .workspace-tabs {
-  padding: 0 18px;
+  flex-shrink: 0;
+  align-self: stretch;
+  gap: 18px;
+  border: 0;
 }
 .workspace-tabs button {
-  padding: 7px 0;
+  padding: 0;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+}
+@container workspace (max-width: 440px) {
+  .workspace-header {
+    padding-inline: 12px;
+    gap: 12px;
+  }
+  .workspace-tabs {
+    gap: 12px;
+  }
+  .analysis-label {
+    display: none;
+  }
 }
 .workspace-scroll {
   flex: 1;
@@ -1586,12 +1608,12 @@ pre {
     padding: 2px 0;
   }
   .workspace-header {
-    padding: 8px 12px;
+    padding: 0 12px;
   }
   .workspace-header h1 {
     font-size: 16px;
   }
-  .workspace-header button {
+  .workspace-header > button {
     font-size: 10px;
     padding: 6px 8px;
   }
