@@ -1,3 +1,3 @@
-"""Local project experience and resume management."""
+"""本机项目经历版本管理与简历组合工作台。"""
 
 __version__ = "0.1.0"

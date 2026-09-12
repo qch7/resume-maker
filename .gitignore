@@ -22,3 +22,10 @@ data/
 .playwright-cli/
 output/
 frontend/*.tsbuildinfo
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+dist/
+build/
+*.whl

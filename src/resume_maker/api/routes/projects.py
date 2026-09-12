@@ -1,0 +1,85 @@
+"""项目来源、版本与草稿操作的 HTTP 入口。"""
+
+from pathlib import Path
+
+from fastapi import APIRouter
+
+from resume_maker.api.dependencies import ServicesDep
+from resume_maker.api.schemas import DraftInput, PathInput, ProjectInput, SaveInput
+from resume_maker.domain.models import ProjectProfile
+from resume_maker.integrations.sources import collect_snapshot, scan_collection
+
+router = APIRouter(prefix="/api", tags=["projects"])
+
+
+@router.post("/projects/scan")
+def scan(services: ServicesDep, body: PathInput):
+    """将用户选择的路径交给来源扫描器，返回待确认的项目分组。"""
+    return scan_collection(Path(body.path))
+
+
+@router.post("/projects")
+def create_project(services: ServicesDep, body: ProjectInput):
+    """规范化来源并去重登记项目，同时建立初始经历和独立会话。"""
+    return services.catalog.create_project(body.name, body.roots)
+
+
+@router.get("/projects/{project_id}")
+def get_project(services: ServicesDep, project_id: str, revision_id: str | None = None):
+    """读取选定版本的工作副本、历史修订与来源快照供经历编辑器展示。"""
+    return services.projects.get_project(project_id, revision_id)
+
+
+@router.get("/revisions/{revision_id}")
+def get_revision(services: ServicesDep, revision_id: str):
+    """返回指定不可变经历版本，供简历组合恢复其固定引用。"""
+    return services.catalog.revision(revision_id)
+
+
+@router.put("/projects/{project_id}/profile")
+def save_profile(services: ServicesDep, project_id: str, body: ProjectProfile):
+    """保存用户确认的角色、日期与贡献信息，并更新项目活动时间。"""
+    return services.projects.save_profile(project_id, body)
+
+
+@router.put("/projects/{project_id}/sources")
+def update_sources(services: ServicesDep, project_id: str, body: ProjectInput):
+    """校验并重新绑定项目来源目录，保留已经生成的经历与历史。"""
+    return services.projects.update_sources(project_id, body.name, body.roots)
+
+
+@router.post("/projects/{project_id}/snapshots")
+def snapshot(services: ServicesDep, project_id: str):
+    """为当前项目创建新的受控文本快照并记录其指纹。"""
+    return collect_snapshot(
+        services.db, services.config.data_dir, services.catalog.project(project_id)
+    )
+
+
+@router.put("/projects/{project_id}/draft")
+def put_draft(services: ServicesDep, project_id: str, body: DraftInput):
+    """校验字段并按草稿版本写入；拒绝覆盖其他窗口的新修改。"""
+    return services.catalog.put_draft(
+        project_id, body.base_revision, body.field, body.value, body.version
+    )
+
+
+@router.post("/projects/{project_id}/draft/discard")
+def discard_draft(services: ServicesDep, project_id: str, body: DraftInput):
+    """确认草稿版本仍匹配后删除指定字段的未发布修改。"""
+    services.catalog.discard_draft(project_id, body.base_revision, body.field, body.version)
+    return services.catalog.working(project_id, body.base_revision)
+
+
+@router.post("/projects/{project_id}/revisions")
+def save_revision(services: ServicesDep, project_id: str, body: SaveInput):
+    """将所选草稿字段交给版本服务发布，同时校验预期项目头版本。"""
+    return services.catalog.save_field(
+        project_id, body.base_revision, body.field, body.expected_head
+    )
+
+
+@router.post("/projects/{project_id}/restore")
+def restore_revision(services: ServicesDep, project_id: str, body: SaveInput):
+    """基于指定历史经历创建恢复版本，不修改原有修订记录。"""
+    return services.catalog.restore(project_id, body.base_revision, body.expected_head)

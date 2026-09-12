@@ -1,8 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { getWorkflow, isCurrentExport } from "../src/workflowState.ts";
+import { getWorkflow } from "../src/features/workflow/state.ts";
+import { isCurrentExport } from "../src/features/resumes/composition.ts";
 
-function fixture() {
+/* 构造隔离的项目、组合与导出状态，供制作流程测试复用。 */ function fixture() {
   const content = {
     title: "测试项目",
     description: "已核实的项目描述",
@@ -33,7 +34,7 @@ function fixture() {
   };
 }
 
-test("new workspace starts at import", () => {
+test("new workspace starts at import", /* 验证空工作台从导入项目步骤开始。 */ () => {
   const state = fixture();
   state.projectCount = 0;
   state.detail = null;
@@ -42,7 +43,7 @@ test("new workspace starts at import", () => {
   assert.deepEqual(getWorkflow(state).done, [false, false, false, false]);
 });
 
-test("typing and recovered server drafts both require a saved revision", () => {
+test("typing and recovered server drafts both require a saved revision", /* 验证本机编辑和恢复的草稿都不能当作正式保存。 */ () => {
   const state = fixture();
   state.edited = true;
   assert.equal(getWorkflow(state).target, "experience-save");
@@ -52,7 +53,7 @@ test("typing and recovered server drafts both require a saved revision", () => {
   assert.equal(getWorkflow(state).target, "experience-save");
 });
 
-test("saved experience must be explicitly added or used to replace a pinned revision", () => {
+test("saved experience must be explicitly added or used to replace a pinned revision", /* 验证新版本只有显式用于简历后才替换固定引用。 */ () => {
   const state = fixture();
   state.draft.items = [];
   assert.equal(getWorkflow(state).target, "experience-use");
@@ -65,7 +66,7 @@ test("saved experience must be explicitly added or used to replace a pinned revi
   assert.equal(guide.target, "experience-use");
 });
 
-test("an empty project in a multi-project resume is identified for editing", () => {
+test("an empty project in a multi-project resume is identified for editing", /* 验证多项目组合可定位尚无内容的经历。 */ () => {
   const state = fixture();
   state.revisions.r3 = {
     ...state.revisions.r2,
@@ -82,7 +83,7 @@ test("an empty project in a multi-project resume is identified for editing", () 
   assert.equal(getWorkflow(state).target, "experience-save");
 });
 
-test("changed composition and missing template have actionable steps", () => {
+test("changed composition and missing template have actionable steps", /* 验证组合改变或缺少模板时给出可操作的指引。 */ () => {
   const state = fixture();
   state.draft.name = "投递另一岗位";
   assert.equal(getWorkflow(state).target, "composition-save");
@@ -92,7 +93,7 @@ test("changed composition and missing template have actionable steps", () => {
   assert.equal(getWorkflow(state).target, "template-select");
 });
 
-test("export completion compares actual composition, not just existence or save counter", () => {
+test("export completion compares actual composition, not just existence or save counter", /* 验证导出完成状态比较真实组合内容。 */ () => {
   const state = fixture();
   state.result = {
     resume_id: "resume",
@@ -108,7 +109,7 @@ test("export completion compares actual composition, not just existence or save 
   assert.match(getWorkflow(state).text, /上次导出仍是旧内容/);
 });
 
-test("historical exports cannot complete a new resume or an empty composition", () => {
+test("historical exports cannot complete a new resume or an empty composition", /* 验证其他简历或空组合不能复用历史导出的完成状态。 */ () => {
   const state = fixture();
   state.result = {
     resume_id: "another-resume",
@@ -120,7 +121,7 @@ test("historical exports cannot complete a new resume or an empty composition", 
   assert.deepEqual(getWorkflow(state).done, [true, false, false, false]);
 });
 
-test("export in progress has no invented percentage and generated Word needs no PDF to complete", () => {
+test("export in progress has no invented percentage and generated Word needs no PDF to complete", /* 验证导出过程不显示虚构百分比，DOCX 可独立完成。 */ () => {
   const state = fixture();
   state.exporting = true;
   assert.match(getWorkflow(state).text, /正在生成/);

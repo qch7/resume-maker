@@ -1,0 +1,226 @@
+/* 主题变量、基础排版和通用表单控件。 */
+:root {
+  font-family: "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+  color-scheme: light;
+  color: var(--text);
+  background: var(--background);
+  font-synthesis: none;
+  --surface: light-dark(#fff, #1b2329);
+  --text: light-dark(#23312e, #e5edee);
+  --background: light-dark(#f3f5f7, #11171c);
+  --subtle: light-dark(#64746f, #a8b9bd);
+  --line: light-dark(#dde5e1, #34434a);
+  --muted: light-dark(#f1f5f3, #243038);
+  --accent: light-dark(#267259, #91d6b2);
+  --accent-soft: light-dark(#e6f2e9, #253e35);
+  --primary: light-dark(#256c56, #91d6b2);
+  --primary-ink: light-dark(#fff, #12291e);
+  --sidebar: light-dark(#f4f7f5, #151d22);
+  --selected: light-dark(#e2eee7, #293e37);
+  --panel: light-dark(#f8faf9, #182127);
+  --warning: light-dark(#916018, #f0c481);
+  --warning-soft: light-dark(#fff3da, #3c3120);
+  --danger: light-dark(#a43a35, #ffafa6);
+  --error-soft: light-dark(#fff4f1, #3b292b);
+}
+* {
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+body {
+  margin: 0;
+}
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  font-size: 13px;
+}
+button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: inherit;
+  padding: 8px 12px;
+  cursor: pointer;
+  line-height: 1.5;
+}
+button:hover {
+  background: var(--muted);
+}
+button:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+button.primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-ink);
+  font-weight: 600;
+}
+button.primary:hover {
+  filter: brightness(1.08);
+}
+button.icon-button {
+  border: 0;
+  background: transparent;
+  padding: 6px;
+  flex-shrink: 0;
+}
+button.icon-button:hover,
+button.text-button:hover {
+  background: var(--muted);
+}
+button.text-button {
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  padding: 5px 7px;
+}
+button.danger-hover:hover {
+  color: var(--danger);
+}
+input,
+textarea,
+select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  color: inherit;
+  padding: 9px 11px;
+  line-height: 1.6;
+}
+textarea {
+  resize: vertical;
+}
+input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  padding: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+:focus-visible {
+  outline: 2px solid #64ac8f;
+  outline-offset: 2px;
+}
+[data-guide]:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+label {
+  display: grid;
+  gap: 7px;
+  color: var(--subtle);
+  font-size: 12px;
+  margin: 12px 0;
+}
+h1,
+h2,
+h3,
+p {
+  margin-top: 0;
+}
+h1 {
+  font-size: 23px;
+  line-height: 1.45;
+  letter-spacing: -0.4px;
+  margin-bottom: 0;
+}
+h2 {
+  font-size: 16px;
+  margin-bottom: 0;
+}
+h3 {
+  font-size: 14px;
+  margin-bottom: 0;
+}
+p {
+  line-height: 1.85;
+  margin-bottom: 10px;
+}
+code {
+  font-family: "Cascadia Code", Consolas, monospace;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+}
+summary {
+  cursor: pointer;
+  color: var(--subtle);
+  font-size: 12px;
+  padding: 10px 0;
+}
+pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.row,
+.actions,
+.section-heading,
+.dialog-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.actions {
+  flex-wrap: wrap;
+}
+.section-heading,
+.dialog-title {
+  justify-content: space-between;
+}
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+.subtle {
+  color: var(--subtle);
+  font-size: 12px;
+}
+.subtle svg {
+  vertical-align: middle;
+}
+.tag {
+  display: inline-block;
+  white-space: nowrap;
+  font-size: 10px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 4px;
+  padding: 3px 6px;
+}
+.eyebrow {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--subtle);
+  letter-spacing: 1.5px;
+  margin-bottom: 7px;
+}
+.path {
+  display: block;
+  color: var(--subtle);
+  padding: 7px 0;
+}
+.warning {
+  color: var(--warning);
+  font-size: 12px;
+}
+.warning-tag {
+  color: var(--warning);
+  background: var(--warning-soft);
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}

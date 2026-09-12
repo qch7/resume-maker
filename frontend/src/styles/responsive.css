@@ -1,0 +1,306 @@
+/* 窄屏适配、放大预览和无障碍动效偏好；置后以覆盖基础布局。 */
+.sidebar-hidden .workbench {
+  grid-template-columns: minmax(320px, 1fr) 8px var(--composer-width);
+}
+.sidebar-hidden .sidebar,
+.sidebar-hidden .sidebar-resize {
+  display: none;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+@media (max-width: 1250px) {
+  .editor,
+  .chat-title {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+}
+@media (max-width: 980px) {
+  .app-shell {
+    overflow: visible;
+    height: auto;
+    min-height: 100dvh;
+  }
+  .workbench {
+    flex: none;
+    grid-template-columns: var(--sidebar-width) 8px minmax(0, 1fr);
+    grid-template-rows: var(--editor-height) 8px auto;
+  }
+  .app-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .sidebar {
+    grid-row: 1 / 4;
+    grid-column: 1;
+  }
+  .sidebar-resize {
+    grid-row: 1 / 4;
+    grid-column: 2;
+  }
+  .workspace {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .composer-resize {
+    display: none;
+  }
+  .stack-resize {
+    display: flex;
+    grid-column: 3;
+    grid-row: 2;
+  }
+  .composition-pane {
+    grid-column: 3;
+    grid-row: 3;
+    height: max(580px, 85dvh);
+  }
+  .sidebar-hidden .workbench {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sidebar-hidden .composition-pane,
+  .sidebar-hidden .workspace,
+  .sidebar-hidden .stack-resize {
+    grid-column: 1;
+  }
+  .printed-page,
+  .resume-paper {
+    max-width: 650px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .workflow {
+    gap: 10px;
+  }
+  .workflow-overview {
+    width: 150px;
+  }
+  .workflow-steps {
+    gap: 4px;
+  }
+  .workflow-steps li::after {
+    display: none;
+  }
+  .workflow-steps small {
+    display: none;
+  }
+  .workflow-steps button {
+    padding: 7px;
+    gap: 6px;
+  }
+  .workflow-next {
+    align-items: flex-start;
+  }
+  .header-job-status {
+    display: none;
+  }
+}
+@media (max-width: 760px) {
+  .app-subtitle {
+    display: none;
+  }
+  .workflow-overview {
+    width: auto;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+  }
+  .workflow {
+    flex-wrap: wrap;
+    gap: 4px;
+    position: relative;
+  }
+  .workflow > .workflow-overview {
+    width: 100%;
+    padding-right: 28px;
+  }
+  .workflow > .workflow-main {
+    flex-basis: 100%;
+  }
+  .workflow-toggle {
+    position: absolute;
+    right: 10px;
+    top: 4px;
+  }
+  .workflow.collapsed {
+    flex-wrap: nowrap;
+    padding-right: 40px;
+  }
+  .workflow.collapsed > .workflow-overview {
+    width: auto;
+    padding-right: 0;
+  }
+  .workflow.collapsed > .workflow-main {
+    flex-basis: auto;
+  }
+  .workflow.collapsed .workflow-overview span {
+    display: none;
+  }
+  .workflow.collapsed .workflow-next p {
+    display: none;
+  }
+  .workflow-overview progress {
+    margin-left: auto;
+    width: 80px;
+  }
+  .workflow-overview strong {
+    font-size: 11px;
+  }
+  .workflow-overview span {
+    font-size: 10px;
+  }
+}
+@media (max-width: 600px) {
+  .workbench {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sidebar-resize {
+    display: none;
+  }
+  .sidebar {
+    position: fixed;
+    left: 0;
+    top: 52px;
+    bottom: 0;
+    width: 220px;
+    z-index: 9;
+    box-shadow: 15px 0 45px #1a2d2525;
+  }
+  .workspace,
+  .composition-pane,
+  .stack-resize {
+    grid-column: 1;
+  }
+  .app-subtitle {
+    display: none;
+  }
+  .app-header {
+    padding: 0 12px;
+  }
+  .app-header .row {
+    gap: 5px;
+  }
+  .app-header strong {
+    font-size: 13px;
+  }
+  .theme-switch button {
+    padding: 6px;
+  }
+  .theme-switch button span {
+    display: none;
+  }
+  .workflow {
+    padding: 6px 12px;
+  }
+  .workflow-steps button {
+    flex-direction: column;
+    gap: 5px;
+    width: 100%;
+    padding: 6px 2px;
+  }
+  .workflow-steps strong {
+    font-size: 11px;
+  }
+  .workflow-next {
+    flex-direction: column;
+    gap: 4px;
+    margin-left: 0;
+  }
+  .workflow-next button {
+    padding: 2px 0;
+  }
+  .workspace-header {
+    padding: 0 12px;
+  }
+  .workspace-header h1 {
+    font-size: 16px;
+  }
+  .workspace-header > button {
+    font-size: 10px;
+    padding: 6px 8px;
+  }
+  .editor,
+  .messages,
+  .chat-composer {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .version-row {
+    flex-wrap: wrap;
+  }
+  .form-grid {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .chat-title {
+    flex-wrap: wrap;
+  }
+  .settings-dialog {
+    padding: 20px;
+  }
+}
+.app-shell.preview-focused {
+  height: 100dvh;
+  overflow: hidden;
+}
+.app-shell.preview-focused .workbench {
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+.preview-focused .guide-container,
+.preview-focused .sidebar,
+.preview-focused .workspace,
+.preview-focused .workbench > .resize-handle,
+.preview-focused .composition-header,
+.preview-focused .settings-resize {
+  display: none;
+}
+.preview-focused .composition-pane {
+  grid-column: 1;
+  grid-row: 1;
+  height: auto;
+  grid-template-rows: minmax(0, 1fr);
+}
+.preview-focused .resume-paper,
+.preview-focused .printed-page {
+  max-width: 840px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.preview-focused .resume-project p {
+  font-size: 14px;
+}
+.preview-focused .resume-project-title {
+  font-size: 16px;
+}
+.preview-focused .export-result {
+  max-width: 840px;
+  margin-left: auto;
+  margin-right: auto;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-theme="dark"]) {
+    color-scheme: dark;
+  }
+}

@@ -1,13 +1,17 @@
+"""test_documents.py：模块职责与调用关系见 docs/architecture.md。"""
+
 from zipfile import ZipFile
 
 from docx import Document
 from lxml import etree
 
-from resume_maker.documents import NS, Documents, inspect_template
-from resume_maker.models import ResumeItem
+from resume_maker.domain.models import ResumeItem
+from resume_maker.integrations.word.ooxml import NS, inspect_template
+from resume_maker.services.documents import Documents
 
 
 def test_export_replaces_only_selected_region(catalog, project, populated, tmp_path, monkeypatch):
+    """验证导出仅替换所选经历区，保留个人信息及其他 DOCX 包内容。"""
     source = tmp_path / "reference.docx"
     document = Document()
     document.add_paragraph("保留个人信息")
@@ -26,7 +30,9 @@ def test_export_replaces_only_selected_region(catalog, project, populated, tmp_p
         template["id"],
         [ResumeItem(project_id=project["id"], revision_id=populated["id"], highlight_ids=["two"])],
     )
-    monkeypatch.setattr("resume_maker.documents.render_word", lambda *_: (None, "No renderer"))
+    monkeypatch.setattr(
+        "resume_maker.services.documents.render_word", lambda *_: (None, "No renderer")
+    )
     result = exporter.export(resume["id"])
     output = tmp_path / "data" / "exports" / result["id"] / "resume.docx"
     with ZipFile(source) as old, ZipFile(output) as new:

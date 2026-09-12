@@ -1,0 +1,281 @@
+/* 工作台分栏、制作指引和拖拽布局。 */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+  font-size: 13px;
+}
+.app-header {
+  min-height: 52px;
+  flex-shrink: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 22px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.workbench {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 8px minmax(320px, 1fr) 8px var(
+      --composer-width
+    );
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.resize-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--muted);
+  touch-action: none;
+  user-select: none;
+  z-index: 2;
+}
+.resize-handle span {
+  border-radius: 5px;
+  background: var(--subtle);
+  opacity: 0.45;
+}
+.resize-x {
+  cursor: col-resize;
+}
+.resize-x span {
+  width: 3px;
+  height: 30px;
+}
+.resize-y {
+  cursor: row-resize;
+}
+.resize-y span {
+  height: 3px;
+  width: 30px;
+}
+.resize-handle:hover,
+.resize-handle:focus-visible,
+.resize-handle.dragging {
+  background: var(--accent-soft);
+}
+.resize-handle:hover span,
+.resize-handle:focus-visible span,
+.resize-handle.dragging span {
+  background: var(--accent);
+  opacity: 1;
+}
+.app-shell:has(.dragging) {
+  user-select: none;
+}
+.stack-resize {
+  display: none;
+}
+.guide-container {
+  height: calc(var(--guide-height) + 8px);
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) 8px;
+  flex-shrink: 0;
+}
+.guide-container.guide-collapsed {
+  height: 40px;
+  grid-template-rows: minmax(0, 1fr);
+}
+.app-header strong {
+  font-size: 15px;
+  letter-spacing: -0.3px;
+}
+.app-subtitle {
+  border-left: 1px solid var(--line);
+  padding-left: 13px;
+}
+.theme-switch {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--muted);
+}
+.theme-switch button {
+  border: 0;
+  background: transparent;
+  color: var(--subtle);
+  font-size: 11px;
+  padding: 5px 8px;
+  border-radius: 6px;
+}
+.theme-switch button[aria-pressed="true"] {
+  color: var(--accent);
+  background: var(--surface);
+  box-shadow: 0 1px 4px #10251b12;
+}
+.workflow {
+  display: flex;
+  gap: 16px;
+  padding: 6px 16px;
+  min-height: 0;
+  overflow: auto;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+.workflow-overview {
+  width: 192px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+}
+.workflow-overview strong {
+  font-size: 13px;
+}
+.workflow-overview span {
+  color: var(--subtle);
+  font-size: 11px;
+}
+.workflow progress {
+  appearance: none;
+  border: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  height: 4px;
+  width: 120px;
+  background: var(--line);
+  color: var(--accent);
+}
+.workflow progress::-webkit-progress-bar {
+  background: var(--line);
+}
+.workflow progress::-webkit-progress-value {
+  background: var(--accent);
+  border-radius: 10px;
+}
+.workflow progress::-moz-progress-bar {
+  background: var(--accent);
+}
+.workflow-main {
+  flex: 1;
+  min-width: 0;
+}
+.workflow-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  gap: 16px;
+}
+.workflow-steps li {
+  position: relative;
+  min-width: 0;
+}
+.workflow-steps li:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  top: 24px;
+  width: 22px;
+  height: 1px;
+  background: var(--line);
+}
+.workflow-steps button {
+  border: 1px solid transparent;
+  background: transparent;
+  justify-content: flex-start;
+  text-align: left;
+  gap: 10px;
+  padding: 4px 8px;
+  max-width: 100%;
+  color: var(--subtle);
+}
+.workflow-steps button:hover {
+  background: var(--muted);
+}
+.step-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  font-size: 12px;
+  font-weight: 600;
+}
+.workflow-steps strong {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+}
+.workflow-steps small {
+  display: block;
+  font-size: 10px;
+  margin-top: 2px;
+  font-weight: 400;
+}
+.workflow-steps .complete .step-number {
+  background: var(--accent-soft);
+  border-color: transparent;
+  color: var(--accent);
+}
+.workflow-steps .current button {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.workflow-steps .current .step-number {
+  background: var(--primary);
+  color: var(--primary-ink);
+  border-color: transparent;
+}
+.workflow-next {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 3px 0 0 8px;
+}
+.workflow-next p {
+  color: var(--subtle);
+  font-size: 11px;
+  margin: 0;
+  line-height: 1.6;
+}
+.workflow-next button {
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.workflow-steps[hidden] {
+  display: none;
+}
+.workflow-toggle {
+  align-self: flex-start;
+  flex-shrink: 0;
+}
+.workflow.collapsed {
+  align-items: center;
+  padding: 3px 16px;
+  overflow: hidden;
+}
+.workflow.collapsed .workflow-overview {
+  width: auto;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+.workflow.collapsed progress {
+  width: 48px;
+}
+.workflow.collapsed .workflow-next {
+  margin: 0;
+  align-items: center;
+  flex-direction: row;
+}
+.workflow.collapsed .workflow-next p {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.workflow.collapsed .workflow-toggle {
+  align-self: center;
+}

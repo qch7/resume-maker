@@ -6,7 +6,7 @@
     <meta name="resume-token" content="__RESUME_TOKEN__" />
     <meta name="color-scheme" content="light dark" />
     <script>
-      // Apply the saved preference before the first paint; CSS tracks system changes.
+      // 首次绘制前恢复主题偏好，跟随系统时由 CSS 响应系统主题变化。
       try {
         const theme = localStorage.getItem("rm.theme");
         document.documentElement.dataset.theme =

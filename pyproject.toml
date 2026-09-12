@@ -2,13 +2,16 @@
 name = "resume-maker"
 version = "0.1.0"
 description = "Versioned project experience, independent AI conversations, and Word resume composition."
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "qch7" }]
 requires-python = ">=3.12"
 dependencies = [
   "fastapi>=0.115,<1",
   "uvicorn>=0.34,<1",
   "pydantic>=2.10,<3",
-  "python-multipart>=0.0.20,<1",
   "python-docx>=1.1,<2",
+  "lxml>=5,<7",
   "psutil>=6,<8",
   "pymupdf>=1.25,<2",
   "pywin32>=308; sys_platform == 'win32'",
@@ -20,12 +23,49 @@ dev = ["pytest>=8,<10", "httpx>=0.28,<1", "ruff>=0.11,<1"]
 [project.scripts]
 resume-maker = "resume_maker.cli:main"
 
+[project.urls]
+Homepage = "https://github.com/qch7/resume-maker"
+Repository = "https://github.com/qch7/resume-maker"
+Issues = "https://github.com/qch7/resume-maker/issues"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/resume_maker"]
+
+[tool.hatch.build.hooks.custom]
+path = "scripts/build_hook.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src",
+  "/frontend/src",
+  "/frontend/tests",
+  "/frontend/scripts",
+  "/frontend/package.json",
+  "/frontend/package-lock.json",
+  "/frontend/index.html",
+  "/frontend/tsconfig.json",
+  "/frontend/vite.config.ts",
+  "/frontend/.prettierrc.json",
+  "/frontend/.prettierignore",
+  "/scripts",
+  "/tests",
+  "/docs",
+  "/README.md",
+  "/LICENSE",
+  "/CONTRIBUTING.md",
+  "/SECURITY.md",
+  "/CHANGELOG.md",
+  "/pyproject.toml",
+  "/uv.lock",
+  "/start.cmd",
+  "/stop.cmd",
+  "/.python-version",
+  "/.node-version",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

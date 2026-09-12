@@ -1,0 +1,46 @@
+"""在仓库之外校验 wheel 的导入、数据库迁移与前端资源，防止缺文件的安装包。"""
+
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+from zipfile import ZipFile
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def modified_at(path: Path) -> float:
+    """按产物的修改时间挑选最近构建的 wheel。"""
+    return path.stat().st_mtime
+
+
+def main() -> None:
+    """将最新 wheel 解包到临时目录并以独立解释器验证，不读取个人应用数据。"""
+    wheels = sorted((ROOT / "dist").glob("*.whl"), key=modified_at)
+    if not wheels:
+        raise SystemExit("请先运行 uv build --wheel。")
+    with tempfile.TemporaryDirectory(prefix="resume-maker-wheel-") as temporary:
+        target = Path(temporary)
+        with ZipFile(wheels[-1]) as archive:
+            archive.extractall(target / "package")
+        # 仅把已解包安装包放到导入路径首位，保留当前虚拟环境提供第三方运行依赖。
+        script = """
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path.cwd() / "package"))
+from resume_maker.api import create_app
+from resume_maker.core.config import Config
+config = Config(data_dir=Path.cwd() / "data")
+assert config.frontend == (Path.cwd() / "package/resume_maker/web").resolve(), config.frontend
+assert (config.frontend / "index.html").is_file()
+assert list((config.frontend / "assets").glob("*.js"))
+app = create_app(config)
+assert app.state.services.db.one("PRAGMA user_version")["user_version"] == 1
+assert "/api/state" in app.openapi()["paths"]
+print("Wheel 验证通过：应用可导入，静态资源和数据库迁移完整。")
+"""
+        subprocess.run([sys.executable, "-I", "-c", script], cwd=target, check=True)
+
+
+if __name__ == "__main__":
+    main()

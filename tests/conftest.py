@@ -1,16 +1,20 @@
+"""conftest.py：模块职责与调用关系见 docs/architecture.md。"""
+
 import pytest
 
-from resume_maker.catalog import Catalog
-from resume_maker.db import Database
+from resume_maker.infrastructure.database import Database
+from resume_maker.services.catalog import Catalog
 
 
 @pytest.fixture
 def catalog(tmp_path):
+    """在临时数据目录创建业务服务，让每个测试的数据相互隔离。"""
     return Catalog(Database(tmp_path / "data" / "resume.db"))
 
 
 @pytest.fixture
 def project(catalog, tmp_path):
+    """在临时目录登记示例源码项目，避免测试访问用户真实来源。"""
     source = tmp_path / "source"
     source.mkdir()
     (source / "README.md").write_text(
@@ -20,6 +24,7 @@ def project(catalog, tmp_path):
 
 
 def experience(title="Example"):
+    """构造含两条亮点的最小经历，用于测试保存、排序和固定引用。"""
     return {
         "title": title,
         "period": "",
@@ -35,6 +40,7 @@ def experience(title="Example"):
 
 @pytest.fixture
 def populated(catalog, project):
+    """将示例经历发布为正式修订，作为后续测试的已保存基线。"""
     base = project["head_revision"]
     catalog.put_draft(project["id"], base, "experience", experience(), 0)
     return catalog.save_field(project["id"], base, "experience", base)

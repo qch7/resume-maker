@@ -1,13 +1,17 @@
+"""test_storage.py：模块职责与调用关系见 docs/architecture.md。"""
+
 from zipfile import ZipFile
 
 import pytest
 
-from resume_maker.catalog import Catalog, Problem
-from resume_maker.db import Database
-from resume_maker.storage import create_backup, instance_lock, restore_backup
+from resume_maker.core.errors import Problem
+from resume_maker.infrastructure.database import Database
+from resume_maker.infrastructure.storage import create_backup, instance_lock, restore_backup
+from resume_maker.services.catalog import Catalog
 
 
 def test_restore_preserves_previous_data_and_drafts(catalog, project, populated, tmp_path):
+    """验证备份恢复保留旧数据副本和已保存的输入草稿。"""
     p, revision = project["id"], populated["id"]
     point = populated["content"]["highlights"][0]
     catalog.put_draft(p, revision, "highlight:one", {**point, "text": "pending text"}, 0)
@@ -23,6 +27,7 @@ def test_restore_preserves_previous_data_and_drafts(catalog, project, populated,
 
 
 def test_restore_rejects_zip_traversal_without_changing_target(tmp_path):
+    """验证越界 ZIP 路径被拒绝，原数据目录保持完整。"""
     target = tmp_path / "data"
     target.mkdir()
     (target / "instance.json").write_text("unchanged")
@@ -36,6 +41,7 @@ def test_restore_rejects_zip_traversal_without_changing_target(tmp_path):
 
 
 def test_running_instance_blocks_restore(tmp_path):
+    """验证活动实例持有锁时不能恢复同一数据目录。"""
     target = tmp_path / "data"
     with instance_lock(target), pytest.raises(Problem, match="正在使用"):
         restore_backup(tmp_path / "unused.zip", target)

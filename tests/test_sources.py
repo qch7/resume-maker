@@ -1,9 +1,12 @@
+"""test_sources.py：模块职责与调用关系见 docs/architecture.md。"""
+
 from pathlib import Path
 
-from resume_maker.sources import check_evidence, collect_snapshot
+from resume_maker.integrations.sources import check_evidence, collect_snapshot
 
 
 def test_snapshot_filters_secrets_and_preserves_original_input(catalog, project, tmp_path):
+    """验证快照过滤敏感内容并与之后修改的源码保持隔离。"""
     root = Path(project["roots"][0])
     (root / ".env").write_text("API_KEY=must-never-copy")
     (root / "config.yaml").write_text('api_key: "secret-token-value"\nport: 8080\n')
@@ -21,6 +24,7 @@ def test_snapshot_filters_secrets_and_preserves_original_input(catalog, project,
 
 
 def test_unmatched_evidence_cannot_be_marked_verified(catalog, project, tmp_path):
+    """验证无匹配引文或未经本人确认的证据不能伪装为已核实。"""
     snapshot = collect_snapshot(catalog.db, tmp_path / "data", project)
     evidence = [
         {

@@ -1,3 +1,5 @@
+"""本机服务启动与离线恢复的命令行入口。"""
+
 import argparse
 import json
 import os
@@ -8,13 +10,15 @@ from pathlib import Path
 
 import uvicorn
 
+from resume_maker.core.config import Config
+from resume_maker.core.errors import Problem
+from resume_maker.infrastructure.storage import instance_lock, restore_backup
+
 from .api import create_app
-from .catalog import Problem
-from .config import Config
-from .storage import instance_lock, restore_backup
 
 
 def main():
+    """解析命令行，持有实例锁后启动本机服务，或执行离线备份恢复。"""
     parser = argparse.ArgumentParser(description="Resume Maker 本地工作台")
     parser.add_argument("--data-dir", type=Path)
     parser.add_argument("--port", type=int, default=8765)
