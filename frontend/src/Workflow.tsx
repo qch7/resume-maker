@@ -1,4 +1,4 @@
-import { ArrowRight, Check } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, ChevronUp } from "lucide-react";
 import { getWorkflow, type GuideTarget } from "./workflowState";
 
 const steps: { title: string; detail: string; target: GuideTarget }[] = [
@@ -15,20 +15,27 @@ const steps: { title: string; detail: string; target: GuideTarget }[] = [
 export default function Workflow({
   value,
   onNavigate,
+  collapsed,
+  onToggle,
 }: {
   value: ReturnType<typeof getWorkflow>;
   onNavigate: (target: GuideTarget, projectId?: string) => void;
+  collapsed: boolean;
+  onToggle: () => void;
 }) {
   const completed = value.done.filter(Boolean).length;
   return (
-    <section className="workflow" aria-label="简历制作指引">
+    <section
+      className={`workflow ${collapsed ? "collapsed" : ""}`}
+      aria-label="简历制作指引"
+    >
       <div className="workflow-overview">
         <strong>制作指引</strong>
         <span>{completed} / 4 项已就绪</span>
         <progress value={completed} max={4} aria-label="简历制作完成进度" />
       </div>
       <div className="workflow-main">
-        <ol className="workflow-steps">
+        <ol className="workflow-steps" hidden={collapsed}>
           {steps.map((step, index) => (
             <li
               key={step.title}
@@ -60,6 +67,14 @@ export default function Workflow({
           </button>
         </div>
       </div>
+      <button
+        className="icon-button workflow-toggle"
+        aria-label={collapsed ? "展开制作指引" : "收起制作指引"}
+        aria-expanded={!collapsed}
+        onClick={onToggle}
+      >
+        {collapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+      </button>
     </section>
   );
 }

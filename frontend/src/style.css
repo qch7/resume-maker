@@ -224,21 +224,85 @@ pre {
   gap: 12px;
 }
 .app-shell {
-  display: grid;
-  grid-template-columns: 238px minmax(460px, 1fr) minmax(330px, 390px);
-  grid-template-rows: 60px auto minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   height: 100dvh;
   overflow: hidden;
   font-size: 13px;
 }
 .app-header {
-  grid-column: 1 / -1;
+  min-height: 52px;
+  flex-shrink: 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 0 22px;
   background: var(--surface);
   border-bottom: 1px solid var(--line);
+}
+.workbench {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 8px minmax(320px, 1fr) 8px var(
+      --composer-width
+    );
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.resize-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--muted);
+  touch-action: none;
+  user-select: none;
+  z-index: 2;
+}
+.resize-handle span {
+  border-radius: 5px;
+  background: var(--subtle);
+  opacity: 0.45;
+}
+.resize-x {
+  cursor: col-resize;
+}
+.resize-x span {
+  width: 3px;
+  height: 30px;
+}
+.resize-y {
+  cursor: row-resize;
+}
+.resize-y span {
+  height: 3px;
+  width: 30px;
+}
+.resize-handle:hover,
+.resize-handle:focus-visible,
+.resize-handle.dragging {
+  background: var(--accent-soft);
+}
+.resize-handle:hover span,
+.resize-handle:focus-visible span,
+.resize-handle.dragging span {
+  background: var(--accent);
+  opacity: 1;
+}
+.app-shell:has(.dragging) {
+  user-select: none;
+}
+.stack-resize {
+  display: none;
+}
+.guide-container {
+  height: calc(var(--guide-height) + 8px);
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) 8px;
+  flex-shrink: 0;
+}
+.guide-container.guide-collapsed {
+  height: 40px;
+  grid-template-rows: minmax(0, 1fr);
 }
 .app-header strong {
   font-size: 15px;
@@ -270,15 +334,16 @@ pre {
   box-shadow: 0 1px 4px #10251b12;
 }
 .workflow {
-  grid-column: 1 / -1;
   display: flex;
-  gap: 28px;
-  padding: 14px 28px 10px;
+  gap: 16px;
+  padding: 6px 16px;
+  min-height: 0;
+  overflow: auto;
   border-bottom: 1px solid var(--line);
   background: var(--panel);
 }
 .workflow-overview {
-  width: 182px;
+  width: 192px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -343,7 +408,7 @@ pre {
   justify-content: flex-start;
   text-align: left;
   gap: 10px;
-  padding: 6px 10px;
+  padding: 4px 8px;
   max-width: 100%;
   color: var(--subtle);
 }
@@ -392,7 +457,7 @@ pre {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin: 6px 0 0 10px;
+  margin: 3px 0 0 8px;
 }
 .workflow-next p {
   color: var(--subtle);
@@ -403,6 +468,40 @@ pre {
 .workflow-next button {
   font-size: 11px;
   flex-shrink: 0;
+}
+.workflow-steps[hidden] {
+  display: none;
+}
+.workflow-toggle {
+  align-self: flex-start;
+  flex-shrink: 0;
+}
+.workflow.collapsed {
+  align-items: center;
+  padding: 3px 16px;
+  overflow: hidden;
+}
+.workflow.collapsed .workflow-overview {
+  width: auto;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+.workflow.collapsed progress {
+  width: 48px;
+}
+.workflow.collapsed .workflow-next {
+  margin: 0;
+  align-items: center;
+  flex-direction: row;
+}
+.workflow.collapsed .workflow-next p {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.workflow.collapsed .workflow-toggle {
+  align-self: center;
 }
 .sidebar {
   display: flex;
@@ -531,18 +630,25 @@ pre {
   background: var(--surface);
 }
 .workspace-header {
-  padding: 26px 28px 20px;
+  padding: 10px 18px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 15px;
+  gap: 10px;
+}
+.workspace-header > div {
+  min-width: 0;
 }
 .workspace-header button {
   flex-shrink: 0;
+  padding: 6px 10px;
+  font-size: 11px;
 }
 .workspace-header h1 {
-  font-size: 21px;
-  overflow-wrap: anywhere;
+  font-size: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .tabs {
   display: flex;
@@ -563,7 +669,10 @@ pre {
   font-weight: 600;
 }
 .workspace-tabs {
-  padding: 0 28px;
+  padding: 0 18px;
+}
+.workspace-tabs button {
+  padding: 7px 0;
 }
 .workspace-scroll {
   flex: 1;
@@ -923,20 +1032,25 @@ pre {
   font-size: 12px;
 }
 .composition-pane {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: var(--settings-height) 8px minmax(0, 1fr);
   min-height: 0;
-  border-left: 1px solid var(--line);
+  min-width: 0;
+  overflow: hidden;
 }
 .composition-header {
-  padding: 24px 21px 20px;
+  padding: 12px 16px;
   background: var(--panel);
+  min-height: 0;
+  overflow: auto;
 }
 .composition-header h2 {
   font-size: 15px;
 }
 .composition-header label {
   font-size: 10px;
+  margin: 8px 0;
+  gap: 4px;
 }
 .composition-header input,
 .composition-header select {
@@ -949,7 +1063,7 @@ pre {
 .composition-summary {
   color: var(--subtle);
   font-size: 11px;
-  margin: 12px 0 0;
+  margin: 8px 0 0;
 }
 .export-progress {
   position: relative;
@@ -976,7 +1090,7 @@ pre {
 .resume-picker {
   display: flex;
   gap: 8px;
-  margin-top: 15px;
+  margin-top: 8px;
 }
 .template-picker {
   display: flex;
@@ -993,8 +1107,23 @@ pre {
   font-size: 10px;
 }
 .preview-tabs {
-  padding: 0 21px;
-  gap: 22px;
+  padding: 0 12px;
+  gap: 16px;
+}
+.preview-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+.preview-tabs .preview-focus {
+  margin-left: auto;
+  padding: 6px;
+  border-radius: 6px;
+  align-self: center;
+}
+.preview-tabs button {
+  white-space: nowrap;
 }
 .preview-tabs button {
   font-size: 11px;
@@ -1182,10 +1311,11 @@ pre {
 .spin {
   animation: spin 1s linear infinite;
 }
-.sidebar-hidden {
-  grid-template-columns: minmax(460px, 1fr) minmax(330px, 390px);
+.sidebar-hidden .workbench {
+  grid-template-columns: minmax(320px, 1fr) 8px var(--composer-width);
 }
-.sidebar-hidden .sidebar {
+.sidebar-hidden .sidebar,
+.sidebar-hidden .sidebar-resize {
   display: none;
 }
 @keyframes spin {
@@ -1199,32 +1329,22 @@ pre {
   }
 }
 @media (max-width: 1250px) {
-  .app-shell {
-    grid-template-columns: 205px minmax(400px, 1fr) 310px;
-  }
-  .sidebar-hidden {
-    grid-template-columns: minmax(400px, 1fr) 310px;
-  }
   .editor,
-  .workspace-header,
   .chat-title {
     padding-left: 20px;
     padding-right: 20px;
   }
-  .composition-header {
-    padding: 23px 16px 16px;
-  }
-  .workspace-header h1 {
-    font-size: 18px;
-  }
 }
 @media (max-width: 980px) {
   .app-shell {
-    grid-template-columns: 190px minmax(0, 1fr);
-    overflow-y: auto;
+    overflow: visible;
     height: auto;
     min-height: 100dvh;
-    grid-template-rows: 60px auto minmax(650px, calc(100dvh - 190px)) auto;
+  }
+  .workbench {
+    flex: none;
+    grid-template-columns: var(--sidebar-width) 8px minmax(0, 1fr);
+    grid-template-rows: var(--editor-height) 8px auto;
   }
   .app-header {
     position: sticky;
@@ -1232,19 +1352,36 @@ pre {
     z-index: 10;
   }
   .sidebar {
-    grid-row: 3 / 5;
+    grid-row: 1 / 4;
+    grid-column: 1;
+  }
+  .sidebar-resize {
+    grid-row: 1 / 4;
+    grid-column: 2;
+  }
+  .workspace {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .composer-resize {
+    display: none;
+  }
+  .stack-resize {
+    display: flex;
+    grid-column: 3;
+    grid-row: 2;
   }
   .composition-pane {
-    grid-column: 2;
-    border-top: 1px solid var(--line);
+    grid-column: 3;
+    grid-row: 3;
+    height: max(580px, 85dvh);
   }
-  .composition-scroll {
-    overflow: visible;
-  }
-  .sidebar-hidden {
+  .sidebar-hidden .workbench {
     grid-template-columns: minmax(0, 1fr);
   }
-  .sidebar-hidden .composition-pane {
+  .sidebar-hidden .composition-pane,
+  .sidebar-hidden .workspace,
+  .sidebar-hidden .stack-resize {
     grid-column: 1;
   }
   .printed-page,
@@ -1254,8 +1391,7 @@ pre {
     margin-right: auto;
   }
   .workflow {
-    gap: 16px;
-    padding: 12px 16px;
+    gap: 10px;
   }
   .workflow-overview {
     width: 150px;
@@ -1291,8 +1427,38 @@ pre {
     justify-content: flex-start;
   }
   .workflow {
-    flex-direction: column;
-    gap: 8px;
+    flex-wrap: wrap;
+    gap: 4px;
+    position: relative;
+  }
+  .workflow > .workflow-overview {
+    width: 100%;
+    padding-right: 28px;
+  }
+  .workflow > .workflow-main {
+    flex-basis: 100%;
+  }
+  .workflow-toggle {
+    position: absolute;
+    right: 10px;
+    top: 4px;
+  }
+  .workflow.collapsed {
+    flex-wrap: nowrap;
+    padding-right: 40px;
+  }
+  .workflow.collapsed > .workflow-overview {
+    width: auto;
+    padding-right: 0;
+  }
+  .workflow.collapsed > .workflow-main {
+    flex-basis: auto;
+  }
+  .workflow.collapsed .workflow-overview span {
+    display: none;
+  }
+  .workflow.collapsed .workflow-next p {
+    display: none;
   }
   .workflow-overview progress {
     margin-left: auto;
@@ -1306,20 +1472,24 @@ pre {
   }
 }
 @media (max-width: 600px) {
-  .app-shell {
+  .workbench {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .sidebar-resize {
+    display: none;
   }
   .sidebar {
     position: fixed;
     left: 0;
-    top: 60px;
+    top: 52px;
     bottom: 0;
     width: 220px;
     z-index: 9;
     box-shadow: 15px 0 45px #1a2d2525;
   }
   .workspace,
-  .composition-pane {
+  .composition-pane,
+  .stack-resize {
     grid-column: 1;
   }
   .app-subtitle {
@@ -1341,7 +1511,7 @@ pre {
     display: none;
   }
   .workflow {
-    padding: 10px 12px;
+    padding: 6px 12px;
   }
   .workflow-steps button {
     flex-direction: column;
@@ -1361,8 +1531,7 @@ pre {
     padding: 2px 0;
   }
   .workspace-header {
-    padding: 20px 16px;
-    align-items: flex-start;
+    padding: 8px 12px;
   }
   .workspace-header h1 {
     font-size: 16px;
@@ -1390,6 +1559,46 @@ pre {
   .settings-dialog {
     padding: 20px;
   }
+}
+.app-shell.preview-focused {
+  height: 100dvh;
+  overflow: hidden;
+}
+.app-shell.preview-focused .workbench {
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+.preview-focused .guide-container,
+.preview-focused .sidebar,
+.preview-focused .workspace,
+.preview-focused .workbench > .resize-handle,
+.preview-focused .composition-header,
+.preview-focused .settings-resize {
+  display: none;
+}
+.preview-focused .composition-pane {
+  grid-column: 1;
+  grid-row: 1;
+  height: auto;
+  grid-template-rows: minmax(0, 1fr);
+}
+.preview-focused .resume-paper,
+.preview-focused .printed-page {
+  max-width: 840px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.preview-focused .resume-project p {
+  font-size: 14px;
+}
+.preview-focused .resume-project-title {
+  font-size: 16px;
+}
+.preview-focused .export-result {
+  max-width: 840px;
+  margin-left: auto;
+  margin-right: auto;
 }
 @media (prefers-reduced-motion: reduce) {
   *,

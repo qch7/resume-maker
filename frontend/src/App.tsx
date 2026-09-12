@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -8,6 +14,7 @@ import {
   MoreHorizontal,
   PanelLeftClose,
   RefreshCw,
+  RotateCcw,
   Settings as SettingsIcon,
   Sparkles,
   X,
@@ -20,6 +27,14 @@ import Editor from "./Editor";
 import Settings from "./Settings";
 import ThemeSwitch from "./ThemeSwitch";
 import Workflow from "./Workflow";
+import ResizeHandle, { useElementSize } from "./ResizeHandle";
+import {
+  clamp,
+  columnSizes,
+  DEFAULT_LAYOUT,
+  restoreLayout,
+  type Layout,
+} from "./layoutState";
 import { getWorkflow, type GuideTarget } from "./workflowState";
 import type {
   Conversation,
@@ -91,6 +106,30 @@ export default function App() {
   );
   const [edited, setEdited] = useState<Record<string, boolean>>({});
   const [guideTarget, setGuideTarget] = useState<GuideTarget | null>(null);
+  const [layout, setLayout] = useState(() =>
+    restoreLayout(loadLocal<Partial<Layout> | null>("rm.layout", null)),
+  );
+  const [previewFocused, setPreviewFocused] = useState(false);
+  const workbench = useRef<HTMLDivElement>(null);
+  const workbenchSize = useElementSize(workbench);
+  const columns = columnSizes(workbenchSize.width, sidebar, layout);
+  const guideMin =
+    workbenchSize.width <= 600 ? 160 : workbenchSize.width <= 760 ? 110 : 60;
+  const guideMax = Math.max(guideMin, Math.min(240, innerHeight - 360));
+  function resize(key: keyof Layout, value: number | boolean) {
+    setLayout((previous) => ({ ...previous, [key]: value }));
+  }
+  useEffect(() => {
+    localStorage.setItem("rm.layout", JSON.stringify(layout));
+  }, [layout]);
+  useEffect(() => {
+    if (!previewFocused) return;
+    const leave = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setPreviewFocused(false);
+    };
+    document.addEventListener("keydown", leave);
+    return () => document.removeEventListener("keydown", leave);
+  }, [previewFocused]);
   const [modal, setModal] = useState<
     "projects" | "templates" | "settings" | null
   >(null);
@@ -482,6 +521,7 @@ export default function App() {
     }
   }
   function followGuide(target: GuideTarget, projectId?: string) {
+    setPreviewFocused(false);
     if (target === "projects" || !project) {
       setModal("projects");
       return;
@@ -535,7 +575,17 @@ export default function App() {
   });
   const error = remoteProject.error || remoteChat.error;
   return (
-    <div className={`app-shell ${sidebar ? "" : "sidebar-hidden"}`}>
+    <div
+      className={`app-shell ${sidebar ? "" : "sidebar-hidden"} ${previewFocused ? "preview-focused" : ""}`}
+      style={
+        {
+          "--sidebar-width": `${columns.sidebar}px`,
+          "--composer-width": `${columns.composer}px`,
+          "--guide-height": `${clamp(layout.guide, guideMin, guideMax)}px`,
+          "--editor-height": `${clamp(layout.editor, 280, 1000)}px`,
+        } as CSSProperties
+      }
+    >
       <header className="app-header">
         <div className="row">
           <button
@@ -558,6 +608,18 @@ export default function App() {
           <ThemeSwitch />
           <button
             className="icon-button"
+            aria-label="重置布局"
+            title="重置各区域大小"
+            onClick={() => {
+              setLayout({ ...DEFAULT_LAYOUT });
+              setSidebar(!matchMedia("(max-width: 600px)").matches);
+              setPreviewFocused(false);
+            }}
+          >
+            <RotateCcw size={16} />
+          </button>
+          <button
+            className="icon-button"
             aria-label="刷新数据"
             onClick={() =>
               run(async () => {
@@ -577,277 +639,349 @@ export default function App() {
           </button>
         </div>
       </header>
-      <Workflow value={workflow} onNavigate={followGuide} />
-      <aside className="sidebar">
-        <button
-          className="new-chat"
-          disabled={!project}
-          onClick={() => run(newConversation)}
-        >
-          <MessageSquarePlus size={18} />
-          新会话
-        </button>
-        <span className="sidebar-caption">
-          {project ? `当前项目：${project.name}` : "先导入项目集合"}
-        </span>
-        <nav className="project-navigation" aria-label="项目与会话">
-          {state.projects.map((p) => (
-            <section className="project-group" key={p.id}>
-              <div
-                className={`project-row ${activeProject === p.id && mode === "edit" ? "selected" : ""}`}
-              >
-                <input
-                  type="checkbox"
-                  aria-label={`将 ${p.name} 加入简历`}
-                  checked={draft.items.some((i) => i.project_id === p.id)}
-                  onChange={() => toggleProject(p.id)}
-                />
-                <button className="project-name" onClick={() => navigate(p.id)}>
-                  {p.name}
+      <div
+        className={`guide-container ${layout.guideCollapsed ? "guide-collapsed" : ""}`}
+      >
+        <Workflow
+          value={workflow}
+          onNavigate={followGuide}
+          collapsed={layout.guideCollapsed}
+          onToggle={() => resize("guideCollapsed", !layout.guideCollapsed)}
+        />
+        {!layout.guideCollapsed && (
+          <ResizeHandle
+            className="guide-resize"
+            label="调整制作指引高度"
+            axis="y"
+            value={clamp(layout.guide, guideMin, guideMax)}
+            min={guideMin}
+            max={guideMax}
+            onChange={(value) => resize("guide", value)}
+            onReset={() => resize("guide", DEFAULT_LAYOUT.guide)}
+          />
+        )}
+      </div>
+      <div className="workbench" ref={workbench}>
+        <aside className="sidebar">
+          <button
+            className="new-chat"
+            disabled={!project}
+            onClick={() => run(newConversation)}
+          >
+            <MessageSquarePlus size={18} />
+            新会话
+          </button>
+          <span className="sidebar-caption">
+            {project ? `当前项目：${project.name}` : "先导入项目集合"}
+          </span>
+          <nav className="project-navigation" aria-label="项目与会话">
+            {state.projects.map((p) => (
+              <section className="project-group" key={p.id}>
+                <div
+                  className={`project-row ${activeProject === p.id && mode === "edit" ? "selected" : ""}`}
+                >
+                  <input
+                    type="checkbox"
+                    aria-label={`将 ${p.name} 加入简历`}
+                    checked={draft.items.some((i) => i.project_id === p.id)}
+                    onChange={() => toggleProject(p.id)}
+                  />
+                  <button
+                    className="project-name"
+                    onClick={() => navigate(p.id)}
+                  >
+                    {p.name}
+                  </button>
+                  <button
+                    className="icon-button"
+                    aria-label={`${folded[p.id] ? "展开" : "收起"} ${p.name} 会话`}
+                    aria-expanded={!folded[p.id]}
+                    onClick={() =>
+                      setFolded((v) => ({ ...v, [p.id]: !v[p.id] }))
+                    }
+                  >
+                    {folded[p.id] ? (
+                      <ChevronRight size={14} />
+                    ) : (
+                      <ChevronDown size={14} />
+                    )}
+                  </button>
+                </div>
+                {!folded[p.id] && (
+                  <div className="session-list">
+                    {state.conversations
+                      .filter((c) => c.project_id === p.id)
+                      .map((c) => (
+                        <div
+                          className={`session-row ${c.id === conversationId && activeProject === p.id && mode === "chat" ? "selected" : ""}`}
+                          key={c.id}
+                        >
+                          <button
+                            className="session-button"
+                            aria-current={
+                              c.id === conversationId &&
+                              activeProject === p.id &&
+                              mode === "chat"
+                                ? "page"
+                                : undefined
+                            }
+                            onClick={() => navigate(p.id, c.id)}
+                          >
+                            {c.title}
+                            {activeJobs.some(
+                              (j) => j.conversation_id === c.id,
+                            ) && <span className="activity-dot" />}
+                          </button>
+                          <details className="session-menu">
+                            <summary aria-label={`管理会话 ${c.title}`}>
+                              <MoreHorizontal size={15} />
+                            </summary>
+                            <div>
+                              <button
+                                onClick={() =>
+                                  run(async () => {
+                                    await api(
+                                      `/conversations/${c.id}`,
+                                      "PATCH",
+                                      {
+                                        archived: true,
+                                      },
+                                    );
+                                    if (selectedConversations[p.id] === c.id)
+                                      setSelectedConversations((v) => {
+                                        const next = { ...v };
+                                        delete next[p.id];
+                                        return next;
+                                      });
+                                    changed();
+                                  })
+                                }
+                              >
+                                归档会话
+                              </button>
+                            </div>
+                          </details>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </section>
+            ))}
+          </nav>
+          <button
+            className="sidebar-footer"
+            onClick={() => setModal("projects")}
+          >
+            <FolderPlus size={17} />
+            导入项目
+          </button>
+        </aside>
+        <ResizeHandle
+          className="sidebar-resize"
+          label="调整项目栏宽度"
+          axis="x"
+          value={columns.sidebar}
+          min={160}
+          max={columns.sidebarMax}
+          onChange={(value) => resize("sidebar", value)}
+          onReset={() => resize("sidebar", DEFAULT_LAYOUT.sidebar)}
+        />
+        <main className="workspace">
+          {!loaded ? (
+            <div className="empty">
+              <LoaderCircle className="spin" />
+              正在读取本机数据…
+            </div>
+          ) : !project ? (
+            <div className="empty welcome">
+              <span className="eyebrow">从你的项目开始</span>
+              <h1>把项目积累，变成可复用的经历。</h1>
+              <p>
+                导入源码目录，让 Codex
+                提取项目事实；编辑每条亮点，再组合成简历。
+              </p>
+              <button className="primary" onClick={() => setModal("projects")}>
+                <FolderPlus size={17} />
+                导入项目集合
+              </button>
+            </div>
+          ) : (
+            <>
+              <header className="workspace-header">
+                <div>
+                  <h1>
+                    {remoteProject.data?.working.content.title || project.name}
+                  </h1>
+                </div>
+                <button
+                  data-guide="analysis"
+                  disabled={!!currentJob || !remoteProject.data}
+                  onClick={() =>
+                    run(() =>
+                      send(
+                        "请读取当前项目源码和材料，生成有证据支持的完整项目经历草稿。未确认的个人贡献、参与日期和量化成果请列为问题。",
+                        "all",
+                        "analysis",
+                      ),
+                    )
+                  }
+                >
+                  <Sparkles size={16} />
+                  {remoteProject.data?.working.content.highlights.length
+                    ? "重新分析源码"
+                    : "分析项目"}
+                </button>
+              </header>
+              <nav className="tabs workspace-tabs">
+                <button
+                  className={mode === "edit" ? "active" : ""}
+                  onClick={() => run(async () => setMode("edit"))}
+                >
+                  经历编辑
                 </button>
                 <button
-                  className="icon-button"
-                  aria-label={`${folded[p.id] ? "展开" : "收起"} ${p.name} 会话`}
-                  aria-expanded={!folded[p.id]}
-                  onClick={() => setFolded((v) => ({ ...v, [p.id]: !v[p.id] }))}
+                  className={mode === "chat" ? "active" : ""}
+                  onClick={() =>
+                    run(async () => {
+                      await ensureConversation();
+                      setMode("chat");
+                    })
+                  }
                 >
-                  {folded[p.id] ? (
-                    <ChevronRight size={14} />
-                  ) : (
-                    <ChevronDown size={14} />
-                  )}
+                  AI 会话
                 </button>
-              </div>
-              {!folded[p.id] && (
-                <div className="session-list">
-                  {state.conversations
-                    .filter((c) => c.project_id === p.id)
-                    .map((c) => (
-                      <div
-                        className={`session-row ${c.id === conversationId && activeProject === p.id && mode === "chat" ? "selected" : ""}`}
-                        key={c.id}
-                      >
-                        <button
-                          className="session-button"
-                          aria-current={
-                            c.id === conversationId &&
-                            activeProject === p.id &&
-                            mode === "chat"
-                              ? "page"
-                              : undefined
-                          }
-                          onClick={() => navigate(p.id, c.id)}
-                        >
-                          {c.title}
-                          {activeJobs.some(
-                            (j) => j.conversation_id === c.id,
-                          ) && <span className="activity-dot" />}
-                        </button>
-                        <details className="session-menu">
-                          <summary aria-label={`管理会话 ${c.title}`}>
-                            <MoreHorizontal size={15} />
-                          </summary>
-                          <div>
-                            <button
-                              onClick={() =>
-                                run(async () => {
-                                  await api(`/conversations/${c.id}`, "PATCH", {
-                                    archived: true,
-                                  });
-                                  if (selectedConversations[p.id] === c.id)
-                                    setSelectedConversations((v) => {
-                                      const next = { ...v };
-                                      delete next[p.id];
-                                      return next;
-                                    });
-                                  changed();
-                                })
-                              }
-                            >
-                              归档会话
-                            </button>
-                          </div>
-                        </details>
-                      </div>
-                    ))}
-                </div>
-              )}
-            </section>
-          ))}
-        </nav>
-        <button className="sidebar-footer" onClick={() => setModal("projects")}>
-          <FolderPlus size={17} />
-          导入项目
-        </button>
-      </aside>
-      <main className="workspace">
-        {!loaded ? (
-          <div className="empty">
-            <LoaderCircle className="spin" />
-            正在读取本机数据…
-          </div>
-        ) : !project ? (
-          <div className="empty welcome">
-            <span className="eyebrow">从你的项目开始</span>
-            <h1>把项目积累，变成可复用的经历。</h1>
-            <p>
-              导入源码目录，让 Codex 提取项目事实；编辑每条亮点，再组合成简历。
-            </p>
-            <button className="primary" onClick={() => setModal("projects")}>
-              <FolderPlus size={17} />
-              导入项目集合
-            </button>
-          </div>
-        ) : (
-          <>
-            <header className="workspace-header">
-              <div>
-                <span className="eyebrow">{project.name}</span>
-                <h1>
-                  {remoteProject.data?.working.content.title || project.name}
-                </h1>
-              </div>
-              <button
-                data-guide="analysis"
-                disabled={!!currentJob || !remoteProject.data}
-                onClick={() =>
-                  run(() =>
-                    send(
-                      "请读取当前项目源码和材料，生成有证据支持的完整项目经历草稿。未确认的个人贡献、参与日期和量化成果请列为问题。",
-                      "all",
-                      "analysis",
-                    ),
+              </nav>
+              <div className="workspace-scroll">
+                {error && <div className="error-panel">{error}</div>}
+                {!remoteProject.data ? (
+                  <div className="empty compact">正在读取项目…</div>
+                ) : mode === "edit" ? (
+                  remoteProject.ready ? (
+                    <Editor
+                      key={`${activeProject}.${revisionId}.${refresh}`}
+                      detail={remoteProject.data}
+                      revisionId={revisionId}
+                      hasLocalChanges={
+                        !!edited[`${activeProject}.${revisionId}`]
+                      }
+                      usedRevision={
+                        revisionCache[
+                          draft.items.find(
+                            (item) => item.project_id === activeProject,
+                          )?.revision_id ?? ""
+                        ]
+                      }
+                      included={
+                        draft.items.find((i) => i.project_id === activeProject)
+                          ?.highlight_ids ?? []
+                      }
+                      run={run}
+                      onSave={saveField}
+                      onRefresh={changed}
+                      onDirty={() =>
+                        setEdited((value) => ({
+                          ...value,
+                          [`${activeProject}.${revisionId}`]: true,
+                        }))
+                      }
+                      onRevision={(id) =>
+                        run(async () =>
+                          setSelectedRevisions((v) => ({
+                            ...v,
+                            [activeProject]: id,
+                          })),
+                        )
+                      }
+                      onUseVersion={useVersion}
+                      onAsk={ask}
+                      onToggle={toggleHighlight}
+                    />
+                  ) : (
+                    <div className="empty compact">正在读取草稿…</div>
                   )
-                }
-              >
-                <Sparkles size={16} />
-                {remoteProject.data?.working.content.highlights.length
-                  ? "重新分析源码"
-                  : "分析项目"}
-              </button>
-            </header>
-            <nav className="tabs workspace-tabs">
-              <button
-                className={mode === "edit" ? "active" : ""}
-                onClick={() => run(async () => setMode("edit"))}
-              >
-                经历编辑
-              </button>
-              <button
-                className={mode === "chat" ? "active" : ""}
-                onClick={() =>
-                  run(async () => {
-                    await ensureConversation();
-                    setMode("chat");
-                  })
-                }
-              >
-                AI 会话
-              </button>
-            </nav>
-            <div className="workspace-scroll">
-              {error && <div className="error-panel">{error}</div>}
-              {!remoteProject.data ? (
-                <div className="empty compact">正在读取项目…</div>
-              ) : mode === "edit" ? (
-                remoteProject.ready ? (
-                  <Editor
-                    key={`${activeProject}.${revisionId}.${refresh}`}
-                    detail={remoteProject.data}
-                    revisionId={revisionId}
-                    hasLocalChanges={!!edited[`${activeProject}.${revisionId}`]}
-                    usedRevision={
-                      revisionCache[
-                        draft.items.find(
-                          (item) => item.project_id === activeProject,
-                        )?.revision_id ?? ""
-                      ]
-                    }
-                    included={
-                      draft.items.find((i) => i.project_id === activeProject)
-                        ?.highlight_ids ?? []
-                    }
+                ) : remoteChat.data ? (
+                  <Chat
+                    key={conversationId}
+                    detail={remoteChat.data}
+                    project={remoteProject.data}
+                    activeJob={currentJob}
                     run={run}
-                    onSave={saveField}
+                    onSend={send}
+                    onAdopt={adopt}
                     onRefresh={changed}
-                    onDirty={() =>
-                      setEdited((value) => ({
-                        ...value,
-                        [`${activeProject}.${revisionId}`]: true,
-                      }))
-                    }
-                    onRevision={(id) =>
-                      run(async () =>
-                        setSelectedRevisions((v) => ({
-                          ...v,
-                          [activeProject]: id,
-                        })),
-                      )
-                    }
-                    onUseVersion={useVersion}
-                    onAsk={ask}
-                    onToggle={toggleHighlight}
                   />
                 ) : (
-                  <div className="empty compact">正在读取草稿…</div>
-                )
-              ) : remoteChat.data ? (
-                <Chat
-                  key={conversationId}
-                  detail={remoteChat.data}
-                  project={remoteProject.data}
-                  activeJob={currentJob}
-                  run={run}
-                  onSend={send}
-                  onAdopt={adopt}
-                  onRefresh={changed}
-                />
-              ) : (
-                <div className="empty compact">正在读取会话…</div>
-              )}
-            </div>
-          </>
-        )}
-      </main>
-      <Composer
-        state={state}
-        draft={draft}
-        revisions={revisionCache}
-        result={exported}
-        exporting={exporting}
-        onChange={setDraft}
-        onChoose={(id) =>
-          run(async () => {
-            const resume = state.resumes.find((r) => r.id === id);
-            if (resume) {
-              setDraft(loadLocal(`rm.resume.${id}`, resume));
+                  <div className="empty compact">正在读取会话…</div>
+                )}
+              </div>
+            </>
+          )}
+        </main>
+        <ResizeHandle
+          className="composer-resize"
+          label="调整简历区宽度"
+          axis="x"
+          reverse
+          value={columns.composer}
+          min={300}
+          max={columns.composerMax}
+          onChange={(value) => resize("composer", value)}
+          onReset={() => resize("composer", DEFAULT_LAYOUT.composer)}
+        />
+        <ResizeHandle
+          className="stack-resize"
+          label="调整编辑区高度"
+          axis="y"
+          value={clamp(layout.editor, 280, 1000)}
+          min={280}
+          max={1000}
+          onChange={(value) => resize("editor", value)}
+          onReset={() => resize("editor", DEFAULT_LAYOUT.editor)}
+        />
+        <Composer
+          settingsHeight={layout.settings}
+          onSettingsHeight={(value) => resize("settings", value)}
+          previewFocused={previewFocused}
+          onFocusPreview={() => setPreviewFocused(!previewFocused)}
+          state={state}
+          draft={draft}
+          revisions={revisionCache}
+          result={exported}
+          exporting={exporting}
+          onChange={setDraft}
+          onChoose={(id) =>
+            run(async () => {
+              const resume = state.resumes.find((r) => r.id === id);
+              if (resume) {
+                setDraft(loadLocal(`rm.resume.${id}`, resume));
+                setExported(null);
+              }
+            })
+          }
+          onSave={() =>
+            run(async () => {
+              await saveComposition();
+              setToast({ text: "简历组合已保存，引用版本已固定。" });
+            })
+          }
+          onExport={() => run(exportResume)}
+          onNew={() =>
+            run(async () => {
+              const value = await api<Resume>("/resumes", "POST", {
+                name: "新简历",
+                template_id: state.templates[0]?.id ?? null,
+                items: [],
+              });
+              await reload();
+              setDraft(value);
               setExported(null);
-            }
-          })
-        }
-        onSave={() =>
-          run(async () => {
-            await saveComposition();
-            setToast({ text: "简历组合已保存，引用版本已固定。" });
-          })
-        }
-        onExport={() => run(exportResume)}
-        onNew={() =>
-          run(async () => {
-            const value = await api<Resume>("/resumes", "POST", {
-              name: "新简历",
-              template_id: state.templates[0]?.id ?? null,
-              items: [],
-            });
-            await reload();
-            setDraft(value);
-            setExported(null);
-          })
-        }
-        onTemplates={() => setModal("templates")}
-        onEditProject={(id) => followGuide("experience-use", id)}
-        run={run}
-      />
+            })
+          }
+          onTemplates={() => setModal("templates")}
+          onEditProject={(id) => followGuide("experience-use", id)}
+          run={run}
+        />
+      </div>
       {modal && (
         <Settings
           initial={modal}

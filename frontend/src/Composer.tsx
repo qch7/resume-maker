@@ -1,18 +1,26 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   ArrowDown,
   ArrowUp,
   Download,
   FileDown,
+  Maximize2,
+  Minimize2,
   Plus,
   Save,
   X,
 } from "lucide-react";
 import { download, request } from "./api";
 import { isCurrentExport, sameComposition } from "./workflowState";
+import ResizeHandle, { useElementSize } from "./ResizeHandle";
+import { clamp, DEFAULT_LAYOUT } from "./layoutState";
 import type { Export, Resume, Revision, State } from "./types";
 
 interface Props {
+  settingsHeight: number;
+  onSettingsHeight: (value: number) => void;
+  previewFocused: boolean;
+  onFocusPreview: () => void;
   state: State;
   draft: Resume;
   revisions: Record<string, Revision>;
@@ -64,6 +72,10 @@ function PrintedPage({ exportId, page }: { exportId: string; page: number }) {
 export default function Composer(props: Props) {
   const { draft, state, revisions, result } = props;
   const [tab, setTab] = useState<"content" | "print">("content");
+  const pane = useRef<HTMLElement>(null);
+  const size = useElementSize(pane);
+  const settingsMax = Math.max(80, size.height - 188);
+  const settingsHeight = clamp(props.settingsHeight, 80, settingsMax);
   const saved = state.resumes.find((r) => r.id === draft.id);
   const dirty = !sameComposition(saved, draft);
   const currentExport = isCurrentExport(result, draft);
@@ -73,7 +85,11 @@ export default function Composer(props: Props) {
     props.onChange({ ...draft, items });
   }
   return (
-    <aside className="composition-pane">
+    <aside
+      className="composition-pane"
+      ref={pane}
+      style={{ "--settings-height": `${settingsHeight}px` } as CSSProperties}
+    >
       <header className="composition-header">
         <div className="section-heading">
           <h2>当前简历</h2>
@@ -178,188 +194,213 @@ export default function Composer(props: Props) {
           </div>
         )}
       </header>
-      <nav className="tabs preview-tabs">
-        <button
-          className={tab === "content" ? "active" : ""}
-          onClick={() => setTab("content")}
-        >
-          内容预览
-        </button>
-        <button
-          className={tab === "print" ? "active" : ""}
-          disabled={!result}
-          onClick={() => setTab("print")}
-        >
-          上次导出预览{result?.pages ? ` · ${result.pages} 页` : ""}
-        </button>
-      </nav>
-      <div className="composition-scroll">
-        {result && (
-          <div className="export-result">
-            <strong>
-              {currentExport ? "当前组合已导出" : "上次导出"}
-              {result.pages ? ` · ${result.pages} 页` : " · Word 已生成"}
-            </strong>
-            {!currentExport && (
-              <span className="warning">
-                组合已变化，重新导出后更新文件与预览。
+      <ResizeHandle
+        className="settings-resize"
+        label="调整设置与预览高度"
+        axis="y"
+        value={settingsHeight}
+        min={80}
+        max={settingsMax}
+        onChange={props.onSettingsHeight}
+        onReset={() => props.onSettingsHeight(DEFAULT_LAYOUT.settings)}
+      />
+      <section className="preview-pane" aria-label="简历预览">
+        <nav className="tabs preview-tabs">
+          <button
+            className={tab === "content" ? "active" : ""}
+            onClick={() => setTab("content")}
+          >
+            内容预览
+          </button>
+          <button
+            className={tab === "print" ? "active" : ""}
+            disabled={!result}
+            onClick={() => setTab("print")}
+          >
+            上次导出预览{result?.pages ? ` · ${result.pages} 页` : ""}
+          </button>
+          <button
+            className="icon-button preview-focus"
+            aria-label={props.previewFocused ? "退出放大预览" : "放大预览"}
+            title={props.previewFocused ? "退出放大预览（Esc）" : "放大预览"}
+            aria-pressed={props.previewFocused}
+            onClick={props.onFocusPreview}
+          >
+            {props.previewFocused ? (
+              <Minimize2 size={16} />
+            ) : (
+              <Maximize2 size={16} />
+            )}
+          </button>
+        </nav>
+        <div className="composition-scroll">
+          {result && (
+            <div className="export-result">
+              <strong>
+                {currentExport ? "当前组合已导出" : "上次导出"}
+                {result.pages ? ` · ${result.pages} 页` : " · Word 已生成"}
+              </strong>
+              {!currentExport && (
+                <span className="warning">
+                  组合已变化，重新导出后更新文件与预览。
+                </span>
+              )}
+              <span className="subtle">
+                {new Date(result.created_at).toLocaleString()}
               </span>
-            )}
-            <span className="subtle">
-              {new Date(result.created_at).toLocaleString()}
-            </span>
-            {result.render_error && (
-              <p className="warning">{result.render_error}</p>
-            )}
-            <div className="actions">
-              <button
-                onClick={() =>
-                  props.run(() =>
-                    download(
-                      `/exports/${result.id}/resume.docx`,
-                      `${draft.name}.docx`,
-                    ),
-                  )
-                }
-              >
-                <Download size={14} />
-                Word
-              </button>
-              {result.pages && (
+              {result.render_error && (
+                <p className="warning">{result.render_error}</p>
+              )}
+              <div className="actions">
                 <button
                   onClick={() =>
                     props.run(() =>
                       download(
-                        `/exports/${result.id}/resume.pdf`,
-                        `${draft.name}.pdf`,
+                        `/exports/${result.id}/resume.docx`,
+                        `${draft.name}.docx`,
                       ),
                     )
                   }
                 >
-                  PDF
+                  <Download size={14} />
+                  Word
                 </button>
-              )}
-              <button
-                className="text-button"
-                onClick={() =>
-                  props.run(() =>
-                    download(
-                      `/exports/${result.id}/manifest.json`,
-                      "export-manifest.json",
-                    ),
-                  )
-                }
-              >
-                版本清单
-              </button>
-            </div>
-          </div>
-        )}
-        {tab === "print" && result ? (
-          <div className="print-preview">
-            {Array.from({ length: result.pages ?? 0 }, (_, i) => (
-              <PrintedPage
-                key={`${result.id}.${i}`}
-                exportId={result.id}
-                page={i + 1}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="resume-paper">
-            <div className="paper-heading">项目经历</div>
-            {!draft.items.length && (
-              <div className="empty compact">
-                <p>从左侧勾选项目</p>
-                <span>选择经历版本与亮点，再调整项目顺序。</span>
+                {result.pages && (
+                  <button
+                    onClick={() =>
+                      props.run(() =>
+                        download(
+                          `/exports/${result.id}/resume.pdf`,
+                          `${draft.name}.pdf`,
+                        ),
+                      )
+                    }
+                  >
+                    PDF
+                  </button>
+                )}
+                <button
+                  className="text-button"
+                  onClick={() =>
+                    props.run(() =>
+                      download(
+                        `/exports/${result.id}/manifest.json`,
+                        "export-manifest.json",
+                      ),
+                    )
+                  }
+                >
+                  版本清单
+                </button>
               </div>
-            )}
-            {draft.items.map((item, index) => {
-              const revision = revisions[item.revision_id];
-              if (!revision)
-                return <p key={item.project_id}>正在读取经历版本…</p>;
-              const value = revision.content;
-              return (
-                <article className="resume-project" key={item.project_id}>
-                  <div className="resume-project-title">
-                    <strong>{value.title}</strong>
-                    <div className="row">
-                      <button
-                        className="icon-button"
-                        aria-label={`上移项目 ${value.title}`}
-                        disabled={index === 0}
-                        onClick={() => move(index, -1)}
-                      >
-                        <ArrowUp size={13} />
-                      </button>
-                      <button
-                        className="icon-button"
-                        aria-label={`下移项目 ${value.title}`}
-                        disabled={index === draft.items.length - 1}
-                        onClick={() => move(index, 1)}
-                      >
-                        <ArrowDown size={13} />
-                      </button>
-                      <button
-                        className="icon-button"
-                        aria-label={`移除项目 ${value.title}`}
-                        onClick={() =>
-                          props.onChange({
-                            ...draft,
-                            items: draft.items.filter((_, i) => i !== index),
-                          })
-                        }
-                      >
-                        <X size={13} />
-                      </button>
+            </div>
+          )}
+          {tab === "print" && result ? (
+            <div className="print-preview">
+              {Array.from({ length: result.pages ?? 0 }, (_, i) => (
+                <PrintedPage
+                  key={`${result.id}.${i}`}
+                  exportId={result.id}
+                  page={i + 1}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="resume-paper">
+              <div className="paper-heading">项目经历</div>
+              {!draft.items.length && (
+                <div className="empty compact">
+                  <p>从左侧勾选项目</p>
+                  <span>选择经历版本与亮点，再调整项目顺序。</span>
+                </div>
+              )}
+              {draft.items.map((item, index) => {
+                const revision = revisions[item.revision_id];
+                if (!revision)
+                  return <p key={item.project_id}>正在读取经历版本…</p>;
+                const value = revision.content;
+                return (
+                  <article className="resume-project" key={item.project_id}>
+                    <div className="resume-project-title">
+                      <strong>{value.title}</strong>
+                      <div className="row">
+                        <button
+                          className="icon-button"
+                          aria-label={`上移项目 ${value.title}`}
+                          disabled={index === 0}
+                          onClick={() => move(index, -1)}
+                        >
+                          <ArrowUp size={13} />
+                        </button>
+                        <button
+                          className="icon-button"
+                          aria-label={`下移项目 ${value.title}`}
+                          disabled={index === draft.items.length - 1}
+                          onClick={() => move(index, 1)}
+                        >
+                          <ArrowDown size={13} />
+                        </button>
+                        <button
+                          className="icon-button"
+                          aria-label={`移除项目 ${value.title}`}
+                          onClick={() =>
+                            props.onChange({
+                              ...draft,
+                              items: draft.items.filter((_, i) => i !== index),
+                            })
+                          }
+                        >
+                          <X size={13} />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                  <span className="resume-period">
-                    {value.period} {value.role}
-                  </span>
-                  {value.stack.length > 0 && (
-                    <p>
-                      <b>技术栈：</b>
-                      {value.stack.join("、")}
-                    </p>
-                  )}
-                  {value.description && (
-                    <p>
-                      <b>项目描述：</b>
-                      {value.description}
-                    </p>
-                  )}
-                  {item.highlight_ids
-                    .map((id) => value.highlights.find((h) => h.id === id))
-                    .filter((h) => !!h)
-                    .map((h) => (
-                      <p key={h.id}>
-                        <b>{h.title}：</b>
-                        {h.text}
+                    <span className="resume-period">
+                      {value.period} {value.role}
+                    </span>
+                    {value.stack.length > 0 && (
+                      <p>
+                        <b>技术栈：</b>
+                        {value.stack.join("、")}
                       </p>
-                    ))}
-                  {!value.highlights.length && !value.description && (
-                    <p className="subtle">尚未填写项目经历，可先分析源码。</p>
-                  )}
-                  <span className="version-note">
-                    固定引用 r{revision.number}
-                  </span>
-                  {state.projects.find(
-                    (project) => project.id === item.project_id,
-                  )?.head_revision !== revision.id && (
-                    <button
-                      className="text-button revision-update"
-                      onClick={() => props.onEditProject(item.project_id)}
-                    >
-                      有更新的经历版本 · 查看
-                    </button>
-                  )}
-                </article>
-              );
-            })}
-          </div>
-        )}
-      </div>
+                    )}
+                    {value.description && (
+                      <p>
+                        <b>项目描述：</b>
+                        {value.description}
+                      </p>
+                    )}
+                    {item.highlight_ids
+                      .map((id) => value.highlights.find((h) => h.id === id))
+                      .filter((h) => !!h)
+                      .map((h) => (
+                        <p key={h.id}>
+                          <b>{h.title}：</b>
+                          {h.text}
+                        </p>
+                      ))}
+                    {!value.highlights.length && !value.description && (
+                      <p className="subtle">尚未填写项目经历，可先分析源码。</p>
+                    )}
+                    <span className="version-note">
+                      固定引用 r{revision.number}
+                    </span>
+                    {state.projects.find(
+                      (project) => project.id === item.project_id,
+                    )?.head_revision !== revision.id && (
+                      <button
+                        className="text-button revision-update"
+                        onClick={() => props.onEditProject(item.project_id)}
+                      >
+                        有更新的经历版本 · 查看
+                      </button>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </section>
     </aside>
   );
 }
