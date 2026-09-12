@@ -34,6 +34,8 @@ export interface Project {
   roots: string[];
   profile: Profile;
   head_revision: string;
+  updated_at: string;
+  activity_at?: string;
 }
 export interface Revision {
   id: string;

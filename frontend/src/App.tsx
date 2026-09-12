@@ -6,6 +6,9 @@ import {
   type CSSProperties,
 } from "react";
 import {
+  ArrowDownAZ,
+  ArrowUpAZ,
+  Bell,
   ChevronDown,
   ChevronRight,
   FolderPlus,
@@ -36,6 +39,7 @@ import {
   type Layout,
 } from "./layoutState";
 import { getWorkflow, type GuideTarget } from "./workflowState";
+import { restoreSidebarSort, sortSidebar } from "./sidebarSort";
 import type {
   Conversation,
   ConversationDetail,
@@ -101,6 +105,17 @@ export default function App() {
   >({});
   const [mode, setMode] = useState<"edit" | "chat">("edit");
   const [folded, setFolded] = useState<Record<string, boolean>>({});
+  const [sidebarSort, setSidebarSort] = useState(() =>
+    restoreSidebarSort(loadLocal("rm.sidebarSort", "recent")),
+  );
+  const sortedSidebar = sortSidebar(
+    state.projects,
+    state.conversations,
+    sidebarSort,
+  );
+  useEffect(() => {
+    localStorage.setItem("rm.sidebarSort", JSON.stringify(sidebarSort));
+  }, [sidebarSort]);
   const [sidebar, setSidebar] = useState(
     () => !matchMedia("(max-width: 600px)").matches,
   );
@@ -674,8 +689,53 @@ export default function App() {
           <span className="sidebar-caption">
             {project ? `当前项目：${project.name}` : "先导入项目集合"}
           </span>
+          <div
+            className="sidebar-sort"
+            role="group"
+            aria-label="项目与会话排序"
+          >
+            <span>
+              {sidebarSort === "recent"
+                ? "最近修改"
+                : sidebarSort === "asc"
+                  ? "A → Z"
+                  : "Z → A"}
+            </span>
+            <button
+              className="icon-button"
+              aria-label="按最近修改排序"
+              aria-pressed={sidebarSort === "recent"}
+              title="最近修改的项目与会话在最上面"
+              onClick={() => setSidebarSort("recent")}
+            >
+              <Bell size={16} />
+            </button>
+            <button
+              className="icon-button"
+              aria-label={
+                sidebarSort === "asc" ? "按字母倒序排序" : "按字母正序排序"
+              }
+              aria-pressed={sidebarSort !== "recent"}
+              title={
+                sidebarSort === "asc"
+                  ? "当前 A → Z，点击切换 Z → A"
+                  : sidebarSort === "desc"
+                    ? "当前 Z → A，点击切换 A → Z"
+                    : "按字母 A → Z 排序，再次点击倒序"
+              }
+              onClick={() =>
+                setSidebarSort(sidebarSort === "asc" ? "desc" : "asc")
+              }
+            >
+              {sidebarSort === "desc" ? (
+                <ArrowUpAZ size={17} />
+              ) : (
+                <ArrowDownAZ size={17} />
+              )}
+            </button>
+          </div>
           <nav className="project-navigation" aria-label="项目与会话">
-            {state.projects.map((p) => (
+            {sortedSidebar.projects.map((p) => (
               <section className="project-group" key={p.id}>
                 <div
                   className={`project-row ${activeProject === p.id && mode === "edit" ? "selected" : ""}`}
@@ -709,7 +769,7 @@ export default function App() {
                 </div>
                 {!folded[p.id] && (
                   <div className="session-list">
-                    {state.conversations
+                    {sortedSidebar.conversations
                       .filter((c) => c.project_id === p.id)
                       .map((c) => (
                         <div

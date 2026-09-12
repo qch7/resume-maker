@@ -4,6 +4,52 @@ from resume_maker.api import create_app
 from resume_maker.config import Config
 
 
+def test_sidebar_activity_tracks_drafts_and_conversation_edits(tmp_path, monkeypatch):
+    stamp = "2026-01-01T00:00:00Z"
+    monkeypatch.setattr("resume_maker.catalog.now", lambda: stamp)
+    monkeypatch.setattr("resume_maker.api.now", lambda: stamp)
+    source = tmp_path / "source"
+    source.mkdir()
+    headers = {"x-resume-token": "test-token"}
+    with TestClient(create_app(Config(data_dir=tmp_path / "data", token="test-token"))) as client:
+        project = client.post(
+            "/api/projects", json={"name": "项目", "roots": [str(source)]}, headers=headers
+        ).json()
+
+        def state():
+            return client.get("/api/state", headers=headers).json()
+
+        conversation = state()["conversations"][0]
+        stamp = "2026-01-02T00:00:00Z"
+        response = client.put(
+            f"/api/projects/{project['id']}/draft",
+            headers=headers,
+            json={
+                "base_revision": project["head_revision"],
+                "field": "highlight:test",
+                "value": {"title": "亮点", "text": "草稿内容", "evidence": []},
+                "version": 0,
+            },
+        )
+        assert response.status_code == 200, response.text
+        assert state()["projects"][0]["activity_at"] == stamp
+        assert state()["projects"][0]["updated_at"] == project["updated_at"]
+
+        path = f"/api/conversations/{conversation['id']}"
+        for field, value, day in [("title", "修改名称", "03"), ("input_draft", "输入草稿", "04")]:
+            stamp = f"2026-01-{day}T00:00:00Z"
+            response = client.patch(path, headers=headers, json={field: value})
+            assert response.status_code == 200, response.text
+            assert response.json()["updated_at"] == stamp
+            assert state()["projects"][0]["activity_at"] == stamp
+
+        previous = stamp
+        stamp = "2026-01-05T00:00:00Z"
+        client.get(path, headers=headers)
+        client.patch(path, headers=headers, json={"title": "修改名称", "input_draft": "输入草稿"})
+        assert state()["projects"][0]["activity_at"] == previous
+
+
 def test_local_api_requires_token_and_rejects_other_origins(tmp_path):
     app = create_app(Config(data_dir=tmp_path, token="test-token"))
     with TestClient(app) as client:

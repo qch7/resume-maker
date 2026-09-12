@@ -144,7 +144,14 @@ def create_app(config: Config | None = None, provider=None) -> FastAPI:
     @app.get("/api/state")
     def state():
         return {
-            "projects": db.all("SELECT * FROM projects WHERE archived=0 ORDER BY created_at"),
+            "projects": db.all(
+                "SELECT p.*, MAX(p.updated_at, "
+                "COALESCE((SELECT MAX(updated_at) FROM drafts "
+                "WHERE project_id=p.id), p.updated_at), "
+                "COALESCE((SELECT MAX(updated_at) FROM conversations "
+                "WHERE project_id=p.id AND archived=0), p.updated_at)) AS activity_at "
+                "FROM projects p WHERE p.archived=0 ORDER BY p.created_at"
+            ),
             "conversations": db.all(
                 "SELECT * FROM conversations WHERE archived=0 ORDER BY updated_at DESC"
             ),
@@ -265,6 +272,11 @@ def create_app(config: Config | None = None, provider=None) -> FastAPI:
         values = body.model_dump(exclude_none=True)
         if values:
             with db.transaction() as conn:
+                current = conn.execute(
+                    "SELECT * FROM conversations WHERE id=?", (conversation_id,)
+                ).fetchone()
+                if any(current[key] != value for key, value in values.items()):
+                    values["updated_at"] = now()
                 conn.execute(
                     "UPDATE conversations SET "
                     + ",".join(f"{k}=?" for k in values)
