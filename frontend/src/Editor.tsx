@@ -21,9 +21,12 @@ interface Props {
   detail: ProjectDetail;
   revisionId: string;
   included: string[];
+  usedRevision?: Revision;
+  hasLocalChanges: boolean;
   run: (work: () => Promise<void>) => void;
   onSave: (field: string) => Promise<void>;
   onRefresh: () => void;
+  onDirty: () => void;
   onRevision: (id: string) => void;
   onUseVersion: () => void;
   onAsk: (scope: string) => Promise<void>;
@@ -47,6 +50,7 @@ function HighlightEditor({
     field,
     item,
     draftVersion,
+    props.onDirty,
   );
   const [editing, setEditing] = useState(!item.title || !item.text);
   const { value } = editor;
@@ -225,6 +229,7 @@ export default function Editor(props: Props) {
     "meta",
     meta,
     detail.working.drafts.find((d) => d.field === "meta")?.version ?? 0,
+    props.onDirty,
   );
   const [metaOpen, setMetaOpen] = useState(!content.description);
   const [stackText, setStackText] = useState(editor.value.stack.join("、"));
@@ -277,19 +282,38 @@ export default function Editor(props: Props) {
         <div className="version-actions">
           <button
             className="primary"
+            data-guide="experience-save"
             onClick={() => run(() => props.onSave("experience"))}
           >
             保存全部修改
           </button>
-          <button onClick={props.onUseVersion}>用于当前简历</button>
+          <button
+            data-guide="experience-use"
+            onClick={() => run(async () => props.onUseVersion())}
+          >
+            用于当前简历
+          </button>
         </div>
       </div>
       <div className="meta-line">
         <span>正在编辑 r{current.number}</span>
+        <span
+          className={
+            props.usedRevision && props.usedRevision.id !== current.id
+              ? "tag warning-tag"
+              : "tag"
+          }
+        >
+          {props.usedRevision
+            ? `简历引用 r${props.usedRevision.number}`
+            : "尚未加入当前简历"}
+        </span>
         <span>
-          {detail.working.drafts.length
-            ? `${detail.working.drafts.length} 个字段有草稿`
-            : "内容已保存"}
+          {props.hasLocalChanges
+            ? "有修改待保存到版本"
+            : detail.working.drafts.length
+              ? `${detail.working.drafts.length} 个字段有草稿`
+              : "内容已保存"}
         </span>
         {revisionId !== detail.project.head_revision && (
           <button
@@ -314,7 +338,7 @@ export default function Editor(props: Props) {
           </button>
         )}
       </div>
-      {detail.working.drafts.length > 0 && (
+      {(props.hasLocalChanges || detail.working.drafts.length > 0) && (
         <div className="notice">
           <span>
             草稿尚未保存到经历版本。可逐条保存，或点击“保存全部修改”一起保存。

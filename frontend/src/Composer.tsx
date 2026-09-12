@@ -9,6 +9,7 @@ import {
   X,
 } from "lucide-react";
 import { download, request } from "./api";
+import { isCurrentExport, sameComposition } from "./workflowState";
 import type { Export, Resume, Revision, State } from "./types";
 
 interface Props {
@@ -23,6 +24,7 @@ interface Props {
   onExport: () => void;
   onNew: () => void;
   onTemplates: () => void;
+  onEditProject: (id: string) => void;
   run: (work: () => Promise<void>) => void;
 }
 
@@ -63,11 +65,8 @@ export default function Composer(props: Props) {
   const { draft, state, revisions, result } = props;
   const [tab, setTab] = useState<"content" | "print">("content");
   const saved = state.resumes.find((r) => r.id === draft.id);
-  const dirty =
-    !saved ||
-    JSON.stringify(saved.items) !== JSON.stringify(draft.items) ||
-    saved.name !== draft.name ||
-    saved.template_id !== draft.template_id;
+  const dirty = !sameComposition(saved, draft);
+  const currentExport = isCurrentExport(result, draft);
   function move(index: number, delta: number) {
     const items = [...draft.items];
     [items[index], items[index + delta]] = [items[index + delta], items[index]];
@@ -78,7 +77,9 @@ export default function Composer(props: Props) {
       <header className="composition-header">
         <div className="section-heading">
           <h2>当前简历</h2>
-          <span className="tag">{dirty ? "组合未保存" : "组合已保存"}</span>
+          <span className={`tag ${dirty ? "warning-tag" : ""}`}>
+            {dirty ? "组合未保存" : "组合已保存"}
+          </span>
         </div>
         <div className="resume-picker">
           <select
@@ -112,6 +113,7 @@ export default function Composer(props: Props) {
           <label>
             Word 模板
             <select
+              data-guide="template-select"
               value={draft.template_id ?? ""}
               onChange={(e) =>
                 props.onChange({
@@ -138,12 +140,17 @@ export default function Composer(props: Props) {
               载入服务器组合
             </button>
           )}
-          <button onClick={props.onSave} disabled={!draft.name.trim()}>
+          <button
+            data-guide="composition-save"
+            onClick={props.onSave}
+            disabled={!draft.name.trim()}
+          >
             <Save size={15} />
             保存组合
           </button>
           <button
             className="primary"
+            data-guide="export"
             onClick={props.onExport}
             disabled={
               props.exporting ||
@@ -156,6 +163,20 @@ export default function Composer(props: Props) {
             {props.exporting ? "正在生成并渲染…" : "导出 Word"}
           </button>
         </div>
+        <p className="composition-summary">
+          已选 {draft.items.length} 个项目 ·{" "}
+          {draft.items.reduce(
+            (sum, item) => sum + item.highlight_ids.length,
+            0,
+          )}{" "}
+          条亮点
+        </p>
+        {props.exporting && (
+          <div className="export-progress" role="status">
+            <span />
+            正在生成文档并检查分页…
+          </div>
+        )}
       </header>
       <nav className="tabs preview-tabs">
         <button
@@ -176,8 +197,14 @@ export default function Composer(props: Props) {
         {result && (
           <div className="export-result">
             <strong>
-              {result.pages ? `已导出 · ${result.pages} 页` : "Word 已生成"}
+              {currentExport ? "当前组合已导出" : "上次导出"}
+              {result.pages ? ` · ${result.pages} 页` : " · Word 已生成"}
             </strong>
+            {!currentExport && (
+              <span className="warning">
+                组合已变化，重新导出后更新文件与预览。
+              </span>
+            )}
             <span className="subtle">
               {new Date(result.created_at).toLocaleString()}
             </span>
@@ -317,6 +344,16 @@ export default function Composer(props: Props) {
                   <span className="version-note">
                     固定引用 r{revision.number}
                   </span>
+                  {state.projects.find(
+                    (project) => project.id === item.project_id,
+                  )?.head_revision !== revision.id && (
+                    <button
+                      className="text-button revision-update"
+                      onClick={() => props.onEditProject(item.project_id)}
+                    >
+                      有更新的经历版本 · 查看
+                    </button>
+                  )}
                 </article>
               );
             })}

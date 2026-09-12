@@ -153,6 +153,7 @@ export interface Export {
   pages: number | null;
   render_error: string | null;
   created_at: string;
+  manifest?: { resume: Resume };
 }
 export interface ProviderSettings {
   executable: string;

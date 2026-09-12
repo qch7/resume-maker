@@ -18,6 +18,9 @@ import Chat from "./Chat";
 import Composer from "./Composer";
 import Editor from "./Editor";
 import Settings from "./Settings";
+import ThemeSwitch from "./ThemeSwitch";
+import Workflow from "./Workflow";
+import { getWorkflow, type GuideTarget } from "./workflowState";
 import type {
   Conversation,
   ConversationDetail,
@@ -83,7 +86,11 @@ export default function App() {
   >({});
   const [mode, setMode] = useState<"edit" | "chat">("edit");
   const [folded, setFolded] = useState<Record<string, boolean>>({});
-  const [sidebar, setSidebar] = useState(true);
+  const [sidebar, setSidebar] = useState(
+    () => !matchMedia("(max-width: 600px)").matches,
+  );
+  const [edited, setEdited] = useState<Record<string, boolean>>({});
+  const [guideTarget, setGuideTarget] = useState<GuideTarget | null>(null);
   const [modal, setModal] = useState<
     "projects" | "templates" | "settings" | null
   >(null);
@@ -262,6 +269,10 @@ export default function App() {
     })();
   }
   function changed() {
+    setEdited((value) => ({
+      ...value,
+      [`${activeProject}.${revisionId}`]: false,
+    }));
     setRefresh((v) => v + 1);
     void reload();
   }
@@ -470,6 +481,58 @@ export default function App() {
       setExporting(false);
     }
   }
+  function followGuide(target: GuideTarget, projectId?: string) {
+    if (target === "projects" || !project) {
+      setModal("projects");
+      return;
+    }
+    if (target === "template-select" && !state.templates.length) {
+      setModal("templates");
+      return;
+    }
+    run(async () => {
+      if (projectId) {
+        const next = state.projects.find((p) => p.id === projectId);
+        if (!next) return;
+        setActiveProject(projectId);
+        setSelectedRevisions((value) => ({
+          ...value,
+          [projectId]: next.head_revision,
+        }));
+      }
+      if (["analysis", "experience-save", "experience-use"].includes(target))
+        setMode(target === "analysis" && currentJob ? "chat" : "edit");
+      if (matchMedia("(max-width: 600px)").matches) setSidebar(false);
+      setGuideTarget(target);
+    });
+  }
+  useEffect(() => {
+    if (!guideTarget) return;
+    const element = document.querySelector<HTMLElement>(
+      `[data-guide="${guideTarget}"]`,
+    );
+    if (!element) return;
+    const target =
+      element instanceof HTMLButtonElement && element.disabled
+        ? (element.closest<HTMLElement>("header") ?? element)
+        : element;
+    if (target !== element) target.tabIndex = -1;
+    target.scrollIntoView({ block: "center", inline: "nearest" });
+    target.focus({ preventScroll: true });
+    setGuideTarget(null);
+  }, [guideTarget, mode, remoteProject.ready, activeProject]);
+  const workflow = getWorkflow({
+    projectCount: state.projects.length,
+    detail: remoteProject.ready ? remoteProject.data : null,
+    revisionId,
+    edited: !!edited[`${activeProject}.${revisionId}`],
+    draft,
+    saved: state.resumes.find((r) => r.id === draft.id),
+    revisions: revisionCache,
+    result: exported,
+    exporting,
+    analyzing: !!currentJob,
+  });
   const error = remoteProject.error || remoteChat.error;
   return (
     <div className={`app-shell ${sidebar ? "" : "sidebar-hidden"}`}>
@@ -485,13 +548,14 @@ export default function App() {
           <strong>Resume Maker</strong>
           <span className="subtle app-subtitle">项目经历工作台</span>
         </div>
-        <div className="row">
+        <div className="row header-actions">
           {activeJobs.length > 0 && (
-            <span className="subtle">
+            <span className="subtle header-job-status">
               <LoaderCircle className="spin" size={14} /> {activeJobs.length}{" "}
               个任务进行中
             </span>
           )}
+          <ThemeSwitch />
           <button
             className="icon-button"
             aria-label="刷新数据"
@@ -513,6 +577,7 @@ export default function App() {
           </button>
         </div>
       </header>
+      <Workflow value={workflow} onNavigate={followGuide} />
       <aside className="sidebar">
         <button
           className="new-chat"
@@ -643,6 +708,7 @@ export default function App() {
                 </h1>
               </div>
               <button
+                data-guide="analysis"
                 disabled={!!currentJob || !remoteProject.data}
                 onClick={() =>
                   run(() =>
@@ -689,6 +755,14 @@ export default function App() {
                     key={`${activeProject}.${revisionId}.${refresh}`}
                     detail={remoteProject.data}
                     revisionId={revisionId}
+                    hasLocalChanges={!!edited[`${activeProject}.${revisionId}`]}
+                    usedRevision={
+                      revisionCache[
+                        draft.items.find(
+                          (item) => item.project_id === activeProject,
+                        )?.revision_id ?? ""
+                      ]
+                    }
                     included={
                       draft.items.find((i) => i.project_id === activeProject)
                         ?.highlight_ids ?? []
@@ -696,6 +770,12 @@ export default function App() {
                     run={run}
                     onSave={saveField}
                     onRefresh={changed}
+                    onDirty={() =>
+                      setEdited((value) => ({
+                        ...value,
+                        [`${activeProject}.${revisionId}`]: true,
+                      }))
+                    }
                     onRevision={(id) =>
                       run(async () =>
                         setSelectedRevisions((v) => ({
@@ -765,6 +845,7 @@ export default function App() {
           })
         }
         onTemplates={() => setModal("templates")}
+        onEditProject={(id) => followGuide("experience-use", id)}
         run={run}
       />
       {modal && (

@@ -23,6 +23,7 @@ export function useField<T>(
   field: string,
   initial: T,
   initialVersion: number,
+  onDirty?: () => void,
 ) {
   const key = `rm.field.${project}.${revision}.${field}`;
   const [cached] = useState(() =>
@@ -86,6 +87,8 @@ export function useField<T>(
   };
   useEffect(() => {
     mounted.current = true;
+    if (cached && JSON.stringify(cached.value) !== JSON.stringify(initial))
+      onDirty?.();
     pending.set(key, flush);
     return () => {
       mounted.current = false;
@@ -101,6 +104,7 @@ export function useField<T>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
   function update(next: T) {
+    onDirty?.();
     current.current = next;
     setValue(next);
     setStatus("有未保存修改");

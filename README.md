@@ -29,6 +29,8 @@ Windows 下安装 [uv](https://docs.astral.sh/uv/getting-started/installation/)�
 
 “内容预览”只展示选择的项目内容；“上次导出预览”是 Word 实际排版。修改组合后需要重新导出才会更新后者。
 
+右上角可选择**浅色、深色、跟随系统**，浏览器会记住偏好。顶部“制作指引”显示当前项目与简历的准备进度，点击步骤或下一步提示可定位到对应操作；未保存草稿、引用旧版本、空白经历、缺少模板和导出过期都会提示。右侧同时显示已选项目与亮点数量，文档内容预览保持白纸样式。
+
 ## Codex 与 CCSwitch
 
 复用当前用户的 Codex 配置，支持 CCSwitch 配置的中转 Provider。**不要求 `codex login status` 显示已登录**。设置中的“测试实际连接”会执行真实请求；模型和 Profile 留空时继承 CLI 设置。也可填写 Codex 可执行文件的绝对路径。
@@ -70,6 +72,7 @@ Python 3.12+ / FastAPI / SQLite，React 19 / TypeScript / Vite。运行和依赖
 uv sync --locked
 npm --prefix frontend ci
 npm --prefix frontend run build
+npm --prefix frontend test
 uv run python -m resume_maker.cli --no-browser
 
 uv run pytest -q
