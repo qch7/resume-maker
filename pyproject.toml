@@ -9,7 +9,6 @@ dependencies = [
   "pydantic>=2.10,<3",
   "python-multipart>=0.0.20,<1",
   "python-docx>=1.1,<2",
-  "platformdirs>=4,<5",
   "psutil>=6,<8",
   "pymupdf>=1.25,<2",
   "pywin32>=308; sys_platform == 'win32'",
@@ -37,4 +36,3 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
-

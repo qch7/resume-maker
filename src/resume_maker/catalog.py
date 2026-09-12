@@ -128,7 +128,12 @@ class Catalog:
             (project_id, revision_id),
         )
         for draft in drafts:
-            content = replace_field(content, draft["field"], draft["value"])
+            value = draft["value"]
+            if draft["field"] == "order":
+                # Reconcile an older order with newly added or removed draft highlights.
+                ids = field_value(content, "order")
+                value = [i for i in value if i in ids] + [i for i in ids if i not in value]
+            content = replace_field(content, draft["field"], value)
         return {"content": content, "drafts": drafts}
 
     def put_draft(self, project_id: str, revision_id: str, field: str, value, version: int):
@@ -147,9 +152,15 @@ class Catalog:
             )
         return self.working(project_id, revision_id)
 
-    def discard_draft(self, project_id: str, revision_id: str, field: str):
+    def discard_draft(self, project_id: str, revision_id: str, field: str, version: int):
         self.revision(revision_id, project_id)
         with self.db.transaction() as conn:
+            row = conn.execute(
+                "SELECT version FROM drafts WHERE project_id=? AND base_revision=? AND field=?",
+                (project_id, revision_id, field),
+            ).fetchone()
+            if version != (row[0] if row else 0):
+                raise Problem("草稿已在其他窗口修改，请刷新后合并。", 409)
             conn.execute(
                 "DELETE FROM drafts WHERE project_id=? AND base_revision=? AND field=?",
                 (project_id, revision_id, field),
@@ -159,7 +170,11 @@ class Catalog:
         base = self.revision(revision_id, project_id)
         working = self.working(project_id, revision_id)
         effective = working["content"]
-        content = replace_field(base["content"], field, field_value(effective, field))
+        value = field_value(effective, field)
+        if field == "order":
+            ids = field_value(base["content"], "order")
+            value = [i for i in value if i in ids] + [i for i in ids if i not in value]
+        content = replace_field(base["content"], field, value)
         if not content["title"].strip() or any(
             not h["title"].strip() or not h["text"].strip() for h in content["highlights"]
         ):
@@ -248,11 +263,39 @@ class Catalog:
 
     def restore(self, project_id: str, revision_id: str, expected_head: str) -> dict:
         source = self.revision(revision_id, project_id)
-        current = self.working(project_id, expected_head)
-        if current["drafts"]:
-            raise Problem("当前有未保存草稿，请先保存或取消后恢复历史版本。", 409)
-        self.put_draft(project_id, expected_head, "experience", source["content"], 0)
-        return self.save_field(project_id, expected_head, "experience", expected_head)
+        new_id, stamp = uid(), now()
+        with self.db.transaction() as conn:
+            head = conn.execute(
+                "SELECT head_revision FROM projects WHERE id=?", (project_id,)
+            ).fetchone()[0]
+            if head != expected_head:
+                raise Problem("项目已有新版本，请刷新后再恢复。", 409)
+            if conn.execute(
+                "SELECT 1 FROM drafts WHERE project_id=? AND base_revision=?", (project_id, head)
+            ).fetchone():
+                raise Problem("当前有未保存草稿，请先保存或取消后恢复历史版本。", 409)
+            number = conn.execute(
+                "SELECT MAX(number)+1 FROM revisions WHERE project_id=?", (project_id,)
+            ).fetchone()[0]
+            conn.execute(
+                "INSERT INTO revisions VALUES (?,?,?,?,?,?,?,?,?)",
+                (
+                    new_id,
+                    project_id,
+                    head,
+                    source["snapshot_id"],
+                    number,
+                    dump(source["content"]),
+                    "restore",
+                    f"恢复 r{source['number']}",
+                    stamp,
+                ),
+            )
+            conn.execute(
+                "UPDATE projects SET head_revision=?,updated_at=? WHERE id=?",
+                (new_id, stamp, project_id),
+            )
+        return self.revision(new_id)
 
     def adopt(self, proposal_id: str):
         proposal = need(self.db.one("SELECT * FROM proposals WHERE id=?", (proposal_id,)))
@@ -269,6 +312,30 @@ class Catalog:
             raise Problem("建议生成后原文已发生变化，请重新请求或手工合并。", 409)
         replace_field(working["content"], proposal["target"], proposal["after"])
         with self.db.transaction() as conn:
+            head = conn.execute(
+                "SELECT head_revision FROM projects WHERE id=?", (project_id,)
+            ).fetchone()[0]
+            status = conn.execute(
+                "SELECT status FROM proposals WHERE id=?", (proposal_id,)
+            ).fetchone()[0]
+            actual = conn.execute(
+                "SELECT field,version,value_json FROM drafts "
+                "WHERE project_id=? AND base_revision=?",
+                (project_id, base_id),
+            ).fetchall()
+            expected = [(d["field"], d["version"], dump(d["value"])) for d in working["drafts"]]
+            if (
+                head != base_id
+                or status != "pending"
+                or sorted(tuple(r) for r in actual) != sorted(expected)
+            ):
+                raise Problem("采用建议时内容发生变化，请刷新后合并。", 409)
+            if proposal["target"] == "experience":
+                # Its before-image includes all drafts, so the replacement supersedes them.
+                conn.execute(
+                    "DELETE FROM drafts WHERE project_id=? AND base_revision=?",
+                    (project_id, base_id),
+                )
             row = conn.execute(
                 "SELECT version FROM drafts WHERE project_id=? AND base_revision=? AND field=?",
                 (project_id, base_id, proposal["target"]),

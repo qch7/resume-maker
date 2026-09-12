@@ -19,4 +19,6 @@ data/
 *.db-shm
 *.db-wal
 *.log
-
+.playwright-cli/
+output/
+frontend/*.tsbuildinfo

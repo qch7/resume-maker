@@ -64,3 +64,41 @@ def test_duplicate_registration_keeps_history(catalog, project):
     duplicate = catalog.create_project("New label", project["roots"])
     assert duplicate["id"] == project["id"]
     assert len(catalog.db.all("SELECT * FROM revisions")) == 1
+
+
+def test_order_draft_survives_added_removed_highlights(catalog, project, populated):
+    p, revision = project["id"], populated["id"]
+    catalog.put_draft(p, revision, "order", ["two", "one"], 0)
+    point = {"id": "three", "title": "Extra", "text": "Pending extra", "evidence": []}
+    catalog.put_draft(p, revision, "highlight:three", point, 0)
+    saved = catalog.save_field(p, revision, "order", revision)
+    assert [h["id"] for h in saved["content"]["highlights"]] == ["two", "one"]
+    catalog.put_draft(p, saved["id"], "highlight:one", None, 0)
+    assert [h["id"] for h in catalog.working(p, saved["id"])["content"]["highlights"]] == [
+        "two",
+        "three",
+    ]
+
+
+def test_discard_rejects_stale_version(catalog, project, populated):
+    p, revision = project["id"], populated["id"]
+    point = populated["content"]["highlights"][0]
+    catalog.put_draft(p, revision, "highlight:one", {**point, "text": "pending"}, 0)
+    with pytest.raises(Problem, match="其他窗口"):
+        catalog.discard_draft(p, revision, "highlight:one", 0)
+    catalog.discard_draft(p, revision, "highlight:one", 1)
+    assert catalog.working(p, revision)["content"] == populated["content"]
+
+
+def test_restore_keeps_original_source_snapshot(catalog, project, populated):
+    from resume_maker.sources import collect_snapshot
+
+    snapshot = collect_snapshot(catalog.db, catalog.db.path.parent, project)
+    with catalog.db.transaction() as conn:
+        conn.execute(
+            "UPDATE revisions SET snapshot_id=? WHERE id=?", (snapshot["id"], populated["id"])
+        )
+    restored = catalog.restore(project["id"], project["head_revision"], populated["id"])
+    assert restored["snapshot_id"] is None
+    again = catalog.restore(project["id"], populated["id"], restored["id"])
+    assert again["snapshot_id"] == snapshot["id"]

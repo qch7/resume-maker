@@ -74,6 +74,8 @@ class Jobs:
             return existing
         job_id, stamp = uid(), now()
         request = {
+            "prompt_version": 1,
+            "schema_version": 1,
             "text": text.strip(),
             "base_revision": revision_id,
             "content": working["content"],
@@ -160,7 +162,10 @@ class Jobs:
                 "SELECT * FROM snapshots WHERE project_id=? ORDER BY created_at DESC LIMIT 1",
                 (project["id"],),
             )
-            if job["kind"] == "analysis" or snapshot is None:
+            roots_changed = snapshot is not None and set(project["roots"]) != {
+                s["path"] for s in snapshot["manifest"]["sources"]
+            }
+            if job["kind"] == "analysis" or snapshot is None or roots_changed:
                 emit("status", {"text": "正在采集项目文本快照"})
                 snapshot = collect_snapshot(self.db, self.data_dir, project)
             if cancelled.is_set() or self.stopped.is_set():
