@@ -10,6 +10,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def main() -> None:
     """依次校验注释、架构、格式、测试及前端构建，避免失败被后续命令掩盖。"""
+    # 路径和检查报告可能包含中文，固定编码以支持英文 Windows 终端。
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     npm = shutil.which("npm")
     if not npm:
         raise SystemExit("请先安装 Node.js 22.16+ 和 npm。")

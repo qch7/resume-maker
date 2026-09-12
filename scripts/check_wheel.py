@@ -39,7 +39,8 @@ assert app.state.services.db.one("PRAGMA user_version")["user_version"] == 1
 assert "/api/state" in app.openapi()["paths"]
 print("Wheel 验证通过：应用可导入，静态资源和数据库迁移完整。")
 """
-        subprocess.run([sys.executable, "-I", "-c", script], cwd=target, check=True)
+        # 隔离模式会忽略 PYTHONUTF8，必须通过解释器参数保留中文日志的编码约定。
+        subprocess.run([sys.executable, "-I", "-X", "utf8", "-c", script], cwd=target, check=True)
 
 
 if __name__ == "__main__":

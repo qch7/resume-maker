@@ -2,6 +2,7 @@
 
 import ast
 import re
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -44,6 +45,9 @@ def check_file(path: Path) -> tuple[list[str], int]:
 
 def main() -> None:
     """检查受版本管理的 Python 源码、测试和维护脚本，违规时返回非零退出码。"""
+    # 维护脚本输出统一为 UTF-8，不依赖 Windows 的系统语言或活动代码页。
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     errors, functions = [], 0
     paths = [
         *PACKAGE.rglob("*.py"),
