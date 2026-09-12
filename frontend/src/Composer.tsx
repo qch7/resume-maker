@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { arrayMove } from "@dnd-kit/sortable";
 import {
   ArrowDown,
   ArrowUp,
@@ -14,6 +15,7 @@ import { download, request } from "./api";
 import { isCurrentExport, sameComposition } from "./workflowState";
 import ResizeHandle, { useElementSize } from "./ResizeHandle";
 import { clamp, DEFAULT_LAYOUT } from "./layoutState";
+import { SortableItem, SortableList } from "./SortableList";
 import type { Export, Resume, Revision, State } from "./types";
 
 interface Props {
@@ -79,10 +81,8 @@ export default function Composer(props: Props) {
   const saved = state.resumes.find((r) => r.id === draft.id);
   const dirty = !sameComposition(saved, draft);
   const currentExport = isCurrentExport(result, draft);
-  function move(index: number, delta: number) {
-    const items = [...draft.items];
-    [items[index], items[index + delta]] = [items[index + delta], items[index]];
-    props.onChange({ ...draft, items });
+  function move(from: number, to: number) {
+    props.onChange({ ...draft, items: arrayMove(draft.items, from, to) });
   }
   return (
     <aside
@@ -314,89 +314,120 @@ export default function Composer(props: Props) {
                   <span>选择经历版本与亮点，再调整项目顺序。</span>
                 </div>
               )}
-              {draft.items.map((item, index) => {
-                const revision = revisions[item.revision_id];
-                if (!revision)
-                  return <p key={item.project_id}>正在读取经历版本…</p>;
-                const value = revision.content;
-                return (
-                  <article className="resume-project" key={item.project_id}>
-                    <div className="resume-project-title">
-                      <strong>{value.title}</strong>
-                      <div className="row">
-                        <button
-                          className="icon-button"
-                          aria-label={`上移项目 ${value.title}`}
-                          disabled={index === 0}
-                          onClick={() => move(index, -1)}
-                        >
-                          <ArrowUp size={13} />
-                        </button>
-                        <button
-                          className="icon-button"
-                          aria-label={`下移项目 ${value.title}`}
-                          disabled={index === draft.items.length - 1}
-                          onClick={() => move(index, 1)}
-                        >
-                          <ArrowDown size={13} />
-                        </button>
-                        <button
-                          className="icon-button"
-                          aria-label={`移除项目 ${value.title}`}
-                          onClick={() =>
-                            props.onChange({
-                              ...draft,
-                              items: draft.items.filter((_, i) => i !== index),
-                            })
-                          }
-                        >
-                          <X size={13} />
-                        </button>
-                      </div>
-                    </div>
-                    <span className="resume-period">
-                      {value.period} {value.role}
-                    </span>
-                    {value.stack.length > 0 && (
-                      <p>
-                        <b>技术栈：</b>
-                        {value.stack.join("、")}
-                      </p>
-                    )}
-                    {value.description && (
-                      <p>
-                        <b>项目描述：</b>
-                        {value.description}
-                      </p>
-                    )}
-                    {item.highlight_ids
-                      .map((id) => value.highlights.find((h) => h.id === id))
-                      .filter((h) => !!h)
-                      .map((h) => (
-                        <p key={h.id}>
-                          <b>{h.title}：</b>
-                          {h.text}
-                        </p>
-                      ))}
-                    {!value.highlights.length && !value.description && (
-                      <p className="subtle">尚未填写项目经历，可先分析源码。</p>
-                    )}
-                    <span className="version-note">
-                      固定引用 r{revision.number}
-                    </span>
-                    {state.projects.find(
-                      (project) => project.id === item.project_id,
-                    )?.head_revision !== revision.id && (
-                      <button
-                        className="text-button revision-update"
-                        onClick={() => props.onEditProject(item.project_id)}
-                      >
-                        有更新的经历版本 · 查看
-                      </button>
-                    )}
-                  </article>
-                );
-              })}
+              <SortableList
+                key={draft.id}
+                items={draft.items.map((item) => ({
+                  id: item.project_id,
+                  label: revisions[item.revision_id]?.content.title || "项目",
+                }))}
+                disabled={draft.items.some(
+                  (item) => !revisions[item.revision_id],
+                )}
+                onMove={move}
+              >
+                {draft.items.map((item, index) => {
+                  const revision = revisions[item.revision_id];
+                  if (!revision)
+                    return <p key={item.project_id}>正在读取经历版本…</p>;
+                  const value = revision.content;
+                  return (
+                    <SortableItem
+                      as="article"
+                      className="resume-project"
+                      key={item.project_id}
+                      id={item.project_id}
+                      label={`项目 ${value.title}`}
+                    >
+                      {(handle) => (
+                        <>
+                          <div className="resume-project-title">
+                            <strong>{value.title}</strong>
+                            <div className="row">
+                              <button
+                                className="icon-button"
+                                aria-label={`上移项目 ${value.title}`}
+                                disabled={index === 0}
+                                onClick={() => move(index, index - 1)}
+                              >
+                                <ArrowUp size={13} />
+                              </button>
+                              {handle}
+                              <button
+                                className="icon-button"
+                                aria-label={`下移项目 ${value.title}`}
+                                disabled={index === draft.items.length - 1}
+                                onClick={() => move(index, index + 1)}
+                              >
+                                <ArrowDown size={13} />
+                              </button>
+                              <button
+                                className="icon-button"
+                                aria-label={`移除项目 ${value.title}`}
+                                onClick={() =>
+                                  props.onChange({
+                                    ...draft,
+                                    items: draft.items.filter(
+                                      (_, i) => i !== index,
+                                    ),
+                                  })
+                                }
+                              >
+                                <X size={13} />
+                              </button>
+                            </div>
+                          </div>
+                          <span className="resume-period">
+                            {value.period} {value.role}
+                          </span>
+                          {value.stack.length > 0 && (
+                            <p>
+                              <b>技术栈：</b>
+                              {value.stack.join("、")}
+                            </p>
+                          )}
+                          {value.description && (
+                            <p>
+                              <b>项目描述：</b>
+                              {value.description}
+                            </p>
+                          )}
+                          {item.highlight_ids
+                            .map((id) =>
+                              value.highlights.find((h) => h.id === id),
+                            )
+                            .filter((h) => !!h)
+                            .map((h) => (
+                              <p key={h.id}>
+                                <b>{h.title}：</b>
+                                {h.text}
+                              </p>
+                            ))}
+                          {!value.highlights.length && !value.description && (
+                            <p className="subtle">
+                              尚未填写项目经历，可先分析源码。
+                            </p>
+                          )}
+                          <span className="version-note">
+                            固定引用 r{revision.number}
+                          </span>
+                          {state.projects.find(
+                            (project) => project.id === item.project_id,
+                          )?.head_revision !== revision.id && (
+                            <button
+                              className="text-button revision-update"
+                              onClick={() =>
+                                props.onEditProject(item.project_id)
+                              }
+                            >
+                              有更新的经历版本 · 查看
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </SortableItem>
+                  );
+                })}
+              </SortableList>
             </div>
           )}
         </div>

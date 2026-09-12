@@ -801,6 +801,43 @@ pre {
 .point-order button {
   padding: 4px;
 }
+.sortable-list {
+  display: flow-root;
+}
+.sortable-item {
+  position: relative;
+}
+.sort-handle {
+  cursor: grab;
+  touch-action: none;
+}
+.sort-handle:active,
+.sort-dragging .sort-handle {
+  cursor: grabbing;
+}
+.sort-dragging {
+  z-index: 2;
+  background: var(--surface);
+  border-radius: 8px;
+  outline: 2px solid var(--accent);
+  box-shadow: 0 8px 24px #0002;
+  opacity: 0.85;
+}
+.sortable-item[data-drop]::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  height: 3px;
+  background: var(--accent);
+  border-radius: 2px;
+  pointer-events: none;
+}
+.sortable-item[data-drop="before"]::after {
+  top: -8px;
+}
+.sortable-item[data-drop="after"]::after {
+  bottom: -8px;
+}
 .save-status {
   font-size: 10px;
 }

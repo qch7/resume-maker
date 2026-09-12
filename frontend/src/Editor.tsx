@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { arrayMove } from "@dnd-kit/sortable";
 import {
   ArrowDown,
   ArrowUp,
@@ -9,6 +10,7 @@ import {
 } from "lucide-react";
 import { api, loadLocal } from "./api";
 import { useField } from "./drafts";
+import { SortableItem, SortableList } from "./SortableList";
 import type {
   Highlight,
   Meta,
@@ -216,6 +218,7 @@ export default function Editor(props: Props) {
   const snapshot = detail.revision_snapshot;
   const [roots, setRoots] = useState(detail.project.roots.join("\n"));
   const content = detail.working.content;
+  const [ordering, setOrdering] = useState(false);
   const meta: Meta = {
     title: content.title,
     period: content.period,
@@ -242,20 +245,25 @@ export default function Editor(props: Props) {
     setProfile(next);
     localStorage.setItem(profileKey, JSON.stringify(next));
   }
-  async function move(index: number, delta: number) {
-    const order = content.highlights.map((h) => h.id);
-    [order[index], order[index + delta]] = [order[index + delta], order[index]];
-    const fresh = await api<ProjectDetail>(
-      `/projects/${detail.project.id}?revision_id=${revisionId}`,
-    );
-    await api(`/projects/${detail.project.id}/draft`, "PUT", {
-      base_revision: revisionId,
-      field: "order",
-      value: order,
-      version:
-        fresh.working.drafts.find((d) => d.field === "order")?.version ?? 0,
-    });
-    await props.onSave("order");
+  async function move(from: number, to: number) {
+    if (ordering || from === to) return;
+    setOrdering(true);
+    try {
+      const order = arrayMove(content.highlights, from, to).map((h) => h.id);
+      const fresh = await api<ProjectDetail>(
+        `/projects/${detail.project.id}?revision_id=${revisionId}`,
+      );
+      await api(`/projects/${detail.project.id}/draft`, "PUT", {
+        base_revision: revisionId,
+        field: "order",
+        value: order,
+        version:
+          fresh.working.drafts.find((d) => d.field === "order")?.version ?? 0,
+      });
+      await props.onSave("order");
+    } finally {
+      setOrdering(false);
+    }
   }
   return (
     <div className="editor">
@@ -479,40 +487,58 @@ export default function Editor(props: Props) {
           <span>可以让 Codex 分析源码，也可以直接新增并编辑。</span>
         </div>
       )}
-      {content.highlights.map((item, index) => (
-        <div
-          key={`${item.id}.${detail.working.drafts.find((d) => d.field === `highlight:${item.id}`)?.version ?? 0}`}
-          className="point-row"
-        >
-          <HighlightEditor
-            item={item}
-            draftVersion={
-              detail.working.drafts.find(
-                (d) => d.field === `highlight:${item.id}`,
-              )?.version ?? 0
-            }
-            props={props}
-          />
-          <div className="point-order">
-            <button
-              className="icon-button"
-              aria-label={`上移 ${item.title}`}
-              disabled={index === 0}
-              onClick={() => run(() => move(index, -1))}
-            >
-              <ArrowUp size={13} />
-            </button>
-            <button
-              className="icon-button"
-              aria-label={`下移 ${item.title}`}
-              disabled={index === content.highlights.length - 1}
-              onClick={() => run(() => move(index, 1))}
-            >
-              <ArrowDown size={13} />
-            </button>
-          </div>
-        </div>
-      ))}
+      <SortableList
+        items={content.highlights.map((item) => ({
+          id: item.id,
+          label: item.title || "未命名亮点",
+        }))}
+        disabled={ordering}
+        onMove={(from, to) => run(() => move(from, to))}
+      >
+        {content.highlights.map((item, index) => (
+          <SortableItem
+            key={`${item.id}.${detail.working.drafts.find((d) => d.field === `highlight:${item.id}`)?.version ?? 0}`}
+            id={item.id}
+            label={`亮点 ${item.title || "未命名亮点"}`}
+            className="point-row"
+          >
+            {(handle) => (
+              <>
+                <HighlightEditor
+                  item={item}
+                  draftVersion={
+                    detail.working.drafts.find(
+                      (d) => d.field === `highlight:${item.id}`,
+                    )?.version ?? 0
+                  }
+                  props={props}
+                />
+                <div className="point-order">
+                  <button
+                    className="icon-button"
+                    aria-label={`上移 ${item.title}`}
+                    disabled={ordering || index === 0}
+                    onClick={() => run(() => move(index, index - 1))}
+                  >
+                    <ArrowUp size={13} />
+                  </button>
+                  {handle}
+                  <button
+                    className="icon-button"
+                    aria-label={`下移 ${item.title}`}
+                    disabled={
+                      ordering || index === content.highlights.length - 1
+                    }
+                    onClick={() => run(() => move(index, index + 1))}
+                  >
+                    <ArrowDown size={13} />
+                  </button>
+                </div>
+              </>
+            )}
+          </SortableItem>
+        ))}
+      </SortableList>
       <details className="source-details">
         <summary>项目来源与本人贡献</summary>
         {snapshot ? (
