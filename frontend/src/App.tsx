@@ -339,7 +339,12 @@ export default function App() {
     setSelectedRevisions((v) => ({ ...v, [activeProject]: result.id }));
     setRevisionCache((v) => ({ ...v, [result.id]: result }));
     changed();
-    setToast({ text: `已保存为 r${result.number}，可选择用于当前简历。` });
+    setToast({
+      text:
+        result.id === revisionId
+          ? "没有需要保存的新修改。"
+          : `已保存为 r${result.number}。点击“用于当前简历”可更新右侧组合。`,
+    });
   }
   async function adopt(proposal: Proposal) {
     await api(`/proposals/${proposal.id}/adopt`, "POST");

@@ -274,7 +274,15 @@ export default function Editor(props: Props) {
             ))}
           </select>
         </label>
-        <button onClick={props.onUseVersion}>用于当前简历</button>
+        <div className="version-actions">
+          <button
+            className="primary"
+            onClick={() => run(() => props.onSave("experience"))}
+          >
+            保存全部修改
+          </button>
+          <button onClick={props.onUseVersion}>用于当前简历</button>
+        </div>
       </div>
       <div className="meta-line">
         <span>正在编辑 r{current.number}</span>
@@ -306,15 +314,11 @@ export default function Editor(props: Props) {
           </button>
         )}
       </div>
-      {detail.working.drafts.some((d) => d.field === "experience") && (
+      {detail.working.drafts.length > 0 && (
         <div className="notice">
-          <span>AI 整段建议已放入草稿，可逐条修改。</span>
-          <button
-            className="primary"
-            onClick={() => run(() => props.onSave("experience"))}
-          >
-            保存整段经历
-          </button>
+          <span>
+            草稿尚未保存到经历版本。可逐条保存，或点击“保存全部修改”一起保存。
+          </span>
         </div>
       )}
       <section className="project-meta">

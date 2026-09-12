@@ -398,12 +398,19 @@ pre {
 }
 .version-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-end;
   gap: 12px;
 }
 .version-row label {
   flex: 1;
+  min-width: 200px;
   margin: 0;
+}
+.version-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 .version-row button {
   margin-bottom: 1px;
