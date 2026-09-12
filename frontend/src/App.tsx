@@ -419,7 +419,9 @@ export default function App() {
     setToast({
       text:
         result.id === revisionId
-          ? "没有需要保存的新修改。"
+          ? field === "experience"
+            ? `全部内容已保存，与 r${result.number} 一致，无需新建版本。`
+            : `这项内容与 r${result.number} 一致，无需新建版本。`
           : `已保存为 r${result.number}。点击“用于当前简历”可更新右侧组合。`,
     });
   }

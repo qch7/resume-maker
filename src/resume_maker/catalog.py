@@ -127,6 +127,10 @@ class Catalog:
             "updated_at",
             (project_id, revision_id),
         )
+        return {"content": self._apply_drafts(content, drafts), "drafts": drafts}
+
+    @staticmethod
+    def _apply_drafts(content: dict, drafts: list[dict]) -> dict:
         for draft in drafts:
             value = draft["value"]
             if draft["field"] == "order":
@@ -134,7 +138,7 @@ class Catalog:
                 ids = field_value(content, "order")
                 value = [i for i in value if i in ids] + [i for i in ids if i not in value]
             content = replace_field(content, draft["field"], value)
-        return {"content": content, "drafts": drafts}
+        return content
 
     def put_draft(self, project_id: str, revision_id: str, field: str, value, version: int):
         content = self.working(project_id, revision_id)["content"]
@@ -182,8 +186,6 @@ class Catalog:
         ids = [h["id"] for h in content["highlights"]]
         if len(ids) != len(set(ids)):
             raise Problem("亮点 ID 不能重复。")
-        if content == base["content"]:
-            return base
         origin = "ai" if any(d["origin"].startswith("ai:") for d in working["drafts"]) else "manual"
         snapshot_id = base["snapshot_id"]
         for draft in working["drafts"]:
@@ -204,6 +206,21 @@ class Catalog:
             expected = [(d["field"], d["version"], dump(d["value"])) for d in working["drafts"]]
             if sorted(tuple(row) for row in actual) != sorted(expected):
                 raise Problem("保存时草稿发生变化，请重试。", 409)
+            if content == base["content"]:
+                # 回到原内容也要确认草稿，但仍须检查并发，且不能移除相互覆盖的有效编辑。
+                if effective == base["content"]:
+                    conn.execute(
+                        "DELETE FROM drafts WHERE project_id=? AND base_revision=?",
+                        (project_id, revision_id),
+                    )
+                else:
+                    remaining = [d for d in working["drafts"] if d["field"] != field]
+                    if self._apply_drafts(base["content"], remaining) == effective:
+                        conn.execute(
+                            "DELETE FROM drafts WHERE project_id=? AND base_revision=? AND field=?",
+                            (project_id, revision_id, field),
+                        )
+                return base
             number = conn.execute(
                 "SELECT MAX(number)+1 FROM revisions WHERE project_id=?", (project_id,)
             ).fetchone()[0]

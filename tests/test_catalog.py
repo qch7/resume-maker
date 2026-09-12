@@ -1,6 +1,6 @@
 import pytest
 
-from resume_maker.catalog import Catalog, Problem
+from resume_maker.catalog import Catalog, Problem, field_value
 from resume_maker.db import Database
 from resume_maker.models import ResumeItem
 
@@ -102,3 +102,82 @@ def test_restore_keeps_original_source_snapshot(catalog, project, populated):
     assert restored["snapshot_id"] is None
     again = catalog.restore(project["id"], populated["id"], restored["id"])
     assert again["snapshot_id"] == snapshot["id"]
+
+
+@pytest.mark.parametrize("field", ["experience", "meta", "highlight:one", "order"])
+def test_saving_unchanged_content_clears_drafts_without_a_new_revision(
+    catalog, project, populated, field
+):
+    p, base = project["id"], populated["id"]
+    value = field_value(populated["content"], field)
+    catalog.put_draft(p, base, field, value, 0)
+    before = catalog.db.all("SELECT * FROM revisions")
+    assert catalog.save_field(p, base, field, base)["id"] == base
+    assert catalog.working(p, base) == {"content": populated["content"], "drafts": []}
+    assert catalog.db.all("SELECT * FROM revisions") == before
+
+
+def test_save_all_clears_an_edit_reverted_to_saved_content(catalog, project, populated):
+    p, base = project["id"], populated["id"]
+    point = populated["content"]["highlights"][0]
+    catalog.put_draft(p, base, "highlight:one", {**point, "text": "Temporary edit"}, 0)
+    catalog.put_draft(p, base, "highlight:one", point, 1)
+    assert catalog.save_field(p, base, "experience", base)["id"] == base
+    assert not catalog.working(p, base)["drafts"]
+    with pytest.raises(Problem, match="其他窗口"):
+        catalog.put_draft(p, base, "highlight:one", {**point, "text": "Stale edit"}, 2)
+
+
+def test_unchanged_field_save_preserves_other_draft_versions(catalog, project, populated):
+    p, base = project["id"], populated["id"]
+    one, two = populated["content"]["highlights"]
+    catalog.put_draft(p, base, "highlight:one", one, 0)
+    catalog.put_draft(p, base, "highlight:two", {**two, "text": "Pending change"}, 0)
+    catalog.put_draft(p, base, "highlight:two", {**two, "text": "Still pending"}, 1)
+    pending = next(d for d in catalog.working(p, base)["drafts"] if d["field"] == "highlight:two")
+    assert catalog.save_field(p, base, "highlight:one", base)["id"] == base
+    working = catalog.working(p, base)
+    assert working["drafts"] == [pending]
+    assert working["content"]["highlights"][1]["text"] == "Still pending"
+
+
+def test_unchanged_field_save_keeps_overrides_of_a_whole_experience_draft(
+    catalog, project, populated
+):
+    from copy import deepcopy
+
+    p, base = project["id"], populated["id"]
+    content = deepcopy(populated["content"])
+    content["title"] = "Pending title"
+    content["highlights"][0]["text"] = "Whole draft text"
+    catalog.put_draft(p, base, "experience", content, 0)
+    catalog.put_draft(p, base, "highlight:one", populated["content"]["highlights"][0], 0)
+    before = catalog.working(p, base)
+    assert catalog.save_field(p, base, "highlight:one", base)["id"] == base
+    assert catalog.working(p, base) == before
+
+
+def test_unchanged_save_rejects_stale_head(catalog, project, populated):
+    p, base = project["id"], populated["id"]
+    catalog.put_draft(p, base, "experience", populated["content"], 0)
+    with pytest.raises(Problem, match="项目已有新版本"):
+        catalog.save_field(p, base, "experience", project["head_revision"])
+    assert catalog.working(p, base)["drafts"]
+
+
+def test_unchanged_save_rejects_concurrent_draft_edit(catalog, project, populated, monkeypatch):
+    p, base = project["id"], populated["id"]
+    point = populated["content"]["highlights"][0]
+    catalog.put_draft(p, base, "highlight:one", point, 0)
+    working = catalog.working
+
+    def concurrent_edit(project_id, revision_id):
+        result = working(project_id, revision_id)
+        with catalog.db.transaction() as conn:
+            conn.execute("UPDATE drafts SET version=version+1 WHERE project_id=?", (p,))
+        return result
+
+    monkeypatch.setattr(catalog, "working", concurrent_edit)
+    with pytest.raises(Problem, match="保存时草稿发生变化"):
+        catalog.save_field(p, base, "experience", base)
+    assert catalog.db.one("SELECT * FROM drafts WHERE project_id=?", (p,))["version"] == 2
