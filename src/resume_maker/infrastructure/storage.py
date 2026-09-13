@@ -69,7 +69,7 @@ def validate_database(path: Path):
     with closing(sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True)) as conn:
         if conn.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
             raise Problem("备份数据库完整性检查失败。")
-        if conn.execute("PRAGMA user_version").fetchone()[0] != 1:
+        if conn.execute("PRAGMA user_version").fetchone()[0] not in {1, 2, 3, 4}:
             raise Problem("备份版本不受当前程序支持。")
         if conn.execute("PRAGMA foreign_key_check").fetchone():
             raise Problem("备份数据库存在无效引用。")

@@ -75,7 +75,14 @@ class Documents:
 
     def export(self, resume_id: str) -> dict:
         """读取固定版本组合，替换模板经历区并保存 DOCX、预览和追溯清单。"""
-        resume = need(self.db.one("SELECT * FROM resumes WHERE id=?", (resume_id,)))
+        resume = need(
+            self.db.one(
+                "SELECT * FROM resumes WHERE id=? AND id NOT IN "
+                "(SELECT resume_id FROM resume_deletions)",
+                (resume_id,),
+            ),
+            "该简历方案不存在或已删除。",
+        )
         template = need(
             self.db.one("SELECT * FROM templates WHERE id=?", (resume["template_id"],)),
             "请先选择 Word 模板。",

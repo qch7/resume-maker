@@ -1,7 +1,25 @@
-import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import { api } from "../../shared/lib/api";
 import { loadLocal } from "../../shared/lib/storage";
-import type { Export, Resume, Revision, State } from "../../shared/types";
+import type {
+  Experience,
+  Export,
+  Resume,
+  Revision,
+  State,
+} from "../../shared/types";
+import { buildLivePreview } from "./livePreview";
+import {
+  normalizeHighlightOrder,
+  orderedHighlightIds,
+  toggleHighlightSelection,
+} from "./composition";
 
 export const NEW_RESUME: Resume = {
   id: "",
@@ -16,6 +34,7 @@ interface Options {
   activeProject: string;
   revisionId: string;
   revisionCache: Record<string, Revision>;
+  workingPreviews: Record<string, Experience>;
   setRevisionCache: Dispatch<SetStateAction<Record<string, Revision>>>;
   reload: () => Promise<void>;
   run: (work: () => Promise<void>) => void;
@@ -28,17 +47,35 @@ export function useResumeComposition({
   activeProject,
   revisionId,
   revisionCache,
+  workingPreviews,
   setRevisionCache,
   reload,
   run,
   notify,
 }: Options) {
-  const [draft, setDraft] = useState<Resume>(
+  const [storedDraft, setDraft] = useState<Resume>(
     /* 仅在首次挂载时读取缓存或计算初始状态。 */ () =>
       loadLocal("rm.resume.last", NEW_RESUME),
   );
+  const draft = useMemo(
+    /* 预览、缓存、保存和导出共用排序后的组合，兼容已有本地草稿。 */ () =>
+      normalizeHighlightOrder(storedDraft, revisionCache),
+    [storedDraft, revisionCache],
+  );
+  const { sources: previewSources, changed: previewChanged } = useMemo(
+    /* 工作副本只覆盖预览层，仍由用户明确提交和更新简历引用。 */ () =>
+      buildLivePreview(
+        draft,
+        revisionCache,
+        workingPreviews,
+        activeProject,
+        revisionId,
+      ),
+    [draft, revisionCache, workingPreviews, activeProject, revisionId],
+  );
   const [exported, setExported] = useState<Export | null>(null),
     [exporting, setExporting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   useEffect(
     /* 同步当前依赖对应的外部状态，并在需要时返回清理函数。 */ () => {
       if (!draft.id) {
@@ -106,9 +143,9 @@ export function useResumeComposition({
       revision_id: revisionId,
       highlight_ids:
         previous && hadHighlights
-          ? previous.highlight_ids.filter(
-              /* 保留满足当前范围或有效性条件的条目。 */ (id) =>
-                validIds.includes(id),
+          ? orderedHighlightIds(
+              revision.content.highlights,
+              previous.highlight_ids,
             )
           : validIds,
     };
@@ -145,9 +182,12 @@ export function useResumeComposition({
           );
           return;
         }
-        const head = state.projects.find(
-          /* 定位与当前标识或条件匹配的条目。 */ (p) => p.id === id,
-        )!.head_revision;
+        const head =
+          id === activeProject
+            ? revisionId
+            : state.projects.find(
+                /* 定位与当前标识或条件匹配的条目。 */ (p) => p.id === id,
+              )!.head_revision;
         const revision =
           revisionCache[head] ?? (await api<Revision>(`/revisions/${head}`));
         setRevisionCache(
@@ -170,7 +210,9 @@ export function useResumeComposition({
                     {
                       project_id: id,
                       revision_id: head,
-                      highlight_ids: revision.content.highlights.map(
+                      highlight_ids: (
+                        workingPreviews[head] ?? revision.content
+                      ).highlights.map(
                         /* 逐项转换数据，保留当前业务需要的字段。 */ (h) =>
                           h.id,
                       ),
@@ -181,7 +223,7 @@ export function useResumeComposition({
       },
     );
   }
-  /** 切换亮点选择，拒绝引用尚未存在于简历固定版本中的条目。 */
+  /** 在实时工作副本中切换亮点；新增草稿条目可以先预览，提交后再保存组合。 */
   function toggleHighlight(id: string) {
     const current = draft.items.find(
       /* 定位与当前标识或条件匹配的条目。 */ (i) =>
@@ -191,36 +233,43 @@ export function useResumeComposition({
       notify({ text: "请先将该经历版本用于当前简历。" });
       return;
     }
+    const source =
+      previewSources[activeProject] ?? revisionCache[current.revision_id];
     if (
-      !revisionCache[current.revision_id]?.content.highlights.some(
+      !source?.content.highlights.some(
         /* 检查条目是否满足当前选择或校验条件。 */ (h) => h.id === id,
       )
     ) {
       notify({
-        text: "这条亮点尚未保存在简历引用的版本中，请先保存并更新组合。",
+        text: "这条亮点已不在当前编辑内容中，请刷新后重试。",
       });
       return;
     }
-    setDraft({
-      ...draft,
-      items: draft.items.map(
-        /* 逐项转换数据，保留当前业务需要的字段。 */ (i) =>
-          i.project_id === activeProject
-            ? {
-                ...i,
-                highlight_ids: i.highlight_ids.includes(id)
-                  ? i.highlight_ids.filter(
-                      /* 保留满足当前范围或有效性条件的条目。 */ (x) =>
-                        x !== id,
-                    )
-                  : [...i.highlight_ids, id],
-              }
-            : i,
-      ),
-    });
+    setDraft(
+      /* 使用最新选择处理连续勾选，避免覆盖其他组合修改。 */ (value) => ({
+        ...value,
+        items: value.items.map(
+          /* 逐项转换数据，保留当前业务需要的字段。 */ (i) =>
+            i.project_id === activeProject
+              ? {
+                  ...i,
+                  highlight_ids: toggleHighlightSelection(
+                    source.content.highlights,
+                    i.highlight_ids,
+                    id,
+                  ),
+                }
+              : i,
+        ),
+      }),
+    );
   }
   /** 携带组合版本号保存模板和固定引用，并刷新服务器聚合数据。 */
   async function saveComposition() {
+    if (previewChanged)
+      throw new Error(
+        "预览已跟随编辑区更新，请先提交修改并点击“用于当前简历”，再保存或导出组合。",
+      );
     const body = {
       name: draft.name,
       template_id: draft.template_id,
@@ -235,6 +284,34 @@ export function useResumeComposition({
     setDraft(saved);
     await reload();
     return saved;
+  }
+  /** 删除指定方案并清理本地草稿，选择剩余方案或回到空白组合。 */
+  async function deleteComposition(resume: Resume) {
+    if (!resume.id || deleting || exporting) return;
+    setDeleting(true);
+    try {
+      await api(`/resumes/${resume.id}?version=${resume.version}`, "DELETE");
+      localStorage.removeItem(`rm.resume.${resume.id}`);
+      const remaining = state.resumes.find(
+        /* 按方案列表顺序选择下一个仍存在的方案。 */ (item) =>
+          item.id !== resume.id,
+      );
+      const next = remaining
+        ? loadLocal(`rm.resume.${remaining.id}`, remaining)
+        : { ...NEW_RESUME, template_id: state.templates[0]?.id ?? null };
+      setDraft(
+        /* 删除期间若已经切换方案，保留用户当前选择。 */ (current) =>
+          current.id === resume.id ? next : current,
+      );
+      setExported(
+        /* 清除被删除方案的预览，不覆盖其他方案的导出。 */ (current) =>
+          current?.resume_id === resume.id ? null : current,
+      );
+      await reload();
+      notify({ text: `已删除简历方案“${resume.name}”。` });
+    } finally {
+      setDeleting(false);
+    }
   }
   /** 先保存组合再导出文档，始终在完成或失败后清除导出中状态。 */
   async function exportResume() {
@@ -259,10 +336,14 @@ export function useResumeComposition({
     exported,
     setExported,
     exporting,
+    deleting,
     applyVersion,
     toggleProject,
     toggleHighlight,
     saveComposition,
+    deleteComposition,
     exportResume,
+    previewSources,
+    previewChanged,
   };
 }

@@ -1,6 +1,14 @@
 import { arrayMove } from "@dnd-kit/sortable";
-import { ArrowDown, ArrowUp, Plus } from "lucide-react";
-import { useState } from "react";
+import {
+  ArrowDown,
+  ArrowUp,
+  BriefcaseBusiness,
+  CalendarDays,
+  CircleCheck,
+  CircleDashed,
+  Plus,
+} from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   SortableItem,
   SortableList,
@@ -8,12 +16,13 @@ import {
 import { api } from "../../shared/lib/api";
 import { loadLocal } from "../../shared/lib/storage";
 import type {
+  Highlight,
   Meta,
   Profile,
-  ProjectDetail,
   Revision,
 } from "../../shared/types/index";
 import HighlightEditor from "./HighlightEditor";
+import VersionControl from "./VersionControl";
 import type { EditorProps } from "./types";
 import { useField } from "./useField";
 
@@ -44,6 +53,59 @@ export default function Editor(props: EditorProps) {
     )?.version ?? 0,
     props.onDirty,
   );
+  const order = useField(
+    detail.project.id,
+    revisionId,
+    "order",
+    content.highlights.map(
+      /* 读取当前工作副本的亮点顺序。 */ (point) => point.id,
+    ),
+    detail.working.drafts.find(
+      /* 沿用排序草稿的并发版本。 */ (draft) => draft.field === "order",
+    )?.version ?? 0,
+    props.onDirty,
+  );
+  const [highlightValues, setHighlightValues] = useState<
+    Record<string, Highlight>
+  >({});
+  /** 收集亮点实时输入，供父级组合预览使用。 */
+  const updateHighlightPreview = useCallback(
+    /* 收集各亮点当前输入值，使用稳定回调避免预览反馈循环。 */ (
+      point: Highlight,
+    ) => {
+      setHighlightValues(
+        /* 值未变化时复用状态。 */ (values) =>
+          values[point.id] === point
+            ? values
+            : { ...values, [point.id]: point },
+      );
+    },
+    [],
+  );
+  const orderedHighlights = useMemo(
+    /* 恢复本机尚未写入服务器的排序，新亮点仍置于顶部。 */ () =>
+      [...content.highlights].sort(
+        /* 按工作副本顺序显示卡片。 */ (a, b) =>
+          order.value.indexOf(a.id) - order.value.indexOf(b.id),
+      ),
+    [content.highlights, order.value],
+  );
+  const previewContent = useMemo(
+    /* 合并元信息、亮点输入与排序，右侧始终使用编辑区的当前值。 */ () => ({
+      ...editor.value,
+      highlights: orderedHighlights.map(
+        /* 尚未挂载的条目使用已恢复的工作副本。 */ (point) =>
+          highlightValues[point.id] ?? point,
+      ),
+    }),
+    [editor.value, orderedHighlights, highlightValues],
+  );
+  const onPreview = props.onPreview;
+  useEffect(
+    /* 按修订标识上报工作副本，切换项目或分支时不会串用内容。 */ () =>
+      onPreview(revisionId, previewContent),
+    [onPreview, revisionId, previewContent],
+  );
   const [metaOpen, setMetaOpen] = useState(!content.description);
   const [stackText, setStackText] = useState(editor.value.stack.join("、"));
   const profileKey = `rm.profile.${detail.project.id}`;
@@ -57,86 +119,23 @@ export default function Editor(props: EditorProps) {
     setProfile(next);
     localStorage.setItem(profileKey, JSON.stringify(next));
   }
-  /** 按目标位置移动条目，并沿用当前组件的版本或组合保存规则。 */
+  /** 立即缓存排序并写入草稿，等待用户统一提交为新版本。 */
   async function move(from: number, to: number) {
     if (ordering || from === to) return;
     setOrdering(true);
     try {
-      const order = arrayMove(content.highlights, from, to).map(
+      const next = arrayMove(orderedHighlights, from, to).map(
         /* 逐项转换数据，保留当前业务需要的字段。 */ (h) => h.id,
       );
-      const fresh = await api<ProjectDetail>(
-        `/projects/${detail.project.id}?revision_id=${revisionId}`,
-      );
-      await api(`/projects/${detail.project.id}/draft`, "PUT", {
-        base_revision: revisionId,
-        field: "order",
-        value: order,
-        version:
-          fresh.working.drafts.find(
-            /* 定位与当前标识或条件匹配的条目。 */ (d) => d.field === "order",
-          )?.version ?? 0,
-      });
-      await props.onSave("order");
+      order.update(next);
+      await order.flush();
     } finally {
       setOrdering(false);
     }
   }
   return (
     <div className="editor">
-      <div className="version-row">
-        <label>
-          经历版本
-          <select
-            value={revisionId}
-            onChange={
-              /* 把控件的新值同步到对应编辑状态。 */ (e) =>
-                props.onRevision(e.target.value)
-            }
-          >
-            {detail.revisions.map(
-              /* 按稳定标识生成对应的列表条目。 */ (r) => (
-                <option key={r.id} value={r.id}>
-                  r{r.number} ·{" "}
-                  {r.origin === "ai"
-                    ? "AI 建议保存"
-                    : r.origin === "restore"
-                      ? "历史恢复"
-                      : "人工保存"}{" "}
-                  · {new Date(r.created_at).toLocaleString()}
-                </option>
-              ),
-            )}
-          </select>
-        </label>
-        <div className="version-actions">
-          <button
-            className="primary"
-            data-guide="experience-save"
-            onClick={
-              /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-                run(
-                  /* 在草稿刷新成功后执行当前业务操作。 */ () =>
-                    props.onSave("experience"),
-                )
-            }
-          >
-            保存全部修改
-          </button>
-          <button
-            data-guide="experience-use"
-            onClick={
-              /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-                run(
-                  /* 在草稿刷新成功后执行当前业务操作。 */ async () =>
-                    props.onUseVersion(),
-                )
-            }
-          >
-            用于当前简历
-          </button>
-        </div>
-      </div>
+      <VersionControl props={props} />
       <div className="meta-line">
         <span>正在编辑 r{current.number}</span>
         <span
@@ -150,14 +149,21 @@ export default function Editor(props: EditorProps) {
             ? `简历引用 r${props.usedRevision.number}`
             : "尚未加入当前简历"}
         </span>
-        <span>
+        <span
+          className={`content-status ${props.hasLocalChanges || detail.working.drafts.length ? "pending" : "saved"}`}
+        >
+          {props.hasLocalChanges || detail.working.drafts.length ? (
+            <CircleDashed size={12} aria-hidden="true" />
+          ) : (
+            <CircleCheck size={12} aria-hidden="true" />
+          )}
           {props.hasLocalChanges
-            ? "有修改待保存到版本"
+            ? "未提交的改动"
             : detail.working.drafts.length
-              ? `${detail.working.drafts.length} 个字段有草稿`
-              : "内容已保存"}
+              ? "未提交的改动"
+              : "内容已提交"}
         </span>
-        {revisionId !== detail.project.head_revision && (
+        {revisionId !== detail.branch.head_revision && (
           <button
             className="text-button"
             onClick={
@@ -170,7 +176,7 @@ export default function Editor(props: EditorProps) {
                       {
                         base_revision: revisionId,
                         field: "experience",
-                        expected_head: detail.project.head_revision,
+                        expected_head: detail.branch.head_revision,
                       },
                     );
                     props.onRevision(restored.id);
@@ -186,7 +192,7 @@ export default function Editor(props: EditorProps) {
       {(props.hasLocalChanges || detail.working.drafts.length > 0) && (
         <div className="notice">
           <span>
-            草稿尚未保存到经历版本。可逐条保存，或点击“保存全部修改”一起保存。
+            修改会自动保留为草稿。确认后点击“提交为新版本”，将本次编辑和排序合并为一个版本。
           </span>
         </div>
       )}
@@ -281,12 +287,13 @@ export default function Editor(props: EditorProps) {
                     run(
                       /* 在草稿刷新成功后执行当前业务操作。 */ async () => {
                         await editor.flush();
-                        await props.onSave("meta");
+                        setMetaOpen(false);
+                        props.onRefresh();
                       },
                     )
                 }
               >
-                保存基本信息
+                完成编辑
               </button>
               <span className="subtle">{editor.status}</span>
               {editor.conflict && (
@@ -307,16 +314,43 @@ export default function Editor(props: EditorProps) {
           </>
         ) : (
           <>
-            <p className="subtle">
-              {editor.value.period} {editor.value.role}
+            <div className="project-facts">
+              {editor.value.period && (
+                <span>
+                  <CalendarDays size={13} aria-hidden="true" />
+                  {editor.value.period}
+                </span>
+              )}
+              {editor.value.role && (
+                <span>
+                  <BriefcaseBusiness size={13} aria-hidden="true" />
+                  {editor.value.role}
+                </span>
+              )}
+            </div>
+            <div className="tech-stack" aria-label="项目技术栈">
+              {editor.value.stack.map(
+                /* 将技术栈拆成便于扫描的标签，保留原有顺序。 */ (
+                  tech,
+                  index,
+                ) => (
+                  <span className="tech-tag" key={`${tech}.${index}`}>
+                    {tech}
+                  </span>
+                ),
+              )}
+            </div>
+            <p className="project-description">
+              {editor.value.description || "先分析项目，或手工补充描述。"}
             </p>
-            <p>{editor.value.stack.join(" · ")}</p>
-            <p>{editor.value.description || "先分析项目，或手工补充描述。"}</p>
           </>
         )}
       </section>
-      <div className="section-heading">
-        <h3>项目亮点</h3>
+      <div className="section-heading highlights-heading">
+        <h3>
+          项目亮点{" "}
+          <span className="count-badge">{content.highlights.length}</span>
+        </h3>
         <button
           className="text-button"
           onClick={
@@ -339,6 +373,21 @@ export default function Editor(props: EditorProps) {
           新增亮点
         </button>
       </div>
+      {order.status && (
+        <p className="subtle save-status" role="status">
+          排序：{order.status}
+        </p>
+      )}
+      {order.conflict && (
+        <button
+          onClick={
+            /* 冲突时由用户选择载入远端排序，保留本机恢复副本。 */ () =>
+              void order.reloadRemote()
+          }
+        >
+          载入服务器排序草稿
+        </button>
+      )}
       {!content.highlights.length && (
         <div className="empty compact">
           <p>还没有项目亮点</p>
@@ -346,7 +395,7 @@ export default function Editor(props: EditorProps) {
         </div>
       )}
       <SortableList
-        items={content.highlights.map(
+        items={orderedHighlights.map(
           /* 逐项转换数据，保留当前业务需要的字段。 */ (item) => ({
             id: item.id,
             label: item.title || "未命名亮点",
@@ -358,7 +407,7 @@ export default function Editor(props: EditorProps) {
             run(/* 在草稿刷新成功后执行当前业务操作。 */ () => move(from, to))
         }
       >
-        {content.highlights.map(
+        {orderedHighlights.map(
           /* 按稳定标识生成对应的列表条目。 */ (item, index) => (
             <SortableItem
               key={`${item.id}.${detail.working.drafts.find(/* 定位与当前标识或条件匹配的条目。 */ (d) => d.field === `highlight:${item.id}`)?.version ?? 0}`}
@@ -378,6 +427,7 @@ export default function Editor(props: EditorProps) {
                         )?.version ?? 0
                       }
                       props={props}
+                      onPreview={updateHighlightPreview}
                     />
                     <div className="point-order">
                       <button

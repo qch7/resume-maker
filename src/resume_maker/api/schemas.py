@@ -24,11 +24,19 @@ class DraftInput(Model):
 
 
 class SaveInput(Model):
-    """发布或恢复经历的请求，携带预期项目头防止并发覆盖。"""
+    """发布或恢复经历的请求，携带所属分支预期头版本防止并发覆盖。"""
 
     base_revision: str
     field: str
     expected_head: str
+
+
+class BranchInput(Model):
+    """从指定版本创建命名分支，可独立复制其未发布草稿。"""
+
+    name: str = Field(min_length=1, max_length=80)
+    base_revision: str
+    include_drafts: bool = True
 
 
 class MessageInput(Model):
@@ -72,3 +80,11 @@ class PathInput(Model):
     """需要由后端校验并读取的本机路径。"""
 
     path: str
+
+
+class RevealSourceInput(Model):
+    """用项目快照和来源相对路径定位文件，不接受任意本机绝对路径。"""
+
+    snapshot_id: str = Field(min_length=1)
+    source: str = Field(min_length=1)
+    path: str = Field(min_length=1)

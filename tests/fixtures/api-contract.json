@@ -42,6 +42,65 @@
         }
       }
     },
+    "/api/backups": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/branches": {
+      "post": {
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BranchInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/projects/scan": {
       "post": {
         "requestBody": {
@@ -299,6 +358,51 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/sources/reveal": {
+      "post": {
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevealSourceInput"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -935,54 +1039,29 @@
             }
           }
         }
-      }
-    },
-    "/api/templates/inspect": {
-      "post": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PathInput"
-              }
+      },
+      "delete": {
+        "parameters": [
+          {
+            "name": "resume_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resume Id"
             }
           },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
+          {
+            "name": "version",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Version"
             }
           }
-        }
-      }
-    },
-    "/api/templates": {
-      "post": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TemplateInput"
-              }
-            }
-          },
-          "required": true
-        },
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -1117,6 +1196,74 @@
         }
       }
     },
+    "/api/templates/inspect": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PathInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/templates": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TemplateInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/settings": {
       "get": {
         "responses": {
@@ -1193,20 +1340,6 @@
         }
       }
     },
-    "/api/backups": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          }
-        }
-      }
-    },
     "/": {
       "get": {
         "responses": {
@@ -1225,6 +1358,33 @@
     }
   },
   "schemas": {
+    "BranchInput": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Name"
+        },
+        "base_revision": {
+          "type": "string",
+          "title": "Base Revision"
+        },
+        "include_drafts": {
+          "type": "boolean",
+          "title": "Include Drafts",
+          "default": true
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "base_revision"
+      ],
+      "title": "BranchInput",
+      "description": "从指定版本创建命名分支，可独立复制其未发布草稿。"
+    },
     "ConversationInput": {
       "properties": {
         "title": {
@@ -1276,7 +1436,8 @@
       },
       "additionalProperties": false,
       "type": "object",
-      "title": "ConversationInput"
+      "title": "ConversationInput",
+      "description": "会话可修改字段的白名单，空值表示不修改该字段。"
     },
     "DraftInput": {
       "properties": {
@@ -1304,7 +1465,8 @@
         "base_revision",
         "field"
       ],
-      "title": "DraftInput"
+      "title": "DraftInput",
+      "description": "带基础修订和草稿版本号的字段编辑请求。"
     },
     "HTTPValidationError": {
       "properties": {
@@ -1355,7 +1517,8 @@
         "base_revision",
         "request_key"
       ],
-      "title": "MessageInput"
+      "title": "MessageInput",
+      "description": "绑定经历版本、讨论范围与幂等标识的会话请求。"
     },
     "PathInput": {
       "properties": {
@@ -1369,7 +1532,8 @@
       "required": [
         "path"
       ],
-      "title": "PathInput"
+      "title": "PathInput",
+      "description": "需要由后端校验并读取的本机路径。"
     },
     "ProjectInput": {
       "properties": {
@@ -1395,7 +1559,8 @@
         "name",
         "roots"
       ],
-      "title": "ProjectInput"
+      "title": "ProjectInput",
+      "description": "项目登记或来源重绑请求，限制名称和来源数量。"
     },
     "ProjectProfile": {
       "properties": {
@@ -1427,7 +1592,8 @@
       },
       "additionalProperties": false,
       "type": "object",
-      "title": "ProjectProfile"
+      "title": "ProjectProfile",
+      "description": "由用户本人补充和确认的角色、日期、贡献及成果。"
     },
     "ProviderSettings": {
       "properties": {
@@ -1456,7 +1622,8 @@
       },
       "additionalProperties": false,
       "type": "object",
-      "title": "ProviderSettings"
+      "title": "ProviderSettings",
+      "description": "CLI 程序、模型、Profile 与任务超时的可保存配置。"
     },
     "ResumeInput": {
       "properties": {
@@ -1496,7 +1663,8 @@
         "name",
         "items"
       ],
-      "title": "ResumeInput"
+      "title": "ResumeInput",
+      "description": "包含模板、固定版本条目及乐观锁版本的简历请求。"
     },
     "ResumeItem": {
       "properties": {
@@ -1523,7 +1691,36 @@
         "revision_id",
         "highlight_ids"
       ],
-      "title": "ResumeItem"
+      "title": "ResumeItem",
+      "description": "简历对特定项目版本及其亮点的固定引用。"
+    },
+    "RevealSourceInput": {
+      "properties": {
+        "snapshot_id": {
+          "type": "string",
+          "minLength": 1,
+          "title": "Snapshot Id"
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "title": "Source"
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "title": "Path"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "snapshot_id",
+        "source",
+        "path"
+      ],
+      "title": "RevealSourceInput",
+      "description": "用项目快照和来源相对路径定位文件，不接受任意本机绝对路径。"
     },
     "SaveInput": {
       "properties": {
@@ -1547,7 +1744,8 @@
         "field",
         "expected_head"
       ],
-      "title": "SaveInput"
+      "title": "SaveInput",
+      "description": "发布或恢复经历的请求，携带预期项目头防止并发覆盖。"
     },
     "TemplateInput": {
       "properties": {
@@ -1576,7 +1774,8 @@
         "start",
         "end"
       ],
-      "title": "TemplateInput"
+      "title": "TemplateInput",
+      "description": "本机模板路径及半开区间形式的经历替换范围。"
     },
     "ValidationError": {
       "properties": {

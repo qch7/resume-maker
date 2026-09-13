@@ -40,7 +40,7 @@ def replace_field(content: dict, field: str, value) -> dict:
         else:
             value = Highlight.model_validate({**value, "id": point_id}).model_dump()
             if index == len(items):
-                items.append(value)
+                items.insert(0, value)
             else:
                 items[index] = value
     else:

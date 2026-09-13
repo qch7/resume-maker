@@ -29,7 +29,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--muted);
+  background: var(--background);
   touch-action: none;
   user-select: none;
   z-index: 2;
@@ -37,7 +37,7 @@
 .resize-handle span {
   border-radius: 5px;
   background: var(--subtle);
-  opacity: 0.45;
+  opacity: 0.3;
 }
 .resize-x {
   cursor: col-resize;
@@ -93,7 +93,7 @@
   gap: 2px;
   padding: 3px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 3px;
   background: var(--muted);
 }
 .theme-switch button {
@@ -102,12 +102,11 @@
   color: var(--subtle);
   font-size: 11px;
   padding: 5px 8px;
-  border-radius: 6px;
+  border-radius: 2px;
 }
 .theme-switch button[aria-pressed="true"] {
-  color: var(--accent);
+  color: var(--text);
   background: var(--surface);
-  box-shadow: 0 1px 4px #10251b12;
 }
 .workflow {
   display: flex;
@@ -136,7 +135,7 @@
 .workflow progress {
   appearance: none;
   border: 0;
-  border-radius: 10px;
+  border-radius: 0;
   overflow: hidden;
   height: 4px;
   width: 120px;
@@ -148,7 +147,6 @@
 }
 .workflow progress::-webkit-progress-value {
   background: var(--accent);
-  border-radius: 10px;
 }
 .workflow progress::-moz-progress-bar {
   background: var(--accent);
@@ -187,6 +185,7 @@
   padding: 4px 8px;
   max-width: 100%;
   color: var(--subtle);
+  border-radius: 0;
 }
 .workflow-steps button:hover {
   background: var(--muted);
@@ -198,7 +197,7 @@
   width: 28px;
   height: 28px;
   flex-shrink: 0;
-  border-radius: 50%;
+  border-radius: 2px;
   border: 1px solid var(--line);
   font-size: 12px;
   font-weight: 600;
@@ -215,13 +214,13 @@
   font-weight: 400;
 }
 .workflow-steps .complete .step-number {
-  background: var(--accent-soft);
+  background: transparent;
   border-color: transparent;
-  color: var(--accent);
+  color: var(--success);
 }
 .workflow-steps .current button {
   color: var(--accent);
-  background: var(--accent-soft);
+  border-bottom-color: var(--accent);
 }
 .workflow-steps .current .step-number {
   background: var(--primary);

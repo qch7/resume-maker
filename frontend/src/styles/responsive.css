@@ -192,6 +192,16 @@
   .app-header strong {
     font-size: 13px;
   }
+  .project-meta {
+    padding: 8px 0 20px;
+  }
+  .project-meta h2 {
+    font-size: 20px;
+  }
+  .project-meta .section-heading {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
   .theme-switch button {
     padding: 6px;
   }

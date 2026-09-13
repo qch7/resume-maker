@@ -199,8 +199,17 @@ class Jobs:
             context = {
                 "task": job["kind"],
                 "project": project["name"],
+                "project_scope": "子项目，仅讨论当前来源" if project["parent_id"] else "整体项目",
+                "parent_project": (
+                    self.catalog.project(project["parent_id"])["name"]
+                    if project["parent_id"]
+                    else None
+                ),
                 "profile": request["profile"],
                 "current_experience": request["content"],
+                "experience_branch": self.catalog.history.for_revision(
+                    project["id"], request["base_revision"]
+                )["name"],
                 "target": request["scope"],
                 "snapshot_directory": str(self.data_dir / "snapshots" / snapshot["id"]),
                 "snapshot_fingerprint": snapshot["fingerprint"],

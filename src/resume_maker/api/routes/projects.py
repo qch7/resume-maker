@@ -5,11 +5,26 @@ from pathlib import Path
 from fastapi import APIRouter
 
 from resume_maker.api.dependencies import ServicesDep
-from resume_maker.api.schemas import DraftInput, PathInput, ProjectInput, SaveInput
+from resume_maker.api.schemas import (
+    BranchInput,
+    DraftInput,
+    PathInput,
+    ProjectInput,
+    RevealSourceInput,
+    SaveInput,
+)
 from resume_maker.domain.models import ProjectProfile
 from resume_maker.integrations.sources import collect_snapshot, scan_collection
 
 router = APIRouter(prefix="/api", tags=["projects"])
+
+
+@router.post("/projects/{project_id}/branches")
+def create_branch(services: ServicesDep, project_id: str, body: BranchInput):
+    """从保存版本创建独立经历分支，保留来源与原分支草稿。"""
+    return services.catalog.history.create(
+        project_id, body.base_revision, body.name, body.include_drafts
+    )
 
 
 @router.post("/projects/scan")
@@ -56,6 +71,13 @@ def snapshot(services: ServicesDep, project_id: str):
     )
 
 
+@router.post("/projects/{project_id}/sources/reveal")
+def reveal_source(services: ServicesDep, project_id: str, body: RevealSourceInput):
+    """验证来源文件属于项目快照后，在本机文件管理器中定位。"""
+    services.projects.reveal_source(project_id, body.snapshot_id, body.source, body.path)
+    return {"ok": True}
+
+
 @router.put("/projects/{project_id}/draft")
 def put_draft(services: ServicesDep, project_id: str, body: DraftInput):
     """校验字段并按草稿版本写入；拒绝覆盖其他窗口的新修改。"""
@@ -73,7 +95,7 @@ def discard_draft(services: ServicesDep, project_id: str, body: DraftInput):
 
 @router.post("/projects/{project_id}/revisions")
 def save_revision(services: ServicesDep, project_id: str, body: SaveInput):
-    """将所选草稿字段交给版本服务发布，同时校验预期项目头版本。"""
+    """将所选草稿字段交给版本服务发布，同时校验预期分支头版本。"""
     return services.catalog.save_field(
         project_id, body.base_revision, body.field, body.expected_head
     )

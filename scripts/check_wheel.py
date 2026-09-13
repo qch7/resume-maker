@@ -35,7 +35,7 @@ assert config.frontend == (Path.cwd() / "package/resume_maker/web").resolve(), c
 assert (config.frontend / "index.html").is_file()
 assert list((config.frontend / "assets").glob("*.js"))
 app = create_app(config)
-assert app.state.services.db.one("PRAGMA user_version")["user_version"] == 1
+assert app.state.services.db.one("PRAGMA user_version")["user_version"] == 4
 assert "/api/state" in app.openapi()["paths"]
 print("Wheel 验证通过：应用可导入，静态资源和数据库迁移完整。")
 """

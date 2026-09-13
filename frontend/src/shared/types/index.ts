@@ -30,6 +30,7 @@ export interface Profile {
 }
 export interface Project {
   id: string;
+  parent_id?: string | null;
   name: string;
   roots: string[];
   profile: Profile;
@@ -47,6 +48,17 @@ export interface Revision {
   origin: string;
   note: string;
   created_at: string;
+  branch_id: string;
+  branch_name: string;
+}
+export interface Branch {
+  id: string;
+  project_id: string;
+  name: string;
+  head_revision: string;
+  is_default: number;
+  created_at: string;
+  updated_at: string;
 }
 export interface Draft {
   field: string;
@@ -79,10 +91,18 @@ export interface Snapshot {
 }
 export interface ProjectDetail {
   project: Project;
+  branch: Branch;
+  branches: Branch[];
   revisions: Revision[];
   working: Working;
+  uncommitted?: UncommittedRevision[];
   snapshots: Snapshot[];
   revision_snapshot: Snapshot | null;
+}
+export interface UncommittedRevision {
+  base_revision: string;
+  content: Experience;
+  updated_at: string;
 }
 export interface Conversation {
   id: string;
@@ -143,6 +163,7 @@ export interface Template {
   created_at: string;
 }
 export interface State {
+  branches: Branch[];
   projects: Project[];
   conversations: Conversation[];
   resumes: Resume[];

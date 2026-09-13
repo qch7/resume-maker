@@ -1,0 +1,39 @@
+/* 仅保留短暂的操作反馈和浮层淡入，正文不使用入场或缩放动效。 */
+button,
+input,
+textarea,
+select,
+.project-row,
+.session-row,
+.highlight,
+.resize-handle,
+.resize-handle span {
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease,
+    opacity 120ms ease;
+}
+button:not(:disabled):not(.sort-handle):active {
+  translate: 0 1px;
+}
+input:not([type="checkbox"]):focus,
+textarea:focus,
+select:focus {
+  border-color: var(--accent);
+}
+.highlight:hover {
+  background: var(--panel);
+}
+.toast,
+dialog[open] {
+  animation: surface-enter 140ms ease-out;
+}
+@keyframes surface-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

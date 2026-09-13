@@ -1,6 +1,6 @@
 """固定版本简历组合与导出下载的 HTTP 入口。"""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from fastapi.responses import FileResponse
 
 from resume_maker.api.dependencies import ServicesDep
@@ -28,6 +28,13 @@ def save_resume(services: ServicesDep, resume_id: str, body: ResumeInput):
 def export(services: ServicesDep, resume_id: str):
     """读取固定版本组合，替换模板经历区并保存 DOCX、预览和追溯清单。"""
     return services.documents.export(resume_id)
+
+
+@router.delete("/resumes/{resume_id}")
+def delete_resume(services: ServicesDep, resume_id: str, version: int = Query(ge=1)):
+    """删除指定版本的简历方案，历史导出和原始项目资料继续保留。"""
+    services.catalog.delete_resume(resume_id, version)
+    return {"ok": True}
 
 
 @router.get("/resumes/{resume_id}/exports")

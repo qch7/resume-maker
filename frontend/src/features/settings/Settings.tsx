@@ -129,7 +129,7 @@ export default function Settings(props: Props) {
       {tab === "projects" && (
         <div className="settings-body">
           <p className="subtle">
-            扫描项目集合后确认归组。每个项目可以关联多个代码目录。
+            扫描项目集合后确认归组。关联多个代码目录的项目会同时建立可独立勾选和对话的子项目。
           </p>
           <label>
             项目集合目录

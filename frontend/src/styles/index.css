@@ -2,4 +2,6 @@
 @import "./base.css";
 @import "./workspace.css";
 @import "./components.css";
+@import "./history.css";
+@import "./motion.css";
 @import "./responsive.css";

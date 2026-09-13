@@ -8,6 +8,7 @@ import {
   Minimize2,
   Plus,
   Save,
+  Trash2,
   X,
 } from "lucide-react";
 import { useRef, useState, type CSSProperties } from "react";
@@ -22,6 +23,7 @@ import { clamp, DEFAULT_LAYOUT } from "../../shared/lib/layout";
 import type { Export, Resume, Revision, State } from "../../shared/types/index";
 import { isCurrentExport, sameComposition } from "./composition.ts";
 import PrintedPage from "./PrintedPage";
+import DeleteResumeDialog from "./DeleteResumeDialog";
 
 interface Props {
   settingsHeight: number;
@@ -31,13 +33,17 @@ interface Props {
   state: State;
   draft: Resume;
   revisions: Record<string, Revision>;
+  previewSources: Record<string, Revision>;
+  previewChanged: boolean;
   result: Export | null;
   exporting: boolean;
+  deleting: boolean;
   onChange: (value: Resume) => void;
   onChoose: (id: string) => void;
   onSave: () => void;
   onExport: () => void;
   onNew: () => void;
+  onDelete: (resume: Resume) => void;
   onTemplates: () => void;
   onEditProject: (id: string) => void;
   run: (work: () => Promise<void>) => void;
@@ -47,6 +53,7 @@ interface Props {
 export default function Composer(props: Props) {
   const { draft, state, revisions, result } = props;
   const [tab, setTab] = useState<"content" | "print">("content");
+  const [deleteTarget, setDeleteTarget] = useState<Resume | null>(null);
   const pane = useRef<HTMLElement>(null);
   const size = useElementSize(pane);
   const settingsMax = Math.max(80, size.height - 188);
@@ -55,7 +62,7 @@ export default function Composer(props: Props) {
     /* 定位与当前标识或条件匹配的条目。 */ (r) => r.id === draft.id,
   );
   const dirty = !sameComposition(saved, draft);
-  const currentExport = isCurrentExport(result, draft);
+  const currentExport = !props.previewChanged && isCurrentExport(result, draft);
   /** 按目标位置移动条目，并沿用当前组件的版本或组合保存规则。 */
   function move(from: number, to: number) {
     props.onChange({ ...draft, items: arrayMove(draft.items, from, to) });
@@ -69,13 +76,14 @@ export default function Composer(props: Props) {
       <header className="composition-header">
         <div className="section-heading">
           <h2>当前简历</h2>
-          <span className={`tag ${dirty ? "warning-tag" : ""}`}>
+          <span className={`tag ${dirty ? "warning-tag" : "success-tag"}`}>
             {dirty ? "组合未保存" : "组合已保存"}
           </span>
         </div>
         <div className="resume-picker">
           <select
             aria-label="简历方案"
+            disabled={props.deleting}
             value={draft.id}
             onChange={
               /* 把控件的新值同步到对应编辑状态。 */ (e) =>
@@ -94,9 +102,23 @@ export default function Composer(props: Props) {
           <button
             className="icon-button"
             aria-label="新建简历方案"
+            title="新建简历方案"
+            disabled={props.deleting}
             onClick={props.onNew}
           >
             <Plus size={17} />
+          </button>
+          <button
+            className="icon-button danger-hover"
+            aria-label="删除当前简历方案"
+            title={draft.id ? "删除当前简历方案" : "当前没有已保存的方案"}
+            disabled={!draft.id || props.exporting || props.deleting}
+            onClick={
+              /* 固定待删除方案，确认时不会误操作其他选择。 */ () =>
+                setDeleteTarget(draft)
+            }
+          >
+            <Trash2 size={17} />
           </button>
         </div>
         <label>
@@ -151,7 +173,9 @@ export default function Composer(props: Props) {
           <button
             data-guide="composition-save"
             onClick={props.onSave}
-            disabled={!draft.name.trim()}
+            disabled={
+              props.deleting || props.previewChanged || !draft.name.trim()
+            }
           >
             <Save size={15} />
             保存组合
@@ -162,6 +186,8 @@ export default function Composer(props: Props) {
             onClick={props.onExport}
             disabled={
               props.exporting ||
+              props.previewChanged ||
+              props.deleting ||
               !draft.template_id ||
               !draft.items.length ||
               !draft.name.trim()
@@ -171,17 +197,28 @@ export default function Composer(props: Props) {
             {props.exporting ? "正在生成并渲染…" : "导出 Word"}
           </button>
         </div>
-        <p className="composition-summary">
-          已选 {draft.items.length} 个项目 ·{" "}
-          {draft.items.reduce(
-            /* 执行当前异步流程，保持请求结果与所属组件状态一致。 */ (
-              sum,
-              item,
-            ) => sum + item.highlight_ids.length,
-            0,
-          )}{" "}
-          条亮点
-        </p>
+        {props.previewChanged && (
+          <p className="subtle" role="status">
+            正在实时预览编辑内容。提交修改并点击“用于当前简历”后，可保存和导出此内容。
+          </p>
+        )}
+        <div className="composition-summary" aria-live="polite">
+          <span>
+            已选 <b key={draft.items.length}>{draft.items.length}</b> 个项目
+          </span>
+          <span>
+            <b>
+              {draft.items.reduce(
+                /* 执行当前异步流程，保持请求结果与所属组件状态一致。 */ (
+                  sum,
+                  item,
+                ) => sum + item.highlight_ids.length,
+                0,
+              )}
+            </b>{" "}
+            条亮点
+          </span>
+        </div>
         {props.exporting && (
           <div className="export-progress" role="status">
             <span />
@@ -189,6 +226,19 @@ export default function Composer(props: Props) {
           </div>
         )}
       </header>
+      {deleteTarget && (
+        <DeleteResumeDialog
+          resume={deleteTarget}
+          onClose={/* 取消删除并返回组合编辑。 */ () => setDeleteTarget(null)}
+          onConfirm={
+            /* 关闭确认弹窗并删除已经确认的方案。 */ () => {
+              setDeleteTarget(null);
+              props.onDelete(deleteTarget);
+              setTab("content");
+            }
+          }
+        />
+      )}
       <ResizeHandle
         className="settings-resize"
         label="调整设置与预览高度"
@@ -323,7 +373,7 @@ export default function Composer(props: Props) {
             <div className="resume-paper">
               <div className="paper-heading">项目经历</div>
               {!draft.items.length && (
-                <div className="empty compact">
+                <div className="empty compact preview-empty">
                   <p>从左侧勾选项目</p>
                   <span>选择经历版本与亮点，再调整项目顺序。</span>
                 </div>
@@ -333,7 +383,11 @@ export default function Composer(props: Props) {
                 items={draft.items.map(
                   /* 逐项转换数据，保留当前业务需要的字段。 */ (item) => ({
                     id: item.project_id,
-                    label: revisions[item.revision_id]?.content.title || "项目",
+                    label:
+                      (
+                        props.previewSources[item.project_id] ??
+                        revisions[item.revision_id]
+                      )?.content.title || "项目",
                   }),
                 )}
                 disabled={draft.items.some(
@@ -344,7 +398,9 @@ export default function Composer(props: Props) {
               >
                 {draft.items.map(
                   /* 按稳定标识生成对应的列表条目。 */ (item, index) => {
-                    const revision = revisions[item.revision_id];
+                    const revision =
+                      props.previewSources[item.project_id] ??
+                      revisions[item.revision_id];
                     if (!revision)
                       return <p key={item.project_id}>正在读取经历版本…</p>;
                     const value = revision.content;
@@ -422,21 +478,11 @@ export default function Composer(props: Props) {
                                   {value.description}
                                 </p>
                               )}
-                              {item.highlight_ids
-                                .map(
-                                  /* 逐项转换数据，保留当前业务需要的字段。 */ (
-                                    id,
-                                  ) =>
-                                    value.highlights.find(
-                                      /* 定位与当前标识或条件匹配的条目。 */ (
-                                        h,
-                                      ) => h.id === id,
-                                    ),
-                                )
+                              {value.highlights
                                 .filter(
-                                  /* 保留满足当前范围或有效性条件的条目。 */ (
+                                  /* 按编辑区当前顺序显示勾选条目，取消后重选不改变位置。 */ (
                                     h,
-                                  ) => !!h,
+                                  ) => item.highlight_ids.includes(h.id),
                                 )
                                 .map(
                                   /* 按稳定标识生成对应的列表条目。 */ (h) => (
@@ -453,12 +499,14 @@ export default function Composer(props: Props) {
                                   </p>
                                 )}
                               <span className="version-note">
-                                固定引用 r{revision.number}
+                                {revision !== revisions[item.revision_id]
+                                  ? `实时预览 · 基于 r${revision.number}`
+                                  : `固定引用 r${revision.number}`}
                               </span>
-                              {state.projects.find(
+                              {state.branches.find(
                                 /* 定位与当前标识或条件匹配的条目。 */ (
-                                  project,
-                                ) => project.id === item.project_id,
+                                  branch,
+                                ) => branch.id === revision.branch_id,
                               )?.head_revision !== revision.id && (
                                 <button
                                   className="text-button revision-update"

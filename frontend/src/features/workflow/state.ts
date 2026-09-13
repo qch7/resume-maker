@@ -91,8 +91,8 @@ export function getWorkflow(input: {
   if (unsaved)
     return guide(
       1,
-      "当前项目有修改尚未存入经历版本。先保存全部修改，再用于当前简历。",
-      "去保存修改",
+      "当前项目有未提交的改动。确认后点击“提交为新版本”，再用于当前简历。",
+      "去提交修改",
       "experience-save",
     );
   if (!prepared)

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   restoreSidebarSort,
   sortSidebar,
+  expandProjectPath,
 } from "../src/features/projects/sort.ts";
 
 const projects = [
@@ -58,6 +59,41 @@ test("alphabetic mode sorts projects and conversations naturally in both directi
     ),
     ["a", "b", "c"],
   );
+});
+
+test("child activity brings its aggregate forward and navigation expands its ancestors", /* 验证子项目活动参与整体排序，并保留其他分组的折叠选择。 */ () => {
+  const rows = [
+    { id: "parent", name: "TrustGuard", updated_at: "2026-09-01T00:00:00Z" },
+    {
+      id: "child",
+      parent_id: "parent",
+      name: "agent",
+      updated_at: "2026-09-02T00:00:00Z",
+    },
+    { id: "other", name: "独立项目", updated_at: "2026-09-03T00:00:00Z" },
+  ];
+  const sessions = [
+    {
+      id: "chat",
+      project_id: "child",
+      title: "子项目会话",
+      updated_at: "2026-09-05T00:00:00Z",
+    },
+  ];
+  const roots = sortSidebar(rows, sessions, "recent").projects.filter(
+    /* 只比较顶层整体项目。 */ (p) => !p.parent_id,
+  );
+  assert.deepEqual(
+    roots.map(/* 提取排序标识。 */ (p) => p.id),
+    ["parent", "other"],
+  );
+  const folded = { parent: true, child: true, other: true };
+  assert.deepEqual(expandProjectPath(rows, "child", folded), {
+    parent: false,
+    child: false,
+    other: true,
+  });
+  assert.deepEqual(folded, { parent: true, child: true, other: true });
 });
 
 test("recent mode includes project edits, drafts and conversation activity", /* 验证最近排序包含项目修改、草稿和会话活动。 */ () => {

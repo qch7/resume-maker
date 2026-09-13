@@ -74,7 +74,7 @@ export function useField<T>(
                   version: version.current,
                 }),
               );
-            if (mounted.current) setStatus("草稿已保存");
+            if (mounted.current) setStatus("草稿已保存，待提交");
           } catch (error) {
             if (
               error instanceof ApiError &&
@@ -128,7 +128,7 @@ export function useField<T>(
     onDirty?.();
     current.current = next;
     setValue(next);
-    setStatus("有未保存修改");
+    setStatus("已保留到本机，正在同步草稿");
     localStorage.setItem(
       key,
       JSON.stringify({ value: next, version: version.current }),
@@ -148,10 +148,14 @@ export function useField<T>(
       const next = (
         field === "meta"
           ? meta
-          : content.highlights.find(
-              /* 定位与当前标识或条件匹配的条目。 */ (h) =>
-                h.id === field.slice(10),
-            )
+          : field === "order"
+            ? content.highlights.map(
+                /* 恢复完整服务器排序。 */ (point) => point.id,
+              )
+            : content.highlights.find(
+                /* 定位与当前标识或条件匹配的条目。 */ (h) =>
+                  h.id === field.slice(10),
+              )
       ) as T | undefined;
       // 覆盖冲突的本机编辑前保存恢复副本，便于用户取回未合并的内容。
       localStorage.setItem(`${key}.recovery`, JSON.stringify(current.current));

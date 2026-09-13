@@ -1,4 +1,4 @@
-import type { ProjectDetail, Revision } from "../../shared/types";
+import type { Experience, ProjectDetail, Revision } from "../../shared/types";
 export interface EditorProps {
   detail: ProjectDetail;
   revisionId: string;
@@ -13,4 +13,5 @@ export interface EditorProps {
   onUseVersion: () => void;
   onAsk: (scope: string) => Promise<void>;
   onToggle: (id: string) => void;
+  onPreview: (revisionId: string, content: Experience) => void;
 }

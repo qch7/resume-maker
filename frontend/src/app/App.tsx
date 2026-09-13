@@ -1,7 +1,8 @@
 import {
+  FilePenLine,
   FolderPlus,
   LoaderCircle,
-  PanelLeftClose,
+  PanelLeftOpen,
   RefreshCw,
   RotateCcw,
   Settings as SettingsIcon,
@@ -19,6 +20,7 @@ import Chat from "../features/conversations/Chat";
 import Editor from "../features/experiences/Editor";
 import { clearLocalDrafts } from "../features/experiences/useField";
 import ProjectSidebar from "../features/projects/ProjectSidebar";
+import { expandProjectPath } from "../features/projects/sort";
 import Composer from "../features/resumes/Composer";
 import {
   NEW_RESUME,
@@ -37,6 +39,7 @@ import { loadLocal } from "../shared/lib/storage";
 import type {
   Conversation,
   ConversationDetail,
+  Experience,
   ProjectDetail,
   Proposal,
   Resume,
@@ -46,6 +49,7 @@ import type {
 import { useWorkspaceLayout } from "./useWorkspaceLayout";
 
 const EMPTY: State = {
+  branches: [],
   projects: [],
   conversations: [],
   resumes: [],
@@ -67,6 +71,24 @@ export default function App() {
     guideMax,
     resize,
   } = useWorkspaceLayout();
+  const sidebarToggleRequested = useRef(false);
+  useEffect(
+    /* 手动折叠或展开后，将键盘焦点交还给当前可见的切换入口。 */ () => {
+      if (!sidebarToggleRequested.current) return;
+      sidebarToggleRequested.current = false;
+      document
+        .getElementById(sidebar ? "sidebar-collapse" : "sidebar-expand")
+        ?.focus({ preventScroll: true });
+    },
+    [sidebar],
+  );
+  /** 切换项目库显隐，并在渲染后恢复操作按钮的焦点。 */
+  function toggleSidebar() {
+    sidebarToggleRequested.current = true;
+    setSidebar(
+      /* 基于最近状态切换，避免连续操作覆盖。 */ (visible) => !visible,
+    );
+  }
   const [state, setState] = useState<State>(EMPTY),
     [loaded, setLoaded] = useState(false);
   const [activeProject, setActiveProject] = useState("");
@@ -92,10 +114,30 @@ export default function App() {
   const [revisionCache, setRevisionCache] = useState<Record<string, Revision>>(
     {},
   );
+  const [workingPreviews, setWorkingPreviews] = useState<
+    Record<string, Experience>
+  >({});
+  /** 接收各修订的编辑副本，保持正式版本缓存不变。 */
+  const updateWorkingPreview = useCallback(
+    /* 保留各修订的当前编辑副本，供内容预览使用，不写入正式版本缓存。 */ (
+      id: string,
+      content: Experience,
+    ) => {
+      setWorkingPreviews(
+        /* 相同副本不触发额外渲染。 */ (values) =>
+          values[id] === content ? values : { ...values, [id]: content },
+      );
+    },
+    [],
+  );
   const initialized = useRef(false),
     navigation = useRef(0);
   const project = state.projects.find(
     /* 定位与当前标识或条件匹配的条目。 */ (p) => p.id === activeProject,
+  );
+  const parentProject = state.projects.find(
+    /* 识别当前子项目所属的整体项目，用于范围提示与返回导航。 */ (p) =>
+      p.id === project?.parent_id,
   );
   const revisionId =
     selectedRevisions[activeProject] ?? project?.head_revision ?? "";
@@ -188,16 +230,21 @@ export default function App() {
     exported,
     setExported,
     exporting,
+    deleting,
     applyVersion,
     toggleProject,
     toggleHighlight,
     saveComposition,
+    deleteComposition,
     exportResume,
+    previewSources,
+    previewChanged,
   } = useResumeComposition({
     state,
     activeProject,
     revisionId,
     revisionCache,
+    workingPreviews,
     setRevisionCache,
     reload,
     run,
@@ -357,10 +404,8 @@ export default function App() {
             }),
           );
         setFolded(
-          /* 基于最近一次状态计算新值，避免异步闭包覆盖后续修改。 */ (v) => ({
-            ...v,
-            [projectId]: false,
-          }),
+          /* 展开子项目和所属整体项目，让导航位置始终可见。 */ (v) =>
+            expandProjectPath(state.projects, projectId, v),
         );
       },
     );
@@ -388,10 +433,8 @@ export default function App() {
       );
       setMode("chat");
       setFolded(
-        /* 基于最近一次状态计算新值，避免异步闭包覆盖后续修改。 */ (v) => ({
-          ...v,
-          [projectId]: false,
-        }),
+        /* 新会话始终留在对应子项目下，并展开它的分组。 */ (v) =>
+          expandProjectPath(state.projects, projectId, v),
       );
     } finally {
       conversationCreationPending.current = false;
@@ -457,10 +500,17 @@ export default function App() {
       {
         base_revision: revisionId,
         field,
-        expected_head: detail.project.head_revision,
+        expected_head: detail.branch.head_revision,
       },
     );
     clearLocalDrafts(activeProject, revisionId);
+    setWorkingPreviews(
+      /* 提交成功后旧基线恢复为不可变内容，避免残留草稿预览。 */ (values) => {
+        const next = { ...values };
+        delete next[revisionId];
+        return next;
+      },
+    );
     setSelectedRevisions(
       /* 基于最近一次状态计算新值，避免异步闭包覆盖后续修改。 */ (v) => ({
         ...v,
@@ -480,7 +530,7 @@ export default function App() {
           ? field === "experience"
             ? `全部内容已保存，与 r${result.number} 一致，无需新建版本。`
             : `这项内容与 r${result.number} 一致，无需新建版本。`
-          : `已保存为 r${result.number}。点击“用于当前简历”可更新右侧组合。`,
+          : `已提交为 r${result.number}。点击“用于当前简历”可更新右侧组合。`,
     });
   }
   /** 把 AI 建议放入对应版本草稿，并切回经历编辑供用户确认。 */
@@ -514,13 +564,25 @@ export default function App() {
             /* 定位与当前标识或条件匹配的条目。 */ (p) => p.id === projectId,
           );
           if (!next) return;
+          const used = draft.items.find(
+            /* 从简历返回时沿用其引用版本所属的分支。 */ (item) =>
+              item.project_id === projectId,
+          );
+          const branch = state.branches.find(
+            /* 找到该简历引用的分支最新版本。 */ (item) =>
+              item.id === revisionCache[used?.revision_id ?? ""]?.branch_id,
+          );
           setActiveProject(projectId);
+          setFolded(
+            /* 从简历预览返回时同步展开所属分组。 */ (v) =>
+              expandProjectPath(state.projects, projectId, v),
+          );
           setSelectedRevisions(
             /* 基于最近一次状态计算新值，避免异步闭包覆盖后续修改。 */ (
               value,
             ) => ({
               ...value,
-              [projectId]: next.head_revision,
+              [projectId]: branch?.head_revision ?? next.head_revision,
             }),
           );
         }
@@ -578,16 +640,19 @@ export default function App() {
     >
       <header className="app-header">
         <div className="row">
-          <button
-            className="icon-button"
-            aria-label="切换侧边栏"
-            onClick={
-              /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-                setSidebar(!sidebar)
-            }
-          >
-            <PanelLeftClose size={19} />
-          </button>
+          {!sidebar && !previewFocused && (
+            <button
+              id="sidebar-expand"
+              className="icon-button"
+              aria-label="展开项目库"
+              title="展开项目库"
+              aria-expanded={false}
+              aria-controls="project-sidebar"
+              onClick={toggleSidebar}
+            >
+              <PanelLeftOpen size={19} />
+            </button>
+          )}
           <strong>Resume Maker</strong>
           <span className="subtle app-subtitle">项目经历工作台</span>
         </div>
@@ -673,6 +738,7 @@ export default function App() {
       </div>
       <div className="workbench" ref={workbench}>
         <ProjectSidebar
+          onCollapse={toggleSidebar}
           projects={state.projects}
           conversations={state.conversations}
           activeJobs={activeJobs}
@@ -752,6 +818,22 @@ export default function App() {
             <>
               <header className="workspace-header">
                 <div>
+                  {parentProject ? (
+                    <button
+                      className="project-parent-link"
+                      title={`返回整体项目 ${parentProject.name}`}
+                      onClick={
+                        /* 返回原有整体项目经历与对话。 */ () =>
+                          navigate(parentProject.id)
+                      }
+                    >
+                      {parentProject.name} / 子项目
+                    </button>
+                  ) : project.roots.length > 1 ? (
+                    <span className="project-scope-hint">
+                      整体项目 · {project.roots.length} 个子项目
+                    </span>
+                  ) : null}
                   <h1
                     title={
                       remoteProject.data?.working.content.title || project.name
@@ -772,6 +854,7 @@ export default function App() {
                         )
                     }
                   >
+                    <FilePenLine size={14} aria-hidden="true" />
                     经历编辑
                   </button>
                   <button
@@ -787,6 +870,7 @@ export default function App() {
                         )
                     }
                   >
+                    <Sparkles size={14} aria-hidden="true" />
                     AI 会话
                   </button>
                 </nav>
@@ -883,6 +967,7 @@ export default function App() {
                       onUseVersion={applyVersion}
                       onAsk={ask}
                       onToggle={toggleHighlight}
+                      onPreview={updateWorkingPreview}
                     />
                   ) : (
                     <div className="empty compact">正在读取草稿…</div>
@@ -959,8 +1044,11 @@ export default function App() {
           state={state}
           draft={draft}
           revisions={revisionCache}
+          previewSources={previewSources}
+          previewChanged={previewChanged}
           result={exported}
           exporting={exporting}
+          deleting={deleting}
           onChange={setDraft}
           onChoose={
             /* 处理 onChoose 回调，将变化同步到工作台状态。 */ (id) =>
@@ -1002,6 +1090,12 @@ export default function App() {
                   setDraft(value);
                   setExported(null);
                 },
+              )
+          }
+          onDelete={
+            /* 先刷新项目草稿，再删除用户确认的方案。 */ (resume) =>
+              run(
+                /* 执行方案删除及后续切换。 */ () => deleteComposition(resume),
               )
           }
           onTemplates={

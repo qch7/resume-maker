@@ -170,7 +170,10 @@ export default function Chat(props: Props) {
               }
             }
           />
-          <span className="subtle">{project.project.name} 的独立会话</span>
+          <span className="subtle">
+            {project.project.name} 的独立会话 · 当前经历分支：
+            {project.branch.name}
+          </span>
         </div>
         <div className="messages" aria-live="polite">
           {!detail.messages.length && (

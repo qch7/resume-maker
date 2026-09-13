@@ -5,23 +5,25 @@
   color: var(--text);
   background: var(--background);
   font-synthesis: none;
-  --surface: light-dark(#fff, #1b2329);
-  --text: light-dark(#23312e, #e5edee);
-  --background: light-dark(#f3f5f7, #11171c);
-  --subtle: light-dark(#64746f, #a8b9bd);
-  --line: light-dark(#dde5e1, #34434a);
-  --muted: light-dark(#f1f5f3, #243038);
-  --accent: light-dark(#267259, #91d6b2);
-  --accent-soft: light-dark(#e6f2e9, #253e35);
-  --primary: light-dark(#256c56, #91d6b2);
-  --primary-ink: light-dark(#fff, #12291e);
-  --sidebar: light-dark(#f4f7f5, #151d22);
-  --selected: light-dark(#e2eee7, #293e37);
-  --panel: light-dark(#f8faf9, #182127);
-  --warning: light-dark(#916018, #f0c481);
-  --warning-soft: light-dark(#fff3da, #3c3120);
-  --danger: light-dark(#a43a35, #ffafa6);
-  --error-soft: light-dark(#fff4f1, #3b292b);
+  --surface: light-dark(#fff, #202225);
+  --text: light-dark(#292d32, #e5e7eb);
+  --background: light-dark(#e9ebee, #151719);
+  --subtle: light-dark(#6a717b, #a0a6ae);
+  --line: light-dark(#e1e4e8, #34373c);
+  --muted: light-dark(#f0f1f3, #2a2d31);
+  --accent: light-dark(#365fa4, #91b0de);
+  --accent-soft: light-dark(#f0f4fa, #262e38);
+  --primary: light-dark(#426aa8, #496fa9);
+  --primary-ink: #fff;
+  --sidebar: light-dark(#f6f7f8, #191b1e);
+  --selected: light-dark(#e9edf2, #2c323a);
+  --panel: light-dark(#f5f6f7, #1b1d20);
+  --success: light-dark(#3b755e, #94bca8);
+  --success-soft: light-dark(#eef5f0, #28332e);
+  --warning: light-dark(#946016, #edc27a);
+  --warning-soft: light-dark(#fff5df, #3e3324);
+  --danger: light-dark(#b34351, #ffa4af);
+  --error-soft: light-dark(#fff0f2, #3c2632);
 }
 * {
   box-sizing: border-box;
@@ -44,7 +46,7 @@ button {
   justify-content: center;
   gap: 7px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 3px;
   background: var(--surface);
   color: inherit;
   padding: 8px 12px;
@@ -80,7 +82,7 @@ button.text-button:hover {
 button.text-button {
   border: 0;
   background: transparent;
-  color: var(--accent);
+  color: var(--subtle);
   padding: 5px 7px;
 }
 button.danger-hover:hover {
@@ -92,7 +94,7 @@ select {
   width: 100%;
   min-width: 0;
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: 3px;
   background: var(--surface);
   color: inherit;
   padding: 9px 11px;
@@ -110,7 +112,7 @@ input[type="checkbox"] {
   cursor: pointer;
 }
 :focus-visible {
-  outline: 2px solid #64ac8f;
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 [data-guide]:focus {
@@ -193,9 +195,9 @@ pre {
   display: inline-block;
   white-space: nowrap;
   font-size: 10px;
-  color: var(--accent);
-  background: var(--accent-soft);
-  border-radius: 4px;
+  color: var(--subtle);
+  background: var(--muted);
+  border-radius: 2px;
   padding: 3px 6px;
 }
 .eyebrow {
@@ -218,6 +220,22 @@ pre {
 .warning-tag {
   color: var(--warning);
   background: var(--warning-soft);
+}
+.success-tag {
+  color: var(--success);
+  background: var(--success-soft);
+}
+.count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 23px;
+  height: 21px;
+  padding: 0 3px;
+  color: var(--subtle);
+  font-size: 10px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
 }
 .form-grid {
   display: grid;

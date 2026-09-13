@@ -1,11 +1,12 @@
 """经历修订、草稿冲突、建议采用及固定版本组合的事务服务。"""
 
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from resume_maker.core.errors import Problem, need
 from resume_maker.domain.experience import field_value, replace_field
 from resume_maker.domain.models import Experience, ProjectProfile, ResumeItem
 from resume_maker.infrastructure.database import Database, dump, now, uid, unpack
+from resume_maker.services.history import History
 
 
 class Catalog:
@@ -14,14 +15,28 @@ class Catalog:
     def __init__(self, db: Database):
         """保存当前模块所需依赖，供后续业务操作共享使用。"""
         self.db = db
+        self.history = History(db)
 
     def project(self, project_id: str) -> dict:
         """读取项目记录，不存在时抛出统一的业务异常。"""
-        return need(self.db.one("SELECT * FROM projects WHERE id=?", (project_id,)))
+        return need(
+            self.db.one(
+                "SELECT p.*, h.parent_id FROM projects p "
+                "LEFT JOIN project_hierarchy h ON h.project_id=p.id WHERE p.id=?",
+                (project_id,),
+            )
+        )
 
     def revision(self, revision_id: str, project_id: str | None = None) -> dict:
         """读取不可变经历版本，并按需验证它属于指定项目。"""
-        row = need(self.db.one("SELECT * FROM revisions WHERE id=?", (revision_id,)))
+        row = need(
+            self.db.one(
+                "SELECT r.*,b.id AS branch_id,b.name AS branch_name FROM revisions r "
+                "JOIN revision_branches rb ON rb.revision_id=r.id "
+                "JOIN experience_branches b ON b.id=rb.branch_id WHERE r.id=?",
+                (revision_id,),
+            )
+        )
         if project_id and row["project_id"] != project_id:
             raise Problem("经历版本不属于该项目。", 409)
         return row
@@ -31,36 +46,117 @@ class Catalog:
         roots = list(dict.fromkeys(str(Path(p).expanduser().resolve(strict=True)) for p in roots))
         if not name.strip() or not roots or any(not Path(p).is_dir() for p in roots):
             raise Problem("请填写项目名称和有效目录。")
-        for project in self.db.all("SELECT * FROM projects WHERE archived=0"):
-            if set(project["roots"]) == set(roots):
-                return project
-        project_id, revision_id, stamp = uid(), uid(), now()
         with self.db.transaction() as conn:
-            conn.execute(
-                "INSERT INTO projects VALUES (?,?,?,?,?,0,?,?)",
+            existing = next(
                 (
-                    project_id,
-                    name.strip(),
-                    dump(roots),
-                    dump(ProjectProfile().model_dump()),
-                    revision_id,
-                    stamp,
-                    stamp,
+                    row
+                    for raw in conn.execute("SELECT * FROM projects WHERE archived=0")
+                    if set((row := unpack(raw))["roots"]) == set(roots)
                 ),
+                None,
             )
-            conn.execute(
-                "INSERT INTO revisions VALUES (?,?,NULL,NULL,1,?,?,?,?)",
-                (
-                    revision_id,
-                    project_id,
-                    dump(Experience(title=name).model_dump()),
-                    "manual",
-                    "初始版本",
-                    stamp,
-                ),
-            )
-        self.create_conversation(project_id, "项目经历梳理")
+            project_id = existing["id"] if existing else self._insert_project(conn, name, roots)
+            self._sync_subprojects(conn, project_id)
         return self.project(project_id)
+
+    def _insert_project(self, conn, name: str, roots: list[str]) -> str:
+        """在同一事务中登记项目、初始经历及独立会话，来源由调用方验证。"""
+        project_id, revision_id, stamp = uid(), uid(), now()
+        conn.execute(
+            "INSERT INTO projects VALUES (?,?,?,?,?,0,?,?)",
+            (
+                project_id,
+                name.strip(),
+                dump(roots),
+                dump(ProjectProfile().model_dump()),
+                revision_id,
+                stamp,
+                stamp,
+            ),
+        )
+        conn.execute(
+            "INSERT INTO revisions VALUES (?,?,NULL,NULL,1,?,?,?,?)",
+            (
+                revision_id,
+                project_id,
+                dump(Experience(title=name).model_dump()),
+                "manual",
+                "初始版本",
+                stamp,
+            ),
+        )
+        conn.execute(
+            "INSERT INTO conversations(id,project_id,title,created_at,updated_at) "
+            "VALUES (?,?,?,?,?)",
+            (uid(), project_id, "项目经历梳理", stamp, stamp),
+        )
+        self.history.initialize(conn, project_id, revision_id, stamp)
+        return project_id
+
+    def _sync_subprojects(self, conn, project_id: str) -> None:
+        """按已登记来源维护子项目，不读取磁盘，也不改动已有经历和会话。"""
+        parent = need(
+            unpack(conn.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone())
+        )
+        roots = parent["roots"] if len(parent["roots"]) > 1 else []
+        children = [
+            unpack(row)
+            for row in conn.execute(
+                "SELECT p.* FROM projects p JOIN project_hierarchy h ON h.project_id=p.id "
+                "WHERE h.parent_id=?",
+                (project_id,),
+            )
+        ]
+        retained = {}
+        for child in children:
+            if len(child["roots"]) == 1 and child["roots"][0] in roots and not child["archived"]:
+                retained[child["roots"][0]] = child["id"]
+            else:
+                # 移除来源只解除分组，旧子项目及其简历引用继续保留。
+                conn.execute("DELETE FROM project_hierarchy WHERE project_id=?", (child["id"],))
+        for root in roots:
+            if root in retained:
+                continue
+            candidate = next(
+                (
+                    row
+                    for raw in conn.execute(
+                        "SELECT p.* FROM projects p "
+                        "LEFT JOIN project_hierarchy h ON h.project_id=p.id "
+                        "WHERE p.archived=0 AND h.parent_id IS NULL AND p.id<>?",
+                        (project_id,),
+                    )
+                    if (row := unpack(raw))["roots"] == [root]
+                ),
+                None,
+            )
+            child_id = (
+                candidate["id"]
+                if candidate
+                else self._insert_project(
+                    conn, PurePosixPath(root.replace("\\", "/")).name or parent["name"], [root]
+                )
+            )
+            conn.execute("INSERT INTO project_hierarchy VALUES (?,?)", (child_id, project_id))
+
+    def sync_subprojects(self, project_id: str) -> None:
+        """来源变更后幂等更新整体项目的子项目关联。"""
+        with self.db.transaction() as conn:
+            self._sync_subprojects(conn, project_id)
+
+    def ensure_subprojects(self) -> None:
+        """为升级前的多来源项目补齐子项目，保留原整体项目标识和全部历史。"""
+        with self.db.transaction() as conn:
+            parents = [
+                row["id"]
+                for row in conn.execute(
+                    "SELECT p.id FROM projects p "
+                    "LEFT JOIN project_hierarchy h ON h.project_id=p.id "
+                    "WHERE p.archived=0 AND h.parent_id IS NULL"
+                )
+            ]
+            for project_id in parents:
+                self._sync_subprojects(conn, project_id)
 
     def create_conversation(self, project_id: str, title: str) -> dict:
         """为指定项目创建具有独立历史和输入草稿的会话。"""
@@ -95,9 +191,9 @@ class Catalog:
         for draft in drafts:
             value = draft["value"]
             if draft["field"] == "order":
-                # 将旧排序与草稿中新增、删除的亮点重新协调。
+                # 新增亮点置顶，其余条目沿用用户排序，并移除已删除的亮点。
                 ids = field_value(content, "order")
-                value = [i for i in value if i in ids] + [i for i in ids if i not in value]
+                value = [i for i in ids if i not in value] + [i for i in value if i in ids]
             content = replace_field(content, draft["field"], value)
         return content
 
@@ -134,8 +230,9 @@ class Catalog:
             )
 
     def save_field(self, project_id: str, revision_id: str, field: str, expected_head: str) -> dict:
-        """发布所选字段为不可变新版本，并把其他未保存内容保留为草稿。"""
+        """在所属分支发布所选字段，校验分支头并迁移其余草稿。"""
         base = self.revision(revision_id, project_id)
+        branch = self.history.for_revision(project_id, revision_id)
         working = self.working(project_id, revision_id)
         effective = working["content"]
         value = field_value(effective, field)
@@ -158,10 +255,12 @@ class Catalog:
         new_id = uid()
         with self.db.transaction() as conn:
             head = conn.execute(
-                "SELECT head_revision FROM projects WHERE id=?", (project_id,)
+                "SELECT head_revision FROM experience_branches WHERE id=?", (branch["id"],)
             ).fetchone()
             if head[0] != expected_head:
                 raise Problem("项目已有新版本，请刷新后再保存；草稿仍然保留。", 409)
+            if revision_id != head[0]:
+                raise Problem("这是分支的历史版本，请先从此版本创建分支，或恢复为新版本。", 409)
             actual = conn.execute(
                 "SELECT field,version,value_json FROM drafts "
                 "WHERE project_id=? AND base_revision=?",
@@ -203,10 +302,7 @@ class Catalog:
                     stamp,
                 ),
             )
-            conn.execute(
-                "UPDATE projects SET head_revision=?,updated_at=? WHERE id=?",
-                (new_id, stamp, project_id),
-            )
+            self.history.advance(conn, branch, new_id, stamp)
             conn.execute(
                 "DELETE FROM drafts WHERE project_id=? AND base_revision=?",
                 (project_id, revision_id),
@@ -244,12 +340,13 @@ class Catalog:
         return result
 
     def restore(self, project_id: str, revision_id: str, expected_head: str) -> dict:
-        """以历史内容创建新版本，同时保留原快照来源及现有版本链。"""
+        """在历史版本所属分支追加恢复版本，保留来源快照及已有版本链。"""
         source = self.revision(revision_id, project_id)
+        branch = self.history.for_revision(project_id, revision_id)
         new_id, stamp = uid(), now()
         with self.db.transaction() as conn:
             head = conn.execute(
-                "SELECT head_revision FROM projects WHERE id=?", (project_id,)
+                "SELECT head_revision FROM experience_branches WHERE id=?", (branch["id"],)
             ).fetchone()[0]
             if head != expected_head:
                 raise Problem("项目已有新版本，请刷新后再恢复。", 409)
@@ -274,10 +371,7 @@ class Catalog:
                     stamp,
                 ),
             )
-            conn.execute(
-                "UPDATE projects SET head_revision=?,updated_at=? WHERE id=?",
-                (new_id, stamp, project_id),
-            )
+            self.history.advance(conn, branch, new_id, stamp)
         return self.revision(new_id)
 
     def adopt(self, proposal_id: str):
@@ -286,18 +380,19 @@ class Catalog:
         conversation = self.conversation(proposal["conversation_id"])
         project_id = conversation["project_id"]
         base_id = proposal["base_revision"]
+        branch = self.history.for_revision(project_id, base_id)
         working = self.working(project_id, base_id)
         if proposal["status"] != "pending":
             raise Problem("建议已经处理。", 409)
         if (
-            self.project(project_id)["head_revision"] != base_id
+            branch["head_revision"] != base_id
             or field_value(working["content"], proposal["target"]) != proposal["before"]
         ):
             raise Problem("建议生成后原文已发生变化，请重新请求或手工合并。", 409)
         replace_field(working["content"], proposal["target"], proposal["after"])
         with self.db.transaction() as conn:
             head = conn.execute(
-                "SELECT head_revision FROM projects WHERE id=?", (project_id,)
+                "SELECT head_revision FROM experience_branches WHERE id=?", (branch["id"],)
             ).fetchone()[0]
             status = conn.execute(
                 "SELECT status FROM proposals WHERE id=?", (proposal_id,)
@@ -361,6 +456,10 @@ class Catalog:
             need(self.db.one("SELECT id FROM templates WHERE id=?", (template_id,)), "模板不存在")
         resume_id = resume_id or uid()
         with self.db.transaction() as conn:
+            if conn.execute(
+                "SELECT 1 FROM resume_deletions WHERE resume_id=?", (resume_id,)
+            ).fetchone():
+                raise Problem("该简历方案已删除，请切换或新建方案。", 404)
             existing = unpack(
                 conn.execute("SELECT * FROM resumes WHERE id=?", (resume_id,)).fetchone()
             )
@@ -379,3 +478,18 @@ class Catalog:
                 ),
             )
         return self.db.one("SELECT * FROM resumes WHERE id=?", (resume_id,))
+
+    def delete_resume(self, resume_id: str, version: int) -> None:
+        """按版本删除方案，保留项目、模板及历史导出，拒绝覆盖其他窗口的修改。"""
+        with self.db.transaction() as conn:
+            resume = need(
+                conn.execute(
+                    "SELECT version FROM resumes WHERE id=? AND id NOT IN "
+                    "(SELECT resume_id FROM resume_deletions)",
+                    (resume_id,),
+                ).fetchone(),
+                "该简历方案不存在或已删除。",
+            )
+            if resume["version"] != version:
+                raise Problem("简历组合已在其他窗口修改，请先载入服务器组合再删除。", 409)
+            conn.execute("INSERT INTO resume_deletions VALUES (?,?)", (resume_id, now()))

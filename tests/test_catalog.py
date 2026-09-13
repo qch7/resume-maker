@@ -76,18 +76,25 @@ def test_duplicate_registration_keeps_history(catalog, project):
 
 
 def test_order_draft_survives_added_removed_highlights(catalog, project, populated):
-    """验证增删亮点后旧排序草稿能够与现有条目协调。"""
+    """验证新增亮点默认置顶，保存或删除后仍保留其他条目的手动排序。"""
     p, revision = project["id"], populated["id"]
     catalog.put_draft(p, revision, "order", ["two", "one"], 0)
     point = {"id": "three", "title": "Extra", "text": "Pending extra", "evidence": []}
     catalog.put_draft(p, revision, "highlight:three", point, 0)
+    assert field_value(catalog.working(p, revision)["content"], "order") == [
+        "three",
+        "two",
+        "one",
+    ]
     saved = catalog.save_field(p, revision, "order", revision)
     assert [h["id"] for h in saved["content"]["highlights"]] == ["two", "one"]
     catalog.put_draft(p, saved["id"], "highlight:one", None, 0)
     assert [h["id"] for h in catalog.working(p, saved["id"])["content"]["highlights"]] == [
-        "two",
         "three",
+        "two",
     ]
+    published = catalog.save_field(p, saved["id"], "highlight:three", saved["id"])
+    assert published["content"]["highlights"][0]["id"] == "three"
 
 
 def test_discard_rejects_stale_version(catalog, project, populated):
