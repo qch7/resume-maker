@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FileScan, Sparkles } from "lucide-react";
+import { FileScan, LoaderCircle, Sparkles } from "lucide-react";
 import PathInput from "../../shared/components/PathInput";
 import { api, ApiError, download } from "../../shared/lib/api";
 import type { Resume, Template } from "../../shared/types";
@@ -26,11 +26,13 @@ type Preview = {
 
 /** 在独立工作区识别、可视化调整、试填和保存完整 Word 模板。 */
 export default function TemplateAdapter({
+  active,
   resume,
   templates,
   onChanged,
   onSelected,
 }: {
+  active: boolean;
   resume: Resume;
   templates: Template[];
   onChanged: () => Promise<void>;
@@ -38,7 +40,10 @@ export default function TemplateAdapter({
 }) {
   const [path, setPath] = useState("");
   const [name, setName] = useState("");
-  const [libraryId, setLibraryId] = useState("");
+  const [libraryId, setLibraryId] = useState(
+    /* 刷新后恢复与分析快照对应的模板选项，避免选项与预览错配。 */ () =>
+      sessionStorage.getItem("rm.template.library") ?? "",
+  );
   const [taskId, setTaskId] = useState(
     /* 恢复同一服务实例中尚未确认的分析。 */ () =>
       sessionStorage.getItem("rm.template.analysis") ?? "",
@@ -54,6 +59,8 @@ export default function TemplateAdapter({
   );
   const [filter, setFilter] = useState<"all" | "unresolved">("all");
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [openedId, setOpenedId] = useState(libraryId);
   const [notice, setNotice] = useState("");
   const [feedback, setFeedback] = useState("");
   const autoPreview = useRef(true);
@@ -82,6 +89,26 @@ export default function TemplateAdapter({
   const saved = templates.find(
     /* 定位模板库中当前选项。 */ (item) => item.id === savedId,
   );
+  // 恢复中的分析优先保留；显式选模板时才替换，避免覆盖尚未保存的识别。
+  const requestedId = useRef(taskId ? savedId : "");
+  const libraryRequest = useRef<AbortController | null>(null);
+  const selectionVersion = useRef(0);
+  const selection = selectionVersion.current;
+  useEffect(
+    /* 首次进入模板页时加载默认选项，切换栏目或刷新模板列表不重置人工调整。 */ () => {
+      if (active && saved && requestedId.current !== saved.id)
+        void loadSaved(saved.id);
+    },
+    [active, saved?.id, taskId],
+  );
+  useEffect(
+    /* 请求跨栏目切换保留，只在卸载或选择另一模板时取消映射读取。 */ () =>
+      /* 卸载后所有映射及试填结果均不再更新界面。 */ () => {
+        libraryRequest.current?.abort();
+        selectionVersion.current++;
+      },
+    [],
+  );
   useEffect(
     /* 资料变化后旧试填不再代表当前简历，必须重新生成。 */ () => {
       setPreview(null);
@@ -106,7 +133,11 @@ export default function TemplateAdapter({
               undefined,
               controller.signal,
             );
-            if (controller.signal.aborted) return;
+            if (
+              controller.signal.aborted ||
+              selectionVersion.current !== selection
+            )
+              return;
             setNotice(
               /* 重连成功只清除连接提示，保留其他操作反馈。 */ (previous) =>
                 previous === "实时动态连接中断，正在重新连接…" ? "" : previous,
@@ -137,7 +168,11 @@ export default function TemplateAdapter({
           );
           loaded = true;
           cursor = value.cursor;
-          if (controller.signal.aborted) return;
+          if (
+            controller.signal.aborted ||
+            selectionVersion.current !== selection
+          )
+            return;
           setAnalysis(value);
           if (value.status === "running") timer = setTimeout(poll, 800);
           else {
@@ -150,7 +185,10 @@ export default function TemplateAdapter({
             if (value.error) setNotice(value.error);
           }
         } catch (error) {
-          if (!controller.signal.aborted) {
+          if (
+            !controller.signal.aborted &&
+            selectionVersion.current === selection
+          ) {
             if (
               error instanceof ApiError &&
               [401, 404].includes(error.status)
@@ -163,6 +201,10 @@ export default function TemplateAdapter({
                     : previous,
               );
               sessionStorage.removeItem("rm.template.analysis");
+              if (error.status === 404) {
+                requestedId.current = "";
+                setTaskId("");
+              }
             } else {
               setNotice("实时动态连接中断，正在重新连接…");
               timer = setTimeout(poll, 2000);
@@ -193,7 +235,8 @@ export default function TemplateAdapter({
             );
             if (!controller.signal.aborted && isCurrent()) setReview(value);
           } catch (error) {
-            if (!controller.signal.aborted) setNotice((error as Error).message);
+            if (!controller.signal.aborted && isCurrent())
+              setNotice((error as Error).message);
           }
         },
         450,
@@ -206,20 +249,22 @@ export default function TemplateAdapter({
     [plan, taskId, document, resume.items, running],
   );
   useEffect(
-    /* 新分析检查通过后自动试填一次，人工调整保留主动生成入口。 */ () => {
+    /* 当前页检查通过后自动试填一次；旧试填结束再处理新模板，避免 Word 请求堆积。 */ () => {
       if (
+        !active ||
         !autoPreview.current ||
         !plan ||
         !review?.ready ||
         review.missing === undefined ||
         busy ||
+        loading ||
         running
       )
         return;
       autoPreview.current = false;
       void perform(trial);
     },
-    [plan, review, busy, running],
+    [active, plan, review, busy, loading, running],
   );
   /** 带上当前人工修改和用户说明，交给 AI 自动补全并建立独立结果。 */
   async function repair() {
@@ -237,6 +282,7 @@ export default function TemplateAdapter({
   function isCurrent() {
     const current = latest.current;
     return (
+      selectionVersion.current === selection &&
       current.taskId === taskId &&
       current.plan === plan &&
       current.document === document &&
@@ -259,14 +305,47 @@ export default function TemplateAdapter({
     try {
       await work();
     } catch (error) {
-      setNotice((error as Error).message);
+      if (isCurrent()) setNotice((error as Error).message);
     } finally {
       setBusy(false);
     }
   }
+  /** 选择即打开已保存映射；清空旧预览并拒绝快速切换后迟到的读取结果。 */
+  async function loadSaved(id: string) {
+    libraryRequest.current?.abort();
+    const controller = new AbortController();
+    libraryRequest.current = controller;
+    requestedId.current = id;
+    selectionVersion.current++;
+    autoPreview.current = false;
+    setLoading(true);
+    setNotice("");
+    setAnalysis(null);
+    setPlan(null);
+    setReview(null);
+    setPreview(null);
+    setOpenedId("");
+    setTaskId("");
+    sessionStorage.removeItem("rm.template.analysis");
+    sessionStorage.setItem("rm.template.library", id);
+    try {
+      const value = await api<TemplateAnalysis>(
+        `/templates/${id}/edit`,
+        "POST",
+        undefined,
+        controller.signal,
+      );
+      if (!controller.signal.aborted) openTask(value, id);
+    } catch (error) {
+      if (!controller.signal.aborted) setNotice((error as Error).message);
+    } finally {
+      if (!controller.signal.aborted) setLoading(false);
+    }
+  }
   /** 接入新分析或已保存模板快照，清除上一份模板的选区和试填。 */
-  function openTask(value: TemplateAnalysis) {
+  function openTask(value: TemplateAnalysis, templateId = "") {
     autoPreview.current = true;
+    setOpenedId(templateId);
     setAnalysis(value);
     setPlan(null);
     setReview(null);
@@ -277,6 +356,8 @@ export default function TemplateAdapter({
     setFilter("all");
     setTaskId(value.id);
     sessionStorage.setItem("rm.template.analysis", value.id);
+    if (templateId) sessionStorage.setItem("rm.template.library", templateId);
+    else sessionStorage.removeItem("rm.template.library");
   }
   /** 点选文字、图片或同级范围，禁止跨单元格或跨部件拼接范围。 */
   function select(id: string, extend = false) {
@@ -328,14 +409,16 @@ export default function TemplateAdapter({
       { name, plan, document, items: resume.items },
     );
     await onChanged();
-    setLibraryId(value.id);
     if (isCurrent()) {
+      requestedId.current = value.id;
+      setOpenedId(value.id);
+      setLibraryId(value.id);
+      sessionStorage.setItem("rm.template.library", value.id);
       onSelected(value.id);
       setNotice(
         "模板已保存并用于当前简历。可返回个人信息或栏目编排继续填写资料。",
       );
-    } else
-      setNotice("模板已保存到模板库。当前简历已切换，可在模板库中选择使用。");
+    }
   }
   return (
     <section className="template-adapter" aria-label="Word 模板工作区">
@@ -347,23 +430,22 @@ export default function TemplateAdapter({
               kind="docx"
               placeholder=".docx 文件路径"
               value={path}
-              disabled={busy || running}
+              disabled={busy || loading || running}
               onChange={setPath}
             />
             <button
               className="primary"
-              disabled={busy || running || !path.trim()}
+              disabled={busy || loading || running || !path.trim()}
               onClick={
                 /* 将模板文本交给设置中的 AI 识别，个人字段值不传给模型。 */ () =>
                   void perform(
                     /* 执行当前操作并接收结果。 */ async () => {
-                      openTask(
-                        await api<TemplateAnalysis>(
-                          "/templates/analyses",
-                          "POST",
-                          { path, document, items: resume.items },
-                        ),
+                      const value = await api<TemplateAnalysis>(
+                        "/templates/analyses",
+                        "POST",
+                        { path, document, items: resume.items },
                       );
+                      if (isCurrent()) openTask(value);
                     },
                   )
               }
@@ -377,10 +459,14 @@ export default function TemplateAdapter({
               已保存模板
               <select
                 value={saved?.id ?? ""}
-                disabled={busy || running}
+                disabled={running}
                 onChange={
-                  /* 选择要继续调整或使用的模板。 */ (event) =>
-                    setLibraryId(event.target.value)
+                  /* 选择后直接读取映射并试填，不改动当前简历的模板引用。 */ (
+                    event,
+                  ) => {
+                    setLibraryId(event.target.value);
+                    void loadSaved(event.target.value);
+                  }
                 }
               >
                 <option value="" disabled>
@@ -396,25 +482,18 @@ export default function TemplateAdapter({
               </select>
             </label>
             <button
-              disabled={busy || running || !saved}
+              disabled={busy || loading || running || !saved}
               onClick={
-                /* 从已保存原文与映射建立可编辑副本，不再次调用 AI。 */ () =>
-                  void perform(
-                    /* 执行当前操作并接收结果。 */ async () => {
-                      openTask(
-                        await api<TemplateAnalysis>(
-                          `/templates/${savedId}/edit`,
-                          "POST",
-                        ),
-                      );
-                    },
-                  )
+                /* 已加载时直接进入调整，保留人工修改；读取失败可在此重试。 */ () => {
+                  if (openedId === savedId && plan) setView("structure");
+                  else void loadSaved(savedId);
+                }
               }
             >
-              调整映射
+              {notice && !analysis ? "重新加载" : "调整映射"}
             </button>
             <button
-              disabled={busy || running || !saved}
+              disabled={busy || loading || running || !saved}
               onClick={
                 /* 直接采用已保存的模板版本。 */ () => {
                   onSelected(savedId);
@@ -452,9 +531,13 @@ export default function TemplateAdapter({
         )}
         {!plan ? (
           !analysis && (
-            <p className="template-workspace-empty">
-              <FileScan size={18} />
-              暂无识别结果
+            <p className="template-workspace-empty" role="status">
+              {loading ? (
+                <LoaderCircle size={18} className="template-spinner" />
+              ) : (
+                <FileScan size={18} />
+              )}
+              {loading ? "正在加载模板…" : "暂无识别结果"}
             </p>
           )
         ) : (
