@@ -5,6 +5,7 @@ from typing import Any
 from pydantic import Field
 
 from resume_maker.domain.models import Model, ResumeItem
+from resume_maker.domain.resume import ResumeDocument
 
 
 class ProjectInput(Model):
@@ -27,7 +28,6 @@ class SaveInput(Model):
     """发布或恢复经历的请求，携带所属分支预期头版本防止并发覆盖。"""
 
     base_revision: str
-    field: str
     expected_head: str
 
 
@@ -65,6 +65,7 @@ class ResumeInput(Model):
     template_id: str | None = None
     items: list[ResumeItem]
     version: int = 0
+    document: ResumeDocument | None = None
 
 
 class TemplateInput(Model):

@@ -1,7 +1,8 @@
 param([string]$DataDir = '')
 $ErrorActionPreference = 'Stop'
 if (-not $DataDir) {
-    $DataDir = if ($env:RESUME_MAKER_DATA_DIR) { $env:RESUME_MAKER_DATA_DIR } else { Join-Path $env:USERPROFILE '.resume-maker' }
+    $repoPath = Split-Path -Parent $PSScriptRoot
+    $DataDir = if ($env:RESUME_MAKER_DATA_DIR) { $env:RESUME_MAKER_DATA_DIR } else { Join-Path $repoPath 'data' }
 }
 $instancePath = Join-Path $DataDir 'instance.json'
 if (-not (Test-Path -LiteralPath $instancePath)) { Write-Host 'No running instance recorded.'; exit 0 }

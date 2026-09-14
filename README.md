@@ -13,7 +13,8 @@ Resume Maker 是运行在本机的项目经历工作台。它通过 Codex CLI �
 - **经历版本**：逐条或整段编辑、草稿恢复、冲突检查、历史恢复，AI 建议采用后先进入草稿。
 - **独立会话**：每条会话独立保存历史、输入和模型会话标识；任务排队，支持取消和超时。
 - **简历组合**：选择固定版本及亮点，拖动排序，复用不同模板和组合方案。
-- **文档导出**：保留 DOCX 模板的其他栏目，只替换项目经历区；可下载 Word、追溯清单及可用的 PDF/分页预览。
+- **个人资料与栏目**：在项目经历、个人信息、栏目编排之间切换；填写照片、联系方式、成绩、教育、课程、证书与技能，自定义大栏目和子栏目，调整顺序与显隐。
+- **文档导出**：使用内置版式导出完整简历，或保留 DOCX 模板的其他栏目、只替换项目经历区；可下载 Word、追溯清单及可用的 PDF/分页预览。
 - **本机工作台**：主题切换、可调布局、制作指引、SQLite 持久化、ZIP 备份与离线恢复。
 
 ## 快速开始
@@ -37,7 +38,7 @@ npm --prefix frontend run build
 uv run resume-maker
 ```
 
-服务仅监听本机回环地址。个人数据默认位于用户目录下的 `.resume-maker`，与源码分离。更换端口或数据目录：
+服务仅监听本机回环地址。从源码运行时，个人数据默认保存在项目根目录的 `data/`，数据库文件为 `data/resume.db`，模板、快照、导出与备份也位于该目录；数据目录由 Git 忽略。独立安装包仍默认使用用户目录下的 `.resume-maker`。可用 `RESUME_MAKER_DATA_DIR` 覆盖默认值，或通过命令行优先指定端口和数据目录：
 
 ```sh
 uv run resume-maker --port 8768 --data-dir /path/to/resume-data --no-browser
@@ -46,7 +47,7 @@ uv run resume-maker --port 8768 --data-dir /path/to/resume-data --no-browser
 1. 在设置中导入项目来源，填写本人角色与贡献。
 2. 分析项目，在独立会话中讨论并核对证据。
 3. 编辑和保存经历，再将指定版本用于当前简历。
-4. 选择模板和亮点，保存组合并导出 Word。
+4. 填写个人资料并编排栏目，选择亮点，保存组合并导出完整 Word 简历；也可选择原有模板导出项目经历。
 
 Codex 复用当前用户的 CLI 配置，包括自定义 Provider；设置中的实际连接测试用于确认连通性。项目来源仅采集受限制的文本快照，分析内容会交给你配置的 Provider 处理。
 
@@ -69,12 +70,12 @@ src/resume_maker/
   core/                # 实例配置和业务异常
   domain/              # 数据模型和经历字段规则
   services/            # 经历、项目、会话、队列及导出业务
-  infrastructure/      # SQLite、初始迁移、实例锁和备份恢复
+  infrastructure/      # SQLite、初始结构、实例锁和备份恢复
   integrations/        # 源码快照、Provider、OOXML 和 Word 适配
   cli.py               # 本机命令行入口
 frontend/src/
   app/                 # 跨业务协调和工作台布局
-  features/            # projects / experiences / conversations / resumes / settings / workflow
+  features/            # projects / experiences / conversations / resumes / profile / settings / workflow
   shared/              # 通用控件、hooks、网络与存储、数据契约
   styles/              # 按职责组织、保持层叠顺序的样式
 tests/                 # 后端业务、HTTP 契约和生命周期回归测试
@@ -90,7 +91,7 @@ docs/                  # 使用与开发说明；history/ 保存早期讨论和�
 uv run python scripts/check.py
 ```
 
-该入口检查 Python 与前端的中文函数说明、模块边界、格式、类型、测试和生产构建。GitHub Actions 在 Windows 和 Ubuntu 上执行相同检查，并验证 wheel 中的前端资源与数据库迁移。自动测试使用临时目录和 AI 替身。
+该入口检查 Python 与前端的中文函数说明、模块边界、格式、类型、测试和生产构建。GitHub Actions 在 Windows 和 Ubuntu 上执行相同检查，并验证 wheel 中的前端资源与数据库初始结构。自动测试使用临时目录和 AI 替身。
 
 ## 适用范围
 

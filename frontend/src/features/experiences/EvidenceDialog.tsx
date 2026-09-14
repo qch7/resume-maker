@@ -101,7 +101,7 @@ export default function EvidenceDialog({
             index,
           ) => {
             const snapshot = snapshots.find(
-              /* 优先使用当前经历版本的快照，兼容新建议引用的最近快照。 */ (
+              /* 已发布经历优先使用版本快照，尚未发布的 AI 建议使用最近快照。 */ (
                 candidate,
               ) =>
                 candidate?.manifest.files.some(

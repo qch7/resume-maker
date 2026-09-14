@@ -39,3 +39,18 @@ def test_unmatched_evidence_cannot_be_marked_verified(catalog, project, tmp_path
     assert check_evidence(tmp_path / "data", snapshot, evidence)[0]["status"] == "document"
     evidence[0]["quote"] = "Performance increased by 70%"
     assert check_evidence(tmp_path / "data", snapshot, evidence)[0]["status"] == "unverified"
+
+
+def test_snapshot_excludes_application_data_inside_source(catalog, project):
+    """数据放在源码目录时，连续采集不会复制个人数据或递归收录上次快照。"""
+    root = Path(project["roots"][0])
+    data_dir = root / "data"
+    data_dir.mkdir()
+    (data_dir / "personal.json").write_text('{"name": "private"}')
+    fixtures = root / "fixtures/data"
+    fixtures.mkdir(parents=True)
+    (fixtures / "example.json").write_text("{}")
+    for _ in range(2):
+        snapshot = collect_snapshot(catalog.db, data_dir, project)
+        paths = {file["path"] for file in snapshot["manifest"]["files"]}
+        assert paths == {"README.md", "fixtures/data/example.json"}

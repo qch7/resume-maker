@@ -14,12 +14,13 @@ class Workspace:
         """聚合项目活动时间、会话、简历、模板及最近任务，供工作台轮询。"""
         return {
             "projects": self.db.all(
-                "SELECT p.*, h.parent_id, MAX(p.updated_at, "
+                "SELECT p.*, h.parent_id, b.head_revision, MAX(p.updated_at, "
                 "COALESCE((SELECT MAX(updated_at) FROM drafts "
                 "WHERE project_id=p.id), p.updated_at), "
                 "COALESCE((SELECT MAX(updated_at) FROM conversations "
                 "WHERE project_id=p.id AND archived=0), p.updated_at)) AS activity_at "
                 "FROM projects p LEFT JOIN project_hierarchy h ON h.project_id=p.id "
+                "JOIN experience_branches b ON b.project_id=p.id AND b.is_default=1 "
                 "WHERE p.archived=0 ORDER BY p.created_at"
             ),
             "conversations": self.db.all(

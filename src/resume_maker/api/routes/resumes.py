@@ -13,14 +13,21 @@ router = APIRouter(prefix="/api", tags=["resumes"])
 @router.post("/resumes")
 def new_resume(services: ServicesDep, body: ResumeInput):
     """创建新的简历组合，将项目经历引用固定到具体版本。"""
-    return services.catalog.save_resume(body.name, body.template_id, body.items)
+    return services.catalog.save_resume(
+        body.name, body.template_id, body.items, document=body.document
+    )
 
 
 @router.put("/resumes/{resume_id}")
 def save_resume(services: ServicesDep, resume_id: str, body: ResumeInput):
     """校验项目、版本与亮点归属，并以乐观锁保存固定版本组合。"""
     return services.catalog.save_resume(
-        body.name, body.template_id, body.items, resume_id, body.version
+        body.name,
+        body.template_id,
+        body.items,
+        resume_id,
+        body.version,
+        document=body.document,
     )
 
 

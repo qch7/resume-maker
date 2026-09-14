@@ -34,7 +34,6 @@ def create_app(config: Config | None = None, provider: Provider | None = None) -
     config.prepare()
     db = Database(config.data_dir / "resume.db")
     catalog = Catalog(db)
-    catalog.ensure_subprojects()
     queue = Jobs(db, catalog, config.data_dir, provider)
     services = Services(
         config=config,

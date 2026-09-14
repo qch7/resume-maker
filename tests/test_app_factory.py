@@ -19,8 +19,8 @@ def without_descriptions(value):
     return value
 
 
-def test_http_contract_matches_original_application(tmp_path):
-    """所有原有路径、参数和请求体保持兼容，服务注入不能泄漏为查询参数。"""
+def test_http_contract_matches_current_application(tmp_path):
+    """校验当前路径、参数和请求体，服务注入不能泄漏为查询参数。"""
     spec = create_app(Config(data_dir=tmp_path)).openapi()
     actual = {
         "paths": {

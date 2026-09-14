@@ -15,7 +15,7 @@ uv run resume-maker --no-browser
 
 | 配置 | 含义 |
 | --- | --- |
-| `--data-dir` / `RESUME_MAKER_DATA_DIR` | 独立用户数据目录；命令行优先 |
+| `--data-dir` / `RESUME_MAKER_DATA_DIR` | 数据目录；命令行优先。源码运行默认使用项目 `data/`，独立安装包使用用户目录 `.resume-maker` |
 | `--port` | 本机监听端口，默认 8765 |
 | `--no-browser` | 启动时不自动打开浏览器 |
 | `--restore ZIP` | 持有同一实例锁，离线恢复备份后退出 |
@@ -53,7 +53,7 @@ uv build --wheel
 uv run python scripts/check_wheel.py
 ```
 
-构建钩子把前端产物放进 wheel 的 `resume_maker/web`；SQL 初始迁移作为包资源分发。检查脚本在仓库外解包并验证导入、资源和建库。开发安装跳过前端打包；正式 wheel 缺少前端构建时会明确失败。
+构建钩子把前端产物放进 wheel 的 `resume_maker/web`；SQL 初始结构作为包资源分发。检查脚本在仓库外解包并验证导入、资源和建库。开发安装跳过前端打包；正式 wheel 缺少前端构建时会明确失败。
 
 安装本机构建的 wheel 后，`resume-maker` 可在仓库之外启动，无需重新下载 npm 依赖。示例：
 
@@ -81,4 +81,4 @@ resume-maker --no-browser
 - 独立数据目录中的浏览器验证完成单条发布、旧简历固定引用、新建会话、输入草稿切换恢复及消息回复；AI 使用可控替身。
 - 实际 Microsoft Word 导出成功，生成 DOCX、1 页 PDF、分页图片和版本清单，模板其他栏目保留。
 - 检查桌面和 390px 窄屏布局、重载后的默认侧栏状态，浏览器控制台无错误；正式用户数据未用于写入验收。
-- wheel 在仓库外完成导入、静态资源和初始迁移检查，源码包构建成功。
+- wheel 在仓库外完成导入、静态资源和初始结构检查，源码包构建成功。

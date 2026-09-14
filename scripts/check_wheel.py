@@ -1,4 +1,4 @@
-"""在仓库之外校验 wheel 的导入、数据库迁移与前端资源，防止缺文件的安装包。"""
+"""在仓库之外校验 wheel 的导入、数据库初始结构与前端资源，防止缺文件的安装包。"""
 
 import subprocess
 import sys
@@ -30,14 +30,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path.cwd() / "package"))
 from resume_maker.api import create_app
 from resume_maker.core.config import Config
+from resume_maker.infrastructure.database import SCHEMA_VERSION
 config = Config(data_dir=Path.cwd() / "data")
 assert config.frontend == (Path.cwd() / "package/resume_maker/web").resolve(), config.frontend
 assert (config.frontend / "index.html").is_file()
 assert list((config.frontend / "assets").glob("*.js"))
 app = create_app(config)
-assert app.state.services.db.one("PRAGMA user_version")["user_version"] == 4
+assert app.state.services.db.one("PRAGMA user_version")["user_version"] == SCHEMA_VERSION
 assert "/api/state" in app.openapi()["paths"]
-print("Wheel 验证通过：应用可导入，静态资源和数据库迁移完整。")
+print("Wheel 验证通过：应用可导入，静态资源和数据库初始结构完整。")
 """
         # 隔离模式会忽略 PYTHONUTF8，必须通过解释器参数保留中文日志的编码约定。
         subprocess.run([sys.executable, "-I", "-X", "utf8", "-c", script], cwd=target, check=True)

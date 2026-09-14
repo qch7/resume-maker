@@ -9,8 +9,8 @@ from resume_maker.infrastructure.database import Database
 from resume_maker.services.catalog import Catalog
 
 
-def test_single_field_save_preserves_other_drafts_and_old_resume(catalog, project, populated):
-    """验证单条发布保留其他草稿，旧简历仍引用原版本。"""
+def test_commit_publishes_all_drafts_and_preserves_pinned_resume(catalog, project, populated):
+    """提交包含全部字段草稿，重启后保留新版本，已存简历仍引用原版本。"""
     p, base = project["id"], populated["id"]
     resume = catalog.save_resume(
         "Application",
@@ -20,9 +20,9 @@ def test_single_field_save_preserves_other_drafts_and_old_resume(catalog, projec
     one, two = populated["content"]["highlights"]
     catalog.put_draft(p, base, "highlight:one", {**one, "text": "New parser"}, 0)
     catalog.put_draft(p, base, "highlight:two", {**two, "text": "New export"}, 0)
-    saved = catalog.save_field(p, base, "highlight:one", base)
+    saved = catalog.save_revision(p, base, base)
     assert saved["content"]["highlights"][0]["text"] == "New parser"
-    assert saved["content"]["highlights"][1]["text"] == "Export Word"
+    assert saved["content"]["highlights"][1]["text"] == "New export"
     assert catalog.working(p, saved["id"])["content"]["highlights"][1]["text"] == "New export"
     assert catalog.revision(base)["content"]["highlights"][0]["text"] == "Parse documents"
     assert (
@@ -32,7 +32,7 @@ def test_single_field_save_preserves_other_drafts_and_old_resume(catalog, projec
         == base
     )
     reopened = Catalog(Database(catalog.db.path))
-    assert reopened.working(p, saved["id"])["drafts"]
+    assert reopened.working(p, saved["id"]) == {"content": saved["content"], "drafts": []}
 
 
 def test_incomplete_draft_survives_but_cannot_publish(catalog, project, populated):
@@ -41,7 +41,7 @@ def test_incomplete_draft_survives_but_cannot_publish(catalog, project, populate
     one = populated["content"]["highlights"][0]
     catalog.put_draft(p, base, "highlight:one", {**one, "text": ""}, 0)
     with pytest.raises(Problem, match="保存版本前"):
-        catalog.save_field(p, base, "highlight:one", base)
+        catalog.save_revision(p, base, base)
     assert catalog.working(p, base)["content"]["highlights"][0]["text"] == ""
 
 
@@ -86,15 +86,15 @@ def test_order_draft_survives_added_removed_highlights(catalog, project, populat
         "two",
         "one",
     ]
-    saved = catalog.save_field(p, revision, "order", revision)
-    assert [h["id"] for h in saved["content"]["highlights"]] == ["two", "one"]
+    saved = catalog.save_revision(p, revision, revision)
+    assert [h["id"] for h in saved["content"]["highlights"]] == ["three", "two", "one"]
     catalog.put_draft(p, saved["id"], "highlight:one", None, 0)
     assert [h["id"] for h in catalog.working(p, saved["id"])["content"]["highlights"]] == [
         "three",
         "two",
     ]
-    published = catalog.save_field(p, saved["id"], "highlight:three", saved["id"])
-    assert published["content"]["highlights"][0]["id"] == "three"
+    published = catalog.save_revision(p, saved["id"], saved["id"])
+    assert [h["id"] for h in published["content"]["highlights"]] == ["three", "two"]
 
 
 def test_discard_rejects_stale_version(catalog, project, populated):
@@ -132,7 +132,7 @@ def test_saving_unchanged_content_clears_drafts_without_a_new_revision(
     value = field_value(populated["content"], field)
     catalog.put_draft(p, base, field, value, 0)
     before = catalog.db.all("SELECT * FROM revisions")
-    assert catalog.save_field(p, base, field, base)["id"] == base
+    assert catalog.save_revision(p, base, base)["id"] == base
     assert catalog.working(p, base) == {"content": populated["content"], "drafts": []}
     assert catalog.db.all("SELECT * FROM revisions") == before
 
@@ -143,30 +143,28 @@ def test_save_all_clears_an_edit_reverted_to_saved_content(catalog, project, pop
     point = populated["content"]["highlights"][0]
     catalog.put_draft(p, base, "highlight:one", {**point, "text": "Temporary edit"}, 0)
     catalog.put_draft(p, base, "highlight:one", point, 1)
-    assert catalog.save_field(p, base, "experience", base)["id"] == base
+    assert catalog.save_revision(p, base, base)["id"] == base
     assert not catalog.working(p, base)["drafts"]
     with pytest.raises(Problem, match="其他窗口"):
         catalog.put_draft(p, base, "highlight:one", {**point, "text": "Stale edit"}, 2)
 
 
-def test_unchanged_field_save_preserves_other_draft_versions(catalog, project, populated):
-    """验证确认未变字段不会清理其他字段的待保存内容。"""
+def test_commit_includes_changes_alongside_unchanged_drafts(catalog, project, populated):
+    """未变化字段不妨碍整段提交其他字段的最新草稿。"""
     p, base = project["id"], populated["id"]
     one, two = populated["content"]["highlights"]
     catalog.put_draft(p, base, "highlight:one", one, 0)
     catalog.put_draft(p, base, "highlight:two", {**two, "text": "Pending change"}, 0)
     catalog.put_draft(p, base, "highlight:two", {**two, "text": "Still pending"}, 1)
-    pending = next(d for d in catalog.working(p, base)["drafts"] if d["field"] == "highlight:two")
-    assert catalog.save_field(p, base, "highlight:one", base)["id"] == base
-    working = catalog.working(p, base)
-    assert working["drafts"] == [pending]
+    saved = catalog.save_revision(p, base, base)
+    assert saved["id"] != base
+    working = catalog.working(p, saved["id"])
+    assert working["drafts"] == []
     assert working["content"]["highlights"][1]["text"] == "Still pending"
 
 
-def test_unchanged_field_save_keeps_overrides_of_a_whole_experience_draft(
-    catalog, project, populated
-):
-    """验证单字段确认不会破坏对整段草稿的有效覆盖。"""
+def test_commit_keeps_field_overrides_of_a_whole_experience_draft(catalog, project, populated):
+    """整段提交保留单字段对整段草稿的有效覆盖。"""
     from copy import deepcopy
 
     p, base = project["id"], populated["id"]
@@ -176,8 +174,9 @@ def test_unchanged_field_save_keeps_overrides_of_a_whole_experience_draft(
     catalog.put_draft(p, base, "experience", content, 0)
     catalog.put_draft(p, base, "highlight:one", populated["content"]["highlights"][0], 0)
     before = catalog.working(p, base)
-    assert catalog.save_field(p, base, "highlight:one", base)["id"] == base
-    assert catalog.working(p, base) == before
+    saved = catalog.save_revision(p, base, base)
+    assert saved["content"] == before["content"]
+    assert catalog.working(p, saved["id"])["drafts"] == []
 
 
 def test_unchanged_save_rejects_stale_head(catalog, project, populated):
@@ -185,7 +184,7 @@ def test_unchanged_save_rejects_stale_head(catalog, project, populated):
     p, base = project["id"], populated["id"]
     catalog.put_draft(p, base, "experience", populated["content"], 0)
     with pytest.raises(Problem, match="项目已有新版本"):
-        catalog.save_field(p, base, "experience", project["head_revision"])
+        catalog.save_revision(p, base, project["head_revision"])
     assert catalog.working(p, base)["drafts"]
 
 
@@ -205,5 +204,5 @@ def test_unchanged_save_rejects_concurrent_draft_edit(catalog, project, populate
 
     monkeypatch.setattr(catalog, "working", concurrent_edit)
     with pytest.raises(Problem, match="保存时草稿发生变化"):
-        catalog.save_field(p, base, "experience", base)
+        catalog.save_revision(p, base, base)
     assert catalog.db.one("SELECT * FROM drafts WHERE project_id=?", (p,))["version"] == 2

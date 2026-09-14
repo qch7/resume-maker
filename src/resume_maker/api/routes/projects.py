@@ -95,10 +95,8 @@ def discard_draft(services: ServicesDep, project_id: str, body: DraftInput):
 
 @router.post("/projects/{project_id}/revisions")
 def save_revision(services: ServicesDep, project_id: str, body: SaveInput):
-    """将所选草稿字段交给版本服务发布，同时校验预期分支头版本。"""
-    return services.catalog.save_field(
-        project_id, body.base_revision, body.field, body.expected_head
-    )
+    """提交整个工作副本，同时校验预期分支头版本。"""
+    return services.catalog.save_revision(project_id, body.base_revision, body.expected_head)
 
 
 @router.post("/projects/{project_id}/restore")

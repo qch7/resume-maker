@@ -1,6 +1,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type Dispatch,
   type SetStateAction,
@@ -15,10 +16,14 @@ import type {
   State,
 } from "../../shared/types";
 import { buildLivePreview } from "./livePreview";
+import { newDocument } from "../profile/document";
+import { entryComposition } from "../profile/entry";
+import { personalComposition } from "../profile/personal";
 import {
-  normalizeHighlightOrder,
+  orderCompositionHighlights,
   orderedHighlightIds,
   toggleHighlightSelection,
+  acceptSavedComposition,
 } from "./composition";
 
 export const NEW_RESUME: Resume = {
@@ -27,6 +32,7 @@ export const NEW_RESUME: Resume = {
   template_id: null,
   items: [],
   version: 0,
+  document: newDocument(),
 };
 
 interface Options {
@@ -55,13 +61,15 @@ export function useResumeComposition({
 }: Options) {
   const [storedDraft, setDraft] = useState<Resume>(
     /* 仅在首次挂载时读取缓存或计算初始状态。 */ () =>
-      loadLocal("rm.resume.last", NEW_RESUME),
+      loadLocal("rm.resume.v2.last", NEW_RESUME),
   );
   const draft = useMemo(
-    /* 预览、缓存、保存和导出共用排序后的组合，兼容已有本地草稿。 */ () =>
-      normalizeHighlightOrder(storedDraft, revisionCache),
+    /* 固定组合与编辑区分别维护顺序，保证取消草稿后预览和导出一致。 */ () =>
+      orderCompositionHighlights(storedDraft, revisionCache),
     [storedDraft, revisionCache],
   );
+  const currentDraft = useRef(draft);
+  currentDraft.current = draft;
   const { sources: previewSources, changed: previewChanged } = useMemo(
     /* 工作副本只覆盖预览层，仍由用户明确提交和更新简历引用。 */ () =>
       buildLivePreview(
@@ -76,6 +84,7 @@ export function useResumeComposition({
   const [exported, setExported] = useState<Export | null>(null),
     [exporting, setExporting] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const savingResume = useRef(false);
   useEffect(
     /* 同步当前依赖对应的外部状态，并在需要时返回清理函数。 */ () => {
       if (!draft.id) {
@@ -116,13 +125,20 @@ export function useResumeComposition({
   );
   useEffect(
     /* 同步当前依赖对应的外部状态，并在需要时返回清理函数。 */ () => {
-      localStorage.setItem("rm.resume.last", JSON.stringify(draft));
-      localStorage.setItem(
-        `rm.resume.${draft.id || "new"}`,
-        JSON.stringify(draft),
-      );
+      try {
+        localStorage.setItem("rm.resume.v2.last", JSON.stringify(draft));
+        localStorage.setItem(
+          `rm.resume.v2.${draft.id || "new"}`,
+          JSON.stringify(draft),
+        );
+      } catch {
+        notify({
+          text: "浏览器草稿空间不足，请点击“保存组合”将当前资料保存到本机数据库。",
+          error: true,
+        });
+      }
     },
-    [draft],
+    [draft, notify],
   );
   /** 显式更新当前项目的引用版本，并保留仍属于该版本的亮点选择。 */
   function applyVersion() {
@@ -266,39 +282,119 @@ export function useResumeComposition({
   }
   /** 携带组合版本号保存模板和固定引用，并刷新服务器聚合数据。 */
   async function saveComposition() {
+    if (savingResume.current) throw new Error("简历资料正在保存，请稍候。");
     if (previewChanged)
       throw new Error(
         "预览已跟随编辑区更新，请先提交修改并点击“用于当前简历”，再保存或导出组合。",
       );
-    const body = {
-      name: draft.name,
-      template_id: draft.template_id,
-      items: draft.items,
-      version: draft.version,
-    };
-    const saved = await api<Resume>(
-      draft.id ? `/resumes/${draft.id}` : "/resumes",
-      draft.id ? "PUT" : "POST",
-      body,
-    );
-    setDraft(saved);
-    await reload();
-    return saved;
+    savingResume.current = true;
+    try {
+      const body = {
+        name: draft.name,
+        template_id: draft.template_id,
+        items: draft.items,
+        version: draft.version,
+        document: draft.document,
+      };
+      const saved = await api<Resume>(
+        draft.id ? `/resumes/${draft.id}` : "/resumes",
+        draft.id ? "PUT" : "POST",
+        body,
+      );
+      setDraft(
+        /* 保存期间的新输入继续留在草稿，切换方案后不抢回焦点。 */ (current) =>
+          acceptSavedComposition(current, draft, saved),
+      );
+      await reload();
+      return saved;
+    } finally {
+      savingResume.current = false;
+    }
+  }
+  /** 单独保存顶部资料，以方案版本检查并发，并保留其他栏目的本机草稿。 */
+  async function savePersonalInfo() {
+    if (savingResume.current) throw new Error("简历资料正在保存，请稍候。");
+    if (exporting || deleting)
+      throw new Error("请等待当前简历操作完成后再保存。");
+    savingResume.current = true;
+    try {
+      const submitted = personalComposition(
+        draft,
+        state.resumes.find(
+          /* 只读取当前方案已经保存的栏目和项目引用。 */ (resume) =>
+            resume.id === draft.id,
+        ),
+      );
+      const saved = await api<Resume>(
+        submitted.id ? `/resumes/${submitted.id}` : "/resumes",
+        submitted.id ? "PUT" : "POST",
+        {
+          name: submitted.name,
+          template_id: submitted.template_id,
+          items: submitted.items,
+          version: submitted.version,
+          document: submitted.document,
+        },
+      );
+      setDraft(
+        /* 基本信息独立采用保存结果，保留其他栏目与请求后的新输入。 */ (
+          current,
+        ) => acceptSavedComposition(current, submitted, saved),
+      );
+      await reload();
+    } finally {
+      savingResume.current = false;
+    }
+  }
+  /** 单独保存栏目中的一条经历，不提交其他资料草稿，所有保存共用并发保护。 */
+  async function saveSectionEntry(sectionId: string, entryId: string) {
+    if (savingResume.current) throw new Error("简历资料正在保存，请稍候。");
+    if (exporting || deleting)
+      throw new Error("请等待当前简历操作完成后再保存。");
+    savingResume.current = true;
+    try {
+      const submitted = entryComposition(
+        draft,
+        state.resumes.find(
+          /* 从已保存方案中读取其他资料。 */ (resume) => resume.id === draft.id,
+        ),
+        sectionId,
+        entryId,
+      );
+      const saved = await api<Resume>(
+        submitted.id ? `/resumes/${submitted.id}` : "/resumes",
+        submitted.id ? "PUT" : "POST",
+        {
+          name: submitted.name,
+          template_id: submitted.template_id,
+          items: submitted.items,
+          version: submitted.version,
+          document: submitted.document,
+        },
+      );
+      setDraft(
+        /* 推进保存版本，保留其他草稿及后续输入。 */ (current) =>
+          acceptSavedComposition(current, submitted, saved),
+      );
+      await reload();
+    } finally {
+      savingResume.current = false;
+    }
   }
   /** 删除指定方案并清理本地草稿，选择剩余方案或回到空白组合。 */
   async function deleteComposition(resume: Resume) {
-    if (!resume.id || deleting || exporting) return;
+    if (!resume.id || deleting || exporting || savingResume.current) return;
     setDeleting(true);
     try {
       await api(`/resumes/${resume.id}?version=${resume.version}`, "DELETE");
-      localStorage.removeItem(`rm.resume.${resume.id}`);
+      localStorage.removeItem(`rm.resume.v2.${resume.id}`);
       const remaining = state.resumes.find(
         /* 按方案列表顺序选择下一个仍存在的方案。 */ (item) =>
           item.id !== resume.id,
       );
       const next = remaining
-        ? loadLocal(`rm.resume.${remaining.id}`, remaining)
-        : { ...NEW_RESUME, template_id: state.templates[0]?.id ?? null };
+        ? loadLocal(`rm.resume.v2.${remaining.id}`, remaining)
+        : { ...NEW_RESUME, document: newDocument() };
       setDraft(
         /* 删除期间若已经切换方案，保留用户当前选择。 */ (current) =>
           current.id === resume.id ? next : current,
@@ -319,7 +415,7 @@ export function useResumeComposition({
     try {
       const saved = await saveComposition();
       const result = await api<Export>(`/resumes/${saved.id}/exports`, "POST");
-      setExported(result);
+      if (currentDraft.current.id === saved.id) setExported(result);
       notify({
         text: result.pages
           ? `Word 已生成，共 ${result.pages} 页。`
@@ -341,6 +437,8 @@ export function useResumeComposition({
     toggleProject,
     toggleHighlight,
     saveComposition,
+    savePersonalInfo,
+    saveSectionEntry,
     deleteComposition,
     exportResume,
     previewSources,

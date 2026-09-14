@@ -43,16 +43,15 @@ class History:
         conn.execute("INSERT INTO revision_branches VALUES (?,?)", (revision_id, branch_id))
 
     def advance(self, conn, branch: dict, revision_id: str, stamp: str) -> None:
-        """移动目标分支指针，只有 main 更新旧接口兼容的项目头版本。"""
+        """移动目标分支指针并更新项目活动时间，其他分支保持不变。"""
         conn.execute("INSERT INTO revision_branches VALUES (?,?)", (revision_id, branch["id"]))
         conn.execute(
             "UPDATE experience_branches SET head_revision=?,updated_at=? WHERE id=?",
             (revision_id, stamp, branch["id"]),
         )
         conn.execute(
-            "UPDATE projects SET head_revision=CASE WHEN ? THEN ? ELSE head_revision END,"
-            "updated_at=? WHERE id=?",
-            (branch["is_default"], revision_id, stamp, branch["project_id"]),
+            "UPDATE projects SET updated_at=? WHERE id=?",
+            (stamp, branch["project_id"]),
         )
 
     def create(self, project_id: str, revision_id: str, name: str, include_drafts: bool) -> dict:

@@ -85,7 +85,7 @@ export default function VersionControl({ props }: { props: EditorProps }) {
                     submission.current = true;
                     setSubmitting(true);
                     try {
-                      await props.onSave("experience");
+                      await props.onSave();
                     } finally {
                       submission.current = false;
                       setSubmitting(false);

@@ -1,0 +1,611 @@
+/* 功能区导航、个人资料表单与层级编排。 */
+.area-navigation {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.area-navigation > button {
+  padding: 7px 12px;
+  background: transparent;
+  border-color: transparent;
+  text-align: left;
+  gap: 7px;
+  white-space: nowrap;
+  color: var(--subtle);
+}
+.area-navigation > button.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--line);
+}
+.area-navigation button > span {
+  font-weight: 600;
+}
+.area-resume-name {
+  justify-self: end;
+  align-self: center;
+  color: var(--subtle);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  max-width: 100%;
+}
+.profile-area .guide-container {
+  display: none;
+}
+.profile-heading {
+  padding: 12px 24px;
+}
+.profile-heading h1 {
+  font-size: 22px;
+  margin-top: 4px;
+}
+.profile-scroll {
+  padding: 16px 24px 28px;
+}
+.profile-heading,
+.profile-scroll {
+  color: light-dark(#292d32, #fff);
+}
+.profile-card {
+  --subtle: light-dark(#6a717b, #fff);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 6px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+.profile-card h2,
+.add-section h2 {
+  font-size: 14px;
+  margin: 0;
+}
+.profile-card > .section-heading {
+  flex-wrap: wrap;
+}
+.profile-card > .section-heading > button {
+  margin-left: auto;
+}
+.profile-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 16px;
+}
+.profile-card label {
+  gap: 4px;
+  margin: 8px 0;
+}
+.visibility-field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.profile-card .visibility-field > label {
+  margin: 0;
+  min-width: 0;
+}
+.field-control {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.field-control > input,
+.field-control > textarea {
+  flex: 1;
+}
+.field-control:has(textarea) {
+  align-items: flex-start;
+}
+.visibility-toggle[aria-pressed="true"] {
+  color: var(--accent);
+}
+.visibility-field[data-hidden] input,
+.visibility-field[data-hidden] textarea,
+.photo-editor > img[data-hidden],
+.profile-entry[data-hidden] > .profile-fields,
+.profile-entry[data-hidden] > .visibility-field {
+  opacity: 0.55;
+}
+.profile-card input:not([type="file"]),
+.profile-card textarea {
+  padding: 5px 8px;
+}
+/* 基本信息和栏目字段采用同行标签与内容，窄面板自动换为单列。 */
+.personal-fields,
+.compact-fields {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 4px 20px;
+}
+.personal-fields > .visibility-field,
+.compact-fields > .visibility-field,
+.profile-entry > .visibility-field {
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+.profile-card .custom-field-name {
+  padding-left: 0;
+  padding-right: 2px;
+  font-size: 12px;
+}
+.photo-editor {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0;
+}
+.photo-editor > img,
+.photo-placeholder {
+  flex-shrink: 0;
+  width: 51px;
+  height: 68px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  object-fit: cover;
+}
+.photo-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  background: var(--panel);
+  color: var(--subtle);
+  font-size: 10px;
+}
+.profile-card .photo-upload {
+  display: inline-flex;
+  position: relative;
+  overflow: hidden;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  color: var(--accent);
+  cursor: pointer;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.photo-buttons,
+.personal-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.photo-buttons {
+  flex-wrap: wrap;
+}
+.personal-actions {
+  margin-left: 4px;
+  flex-wrap: wrap;
+}
+.photo-upload[aria-disabled="true"] {
+  opacity: 0.42;
+  cursor: default;
+}
+.photo-upload input:disabled {
+  cursor: default;
+}
+.profile-card input[readonly],
+.profile-card textarea[readonly] {
+  border-color: transparent;
+  background: transparent;
+  padding-left: 0;
+}
+.profile-card textarea[readonly] {
+  resize: none;
+}
+.personal-save-error,
+.photo-controls > .warning {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.photo-upload:focus-within {
+  outline: 2px solid var(--accent);
+}
+.photo-upload input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.profile-entry {
+  border-top: 1px solid var(--line);
+  padding-top: 6px;
+  margin-top: 6px;
+}
+.profile-entry > .section-heading {
+  justify-content: space-between;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+.profile-entry > .section-heading > .row {
+  margin-left: auto;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.profile-entry > .visibility-field {
+  margin-top: 4px;
+  align-items: start;
+}
+.profile-entry textarea {
+  line-height: 1.55;
+}
+.profile-child {
+  margin-left: 16px;
+  border-left: 3px solid var(--line);
+}
+.profile-section-intro {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin: 12px 0 6px;
+}
+.profile-section-intro h2 {
+  font-size: 14px;
+  margin: 0;
+}
+.profile-empty {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.8;
+}
+.project-shortcut {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  background: var(--accent-soft);
+}
+.project-shortcut p {
+  margin: 4px 0 0;
+  line-height: 1.55;
+}
+.project-shortcut button {
+  flex-shrink: 0;
+}
+/* 仅收紧个人信息左侧编辑区，保留字号、预览和其他功能区的排版。 */
+.profile-heading.personal-heading {
+  padding: 10px 20px;
+}
+.personal-heading h1 {
+  margin: 0;
+}
+.profile-scroll.personal-scroll {
+  padding: 12px 20px 20px;
+}
+.personal-scroll .profile-card {
+  padding: 12px;
+  margin-bottom: 8px;
+}
+.personal-scroll button:not(.icon-button),
+.personal-heading > button,
+.personal-scroll .photo-upload {
+  padding: 4px 8px;
+  gap: 5px;
+}
+.personal-scroll .profile-card input:not([type="file"]),
+.personal-scroll .profile-card textarea {
+  padding: 3px 6px;
+}
+.personal-scroll .profile-card input[readonly],
+.personal-scroll .profile-card textarea[readonly],
+.personal-scroll .profile-card .custom-field-name {
+  padding-left: 0;
+}
+.organizer-pinned {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px;
+  background: var(--accent-soft);
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  margin-bottom: 22px;
+  color: var(--accent);
+}
+.organizer-pinned button {
+  margin-left: auto;
+}
+.organizer-card {
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 14px;
+  background: var(--surface);
+  margin-bottom: 12px;
+}
+.organizer-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.section-number {
+  color: var(--subtle);
+  font-size: 10px;
+  margin-right: 5px;
+}
+.organizer-row > input {
+  font-weight: 600;
+  border-color: transparent;
+  padding: 6px;
+}
+.organizer-row > input:hover,
+.organizer-row > input:focus {
+  border-color: var(--line);
+}
+.organizer-row > .row {
+  gap: 0;
+  flex-shrink: 0;
+}
+.organizer-meta {
+  margin: 8px 0 0 38px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.organizer-meta > label {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  font-size: 10px;
+  gap: 6px;
+}
+.organizer-meta select {
+  width: auto;
+  max-width: 190px;
+  padding: 4px 6px;
+  font-size: 11px;
+}
+.organizer-meta .subtle {
+  margin-left: auto;
+  font-size: 10px;
+}
+.organizer-child {
+  margin: 12px 0 0 24px;
+  background: var(--panel);
+}
+.organizer-undo {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 10px;
+  color: var(--subtle);
+  margin: 12px 0;
+  font-size: 12px;
+}
+.add-section {
+  margin-top: 24px;
+}
+
+/* 参考简历的蓝色横幅、两列联系信息与并列大栏目。 */
+.full-resume-paper {
+  --accent: #718db5;
+  color: #343637;
+  padding: 0;
+  overflow-wrap: anywhere;
+  container-type: inline-size;
+}
+.resume-banner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  min-height: 105px;
+  padding: 20px 24px;
+  background: #718db5;
+  color: #fff;
+}
+.resume-banner.with-photo {
+  grid-template-columns: 56px minmax(0, 1fr) auto;
+}
+.resume-banner > img {
+  width: 56px;
+  height: 74px;
+  object-fit: cover;
+  background: #fff;
+}
+.resume-identity > div {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  column-gap: 12px;
+  row-gap: 4px;
+}
+.resume-identity strong {
+  font-size: 21px;
+}
+.resume-identity span {
+  font-size: 11px;
+}
+.resume-identity p {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.resume-banner-title {
+  display: flex;
+  flex-direction: column;
+  text-align: right;
+  gap: 4px;
+}
+.resume-banner-title strong {
+  font-size: 24px;
+  letter-spacing: 1px;
+}
+.resume-banner-title span {
+  font:
+    10px "Times New Roman",
+    serif;
+}
+.resume-full-body {
+  padding: 18px 24px 28px;
+}
+.resume-contacts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 16px;
+  font:
+    11px/1.6 "SimSun",
+    "Times New Roman",
+    serif;
+  margin-bottom: 16px;
+}
+.resume-contacts:empty {
+  display: none;
+}
+.resume-section-heading {
+  display: flex;
+  background: #ececec;
+  border: 0;
+  padding: 0;
+  margin: 14px 0 10px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.resume-section-heading span {
+  color: #fff;
+  background: #718db5;
+  padding: 5px 22px 5px 9px;
+  clip-path: polygon(
+    0 0,
+    calc(100% - 13px) 0,
+    100% 50%,
+    calc(100% - 13px) 100%,
+    0 100%
+  );
+}
+.resume-info-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 11px;
+  line-height: 1.8;
+}
+.education-title {
+  display: grid;
+  grid-template-columns: 1fr 1.15fr 1.15fr;
+}
+.education-title > :last-child {
+  text-align: right;
+}
+.resume-info-entry {
+  margin-bottom: 9px;
+}
+.resume-info-entry p {
+  white-space: pre-wrap;
+  margin: 4px 0;
+  font:
+    11px/1.85 "SimSun",
+    "Times New Roman",
+    serif;
+}
+.resume-minor-section > h3 {
+  font-size: 11px;
+  color: #718db5;
+  margin: 7px 0 4px;
+}
+.full-resume-paper .resume-project {
+  margin-bottom: 16px;
+}
+.full-resume-paper .resume-project p {
+  color: #343637;
+}
+@container (max-width: 360px) {
+  .resume-banner {
+    gap: 10px;
+    padding: 18px 14px;
+  }
+  .resume-banner.with-photo {
+    grid-template-columns: 42px minmax(0, 1fr) auto;
+  }
+  .resume-banner > img {
+    width: 42px;
+    height: 56px;
+  }
+  .resume-identity strong {
+    font-size: 17px;
+  }
+  .resume-banner-title strong {
+    font-size: 17px;
+  }
+  .resume-banner-title span {
+    font-size: 8px;
+  }
+  .resume-full-body {
+    padding: 12px 14px 24px;
+  }
+  .resume-contacts {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+}
+@media (max-width: 980px) {
+  .profile-scroll {
+    padding: 16px;
+  }
+}
+@media (max-width: 600px) {
+  .personal-actions {
+    margin-left: 0;
+  }
+  .area-navigation > button {
+    flex: 1;
+    padding: 6px;
+    gap: 6px;
+    font-size: 12px;
+  }
+  .profile-heading {
+    padding: 10px 12px;
+  }
+  .profile-heading.personal-heading {
+    padding: 8px 12px;
+  }
+  .profile-scroll.personal-scroll {
+    padding: 10px 12px 18px;
+  }
+  .personal-scroll .profile-card {
+    padding: 10px;
+  }
+  .profile-scroll {
+    padding: 12px 12px 24px;
+  }
+  .profile-card {
+    padding: 12px;
+  }
+  .profile-fields {
+    grid-template-columns: 1fr;
+  }
+  .profile-child {
+    margin-left: 12px;
+  }
+  .project-shortcut {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .organizer-card {
+    padding: 10px;
+  }
+  .organizer-row {
+    flex-wrap: wrap;
+  }
+  .organizer-row > input {
+    flex: 1;
+    width: 100px;
+  }
+  .organizer-row > .row {
+    margin-left: auto;
+  }
+  .organizer-meta {
+    margin-left: 0;
+  }
+  .organizer-child {
+    margin-left: 8px;
+  }
+}

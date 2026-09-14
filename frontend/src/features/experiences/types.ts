@@ -6,7 +6,7 @@ export interface EditorProps {
   usedRevision?: Revision;
   hasLocalChanges: boolean;
   run: (work: () => Promise<void>) => void;
-  onSave: (field: string) => Promise<void>;
+  onSave: () => Promise<void>;
   onRefresh: () => void;
   onDirty: () => void;
   onRevision: (id: string) => void;

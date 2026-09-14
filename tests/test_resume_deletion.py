@@ -1,14 +1,10 @@
-"""验证方案删除、过期写入保护、历史文件保留以及旧数据库升级。"""
-
-import sqlite3
+"""验证方案删除、过期写入保护、历史文件保留以及重启后的删除状态。"""
 
 from fastapi.testclient import TestClient
 
 from resume_maker.api import create_app
 from resume_maker.core.config import Config
-from resume_maker.infrastructure.database import SCHEMA, Database, dump, now
-from resume_maker.services.catalog import Catalog
-from resume_maker.services.workspace import Workspace
+from resume_maker.infrastructure.database import dump, now
 
 
 def test_delete_resume_preserves_projects_exports_and_other_plans(tmp_path):
@@ -109,21 +105,3 @@ def test_delete_resume_preserves_projects_exports_and_other_plans(tmp_path):
             == 200
         )
         assert restarted.get("/api/state", headers=headers).json()["resumes"] == []
-
-
-def test_old_database_migrates_without_losing_saved_resumes(tmp_path):
-    """首版数据库自动升级且保留原方案，重复打开不会重复执行迁移。"""
-    path = tmp_path / "resume.db"
-    with sqlite3.connect(path) as conn:
-        conn.executescript(SCHEMA + "PRAGMA user_version=1;")
-        conn.execute(
-            "INSERT INTO resumes VALUES (?,?,?,?,?,?,?)",
-            ("existing", "旧方案", None, "[]", 1, now(), now()),
-        )
-    db = Database(path)
-    assert db.one("PRAGMA user_version")["user_version"] == 4
-    catalog = Catalog(db)
-    assert Workspace(catalog).state()["resumes"][0]["name"] == "旧方案"
-    catalog.delete_resume("existing", 1)
-    assert Workspace(Catalog(Database(path))).state()["resumes"] == []
-    assert db.one("SELECT * FROM resumes WHERE id='existing'")["name"] == "旧方案"

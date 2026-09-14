@@ -8,6 +8,9 @@ import {
   Settings as SettingsIcon,
   Sparkles,
   X,
+  UserRound,
+  PanelsTopLeft,
+  ListTree,
 } from "lucide-react";
 import {
   useCallback,
@@ -22,6 +25,9 @@ import { clearLocalDrafts } from "../features/experiences/useField";
 import ProjectSidebar from "../features/projects/ProjectSidebar";
 import { expandProjectPath } from "../features/projects/sort";
 import Composer from "../features/resumes/Composer";
+import ProfileEditor from "../features/profile/ProfileEditor";
+import SectionOrganizer from "../features/profile/SectionOrganizer";
+import { newDocument } from "../features/profile/document";
 import {
   NEW_RESUME,
   useResumeComposition,
@@ -58,6 +64,9 @@ const EMPTY: State = {
 };
 /** 组装工作台，并协调项目导航、经历发布、会话和简历组合之间的状态。 */
 export default function App() {
+  const [area, setArea] = useState<"projects" | "personal" | "structure">(
+    "projects",
+  );
   const {
     sidebar,
     setSidebar,
@@ -193,7 +202,7 @@ export default function App() {
     setLoaded(true);
     if (!initialized.current) {
       initialized.current = true;
-      const cached = loadLocal<Resume>("rm.resume.last", NEW_RESUME);
+      const cached = loadLocal<Resume>("rm.resume.v2.last", NEW_RESUME);
       const valid =
         cached.items.every(
           /* 检查条目是否满足当前选择或校验条件。 */ (item) =>
@@ -208,11 +217,11 @@ export default function App() {
               r.id === cached.id,
           ));
       const initial =
-        valid && (cached.id || cached.items.length)
+        valid && (cached.id || cached.items.length || cached.document)
           ? cached
           : (value.resumes[0] ?? {
               ...NEW_RESUME,
-              template_id: value.templates[0]?.id ?? null,
+              document: newDocument(),
             });
       setDraft(initial);
       if (value.projects[0]) {
@@ -235,6 +244,8 @@ export default function App() {
     toggleProject,
     toggleHighlight,
     saveComposition,
+    savePersonalInfo,
+    saveSectionEntry,
     deleteComposition,
     exportResume,
     previewSources,
@@ -385,6 +396,7 @@ export default function App() {
     run(
       /* 在草稿刷新成功后执行当前业务操作。 */ async () => {
         if (serial !== navigation.current) return;
+        setArea("projects");
         setActiveProject(projectId);
         setMode(convId ? "chat" : "edit");
         const head = state.projects.find(
@@ -490,8 +502,8 @@ export default function App() {
     setMode("chat");
     changed();
   }
-  /** 发布指定草稿字段，更新本地修订缓存，但不自动改变简历固定引用。 */
-  async function saveField(field: string) {
+  /** 发布整个工作副本，更新本地修订缓存，简历固定引用由用户另行更新。 */
+  async function saveRevision() {
     const detail = remoteProject.data;
     if (!detail) return;
     const result = await api<Revision>(
@@ -499,7 +511,6 @@ export default function App() {
       "POST",
       {
         base_revision: revisionId,
-        field,
         expected_head: detail.branch.head_revision,
       },
     );
@@ -527,9 +538,7 @@ export default function App() {
     setToast({
       text:
         result.id === revisionId
-          ? field === "experience"
-            ? `全部内容已保存，与 r${result.number} 一致，无需新建版本。`
-            : `这项内容与 r${result.number} 一致，无需新建版本。`
+          ? `全部内容已保存，与 r${result.number} 一致，无需新建版本。`
           : `已提交为 r${result.number}。点击“用于当前简历”可更新右侧组合。`,
     });
   }
@@ -548,6 +557,7 @@ export default function App() {
   }
   /** 根据制作指引切换到目标项目或设置，再定位到对应操作控件。 */
   function followGuide(target: GuideTarget, projectId?: string) {
+    setArea("projects");
     setPreviewFocused(false);
     if (target === "projects" || !project) {
       setModal("projects");
@@ -628,7 +638,7 @@ export default function App() {
   const error = remoteProject.error || remoteChat.error;
   return (
     <div
-      className={`app-shell ${sidebar ? "" : "sidebar-hidden"} ${previewFocused ? "preview-focused" : ""}`}
+      className={`app-shell ${sidebar && area === "projects" ? "" : "sidebar-hidden"} ${previewFocused ? "preview-focused" : ""} ${area !== "projects" ? "profile-area" : ""}`}
       style={
         {
           "--sidebar-width": `${columns.sidebar}px`,
@@ -639,8 +649,8 @@ export default function App() {
       }
     >
       <header className="app-header">
-        <div className="row">
-          {!sidebar && !previewFocused && (
+        <div className="row app-brand">
+          {!sidebar && !previewFocused && area === "projects" && (
             <button
               id="sidebar-expand"
               className="icon-button"
@@ -654,8 +664,51 @@ export default function App() {
             </button>
           )}
           <strong>Resume Maker</strong>
-          <span className="subtle app-subtitle">项目经历工作台</span>
         </div>
+        <nav className="area-navigation" aria-label="主要功能区">
+          {(
+            [
+              {
+                id: "projects",
+                label: "项目经历",
+                icon: PanelsTopLeft,
+              },
+              {
+                id: "personal",
+                label: "个人信息",
+                icon: UserRound,
+              },
+              {
+                id: "structure",
+                label: "栏目编排",
+                icon: ListTree,
+              },
+            ] as const
+          ).map(
+            /* 每个功能区共享当前简历草稿，切换前刷新项目编辑。 */ (item) => (
+              <button
+                key={item.id}
+                className={area === item.id ? "active" : ""}
+                aria-current={area === item.id ? "page" : undefined}
+                onClick={
+                  /* 切换主要功能区并退出放大预览。 */ () =>
+                    run(
+                      /* 保存待处理草稿后导航。 */ async () => {
+                        setArea(item.id);
+                        setPreviewFocused(false);
+                      },
+                    )
+                }
+              >
+                <item.icon size={18} />
+                <span>{item.label}</span>
+              </button>
+            ),
+          )}
+        </nav>
+        <span className="area-resume-name" title={draft.name}>
+          正在制作 · {draft.name}
+        </span>
         <div className="row header-actions">
           {activeJobs.length > 0 && (
             <span className="subtle header-job-status">
@@ -795,6 +848,59 @@ export default function App() {
               <LoaderCircle className="spin" />
               正在读取本机数据…
             </div>
+          ) : area === "personal" ? (
+            <ProfileEditor
+              key={draft.id}
+              value={draft.document ?? newDocument()}
+              savedPersonal={
+                state.resumes.find(
+                  /* 读取正式保存的基本信息以区分待保存草稿。 */ (resume) =>
+                    resume.id === draft.id,
+                )?.document?.personal
+              }
+              savedVersion={
+                state.resumes.find(
+                  /* 成功保存组合也应结束当前基本信息的编辑会话。 */ (resume) =>
+                    resume.id === draft.id,
+                )?.version
+              }
+              onSave={savePersonalInfo}
+              onSaveEntry={saveSectionEntry}
+              savedSections={
+                state.resumes.find(
+                  /* 各条资料与该方案的已保存内容独立比较。 */ (resume) =>
+                    resume.id === draft.id,
+                )?.document?.sections
+              }
+              onChange={
+                /* 保存完整个人资料时采用可编排的内置简历版式。 */ (document) =>
+                  setDraft(
+                    /* 使用最新方案，避免照片读取期间覆盖其他设置。 */ (
+                      current,
+                    ) => ({ ...current, document, template_id: null }),
+                  )
+              }
+              onStructure={
+                /* 从资料编辑进入栏目编排。 */ () => setArea("structure")
+              }
+              onProjects={/* 返回项目工作台。 */ () => setArea("projects")}
+            />
+          ) : area === "structure" ? (
+            <SectionOrganizer
+              key={draft.id}
+              value={draft.document ?? newDocument()}
+              onChange={
+                /* 栏目结构与个人资料共用完整简历版式。 */ (document) =>
+                  setDraft(
+                    /* 保留栏目编辑期间的其他简历设置。 */ (current) => ({
+                      ...current,
+                      document,
+                      template_id: null,
+                    }),
+                  )
+              }
+              onInfo={/* 返回资料编辑。 */ () => setArea("personal")}
+            />
           ) : !project ? (
             <div className="empty welcome">
               <span className="eyebrow">从你的项目开始</span>
@@ -935,7 +1041,7 @@ export default function App() {
                         )?.highlight_ids ?? []
                       }
                       run={run}
-                      onSave={saveField}
+                      onSave={saveRevision}
                       onRefresh={changed}
                       onDirty={
                         /* 标记尚未发布的本机修改，更新制作指引状态。 */ () =>
@@ -1058,7 +1164,7 @@ export default function App() {
                     /* 定位与当前标识或条件匹配的条目。 */ (r) => r.id === id,
                   );
                   if (resume) {
-                    setDraft(loadLocal(`rm.resume.${id}`, resume));
+                    setDraft(loadLocal(`rm.resume.v2.${id}`, resume));
                     setExported(null);
                   }
                 },
@@ -1083,8 +1189,9 @@ export default function App() {
                 /* 在草稿刷新成功后执行当前业务操作。 */ async () => {
                   const value = await api<Resume>("/resumes", "POST", {
                     name: "新简历",
-                    template_id: state.templates[0]?.id ?? null,
+                    template_id: null,
                     items: [],
+                    document: newDocument(),
                   });
                   await reload();
                   setDraft(value);

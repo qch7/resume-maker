@@ -37,7 +37,7 @@ def test_edits_and_repeated_ordering_survive_restart_as_one_pending_change(
     assert pending["content"]["highlights"][1]["text"] == "Edited before commit"
     assert reopened.revision(base)["content"] == populated["content"]
 
-    committed = reopened.save_field(p, base, "experience", base)
+    committed = reopened.save_revision(p, base, base)
     after = Projects(reopened).get_project(p, committed["id"])
     assert len(after["revisions"]) == before + 1
     assert committed["parent_id"] == base
@@ -68,7 +68,7 @@ def test_pending_changes_are_visible_across_branches_and_noop_orders_are_hidden(
     catalog.put_draft(p, base, "order", ["one", "two"], 1)
     detail = Projects(catalog).get_project(p, base)
     assert [d["base_revision"] for d in detail["uncommitted"]] == [alternate]
-    assert catalog.save_field(p, base, "experience", base)["id"] == base
+    assert catalog.save_revision(p, base, base)["id"] == base
     assert (
         Projects(catalog).get_project(p, alternate)["uncommitted"][0]["content"]["title"]
         == "Alternate draft"
@@ -81,7 +81,7 @@ def test_failed_commit_keeps_working_tree_and_version_count(catalog, project, po
     catalog.put_draft(p, base, "highlight:new", {"title": "", "text": "", "evidence": []}, 0)
     before = Projects(catalog).get_project(p)
     with pytest.raises(Problem, match="草稿已保留"):
-        catalog.save_field(p, base, "experience", base)
+        catalog.save_revision(p, base, base)
     after = Projects(Catalog(Database(catalog.db.path))).get_project(p)
     assert after["revisions"] == before["revisions"]
     assert after["uncommitted"] == before["uncommitted"]

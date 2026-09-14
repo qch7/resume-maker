@@ -1,4 +1,4 @@
-"""短连接 SQLite 访问、即时写事务与初始结构迁移。"""
+"""短连接 SQLite 访问、即时写事务与数据库初始化。"""
 
 import json
 import sqlite3
@@ -35,43 +35,29 @@ def unpack(row: sqlite3.Row | None) -> dict | None:
 
 
 # SQL 随 Python 包分发，读取位置与当前工作目录无关。
-SCHEMA = (Path(__file__).parent / "migrations" / "001_initial.sql").read_text(encoding="utf-8")
-RESUME_DELETIONS = (Path(__file__).parent / "migrations" / "002_resume_deletions.sql").read_text(
-    encoding="utf-8"
-)
-PROJECT_HIERARCHY = (Path(__file__).parent / "migrations" / "003_project_hierarchy.sql").read_text(
-    encoding="utf-8"
-)
-EXPERIENCE_BRANCHES = (
-    Path(__file__).parent / "migrations" / "004_experience_branches.sql"
-).read_text(encoding="utf-8")
+SCHEMA = Path(__file__).with_name("schema.sql").read_text(encoding="utf-8")
+# 与早期开发数据库区分，仅支持当前结构，不执行历史迁移。
+SCHEMA_VERSION = 6
 
 
 class Database:
     """短连接 SQLite 访问与事务边界，统一 JSON 编解码和配置存储。"""
 
     def __init__(self, path: Path):
-        """初始化数据库文件，启用 WAL 并按版本原子执行增量迁移。"""
+        """为空库一次性建立完整结构，已有数据库必须使用当前结构版本。"""
         self.path = path
         path.parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as conn:
-            conn.execute("PRAGMA journal_mode=WAL")
             version = conn.execute("PRAGMA user_version").fetchone()[0]
-            if version > 4:
-                raise RuntimeError("数据库版本高于当前程序，请升级 Resume Maker。")
+            if version not in {0, SCHEMA_VERSION} or (
+                version == 0
+                and conn.execute("SELECT 1 FROM sqlite_master WHERE type='table'").fetchone()
+            ):
+                raise RuntimeError("数据库结构不受当前程序支持，请使用新的数据目录。")
+            conn.execute("PRAGMA journal_mode=WAL")
             if version == 0:
-                conn.executescript("BEGIN IMMEDIATE;" + SCHEMA + "PRAGMA user_version=1;COMMIT;")
-            if version < 2:
                 conn.executescript(
-                    "BEGIN IMMEDIATE;" + RESUME_DELETIONS + "PRAGMA user_version=2;COMMIT;"
-                )
-            if version < 3:
-                conn.executescript(
-                    "BEGIN IMMEDIATE;" + PROJECT_HIERARCHY + "PRAGMA user_version=3;COMMIT;"
-                )
-            if version < 4:
-                conn.executescript(
-                    "BEGIN IMMEDIATE;" + EXPERIENCE_BRANCHES + "PRAGMA user_version=4;COMMIT;"
+                    f"BEGIN IMMEDIATE;{SCHEMA}PRAGMA user_version={SCHEMA_VERSION};COMMIT;"
                 )
 
     @contextmanager

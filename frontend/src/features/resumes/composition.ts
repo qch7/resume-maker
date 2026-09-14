@@ -1,4 +1,5 @@
 import type { Export, Highlight, Resume, Revision } from "../../shared/types";
+import { sameResumeDocument } from "../profile/comparison.ts";
 
 /** 将亮点选择投影到经历版本的顺序，勾选先后不参与排序。 */
 export function orderedHighlightIds(
@@ -23,45 +24,36 @@ export function toggleHighlightSelection(
   return orderedHighlightIds(highlights, next);
 }
 
-/** 修正历史组合中的勾选顺序；只使用固定版本，不改变项目顺序。 */
-export function normalizeHighlightOrder(
+/** 固定引用始终按版本顺序导出，未提交亮点的选择暂存到正式条目之后。 */
+export function orderCompositionHighlights(
   draft: Resume,
   revisions: Record<string, Revision>,
-) {
-  let changed = false;
-  const items = draft.items.map(
-    /* 按各项目固定引用的版本整理亮点。 */ (item) => {
-      const revision = revisions[item.revision_id];
-      // 版本缓存异步到达前保留全部选择，避免加载过程清空草稿。
-      if (!revision) return item;
-      const highlight_ids = orderedHighlightIds(
-        revision.content.highlights,
-        item.highlight_ids,
-      );
-      // 新增草稿亮点尚无正式引用，保留其本机选择，提交后再归入版本顺序。
-      const valid = new Set(
-        revision.content.highlights.map(
-          /* 收集正式版本已有条目。 */ (point) => point.id,
-        ),
-      );
-      highlight_ids.push(
-        ...item.highlight_ids.filter(
-          /* 暂存未提交条目的选择。 */ (id) => !valid.has(id),
-        ),
-      );
-      if (
-        highlight_ids.length === item.highlight_ids.length &&
-        highlight_ids.every(
-          /* 顺序未变时复用对象，避免产生无意义的状态更新。 */ (id, index) =>
-            id === item.highlight_ids[index],
-        )
-      )
-        return item;
-      changed = true;
-      return { ...item, highlight_ids };
-    },
-  );
-  return changed ? { ...draft, items } : draft;
+): Resume {
+  return {
+    ...draft,
+    items: draft.items.map(
+      /* 编辑区可单独排序，取消草稿后组合仍须恢复固定版本的顺序。 */ (item) => {
+        const highlights = revisions[item.revision_id]?.content.highlights;
+        if (!highlights) return item;
+        const positions = new Map(
+          highlights.map(
+            /* 记录正式版本中的位置。 */ (point, index) => [point.id, index],
+          ),
+        );
+        return {
+          ...item,
+          highlight_ids: [...item.highlight_ids].sort(
+            /* 暂存的新亮点保持相对顺序，不因版本尚未提交而丢失选择。 */ (
+              a,
+              b,
+            ) =>
+              (positions.get(a) ?? highlights.length) -
+              (positions.get(b) ?? highlights.length),
+          ),
+        };
+      },
+    ),
+  };
 }
 
 /** 比较实际组合内容和固定引用，忽略保存次数等非内容变化。 */
@@ -71,7 +63,8 @@ export function sameComposition(a: Resume | undefined, b: Resume) {
     a.id === b.id &&
     a.name === b.name &&
     a.template_id === b.template_id &&
-    JSON.stringify(a.items) === JSON.stringify(b.items)
+    JSON.stringify(a.items) === JSON.stringify(b.items) &&
+    sameResumeDocument(a.document, b.document)
   );
 }
 
@@ -82,4 +75,16 @@ export function isCurrentExport(result: Export | null, draft: Resume) {
     result.resume_id === draft.id &&
     sameComposition(result.manifest?.resume, draft)
   );
+}
+
+/** 保存请求返回时保留后续输入或已切换的方案，只推进同一方案的服务器版本号。 */
+export function acceptSavedComposition(
+  current: Resume,
+  submitted: Resume,
+  saved: Resume,
+): Resume {
+  if (current.id !== submitted.id) return current;
+  return sameComposition(current, submitted)
+    ? saved
+    : { ...current, id: saved.id, version: saved.version };
 }

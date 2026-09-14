@@ -1,7 +1,6 @@
-"""验证聚合项目的子项目登记、历史兼容、独立引用及 AI 上下文隔离。"""
+"""验证聚合项目的子项目登记、历史保留、独立引用及 AI 上下文隔离。"""
 
 import json
-import sqlite3
 from pathlib import Path
 
 import pytest
@@ -11,8 +10,8 @@ from test_jobs import FakeProvider, wait_job
 from resume_maker.api import create_app
 from resume_maker.core.config import Config
 from resume_maker.core.errors import Problem
-from resume_maker.domain.models import Experience, ResumeItem
-from resume_maker.infrastructure.database import RESUME_DELETIONS, SCHEMA, dump, now, uid
+from resume_maker.domain.models import ResumeItem
+from resume_maker.infrastructure.database import dump, uid
 from resume_maker.services.jobs import Jobs
 from resume_maker.services.projects import Projects
 from resume_maker.services.workspace import Workspace
@@ -180,9 +179,7 @@ def test_parent_and_subproject_jobs_use_separate_sources_histories_and_threads(c
         {"title": "独立亮点", "text": "子项目实现", "evidence": []},
         0,
     )
-    published = catalog.save_field(
-        child["id"], child["head_revision"], "highlight:child-only", child["head_revision"]
-    )
+    published = catalog.save_revision(child["id"], child["head_revision"], child["head_revision"])
     assert catalog.working(parent["id"], parent["head_revision"])["content"]["highlights"] == []
     assert catalog.working(projects[2]["id"], projects[2]["head_revision"])["drafts"] == []
     resume = catalog.save_resume(
@@ -195,42 +192,3 @@ def test_parent_and_subproject_jobs_use_separate_sources_histories_and_threads(c
         ],
     )
     assert len(resume["items"]) == 1
-
-
-def test_upgrade_keeps_whole_project_history_even_if_sources_are_missing(tmp_path):
-    """旧聚合项目自动补齐子项目，离线目录不会阻止升级，也不会重建原会话。"""
-    data = tmp_path / "data"
-    data.mkdir()
-    roots = [str(tmp_path / "missing-agent"), str(tmp_path / "missing-rag")]
-    with sqlite3.connect(data / "resume.db") as conn:
-        conn.executescript(SCHEMA + RESUME_DELETIONS + "PRAGMA user_version=2;")
-        conn.execute(
-            "INSERT INTO projects VALUES (?,?,?,?,?,0,?,?)",
-            ("parent", "TrustGuard", dump(roots), "{}", "revision", now(), now()),
-        )
-        conn.execute(
-            "INSERT INTO revisions VALUES (?,?,NULL,NULL,1,?,?,?,?)",
-            (
-                "revision",
-                "parent",
-                dump(Experience(title="原整体经历", description="保留的经历").model_dump()),
-                "manual",
-                "原经历",
-                now(),
-            ),
-        )
-        conn.execute(
-            "INSERT INTO conversations(id,project_id,title,provider_thread_id,input_draft,"
-            "created_at,updated_at) VALUES (?,?,?,?,?,?,?)",
-            ("conversation", "parent", "原整体对话", "model-thread", "未发送草稿", now(), now()),
-        )
-    config = Config(data_dir=data)
-    catalog = create_app(config).state.services.catalog
-    assert catalog.project("parent")["head_revision"] == "revision"
-    assert catalog.revision("revision")["content"]["description"] == "保留的经历"
-    assert catalog.conversation("conversation")["provider_thread_id"] == "model-thread"
-    assert catalog.conversation("conversation")["input_draft"] == "未发送草稿"
-    assert len(children(catalog, "parent")) == 2
-    reopened = create_app(config).state.services.catalog
-    assert len(reopened.db.all("SELECT * FROM projects")) == 3
-    assert len(reopened.db.all("SELECT * FROM conversations")) == 3

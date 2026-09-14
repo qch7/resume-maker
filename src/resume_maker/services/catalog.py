@@ -5,6 +5,7 @@ from pathlib import Path, PurePosixPath
 from resume_maker.core.errors import Problem, need
 from resume_maker.domain.experience import field_value, replace_field
 from resume_maker.domain.models import Experience, ProjectProfile, ResumeItem
+from resume_maker.domain.resume import ResumeDocument
 from resume_maker.infrastructure.database import Database, dump, now, uid, unpack
 from resume_maker.services.history import History
 
@@ -21,7 +22,8 @@ class Catalog:
         """读取项目记录，不存在时抛出统一的业务异常。"""
         return need(
             self.db.one(
-                "SELECT p.*, h.parent_id FROM projects p "
+                "SELECT p.*, h.parent_id, b.head_revision FROM projects p "
+                "JOIN experience_branches b ON b.project_id=p.id AND b.is_default=1 "
                 "LEFT JOIN project_hierarchy h ON h.project_id=p.id WHERE p.id=?",
                 (project_id,),
             )
@@ -63,13 +65,12 @@ class Catalog:
         """在同一事务中登记项目、初始经历及独立会话，来源由调用方验证。"""
         project_id, revision_id, stamp = uid(), uid(), now()
         conn.execute(
-            "INSERT INTO projects VALUES (?,?,?,?,?,0,?,?)",
+            "INSERT INTO projects VALUES (?,?,?,?,0,?,?)",
             (
                 project_id,
                 name.strip(),
                 dump(roots),
                 dump(ProjectProfile().model_dump()),
-                revision_id,
                 stamp,
                 stamp,
             ),
@@ -144,20 +145,6 @@ class Catalog:
         with self.db.transaction() as conn:
             self._sync_subprojects(conn, project_id)
 
-    def ensure_subprojects(self) -> None:
-        """为升级前的多来源项目补齐子项目，保留原整体项目标识和全部历史。"""
-        with self.db.transaction() as conn:
-            parents = [
-                row["id"]
-                for row in conn.execute(
-                    "SELECT p.id FROM projects p "
-                    "LEFT JOIN project_hierarchy h ON h.project_id=p.id "
-                    "WHERE p.archived=0 AND h.parent_id IS NULL"
-                )
-            ]
-            for project_id in parents:
-                self._sync_subprojects(conn, project_id)
-
     def create_conversation(self, project_id: str, title: str) -> dict:
         """为指定项目创建具有独立历史和输入草稿的会话。"""
         self.project(project_id)
@@ -229,17 +216,12 @@ class Catalog:
                 (project_id, revision_id, field),
             )
 
-    def save_field(self, project_id: str, revision_id: str, field: str, expected_head: str) -> dict:
-        """在所属分支发布所选字段，校验分支头并迁移其余草稿。"""
+    def save_revision(self, project_id: str, revision_id: str, expected_head: str) -> dict:
+        """校验分支头与草稿版本后发布整个工作副本，原子清理已提交草稿。"""
         base = self.revision(revision_id, project_id)
         branch = self.history.for_revision(project_id, revision_id)
         working = self.working(project_id, revision_id)
-        effective = working["content"]
-        value = field_value(effective, field)
-        if field == "order":
-            ids = field_value(base["content"], "order")
-            value = [i for i in value if i in ids] + [i for i in ids if i not in value]
-        content = replace_field(base["content"], field, value)
+        content = working["content"]
         if not content["title"].strip() or any(
             not h["title"].strip() or not h["text"].strip() for h in content["highlights"]
         ):
@@ -270,19 +252,11 @@ class Catalog:
             if sorted(tuple(row) for row in actual) != sorted(expected):
                 raise Problem("保存时草稿发生变化，请重试。", 409)
             if content == base["content"]:
-                # 回到原内容也要确认草稿，但仍须检查并发，且不能移除相互覆盖的有效编辑。
-                if effective == base["content"]:
-                    conn.execute(
-                        "DELETE FROM drafts WHERE project_id=? AND base_revision=?",
-                        (project_id, revision_id),
-                    )
-                else:
-                    remaining = [d for d in working["drafts"] if d["field"] != field]
-                    if self._apply_drafts(base["content"], remaining) == effective:
-                        conn.execute(
-                            "DELETE FROM drafts WHERE project_id=? AND base_revision=? AND field=?",
-                            (project_id, revision_id, field),
-                        )
+                # 内容改回原值也需通过并发校验，再清理这次确认的全部草稿。
+                conn.execute(
+                    "DELETE FROM drafts WHERE project_id=? AND base_revision=?",
+                    (project_id, revision_id),
+                )
                 return base
             number = conn.execute(
                 "SELECT MAX(number)+1 FROM revisions WHERE project_id=?", (project_id,)
@@ -298,7 +272,7 @@ class Catalog:
                     number,
                     dump(content),
                     origin,
-                    f"保存 {field}",
+                    "保存经历",
                     stamp,
                 ),
             )
@@ -307,37 +281,7 @@ class Catalog:
                 "DELETE FROM drafts WHERE project_id=? AND base_revision=?",
                 (project_id, revision_id),
             )
-            # 其他字段的未发布修改迁移到新版本草稿，不能随本次单项保存一起发布。
-            if field != "experience":
-                pending = self._difference(content, effective)
-                for key, value in pending:
-                    conn.execute(
-                        "INSERT INTO drafts VALUES (?,?,?,?,1,?,?)",
-                        (
-                            project_id,
-                            new_id,
-                            key,
-                            dump(value),
-                            f"ai:{snapshot_id}" if origin == "ai" else "manual",
-                            stamp,
-                        ),
-                    )
         return self.revision(new_id)
-
-    @staticmethod
-    def _difference(base: dict, effective: dict) -> list[tuple]:
-        """拆分两个经历副本的字段差异，用于迁移未发布草稿。"""
-        result = []
-        if field_value(base, "meta") != field_value(effective, "meta"):
-            result.append(("meta", field_value(effective, "meta")))
-        old = {h["id"]: h for h in base["highlights"]}
-        new = {h["id"]: h for h in effective["highlights"]}
-        for point_id in old.keys() | new.keys():
-            if old.get(point_id) != new.get(point_id):
-                result.append((f"highlight:{point_id}", new.get(point_id)))
-        if field_value(base, "order") != field_value(effective, "order"):
-            result.append(("order", field_value(effective, "order")))
-        return result
 
     def restore(self, project_id: str, revision_id: str, expected_head: str) -> dict:
         """在历史版本所属分支追加恢复版本，保留来源快照及已有版本链。"""
@@ -441,6 +385,7 @@ class Catalog:
         items: list[ResumeItem],
         resume_id: str | None = None,
         version: int = 0,
+        document: ResumeDocument | None = None,
     ) -> dict:
         """校验项目、版本与亮点归属，并以乐观锁保存固定版本组合。"""
         seen = set()
@@ -466,7 +411,9 @@ class Catalog:
             if version != (existing["version"] if existing else 0):
                 raise Problem("简历组合已在其他窗口修改，请刷新。", 409)
             conn.execute(
-                "INSERT OR REPLACE INTO resumes VALUES (?,?,?,?,?,?,?)",
+                "INSERT OR REPLACE INTO resumes "
+                "(id,name,template_id,items_json,version,created_at,updated_at,document_json) "
+                "VALUES (?,?,?,?,?,?,?,?)",
                 (
                     resume_id,
                     name.strip() or "我的简历",
@@ -475,6 +422,7 @@ class Catalog:
                     version + 1,
                     existing["created_at"] if existing else now(),
                     now(),
+                    dump(document.model_dump()) if document is not None else None,
                 ),
             )
         return self.db.one("SELECT * FROM resumes WHERE id=?", (resume_id,))

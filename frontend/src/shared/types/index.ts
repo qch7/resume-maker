@@ -156,6 +156,54 @@ export interface Resume {
   template_id: string | null;
   items: ResumeItem[];
   version: number;
+  document: ResumeDocument | null;
+}
+export interface CustomInfoField {
+  id: string;
+  label: string;
+  value: string;
+  visible: boolean;
+}
+export interface PersonalInfo {
+  name: string;
+  job_title: string;
+  gender: string;
+  age: string;
+  phone: string;
+  email: string;
+  gpa: string;
+  location: string;
+  website: string;
+  photo: string;
+  hidden_fields: PersonalField[];
+  custom_fields: CustomInfoField[];
+}
+export type PersonalField = keyof Omit<
+  PersonalInfo,
+  "hidden_fields" | "custom_fields"
+>;
+export type SectionEntryField = "title" | "subtitle" | "period" | "details";
+export interface SectionEntry {
+  id: string;
+  title: string;
+  subtitle: string;
+  period: string;
+  details: string;
+  visible: boolean;
+  hidden_fields: SectionEntryField[];
+  custom_fields: CustomInfoField[];
+}
+export interface ResumeSection {
+  id: string;
+  title: string;
+  kind: "education" | "projects" | "text";
+  parent_id: string | null;
+  visible: boolean;
+  entries: SectionEntry[];
+}
+export interface ResumeDocument {
+  personal: PersonalInfo;
+  sections: ResumeSection[];
 }
 export interface Template {
   id: string;

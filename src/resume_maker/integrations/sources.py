@@ -140,6 +140,7 @@ def redact(text: str) -> str:
 
 def collect_snapshot(db: Database, data_dir: Path, project: dict) -> dict:
     """采集受大小限制的文本副本，记录 Git 状态、哈希、来源及遗漏原因。"""
+    data_dir = data_dir.resolve()
     snapshot_id = uid()
     target = data_dir / "snapshots" / snapshot_id
     target.mkdir(parents=True)
@@ -164,7 +165,12 @@ def collect_snapshot(db: Database, data_dir: Path, project: dict) -> dict:
         )
         for directory, dirs, names in os.walk(root, followlinks=False):
             base = Path(directory)
-            dirs[:] = sorted(n for n in dirs if n not in EXCLUDED and not linked(base / n))
+            # 数据目录可能位于源码内，避免把个人资料和正在生成的快照再次采集。
+            dirs[:] = sorted(
+                n
+                for n in dirs
+                if n not in EXCLUDED and not linked(base / n) and (base / n).resolve() != data_dir
+            )
             for name in sorted(names):
                 path = base / name
                 relative = path.relative_to(root).as_posix()

@@ -1,8 +1,8 @@
--- 初始结构（user_version = 1）；已有数据库不重复执行。
+-- 当前完整结构，仅对空数据库执行；版本由 database.py 统一登记。
 CREATE TABLE settings (key TEXT PRIMARY KEY, value_json TEXT NOT NULL);
 CREATE TABLE projects (
  id TEXT PRIMARY KEY, name TEXT NOT NULL, roots_json TEXT NOT NULL,
- profile_json TEXT NOT NULL, head_revision TEXT, archived INTEGER NOT NULL DEFAULT 0,
+ profile_json TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0,
  created_at TEXT NOT NULL, updated_at TEXT NOT NULL
 );
 CREATE TABLE snapshots (
@@ -56,7 +56,7 @@ CREATE TABLE templates (
 CREATE TABLE resumes (
  id TEXT PRIMARY KEY, name TEXT NOT NULL, template_id TEXT REFERENCES templates(id),
  items_json TEXT NOT NULL, version INTEGER NOT NULL, created_at TEXT NOT NULL,
- updated_at TEXT NOT NULL
+ updated_at TEXT NOT NULL, document_json TEXT
 );
 CREATE TABLE exports (
  id TEXT PRIMARY KEY, resume_id TEXT NOT NULL REFERENCES resumes(id),
@@ -66,3 +66,26 @@ CREATE INDEX ix_conversations_project ON conversations(project_id, updated_at);
 CREATE INDEX ix_jobs_status ON jobs(status, created_at);
 CREATE INDEX ix_messages_conversation ON messages(conversation_id, created_at);
 CREATE INDEX ix_events_job ON events(job_id, id);
+-- 删除方案仍保留固定引用与导出记录，阻止过期窗口重新写入。
+CREATE TABLE resume_deletions (
+ resume_id TEXT PRIMARY KEY REFERENCES resumes(id), deleted_at TEXT NOT NULL
+);
+-- 子项目拥有独立经历和会话，这里只记录分组关系。
+CREATE TABLE project_hierarchy (
+ project_id TEXT PRIMARY KEY REFERENCES projects(id),
+ parent_id TEXT NOT NULL REFERENCES projects(id),
+ CHECK (project_id <> parent_id)
+);
+CREATE INDEX ix_project_hierarchy_parent ON project_hierarchy(parent_id);
+CREATE TABLE experience_branches (
+ id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id),
+ name TEXT NOT NULL COLLATE NOCASE, head_revision TEXT NOT NULL REFERENCES revisions(id),
+ is_default INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+ UNIQUE(project_id, name)
+);
+CREATE UNIQUE INDEX ix_default_branch ON experience_branches(project_id) WHERE is_default=1;
+CREATE TABLE revision_branches (
+ revision_id TEXT PRIMARY KEY REFERENCES revisions(id),
+ branch_id TEXT NOT NULL REFERENCES experience_branches(id)
+);
+CREATE INDEX ix_revision_branch ON revision_branches(branch_id);

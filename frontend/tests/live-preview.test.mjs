@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildLivePreview } from "../src/features/resumes/livePreview.ts";
 import {
-  normalizeHighlightOrder,
+  orderCompositionHighlights,
   toggleHighlightSelection,
 } from "../src/features/resumes/composition.ts";
 
@@ -96,7 +96,7 @@ test("switching editor revisions updates only that project's preview", /* 验证
   assert.equal(unrelated.changed, false);
 });
 
-test("new draft highlights can be selected and reselected before committing", /* 验证新增未提交亮点的选择不会被旧版本排序清掉。 */ () => {
+test("new draft highlights can be selected and reselected before committing", /* 验证新增未提交亮点可选择且按工作副本顺序预览。 */ () => {
   const { content, revisions, draft } = fixture();
   const added = {
     id: "new",
@@ -110,10 +110,9 @@ test("new draft highlights can be selected and reselected before committing", /*
     ["a", "b", "c"],
     "new",
   );
-  const normalized = normalizeHighlightOrder(draft, revisions);
-  assert.equal(normalized.items[0].highlight_ids.includes("new"), true);
+  assert.equal(draft.items[0].highlight_ids.includes("new"), true);
   const result = buildLivePreview(
-    normalized,
+    draft,
     revisions,
     { old: working },
     "project",
@@ -124,7 +123,7 @@ test("new draft highlights can be selected and reselected before committing", /*
     result.sources.project.content.highlights
       .filter(
         /* 模拟只显示勾选项。 */ (h) =>
-          normalized.items[0].highlight_ids.includes(h.id),
+          draft.items[0].highlight_ids.includes(h.id),
       )
       .map(/* 提取预览顺序。 */ (h) => h.id),
     ["new", "a", "b", "c"],
@@ -155,6 +154,31 @@ test("removing and restoring a highlight follows the working copy while retainin
   );
   assert.equal(restored.sources.project.content.highlights.length, 3);
   assert.equal(restored.changed, false);
+});
+
+test("discarding draft order after toggling highlights restores the pinned export order", /* 排序草稿中取消再勾选后撤销草稿，导出顺序仍与固定版本预览一致。 */ () => {
+  const { content, revisions, draft } = fixture();
+  const reordered = content.highlights.toReversed();
+  const unchecked = toggleHighlightSelection(reordered, ["a", "b", "c"], "b");
+  draft.items[0].highlight_ids = toggleHighlightSelection(
+    reordered,
+    unchecked,
+    "b",
+  );
+  const before = structuredClone(draft);
+  const ordered = orderCompositionHighlights(draft, revisions);
+  assert.deepEqual(ordered.items[0].highlight_ids, ["a", "b", "c"]);
+  assert.equal(
+    buildLivePreview(ordered, revisions, {}, "project", "old").changed,
+    false,
+  );
+  assert.deepEqual(draft, before);
+  draft.items[0].highlight_ids.push("uncommitted");
+  assert.deepEqual(
+    orderCompositionHighlights(draft, revisions).items[0].highlight_ids,
+    ["a", "b", "c", "uncommitted"],
+  );
+  assert.deepEqual(orderCompositionHighlights(draft, {}).items, draft.items);
 });
 
 test("saving and export become available only after the preview matches the chosen revision", /* 验证预览不会伪装成已经提交并用于简历的内容。 */ () => {

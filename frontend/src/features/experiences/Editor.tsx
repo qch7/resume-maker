@@ -175,7 +175,6 @@ export default function Editor(props: EditorProps) {
                       "POST",
                       {
                         base_revision: revisionId,
-                        field: "experience",
                         expected_head: detail.branch.head_revision,
                       },
                     );

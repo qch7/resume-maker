@@ -1,7 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  normalizeHighlightOrder,
   orderedHighlightIds,
   toggleHighlightSelection,
 } from "../src/features/resumes/composition.ts";
@@ -46,64 +45,4 @@ test("applying a reordered revision preserves the selected subset in the new ord
   const selected = orderedHighlightIds(next, ["evidence", "tasks", "audit"]);
   assert.deepEqual(selected, ["audit", "evidence"]);
   assert.deepEqual(orderedHighlightIds(next, []), []);
-});
-
-test("cached compositions normalize per pinned revision without moving projects or mutating input", /* 验证旧缓存错序被修复，项目顺序和固定版本保持不变。 */ () => {
-  const draft = {
-    id: "resume",
-    name: "顺序回归简历",
-    template_id: null,
-    version: 3,
-    items: [
-      { project_id: "other", revision_id: "unloaded", highlight_ids: ["x"] },
-      {
-        project_id: "project",
-        revision_id: "pinned",
-        highlight_ids: ["evidence", "mcp", "audit", "tasks"],
-      },
-    ],
-  };
-  const before = structuredClone(draft);
-  const revisions = {
-    pinned: { id: "pinned", project_id: "project", content: { highlights } },
-    latest: {
-      id: "latest",
-      project_id: "project",
-      content: { highlights: highlights.toReversed() },
-    },
-  };
-  const normalized = normalizeHighlightOrder(draft, revisions);
-  assert.deepEqual(normalized, {
-    ...draft,
-    items: [
-      draft.items[0],
-      { ...draft.items[1], highlight_ids: originalOrder },
-    ],
-  });
-  assert.deepEqual(draft, before);
-  assert.equal(normalized.items[0], draft.items[0]);
-  assert.equal(normalizeHighlightOrder(normalized, revisions), normalized);
-
-  const restored = JSON.parse(JSON.stringify(normalized));
-  assert.deepEqual(normalizeHighlightOrder(restored, revisions), normalized);
-});
-
-test("an unloaded pinned revision retains all selections until its cache arrives", /* 验证缓存异步加载时不清空选择，空选择也不会自动全选。 */ () => {
-  const draft = {
-    items: [
-      {
-        project_id: "project",
-        revision_id: "pinned",
-        highlight_ids: ["audit", "tasks"],
-      },
-      { project_id: "empty", revision_id: "empty", highlight_ids: [] },
-    ],
-  };
-  assert.equal(normalizeHighlightOrder(draft, {}), draft);
-  const normalized = normalizeHighlightOrder(draft, {
-    pinned: { content: { highlights } },
-    empty: { content: { highlights } },
-  });
-  assert.deepEqual(normalized.items[0].highlight_ids, ["tasks", "audit"]);
-  assert.deepEqual(normalized.items[1].highlight_ids, []);
 });

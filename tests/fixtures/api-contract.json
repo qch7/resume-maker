@@ -1655,6 +1655,16 @@
           "type": "integer",
           "title": "Version",
           "default": 0
+        },
+        "document": {
+          "anyOf": [
+            {
+              "$ref": "#/components/schemas/ResumeDocument"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": false,
@@ -1728,10 +1738,6 @@
           "type": "string",
           "title": "Base Revision"
         },
-        "field": {
-          "type": "string",
-          "title": "Field"
-        },
         "expected_head": {
           "type": "string",
           "title": "Expected Head"
@@ -1741,7 +1747,6 @@
       "type": "object",
       "required": [
         "base_revision",
-        "field",
         "expected_head"
       ],
       "title": "SaveInput",
@@ -1816,6 +1821,284 @@
         "type"
       ],
       "title": "ValidationError"
+    },
+    "ResumeDocument": {
+      "properties": {
+        "personal": {
+          "$ref": "#/components/schemas/PersonalInfo"
+        },
+        "sections": {
+          "items": {
+            "$ref": "#/components/schemas/ResumeSection"
+          },
+          "type": "array",
+          "maxItems": 40,
+          "title": "Sections"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "sections"
+      ],
+      "title": "ResumeDocument",
+      "description": "一份简历独立保存的顶部资料与栏目编排，允许大栏目加子栏目两层。"
+    },
+    "ResumeSection": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Id"
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Title"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "education",
+            "projects",
+            "text"
+          ],
+          "title": "Kind",
+          "default": "text"
+        },
+        "parent_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Parent Id"
+        },
+        "visible": {
+          "type": "boolean",
+          "title": "Visible",
+          "default": true
+        },
+        "entries": {
+          "items": {
+            "$ref": "#/components/schemas/SectionEntry"
+          },
+          "type": "array",
+          "maxItems": 100,
+          "title": "Entries"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "title"
+      ],
+      "title": "ResumeSection",
+      "description": "可排序、隐藏或归入大栏目的栏目；项目区使用独立版本引用。"
+    },
+    "SectionEntry": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Id"
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 300,
+          "title": "Title",
+          "default": ""
+        },
+        "subtitle": {
+          "type": "string",
+          "maxLength": 500,
+          "title": "Subtitle",
+          "default": ""
+        },
+        "period": {
+          "type": "string",
+          "maxLength": 100,
+          "title": "Period",
+          "default": ""
+        },
+        "details": {
+          "type": "string",
+          "maxLength": 10000,
+          "title": "Details",
+          "default": ""
+        },
+        "hidden_fields": {
+          "items": {
+            "type": "string",
+            "enum": [
+              "title",
+              "subtitle",
+              "period",
+              "details"
+            ]
+          },
+          "type": "array",
+          "maxItems": 4,
+          "title": "Hidden Fields"
+        },
+        "visible": {
+          "type": "boolean",
+          "title": "Visible",
+          "default": true
+        },
+        "custom_fields": {
+          "items": {
+            "$ref": "#/components/schemas/CustomInfoField"
+          },
+          "type": "array",
+          "maxItems": 20,
+          "title": "Custom Fields"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id"
+      ],
+      "title": "SectionEntry",
+      "description": "栏目下的经历或文本条目，支持学校、专业、时间与多行正文。"
+    },
+    "PersonalInfo": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 100,
+          "title": "Name",
+          "default": ""
+        },
+        "job_title": {
+          "type": "string",
+          "maxLength": 200,
+          "title": "Job Title",
+          "default": ""
+        },
+        "gender": {
+          "type": "string",
+          "maxLength": 30,
+          "title": "Gender",
+          "default": ""
+        },
+        "age": {
+          "type": "string",
+          "maxLength": 30,
+          "title": "Age",
+          "default": ""
+        },
+        "phone": {
+          "type": "string",
+          "maxLength": 100,
+          "title": "Phone",
+          "default": ""
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 200,
+          "title": "Email",
+          "default": ""
+        },
+        "gpa": {
+          "type": "string",
+          "maxLength": 100,
+          "title": "Gpa",
+          "default": ""
+        },
+        "location": {
+          "type": "string",
+          "maxLength": 200,
+          "title": "Location",
+          "default": ""
+        },
+        "website": {
+          "type": "string",
+          "maxLength": 500,
+          "title": "Website",
+          "default": ""
+        },
+        "photo": {
+          "type": "string",
+          "maxLength": 2000000,
+          "title": "Photo",
+          "default": ""
+        },
+        "hidden_fields": {
+          "items": {
+            "type": "string",
+            "enum": [
+              "name",
+              "job_title",
+              "gender",
+              "age",
+              "phone",
+              "email",
+              "gpa",
+              "location",
+              "website",
+              "photo"
+            ]
+          },
+          "type": "array",
+          "maxItems": 10,
+          "title": "Hidden Fields"
+        },
+        "custom_fields": {
+          "items": {
+            "$ref": "#/components/schemas/CustomInfoField"
+          },
+          "type": "array",
+          "maxItems": 20,
+          "title": "Custom Fields"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "title": "PersonalInfo",
+      "description": "固定展示在简历顶部的基本信息；空字段不参与排版。"
+    },
+    "CustomInfoField": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Id"
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 50,
+          "title": "Label",
+          "default": ""
+        },
+        "value": {
+          "type": "string",
+          "maxLength": 1000,
+          "title": "Value",
+          "default": ""
+        },
+        "visible": {
+          "type": "boolean",
+          "title": "Visible",
+          "default": true
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id"
+      ],
+      "title": "CustomInfoField",
+      "description": "用户自行命名的信息项；可隐藏，空项保留为草稿但不参与排版。"
     }
   }
 }

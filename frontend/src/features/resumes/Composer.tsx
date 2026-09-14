@@ -24,6 +24,8 @@ import type { Export, Resume, Revision, State } from "../../shared/types/index";
 import { isCurrentExport, sameComposition } from "./composition.ts";
 import PrintedPage from "./PrintedPage";
 import DeleteResumeDialog from "./DeleteResumeDialog";
+import ResumePreview from "../profile/ResumePreview";
+import { newDocument } from "../profile/document";
 
 interface Props {
   settingsHeight: number;
@@ -67,6 +69,160 @@ export default function Composer(props: Props) {
   function move(from: number, to: number) {
     props.onChange({ ...draft, items: arrayMove(draft.items, from, to) });
   }
+  const projectPreview = (
+    <>
+      {!draft.items.length && (
+        <div className="empty compact preview-empty">
+          <p>从左侧勾选项目</p>
+          <span>选择经历版本与亮点，再调整项目顺序。</span>
+        </div>
+      )}
+      <SortableList
+        key={draft.id}
+        items={draft.items.map(
+          /* 逐项转换数据，保留当前业务需要的字段。 */ (item) => ({
+            id: item.project_id,
+            label:
+              (
+                props.previewSources[item.project_id] ??
+                revisions[item.revision_id]
+              )?.content.title || "项目",
+          }),
+        )}
+        disabled={draft.items.some(
+          /* 检查条目是否满足当前选择或校验条件。 */ (item) =>
+            !revisions[item.revision_id],
+        )}
+        onMove={move}
+      >
+        {draft.items.map(
+          /* 按稳定标识生成对应的列表条目。 */ (item, index) => {
+            const revision =
+              props.previewSources[item.project_id] ??
+              revisions[item.revision_id];
+            if (!revision)
+              return <p key={item.project_id}>正在读取经历版本…</p>;
+            const value = revision.content;
+            return (
+              <SortableItem
+                as="article"
+                className="resume-project"
+                key={item.project_id}
+                id={item.project_id}
+                label={`项目 ${value.title}`}
+              >
+                {
+                  /* 将排序手柄嵌入对应业务条目的操作区。 */ (handle) => (
+                    <>
+                      <div className="resume-project-title">
+                        <strong>{value.title}</strong>
+                        <div className="row">
+                          <button
+                            className="icon-button"
+                            aria-label={`上移项目 ${value.title}`}
+                            disabled={index === 0}
+                            onClick={
+                              /* 响应当前操作按钮，执行对应业务动作。 */ () =>
+                                move(index, index - 1)
+                            }
+                          >
+                            <ArrowUp size={13} />
+                          </button>
+                          {handle}
+                          <button
+                            className="icon-button"
+                            aria-label={`下移项目 ${value.title}`}
+                            disabled={index === draft.items.length - 1}
+                            onClick={
+                              /* 响应当前操作按钮，执行对应业务动作。 */ () =>
+                                move(index, index + 1)
+                            }
+                          >
+                            <ArrowDown size={13} />
+                          </button>
+                          <button
+                            className="icon-button"
+                            aria-label={`移除项目 ${value.title}`}
+                            onClick={
+                              /* 响应当前操作按钮，执行对应业务动作。 */ () =>
+                                props.onChange({
+                                  ...draft,
+                                  items: draft.items.filter(
+                                    /* 保留满足当前范围或有效性条件的条目。 */ (
+                                      _,
+                                      i,
+                                    ) => i !== index,
+                                  ),
+                                })
+                            }
+                          >
+                            <X size={13} />
+                          </button>
+                        </div>
+                      </div>
+                      <span className="resume-period">
+                        {value.period} {value.role}
+                      </span>
+                      {value.stack.length > 0 && (
+                        <p>
+                          <b>技术栈：</b>
+                          {value.stack.join("、")}
+                        </p>
+                      )}
+                      {value.description && (
+                        <p>
+                          <b>项目描述：</b>
+                          {value.description}
+                        </p>
+                      )}
+                      {value.highlights
+                        .filter(
+                          /* 按编辑区当前顺序显示勾选条目，取消后重选不改变位置。 */ (
+                            h,
+                          ) => item.highlight_ids.includes(h.id),
+                        )
+                        .map(
+                          /* 按稳定标识生成对应的列表条目。 */ (h) => (
+                            <p key={h.id}>
+                              <b>{h.title}：</b>
+                              {h.text}
+                            </p>
+                          ),
+                        )}
+                      {!value.highlights.length && !value.description && (
+                        <p className="subtle">
+                          尚未填写项目经历，可先分析源码。
+                        </p>
+                      )}
+                      <span className="version-note">
+                        {revision !== revisions[item.revision_id]
+                          ? `实时预览 · 基于 r${revision.number}`
+                          : `固定引用 r${revision.number}`}
+                      </span>
+                      {state.branches.find(
+                        /* 定位与当前标识或条件匹配的条目。 */ (branch) =>
+                          branch.id === revision.branch_id,
+                      )?.head_revision !== revision.id && (
+                        <button
+                          className="text-button revision-update"
+                          onClick={
+                            /* 响应当前操作按钮，执行对应业务动作。 */ () =>
+                              props.onEditProject(item.project_id)
+                          }
+                        >
+                          有更新的经历版本 · 查看
+                        </button>
+                      )}
+                    </>
+                  )
+                }
+              </SortableItem>
+            );
+          },
+        )}
+      </SortableList>
+    </>
+  );
   return (
     <aside
       className="composition-pane"
@@ -133,7 +289,7 @@ export default function Composer(props: Props) {
         </label>
         <div className="template-picker">
           <label>
-            Word 模板
+            导出排版
             <select
               data-guide="template-select"
               value={draft.template_id ?? ""}
@@ -142,14 +298,17 @@ export default function Composer(props: Props) {
                   props.onChange({
                     ...draft,
                     template_id: e.target.value || null,
+                    document: !e.target.value
+                      ? (draft.document ?? newDocument())
+                      : draft.document,
                   })
               }
             >
-              <option value="">选择模板</option>
+              <option value="">内置 · 完整简历</option>
               {state.templates.map(
                 /* 按稳定标识生成对应的列表条目。 */ (t) => (
                   <option key={t.id} value={t.id}>
-                    {t.name}
+                    {t.name} · 仅替换项目区
                   </option>
                 ),
               )}
@@ -159,6 +318,11 @@ export default function Composer(props: Props) {
             管理模板
           </button>
         </div>
+        {draft.template_id && (
+          <p className="subtle">
+            当前沿用原模板的个人信息和其他栏目。编辑个人资料或栏目编排后，会切换为内置完整简历。
+          </p>
+        )}
         <div className="actions">
           {saved && saved.version !== draft.version && (
             <button
@@ -188,8 +352,8 @@ export default function Composer(props: Props) {
               props.exporting ||
               props.previewChanged ||
               props.deleting ||
-              !draft.template_id ||
-              !draft.items.length ||
+              (!draft.template_id && !draft.document) ||
+              (!!draft.template_id && !draft.items.length) ||
               !draft.name.trim()
             }
           >
@@ -370,163 +534,7 @@ export default function Composer(props: Props) {
               )}
             </div>
           ) : (
-            <div className="resume-paper">
-              <div className="paper-heading">项目经历</div>
-              {!draft.items.length && (
-                <div className="empty compact preview-empty">
-                  <p>从左侧勾选项目</p>
-                  <span>选择经历版本与亮点，再调整项目顺序。</span>
-                </div>
-              )}
-              <SortableList
-                key={draft.id}
-                items={draft.items.map(
-                  /* 逐项转换数据，保留当前业务需要的字段。 */ (item) => ({
-                    id: item.project_id,
-                    label:
-                      (
-                        props.previewSources[item.project_id] ??
-                        revisions[item.revision_id]
-                      )?.content.title || "项目",
-                  }),
-                )}
-                disabled={draft.items.some(
-                  /* 检查条目是否满足当前选择或校验条件。 */ (item) =>
-                    !revisions[item.revision_id],
-                )}
-                onMove={move}
-              >
-                {draft.items.map(
-                  /* 按稳定标识生成对应的列表条目。 */ (item, index) => {
-                    const revision =
-                      props.previewSources[item.project_id] ??
-                      revisions[item.revision_id];
-                    if (!revision)
-                      return <p key={item.project_id}>正在读取经历版本…</p>;
-                    const value = revision.content;
-                    return (
-                      <SortableItem
-                        as="article"
-                        className="resume-project"
-                        key={item.project_id}
-                        id={item.project_id}
-                        label={`项目 ${value.title}`}
-                      >
-                        {
-                          /* 将排序手柄嵌入对应业务条目的操作区。 */ (
-                            handle,
-                          ) => (
-                            <>
-                              <div className="resume-project-title">
-                                <strong>{value.title}</strong>
-                                <div className="row">
-                                  <button
-                                    className="icon-button"
-                                    aria-label={`上移项目 ${value.title}`}
-                                    disabled={index === 0}
-                                    onClick={
-                                      /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-                                        move(index, index - 1)
-                                    }
-                                  >
-                                    <ArrowUp size={13} />
-                                  </button>
-                                  {handle}
-                                  <button
-                                    className="icon-button"
-                                    aria-label={`下移项目 ${value.title}`}
-                                    disabled={index === draft.items.length - 1}
-                                    onClick={
-                                      /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-                                        move(index, index + 1)
-                                    }
-                                  >
-                                    <ArrowDown size={13} />
-                                  </button>
-                                  <button
-                                    className="icon-button"
-                                    aria-label={`移除项目 ${value.title}`}
-                                    onClick={
-                                      /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-                                        props.onChange({
-                                          ...draft,
-                                          items: draft.items.filter(
-                                            /* 保留满足当前范围或有效性条件的条目。 */ (
-                                              _,
-                                              i,
-                                            ) => i !== index,
-                                          ),
-                                        })
-                                    }
-                                  >
-                                    <X size={13} />
-                                  </button>
-                                </div>
-                              </div>
-                              <span className="resume-period">
-                                {value.period} {value.role}
-                              </span>
-                              {value.stack.length > 0 && (
-                                <p>
-                                  <b>技术栈：</b>
-                                  {value.stack.join("、")}
-                                </p>
-                              )}
-                              {value.description && (
-                                <p>
-                                  <b>项目描述：</b>
-                                  {value.description}
-                                </p>
-                              )}
-                              {value.highlights
-                                .filter(
-                                  /* 按编辑区当前顺序显示勾选条目，取消后重选不改变位置。 */ (
-                                    h,
-                                  ) => item.highlight_ids.includes(h.id),
-                                )
-                                .map(
-                                  /* 按稳定标识生成对应的列表条目。 */ (h) => (
-                                    <p key={h.id}>
-                                      <b>{h.title}：</b>
-                                      {h.text}
-                                    </p>
-                                  ),
-                                )}
-                              {!value.highlights.length &&
-                                !value.description && (
-                                  <p className="subtle">
-                                    尚未填写项目经历，可先分析源码。
-                                  </p>
-                                )}
-                              <span className="version-note">
-                                {revision !== revisions[item.revision_id]
-                                  ? `实时预览 · 基于 r${revision.number}`
-                                  : `固定引用 r${revision.number}`}
-                              </span>
-                              {state.branches.find(
-                                /* 定位与当前标识或条件匹配的条目。 */ (
-                                  branch,
-                                ) => branch.id === revision.branch_id,
-                              )?.head_revision !== revision.id && (
-                                <button
-                                  className="text-button revision-update"
-                                  onClick={
-                                    /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-                                      props.onEditProject(item.project_id)
-                                  }
-                                >
-                                  有更新的经历版本 · 查看
-                                </button>
-                              )}
-                            </>
-                          )
-                        }
-                      </SortableItem>
-                    );
-                  },
-                )}
-              </SortableList>
-            </div>
+            <ResumePreview draft={draft} projects={projectPreview} />
           )}
         </div>
       </section>

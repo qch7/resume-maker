@@ -43,4 +43,4 @@ def populated(catalog, project):
     """将示例经历发布为正式修订，作为后续测试的已保存基线。"""
     base = project["head_revision"]
     catalog.put_draft(project["id"], base, "experience", experience(), 0)
-    return catalog.save_field(project["id"], base, "experience", base)
+    return catalog.save_revision(project["id"], base, base)

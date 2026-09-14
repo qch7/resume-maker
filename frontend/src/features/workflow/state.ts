@@ -149,7 +149,7 @@ export function getWorkflow(input: {
       "去保存组合",
       "composition-save",
     );
-  if (!draft.template_id)
+  if (!draft.template_id && !draft.document)
     return guide(
       3,
       "选择 Word 模板，导出时保留模板中的个人信息和其他栏目。",

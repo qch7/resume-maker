@@ -45,3 +45,18 @@ def test_running_instance_blocks_restore(tmp_path):
     target = tmp_path / "data"
     with instance_lock(target), pytest.raises(Problem, match="正在使用"):
         restore_backup(tmp_path / "unused.zip", target)
+
+
+@pytest.mark.parametrize("version", [1, 2, 3, 4, 5, 7])
+def test_restore_rejects_unsupported_schema_without_changing_target(catalog, tmp_path, version):
+    """恢复仅接受当前结构的备份，不匹配时保留目标数据并清理暂存目录。"""
+    with catalog.db.transaction() as conn:
+        conn.execute(f"PRAGMA user_version={version}")
+    backup = create_backup(catalog.db, catalog.db.path.parent)
+    target = tmp_path / "restored"
+    target.mkdir()
+    (target / "instance.json").write_text("unchanged")
+    with pytest.raises(Problem, match="备份版本不受当前程序支持"):
+        restore_backup(backup, target)
+    assert (target / "instance.json").read_text() == "unchanged"
+    assert not list(tmp_path.glob(".restored-restore-*"))

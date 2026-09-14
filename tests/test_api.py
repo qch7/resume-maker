@@ -103,3 +103,41 @@ def test_project_and_conversation_persist_after_app_restart(tmp_path):
         restored = next(c for c in state["conversations"] if c["id"] == conversation["id"])
         assert restored["input_draft"] == "未发送草稿"
         assert restored["title"] == "后端岗位版"
+
+
+def test_commit_and_restore_publish_complete_working_copy(tmp_path):
+    """当前请求提交全部字段，过期提交被拒绝，恢复后项目默认版本来自主分支。"""
+    source = tmp_path / "source"
+    source.mkdir()
+    config = Config(data_dir=tmp_path / "data", token="test")
+    with TestClient(create_app(config), headers={"x-resume-token": "test"}) as client:
+        project = client.post("/api/projects", json={"name": "项目", "roots": [str(source)]}).json()
+        base = project["head_revision"]
+        url = f"/api/projects/{project['id']}"
+        for field, value in [
+            ("meta", {"title": "新标题"}),
+            ("highlight:one", {"title": "亮点", "text": "实现正文", "evidence": []}),
+        ]:
+            assert (
+                client.put(
+                    url + "/draft", json={"base_revision": base, "field": field, "value": value}
+                ).status_code
+                == 200
+            )
+        body = {"base_revision": base, "expected_head": base}
+        response = client.post(url + "/revisions", json=body)
+        assert response.status_code == 200, response.text
+        saved = response.json()
+        assert saved["content"]["title"] == "新标题"
+        assert saved["content"]["highlights"][0]["text"] == "实现正文"
+        assert client.get(url).json()["working"]["drafts"] == []
+        assert client.post(url + "/revisions", json=body).status_code == 409
+        response = client.post(
+            url + "/restore", json={"base_revision": base, "expected_head": saved["id"]}
+        )
+        assert response.status_code == 200, response.text
+        restored = response.json()
+        assert restored["parent_id"] == saved["id"]
+        assert restored["content"]["title"] == "项目"
+        assert restored["content"]["highlights"] == []
+        assert client.get("/api/state").json()["projects"][0]["head_revision"] == restored["id"]

@@ -7,16 +7,26 @@ param(
 $ErrorActionPreference = 'Stop'
 $repoPath = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $repoPath
+if (-not $DataDir) {
+    $DataDir = if ($env:RESUME_MAKER_DATA_DIR) { $env:RESUME_MAKER_DATA_DIR } else { Join-Path $repoPath 'data' }
+}
+$DataDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($DataDir)
 $url = "http://127.0.0.1:$Port"
-# 默认启动复用返回健康状态的本机服务，自定义数据目录仍交由 CLI 独立校验。
+# 仅复用目标数据目录登记的实例，避免迁移目录后仍打开旧数据库。
+$health = $null
 try {
     $health = Invoke-RestMethod -Uri "$url/api/health" -TimeoutSec 2
-    if ($health.status -eq 'ok' -and -not $DataDir) {
+} catch {}
+if ($health.status -eq 'ok') {
+    $instancePath = Join-Path $DataDir 'instance.json'
+    $instance = if (Test-Path -LiteralPath $instancePath) { Get-Content -LiteralPath $instancePath -Raw | ConvertFrom-Json } else { $null }
+    if ($instance.instance_id -and $instance.instance_id -eq $health.instance_id -and $instance.port -eq $Port) {
         if (-not $NoBrowser) { Start-Process $url }
         Write-Host "Resume Maker is already running at $url"
         exit 0
     }
-} catch {}
+    throw "Port $Port is used by a different Resume Maker data directory. Stop that instance or choose another -Port."
+}
 if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
     throw 'Install uv first: https://docs.astral.sh/uv/getting-started/installation/'
 }
@@ -42,9 +52,8 @@ if ($needsBuild) {
     & npm --prefix frontend run build
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
-$launchArgs = @('run', '--no-sync', 'python', '-m', 'resume_maker.cli', '--port', "$Port")
+$launchArgs = @('run', '--no-sync', 'python', '-m', 'resume_maker.cli', '--port', "$Port", '--data-dir', $DataDir)
 # 前台运行让终端关闭行为和 CLI 正常退出保持一致。
-if ($DataDir) { $launchArgs += @('--data-dir', $DataDir) }
 if ($NoBrowser) { $launchArgs += '--no-browser' }
 & uv @launchArgs
 exit $LASTEXITCODE

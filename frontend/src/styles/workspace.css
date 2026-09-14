@@ -8,9 +8,11 @@
 }
 .app-header {
   min-height: 52px;
+  height: 52px;
   flex-shrink: 0;
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: max-content max-content minmax(0, 1fr) max-content;
+  gap: 18px;
   align-items: center;
   padding: 0 22px;
   background: var(--surface);
@@ -84,9 +86,8 @@
   font-size: 15px;
   letter-spacing: -0.3px;
 }
-.app-subtitle {
-  border-left: 1px solid var(--line);
-  padding-left: 13px;
+.app-brand {
+  white-space: nowrap;
 }
 .theme-switch {
   display: flex;
