@@ -3,11 +3,13 @@
 import pytest
 from fastapi.testclient import TestClient
 from test_resume_previews import register_template
+from test_template_analysis import TemplateProvider, completed, simple_document, simple_template
 from test_template_mapping import resume_content
 
 from resume_maker.api import create_app
 from resume_maker.core.config import Config
 from resume_maker.core.errors import Problem
+from resume_maker.domain.templates import TemplatePlan
 from resume_maker.infrastructure.database import dump, now
 from resume_maker.services.documents import Documents
 from resume_maker.services.resume_previews import ResumePreviews
@@ -53,3 +55,68 @@ def test_manual_import_routes_are_removed(tmp_path):
             response = client.post(route, headers={"x-resume-token": "test"}, json={})
             assert response.status_code == 404
         assert not app.state.services.db.all("SELECT * FROM templates")
+
+
+def test_saved_recognition_history_survives_restart_and_resave(tmp_path):
+    """保存并重启后保留真实活动、轮次、耗时与用量，人工另存不会清空历史或再调用 AI。"""
+
+    class RecordedProvider(TemplateProvider):
+        """为真实分析流程提供确定的公开活动与统计。"""
+
+        def run_structured(self, **kwargs):
+            """发出可识别的活动，再沿用脱敏模板的结构化建议。"""
+            kwargs["emit"]("activity", {"text": "已定位姓名与联系方式 api_key=private"})
+            kwargs["emit"](
+                "usage", {"input_tokens": 321, "cached_input_tokens": 120, "output_tokens": 65}
+            )
+            return super().run_structured(**kwargs)
+
+    config = Config(data_dir=tmp_path / "data", token="test")
+    source = tmp_path / "source.docx"
+    simple_template(source)
+    provider = RecordedProvider()
+    keys = (
+        "events",
+        "cursor",
+        "round",
+        "elapsed_ms",
+        "usage",
+        "metrics",
+        "attempts",
+        "repair_error",
+        "reused",
+        "phase",
+    )
+    with TestClient(create_app(config, provider)) as client:
+        service = client.app.state.services.templates
+        task = completed(service, service.analyze(source, simple_document())["id"])
+        assert task["events"] and task["round"] > 0
+        history = {key: task[key] for key in keys}
+        assert history["usage"]["input_tokens"] == 321
+        assert "private" not in dump(history)
+        saved = service.save(
+            task["id"], "保存记录", TemplatePlan.model_validate(task["plan"]), simple_document(), []
+        )
+        assert saved["mapping"]["analysis"] == history
+
+    restarted_provider = TemplateProvider(failure=True)
+    with TestClient(create_app(config, restarted_provider)) as client:
+        service = client.app.state.services.templates
+        opened = service.open(saved["id"])
+        assert opened["from_library"] and opened["status"] == "completed"
+        assert opened["id"] != task["id"]
+        assert {key: opened[key] for key in keys} == history
+        plan = TemplatePlan.model_validate(opened["plan"])
+        plan.summary = "已人工核对"
+        resaved = service.save(opened["id"], "人工另存", plan, simple_document(), [])
+        assert resaved["mapping"]["analysis"] == history
+        opened["events"].clear()
+        assert service.get(opened["id"])["events"] == history["events"]
+        assert not restarted_provider.calls
+
+    with TestClient(create_app(config, restarted_provider)) as client:
+        opened = client.post(
+            f"/api/templates/{resaved['id']}/edit", headers={"x-resume-token": "test"}
+        ).json()
+        assert {key: opened[key] for key in keys} == history
+        assert opened["plan"]["summary"] == "已人工核对"

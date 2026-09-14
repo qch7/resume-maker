@@ -1,6 +1,19 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { FileScan, LoaderCircle, Sparkles } from "lucide-react";
 import PathInput from "../../shared/components/PathInput";
+import ResizeHandle from "../../shared/components/ResizeHandle";
+import { useElementSize } from "../../shared/hooks/useElementSize";
+import {
+  DEFAULT_LAYOUT,
+  templateSizes,
+  type Layout,
+} from "../../shared/lib/layout";
 import { api, ApiError, download } from "../../shared/lib/api";
 import type { Resume, Template } from "../../shared/types";
 import { newDocument } from "../profile/document";
@@ -27,17 +40,24 @@ type Preview = {
 /** 在独立工作区识别、可视化调整、试填和保存完整 Word 模板。 */
 export default function TemplateAdapter({
   active,
+  layout,
+  onResize,
   resume,
   templates,
   onChanged,
   onSelected,
 }: {
   active: boolean;
+  layout: Layout;
+  onResize: (key: keyof Layout, value: number | boolean) => void;
   resume: Resume;
   templates: Template[];
   onChanged: () => Promise<void>;
   onSelected: (id: string) => void;
 }) {
+  const workspace = useRef<HTMLElement>(null);
+  const size = useElementSize(workspace);
+  const sizes = templateSizes(size.width, size.height, layout);
   const [path, setPath] = useState("");
   const [name, setName] = useState("");
   const [libraryId, setLibraryId] = useState(
@@ -421,7 +441,17 @@ export default function TemplateAdapter({
     }
   }
   return (
-    <section className="template-adapter" aria-label="Word 模板工作区">
+    <section
+      ref={workspace}
+      className="template-adapter"
+      aria-label="Word 模板工作区"
+      style={
+        {
+          "--template-inspector-width": `${sizes.inspector}px`,
+          "--template-preview-height": `${sizes.preview}px`,
+        } as CSSProperties
+      }
+    >
       <div className="template-adaptive-workspace">
         <div className="template-source-bar" role="group" aria-label="模板操作">
           <div className="template-import-controls">
@@ -507,8 +537,19 @@ export default function TemplateAdapter({
         </div>
         {analysis && (
           <TemplateProgress
+            key={analysis.id}
             data={analysis}
             busy={busy}
+            height={sizes.progress}
+            maxHeight={sizes.progressMax}
+            onResize={
+              /* 记录动态区展开后的高度。 */ (value) =>
+                onResize("templateProgress", value)
+            }
+            onReset={
+              /* 恢复动态区的默认高度。 */ () =>
+                onResize("templateProgress", DEFAULT_LAYOUT.templateProgress)
+            }
             onCancel={
               /* 取消后立即呈现冻结的进度，服务端拒绝迟到结果。 */ () =>
                 void perform(
@@ -712,6 +753,42 @@ export default function TemplateAdapter({
                   )
                 )}
               </div>
+              <ResizeHandle
+                className="template-column-resize"
+                label="调整模板映射区宽度"
+                axis="x"
+                reverse
+                value={sizes.inspector}
+                min={260}
+                max={sizes.inspectorMax}
+                onChange={
+                  /* 调整右栏宽度，并让左侧预览自动占用剩余空间。 */ (value) =>
+                    onResize("templateInspector", value)
+                }
+                onReset={
+                  /* 恢复模板左右分栏的默认比例。 */ () =>
+                    onResize(
+                      "templateInspector",
+                      DEFAULT_LAYOUT.templateInspector,
+                    )
+                }
+              />
+              <ResizeHandle
+                className="template-stack-resize"
+                label="调整模板预览区高度"
+                axis="y"
+                value={sizes.preview}
+                min={240}
+                max={1000}
+                onChange={
+                  /* 窄屏上下排列时独立调整预览高度。 */ (value) =>
+                    onResize("templatePreview", value)
+                }
+                onReset={
+                  /* 恢复窄屏预览的默认高度。 */ () =>
+                    onResize("templatePreview", DEFAULT_LAYOUT.templatePreview)
+                }
+              />
               <aside className="template-inspector" aria-label="模板映射调整">
                 <label>
                   模板名称
@@ -741,19 +818,35 @@ export default function TemplateAdapter({
                   <h3>
                     <Sparkles size={18} /> AI 助手
                   </h3>
-                  <p className="subtle">
-                    不用逐段设置。说明哪里需要调整，AI
-                    会保留正确部分并继续完善。
-                  </p>
                   <textarea
+                    style={{ height: sizes.assistant }}
                     aria-label="告诉 AI 如何调整模板"
                     value={feedback}
                     maxLength={4000}
                     rows={4}
-                    placeholder="例如：顶部图片是证件照；把教育经历对应到教育背景。"
+                    placeholder="说明要调整的内容，例如：顶部图片是证件照。"
                     onChange={
                       /* 保存用户对模板用途的文字说明。 */ (event) =>
                         setFeedback(event.target.value)
+                    }
+                  />
+                  <ResizeHandle
+                    className="template-assistant-resize"
+                    label="调整 AI 输入区高度"
+                    axis="y"
+                    value={sizes.assistant}
+                    min={64}
+                    max={320}
+                    onChange={
+                      /* 保存 AI 输入区域的高度偏好。 */ (value) =>
+                        onResize("templateAssistant", value)
+                    }
+                    onReset={
+                      /* 恢复 AI 输入区默认高度。 */ () =>
+                        onResize(
+                          "templateAssistant",
+                          DEFAULT_LAYOUT.templateAssistant,
+                        )
                     }
                   />
                   <button
@@ -766,11 +859,6 @@ export default function TemplateAdapter({
                     <Sparkles size={16} />
                     {feedback.trim() ? "按说明调整" : "AI 继续完善"}
                   </button>
-                  {(analysis?.attempts ?? 0) > 0 && (
-                    <p className="subtle">
-                      已完成 {analysis?.attempts} 轮识别与自动检查
-                    </p>
-                  )}
                   {analysis?.repair_error && (
                     <p className="template-notice">
                       继续修正时遇到问题，已保留已有建议：

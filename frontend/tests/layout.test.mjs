@@ -5,6 +5,7 @@ import {
   columnSizes,
   DEFAULT_LAYOUT,
   restoreLayout,
+  templateSizes,
 } from "../src/shared/lib/layout.ts";
 
 test("layout restoration rejects corrupt sizes and preserves valid preferences", /* 验证损坏的布局值被忽略，有效偏好得到保留。 */ () => {
@@ -54,4 +55,31 @@ test("drag boundaries keep settings and preview visible", /* 验证分隔条边�
   assert.equal(clamp(1000, 80, 420), 420);
   assert.equal(clamp(-500, 80, 420), 80);
   assert.equal(clamp(254, 80, 420), 254);
+});
+
+test("template layout preferences survive storage and fit a smaller window", /* 保留拖动偏好，缩窗时给预览留出空间，重新放大后恢复用户尺寸。 */ () => {
+  const stored = {
+    ...DEFAULT_LAYOUT,
+    templateInspector: 900,
+    templateProgress: 380,
+    templatePreview: 720,
+    templateAssistant: 200,
+  };
+  const layout = restoreLayout(JSON.parse(JSON.stringify(stored)));
+  assert.deepEqual(layout, stored);
+  for (const width of [761, 980, 1280, 1600]) {
+    const sizes = templateSizes(width, 650, layout);
+    assert.ok(width - sizes.inspector - 8 >= 360);
+    assert.ok(sizes.progress <= 290);
+    assert.equal(sizes.preview, 720);
+    assert.equal(sizes.assistant, 200);
+  }
+  assert.equal(templateSizes(1600, 1000, layout).inspector, 900);
+  assert.equal(templateSizes(1600, 1000, layout).progress, 380);
+  assert.deepEqual(layout, stored);
+  assert.equal(
+    restoreLayout({ templateInspector: "wide", templateProgress: NaN })
+      .templateInspector,
+    DEFAULT_LAYOUT.templateInspector,
+  );
 });

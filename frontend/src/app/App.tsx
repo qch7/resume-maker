@@ -1229,6 +1229,8 @@ export default function App() {
       <div className="template-workspace" hidden={area !== "templates"}>
         <TemplateAdapter
           active={area === "templates"}
+          layout={layout}
+          onResize={resize}
           resume={draft}
           onSelected={
             /* 将已确认的完整模板用于当前草稿。 */ (id) =>

@@ -79,6 +79,7 @@ class Templates:
             source = directory / "original.docx"
             package.write(source)
             task = {
+                **new_progress(),
                 "id": identifier,
                 "file_name": file_name,
                 "status": "running",
@@ -87,7 +88,6 @@ class Templates:
                 "review": None,
                 "inventory": inventory,
                 "error": None,
-                **new_progress(),
             }
             self.started[identifier] = time.monotonic()
             self.tasks[identifier] = task
@@ -232,6 +232,7 @@ class Templates:
                     "usage",
                     "reused",
                     "metrics",
+                    "from_library",
                 )
             }
             value["elapsed_ms"] = self._elapsed(task)
@@ -258,6 +259,8 @@ class Templates:
             # 写回经过哈希核验的字节，之后的人工调整仅作用于这个副本。
             (directory / "original.docx").write_bytes(data)
             task = {
+                **new_progress(),
+                **analysis_record(mapping.get("analysis", {})),
                 "id": identifier,
                 "file_name": template["name"],
                 "status": "completed",
@@ -266,7 +269,7 @@ class Templates:
                 "review": package.review(plan),
                 "inventory": inventory,
                 "error": None,
-                **new_progress(),
+                "from_library": True,
             }
             self.started[identifier] = time.monotonic()
             self.tasks[identifier] = task
@@ -325,14 +328,15 @@ class Templates:
         data = source.read_bytes()
         (directory / "original.docx").write_bytes(data)
         (directory / "template.docx").write_bytes(data)
+        task = self.get(identifier)
         with self.db.transaction() as conn:
             conn.execute(
                 "INSERT INTO templates VALUES (?,?,?,?,?)",
                 (
                     template_id,
-                    name.strip() or self.get(identifier)["file_name"],
+                    name.strip() or task["file_name"],
                     digest(data),
-                    dump({"plan": plan.model_dump()}),
+                    dump({"plan": plan.model_dump(), "analysis": analysis_record(task)}),
                     now(),
                 ),
             )
@@ -394,4 +398,14 @@ def new_progress():
         "usage": {},
         "metrics": [],
         "reused": False,
+        "from_library": False,
+    }
+
+
+def analysis_record(task):
+    """只保存有界的公开活动与识别统计，不复制临时标识、模板原文或当前个人资料。"""
+    return {
+        key: deepcopy(task[key])
+        for key in (*new_progress(), "attempts", "repair_error")
+        if key != "from_library" and key in task
     }

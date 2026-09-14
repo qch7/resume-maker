@@ -64,7 +64,7 @@
   color: var(--success);
 }
 .template-preview {
-  max-width: 740px;
+  max-width: 1000px;
 }
 .template-image {
   display: block;
@@ -128,7 +128,7 @@
   grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
   flex-shrink: 0;
   gap: 20px;
-  padding: 10px 16px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--line);
   background: var(--surface);
 }
@@ -199,7 +199,7 @@
 }
 .template-editor-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 390px;
+  grid-template-columns: minmax(0, 1fr) 8px var(--template-inspector-width);
   flex: 1;
   min-width: 0;
   min-height: 0;
@@ -218,9 +218,23 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 8px 16px;
+  gap: 8px;
+  padding: 0 12px;
   background: var(--panel);
+}
+.template-canvas-toolbar .tabs {
+  gap: 16px;
+}
+.template-canvas-toolbar .tabs button {
+  padding: 10px 0;
+}
+.template-stack-resize {
+  display: none;
+}
+.template-progress-resize,
+.template-assistant-resize {
+  height: 8px;
+  flex: none;
 }
 .template-filter {
   display: flex;
@@ -294,7 +308,7 @@
   min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
-  padding: 24px;
+  padding: 12px;
 }
 .template-paper {
   max-width: 840px;
@@ -426,9 +440,17 @@
   overscroll-behavior: contain;
   min-height: 0;
   min-width: 0;
-  padding: 20px;
-  border-left: 1px solid var(--line);
+  padding: 12px;
   background: var(--surface);
+}
+.template-inspector > label {
+  margin: 0;
+}
+.template-inspector input,
+.template-inspector select,
+.template-inspector textarea {
+  padding: 6px 8px;
+  font-size: 12px;
 }
 .template-selection {
   margin: 20px 0;
@@ -527,13 +549,18 @@
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
-  gap: 10px;
-  padding: 12px 24px;
+  gap: 8px;
+  padding: 8px 12px;
   border-top: 1px solid var(--line);
   background: var(--surface);
 }
 .template-workspace-footer .actions {
   margin: 0;
+}
+.template-workspace-footer button,
+.template-preview .actions button {
+  padding: 6px 10px;
+  font-size: 12px;
 }
 .template-preview {
   margin: 0 auto;
@@ -558,16 +585,6 @@
   color: var(--subtle);
 }
 @media (max-width: 1100px) {
-  .template-editor-layout {
-    grid-template-columns: minmax(0, 1fr) 330px;
-  }
-  .template-inspector {
-    padding: 14px;
-  }
-  .template-canvas-scroll,
-  .template-preview-scroll {
-    padding: 16px;
-  }
   .template-paper {
     padding: 18px;
   }
@@ -582,7 +599,7 @@
 }
 @media (max-width: 760px) {
   .template-source-bar {
-    padding: 10px 12px;
+    padding: 8px 12px;
   }
   .template-current-source {
     max-width: 140px;
@@ -596,8 +613,16 @@
     flex-direction: column;
   }
   .template-visual-panel {
-    height: 65dvh;
-    min-height: 400px;
+    height: var(--template-preview-height);
+    min-height: 240px;
+    flex: none;
+  }
+  .template-column-resize {
+    display: none;
+  }
+  .template-stack-resize {
+    display: flex;
+    height: 8px;
     flex: none;
   }
   .template-inspector {
@@ -620,7 +645,7 @@
     padding: 7px 9px;
   }
   .template-canvas-toolbar {
-    padding: 10px;
+    padding: 0 10px;
     gap: 6px;
   }
   .template-filter {
@@ -655,13 +680,13 @@
 .template-result-scroll {
   overflow-y: auto;
   min-height: 0;
-  padding: 28px;
+  padding: 16px;
 }
 .template-result-heading {
   display: flex;
-  gap: 14px;
+  gap: 10px;
   align-items: flex-start;
-  margin-bottom: 22px;
+  margin-bottom: 12px;
 }
 .template-result-heading > svg {
   flex-shrink: 0;
@@ -669,8 +694,8 @@
   margin-top: 3px;
 }
 .template-result-heading h3 {
-  margin: 0 0 8px;
-  font-size: 22px;
+  margin: 0 0 4px;
+  font-size: 18px;
 }
 .template-result-heading p {
   margin: 0;
@@ -680,14 +705,14 @@
 .template-result-stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 28px;
+  gap: 8px;
+  margin-bottom: 16px;
 }
 .template-result-stats > span {
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 16px;
+  padding: 10px;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -698,7 +723,7 @@
   font-size: 22px;
 }
 .template-result-section {
-  margin-bottom: 26px;
+  margin-bottom: 16px;
 }
 .template-result-section h3 {
   margin: 0 0 12px;
@@ -713,9 +738,9 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
+  gap: 5px;
   text-align: left;
-  padding: 16px;
+  padding: 10px;
   min-width: 0;
   background: var(--surface);
   border-radius: 9px;
@@ -741,8 +766,8 @@
 .template-section-cards > button {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 16px;
+  gap: 10px;
+  padding: 10px;
   text-align: left;
   background: var(--surface);
   border-radius: 9px;
@@ -785,9 +810,9 @@
 }
 .template-ai-assistant {
   display: grid;
-  gap: 12px;
-  margin: 20px 0;
-  padding: 18px 0;
+  gap: 6px;
+  margin: 12px 0;
+  padding: 12px 0;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
 }
@@ -796,8 +821,11 @@
   margin: 0;
 }
 .template-ai-assistant textarea {
-  resize: vertical;
-  min-height: 105px;
+  resize: none;
+  min-height: 64px;
+}
+.template-assistant-resize {
+  margin-top: -6px;
 }
 .template-ai-assistant button {
   justify-content: center;
@@ -805,7 +833,6 @@
 @media (max-width: 760px) {
   .template-result-scroll {
     padding: 18px 12px;
-    overflow: visible;
   }
   .template-result-stats {
     gap: 6px;
@@ -827,59 +854,70 @@
 /* 实际活动与耗时独立于模板清单，长消息与窄屏均可自然换行。 */
 .template-live-progress {
   flex-shrink: 0;
-  padding: 14px 24px;
   border-bottom: 1px solid var(--line);
   background: var(--surface);
 }
 .template-live-heading {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+  padding: 6px 12px;
+  min-height: 38px;
 }
 .template-live-heading > svg {
   flex-shrink: 0;
   color: var(--accent);
 }
-.template-live-heading > div {
-  display: grid;
-  gap: 5px;
-  flex: 1;
-  min-width: 0;
+.template-live-heading .template-spinner {
+  margin: 0;
 }
 .template-live-heading strong {
-  font-size: 13px;
+  font-size: 12px;
+  white-space: nowrap;
 }
 .template-live-heading span {
   font-size: 12px;
   overflow-wrap: anywhere;
 }
-.template-live-heading > div > span {
+.template-live-activity {
   color: var(--subtle);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .template-live-time {
+  margin-left: auto;
+  flex-shrink: 0;
   color: var(--subtle);
   font-variant-numeric: tabular-nums;
 }
-.template-live-progress details {
-  margin-top: 12px;
+.template-live-body {
+  overflow: auto;
+  padding: 0 12px;
+  overscroll-behavior: contain;
   font-size: 12px;
 }
-.template-live-progress summary {
-  cursor: pointer;
+.template-live-heading button {
+  padding: 4px 6px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.template-progress-toggle {
   color: var(--subtle);
+  border-color: transparent;
+  background: transparent;
 }
 .template-live-events {
-  margin: 10px 0 0;
+  margin: 0;
   padding: 0;
   list-style: none;
-  max-height: 155px;
-  overflow-y: auto;
 }
 .template-live-events li {
   display: flex;
   align-items: baseline;
   gap: 14px;
-  padding: 6px 0;
+  padding: 4px 0;
   line-height: 1.6;
 }
 .template-live-events time {
@@ -895,20 +933,15 @@
 }
 .template-live-usage {
   color: var(--subtle);
-  margin-bottom: 0;
+  margin: 8px 0;
 }
 @media (max-width: 760px) {
-  .template-live-progress {
-    padding: 12px 14px;
-  }
   .template-live-heading {
     flex-wrap: wrap;
     gap: 8px;
   }
-  .template-live-heading > div {
-    flex-basis: calc(100% - 30px);
-  }
-  .template-live-time {
-    flex: 1;
+  .template-live-activity {
+    order: 1;
+    flex-basis: 100%;
   }
 }

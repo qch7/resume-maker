@@ -60,6 +60,7 @@ export interface TemplateProgressData {
     resumed: boolean;
   }[];
   reused: boolean;
+  from_library: boolean;
 }
 export interface TemplateAnalysis extends TemplateProgressData {
   file_name: string;

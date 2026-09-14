@@ -6,6 +6,10 @@ export const DEFAULT_LAYOUT = {
   editor: 520,
   chatInput: 180,
   guideCollapsed: false,
+  templateInspector: 320,
+  templateProgress: 150,
+  templatePreview: 520,
+  templateAssistant: 100,
 };
 export type Layout = typeof DEFAULT_LAYOUT;
 
@@ -23,6 +27,10 @@ export function restoreLayout(value: Partial<Layout> | null): Layout {
     "guide",
     "editor",
     "chatInput",
+    "templateInspector",
+    "templateProgress",
+    "templatePreview",
+    "templateAssistant",
   ] as const) {
     const size = value?.[key];
     if (typeof size === "number" && Number.isFinite(size))
@@ -53,5 +61,19 @@ export function columnSizes(width: number, visible: boolean, layout: Layout) {
       Math.min(520, width - (wide ? composer + 336 : 328)),
     ),
     composerMax: Math.max(300, width - sidebar - (sidebar ? 16 : 8) - 320),
+  };
+}
+
+/** 限制模板模块的显示尺寸，缩窗时保留预览空间且不改写已保存的尺寸偏好。 */
+export function templateSizes(width: number, height: number, layout: Layout) {
+  const inspectorMax = Math.max(260, width - 368);
+  const progressMax = Math.max(72, Math.min(420, height - 360));
+  return {
+    inspector: clamp(layout.templateInspector, 260, inspectorMax),
+    inspectorMax,
+    progress: clamp(layout.templateProgress, 72, progressMax),
+    progressMax,
+    preview: clamp(layout.templatePreview, 240, 1000),
+    assistant: clamp(layout.templateAssistant, 64, 320),
   };
 }
