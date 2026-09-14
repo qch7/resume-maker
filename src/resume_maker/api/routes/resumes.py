@@ -4,10 +4,26 @@ from fastapi import APIRouter, Query
 from fastapi.responses import FileResponse
 
 from resume_maker.api.dependencies import ServicesDep
-from resume_maker.api.schemas import ResumeInput
+from resume_maker.api.schemas import ResumeInput, ResumePreviewInput
 from resume_maker.core.errors import Problem, need
 
 router = APIRouter(prefix="/api", tags=["resumes"])
+
+
+@router.post("/resume-previews")
+def preview_resume(services: ServicesDep, body: ResumePreviewInput):
+    """在当前模板中渲染未保存资料，仅生成临时预览，不创建简历或导出记录。"""
+    return services.resume_previews.render(
+        body.template_id,
+        body.document.model_dump() if body.document else None,
+        [item.model_dump() for item in body.items],
+    )
+
+
+@router.get("/resume-previews/{preview_id}/{file_name}")
+def preview_file(services: ServicesDep, preview_id: str, file_name: str):
+    """鉴权后提供本实例已生成的 Word 预览，不开放任意文件读取。"""
+    return FileResponse(services.resume_previews.file(preview_id, file_name), filename=file_name)
 
 
 @router.post("/resumes")

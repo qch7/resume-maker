@@ -4,7 +4,7 @@ from typing import Any, Literal
 
 from pydantic import Field
 
-from resume_maker.domain.models import Model, ResumeItem
+from resume_maker.domain.models import Experience, Model, ResumeItem
 from resume_maker.domain.resume import ResumeDocument
 from resume_maker.domain.templates import TemplatePlan
 
@@ -76,6 +76,20 @@ class TemplateInput(Model):
     name: str = ""
     start: int
     end: int
+
+
+class PreviewProject(ResumeItem):
+    """预览可覆盖经历工作副本，但固定修订仍必须属于对应项目。"""
+
+    content: Experience | None = None
+
+
+class ResumePreviewInput(Model):
+    """当前模板和未保存资料的临时排版请求，不带简历保存或发布操作。"""
+
+    template_id: str
+    document: ResumeDocument | None = None
+    items: list[PreviewProject]
 
 
 class PathInput(Model):

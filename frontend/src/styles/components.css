@@ -916,7 +916,8 @@
 }
 .preview-tabs {
   padding: 0 12px;
-  gap: 16px;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 .preview-pane {
   display: flex;
@@ -1027,6 +1028,19 @@
   display: block;
   margin-bottom: 16px;
   border: 1px solid var(--line);
+}
+.template-preview-status {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  margin-bottom: 16px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 12px;
+}
+.template-preview-status p {
+  margin: 0;
 }
 .settings-dialog {
   width: min(680px, calc(100vw - 32px));

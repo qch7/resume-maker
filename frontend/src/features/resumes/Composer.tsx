@@ -11,7 +11,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import ResizeHandle from "../../shared/components/ResizeHandle";
 import {
   SortableItem,
@@ -26,6 +26,8 @@ import PrintedPage from "./PrintedPage";
 import DeleteResumeDialog from "./DeleteResumeDialog";
 import ResumePreview from "../profile/ResumePreview";
 import { newDocument } from "../profile/document";
+import TemplatePreview from "./TemplatePreview";
+import { templatePreviewInput } from "./templatePreviewInput";
 
 interface Props {
   settingsHeight: number;
@@ -51,13 +53,24 @@ interface Props {
   run: (work: () => Promise<void>) => void;
 }
 
-/** 编辑模板和固定版本组合，并展示内容预览或上次真实 Word 导出。 */
+/** 编辑固定版本组合，默认展示所选模板的真实排版，保留内容调整与历史导出。 */
 export default function Composer(props: Props) {
   const { draft, state, revisions, result } = props;
   const template = state.templates.find(
     /* 识别当前模板的资料覆盖范围。 */ (item) => item.id === draft.template_id,
   );
-  const [tab, setTab] = useState<"content" | "print">("content");
+  const [tab, setTab] = useState<"content" | "edit" | "print">("content");
+  useEffect(
+    /* 切换方案或模板时返回当前预览，避免把历史导出误认成新模板。 */ () => {
+      setTab("content");
+    },
+    [draft.id, draft.template_id],
+  );
+  const previewInput = templatePreviewInput(
+    draft,
+    revisions,
+    props.previewSources,
+  );
   const [deleteTarget, setDeleteTarget] = useState<Resume | null>(null);
   const pane = useRef<HTMLElement>(null);
   const size = useElementSize(pane);
@@ -323,8 +336,8 @@ export default function Composer(props: Props) {
         {template && (
           <p className="subtle">
             {template?.kind === "adaptive"
-              ? "按已确认映射替换个人信息、照片和栏目，保留模板版式。内容预览展示资料，实际排版请查看 Word 导出预览。"
-              : "此模板仅替换项目经历。可在管理模板中用 AI 重新适配整份简历；编辑个人资料时会采用内置完整简历。"}
+              ? "按已确认映射替换个人信息、照片和栏目，保留模板版式；右侧模板预览随资料修改自动更新。"
+              : "此模板仅替换项目经历，预览保留模板中的其他信息。可在管理模板中用 AI 重新适配整份简历。"}
           </p>
         )}
         <div className="actions">
@@ -428,8 +441,18 @@ export default function Composer(props: Props) {
               /* 响应当前操作按钮，执行对应业务动作。 */ () => setTab("content")
             }
           >
-            内容预览
+            {template ? "模板预览" : "内容预览"}
           </button>
+          {template && (
+            <button
+              className={tab === "edit" ? "active" : ""}
+              onClick={
+                /* 保留项目排序和版本调整的内容视图。 */ () => setTab("edit")
+              }
+            >
+              编辑内容
+            </button>
+          )}
           <button
             className={tab === "print" ? "active" : ""}
             disabled={!result}
@@ -454,7 +477,7 @@ export default function Composer(props: Props) {
           </button>
         </nav>
         <div className="composition-scroll">
-          {result && (
+          {tab === "print" && result && (
             <div className="export-result">
               <strong>
                 {currentExport ? "当前组合已导出" : "上次导出"}
@@ -521,6 +544,12 @@ export default function Composer(props: Props) {
               </div>
             </div>
           )}
+          <TemplatePreview
+            input={previewInput}
+            templateId={template?.id}
+            hidden={!template || tab !== "content"}
+            run={props.run}
+          />
           {tab === "print" && result ? (
             <div className="print-preview">
               {Array.from(
@@ -537,13 +566,20 @@ export default function Composer(props: Props) {
                 ),
               )}
             </div>
-          ) : (
-            <ResumePreview
-              draft={draft}
-              projects={projectPreview}
-              projectsOnly={template?.kind === "projects"}
-            />
-          )}
+          ) : !template || tab === "edit" ? (
+            <>
+              {template && (
+                <p className="subtle">
+                  此视图用于调整项目内容与顺序；模板的字体和分页请查看“模板预览”。
+                </p>
+              )}
+              <ResumePreview
+                draft={draft}
+                projects={projectPreview}
+                projectsOnly={template?.kind === "projects"}
+              />
+            </>
+          ) : null}
         </div>
       </section>
     </aside>

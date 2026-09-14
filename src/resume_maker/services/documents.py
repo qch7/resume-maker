@@ -1,6 +1,5 @@
 """模板登记、固定版本组合导出及可追溯清单的业务编排。"""
 
-from copy import deepcopy
 from pathlib import Path
 
 from lxml import etree
@@ -13,13 +12,11 @@ from resume_maker.integrations.word.full_resume import write_full_resume
 from resume_maker.integrations.word.ooxml import (
     NS,
     TAG,
-    make_body,
-    make_title,
     read_document,
     rewrite_archive,
-    text_of,
     w,
 )
+from resume_maker.integrations.word.project_template import fill_project_template
 from resume_maker.integrations.word.rendering import render_word
 from resume_maker.integrations.word.template_fill import fill_template
 from resume_maker.services.catalog import Catalog
@@ -99,53 +96,22 @@ class Documents:
         source = self.data_dir / "templates" / template["id"] / "template.docx"
         if digest(source.read_bytes()) != template["hash"]:
             raise Problem("模板文件已在程序外变化，请重新导入为新模板版本。")
-        root = read_document(source)
-        controls = root.xpath("//w:sdt[w:sdtPr/w:tag[@w:val=$tag]]", namespaces=NS, tag=TAG)
-        if len(controls) != 1:
-            raise Problem("模板缺少唯一项目经历插入位置，请重新导入。")
-        content = controls[0].find("w:sdtContent", NS)
-        old = list(content)
-        title_sample = next((p for p in old if text_of(p).strip()), old[0])
-        body_sample = next((p for p in old if "项目描述" in text_of(p)), title_sample)
-        sections = [deepcopy(s) for s in content.xpath(".//w:sectPr", namespaces=NS)]
-        for child in list(content):
-            content.remove(child)
         manifest_items = []
-        for index, item in enumerate(resume["items"]):
+        for item in resume["items"]:
             revision = self.catalog.revision(item["revision_id"], item["project_id"])
-            value = revision["content"]
-            content.append(make_title(value, title_sample, first=index == 0))
-            if value["stack"]:
-                content.append(
-                    make_body("技术栈", "、".join(value["stack"]), body_sample, keep=True)
-                )
-            if value["role"]:
-                content.append(make_body("担任角色", value["role"], body_sample, keep=True))
-            if value["description"]:
-                content.append(make_body("项目描述", value["description"], body_sample, keep=True))
-            by_id = {h["id"]: h for h in value["highlights"]}
-            for point_id in item["highlight_ids"]:
-                if point_id not in by_id:
-                    raise Problem("组合引用了无效亮点，请重新保存组合。")
-                highlight = by_id[point_id]
-                content.append(make_body(highlight["title"], highlight["text"], body_sample))
             manifest_items.append(
                 {
                     **item,
                     "revision_number": revision["number"],
                     "snapshot_id": revision["snapshot_id"],
-                    "content": value,
+                    "content": revision["content"],
                 }
             )
-        # 把分节设置保留在替换区域末尾，避免删除示例正文时丢失页眉页脚等设置。
-        for section in sections:
-            paragraph = etree.SubElement(content, w("p"))
-            etree.SubElement(paragraph, w("pPr")).append(section)
         export_id = uid()
         directory = self.data_dir / "exports" / export_id
         directory.mkdir(parents=True)
         output = directory / "resume.docx"
-        rewrite_archive(source, output, root)
+        fill_project_template(source, output, manifest_items)
         pages, render_error = render_word(output, directory / "resume.pdf")
         manifest = {
             "resume": resume,

@@ -1851,6 +1851,84 @@
           }
         }
       }
+    },
+    "/api/resume-previews": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResumePreviewInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/resume-previews/{preview_id}/{file_name}": {
+      "get": {
+        "parameters": [
+          {
+            "name": "preview_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Preview Id"
+            }
+          },
+          {
+            "name": "file_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "File Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "schemas": {
@@ -2886,6 +2964,210 @@
       ],
       "title": "TemplateRepairInput",
       "description": "基于当前方案与用户说明重新补全映射，保留原分析副本。"
+    },
+    "Evidence": {
+      "properties": {
+        "source": {
+          "type": "string",
+          "title": "Source",
+          "default": ""
+        },
+        "path": {
+          "type": "string",
+          "title": "Path",
+          "default": ""
+        },
+        "line_start": {
+          "type": "integer",
+          "minimum": 0.0,
+          "title": "Line Start",
+          "default": 0
+        },
+        "line_end": {
+          "type": "integer",
+          "minimum": 0.0,
+          "title": "Line End",
+          "default": 0
+        },
+        "quote": {
+          "type": "string",
+          "title": "Quote",
+          "default": ""
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "code",
+            "document",
+            "user",
+            "unverified"
+          ],
+          "title": "Status",
+          "default": "unverified"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "title": "Evidence",
+      "description": "来源文件、行号和引文组成的证据及其核验状态。"
+    },
+    "Experience": {
+      "properties": {
+        "title": {
+          "type": "string",
+          "maxLength": 200,
+          "title": "Title"
+        },
+        "period": {
+          "type": "string",
+          "maxLength": 200,
+          "title": "Period",
+          "default": ""
+        },
+        "role": {
+          "type": "string",
+          "maxLength": 300,
+          "title": "Role",
+          "default": ""
+        },
+        "stack": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 60,
+          "title": "Stack"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 10000,
+          "title": "Description",
+          "default": ""
+        },
+        "highlights": {
+          "items": {
+            "$ref": "#/components/schemas/Highlight"
+          },
+          "type": "array",
+          "maxItems": 60,
+          "title": "Highlights"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "title"
+      ],
+      "title": "Experience",
+      "description": "可发布的完整项目经历数据，修订后保持不可变。"
+    },
+    "Highlight": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Id"
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 200,
+          "title": "Title"
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 10000,
+          "title": "Text"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/components/schemas/Evidence"
+          },
+          "type": "array",
+          "maxItems": 30,
+          "title": "Evidence"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "text"
+      ],
+      "title": "Highlight",
+      "description": "具有稳定标识的经历亮点，包含标题、正文与证据。"
+    },
+    "PreviewProject": {
+      "properties": {
+        "project_id": {
+          "type": "string",
+          "title": "Project Id"
+        },
+        "revision_id": {
+          "type": "string",
+          "title": "Revision Id"
+        },
+        "highlight_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "title": "Highlight Ids"
+        },
+        "content": {
+          "anyOf": [
+            {
+              "$ref": "#/components/schemas/Experience"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "project_id",
+        "revision_id",
+        "highlight_ids"
+      ],
+      "title": "PreviewProject",
+      "description": "预览可覆盖经历工作副本，但固定修订仍必须属于对应项目。"
+    },
+    "ResumePreviewInput": {
+      "properties": {
+        "template_id": {
+          "type": "string",
+          "title": "Template Id"
+        },
+        "document": {
+          "anyOf": [
+            {
+              "$ref": "#/components/schemas/ResumeDocument"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "items": {
+          "items": {
+            "$ref": "#/components/schemas/PreviewProject"
+          },
+          "type": "array",
+          "title": "Items"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "template_id",
+        "items"
+      ],
+      "title": "ResumePreviewInput",
+      "description": "当前模板和未保存资料的临时排版请求，不带简历保存或发布操作。"
     }
   }
 }
