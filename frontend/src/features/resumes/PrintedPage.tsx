@@ -1,20 +1,24 @@
 import { useEffect, useState } from "react";
 import { request } from "../../shared/lib/api";
-/** 按导出标识加载实际分页图片，在卸载时回收浏览器对象 URL。 */
+/** 加载受鉴权保护的实际分页图片，在卸载时回收浏览器对象 URL。 */
 export default function PrintedPage({
   exportId,
+  path,
   page,
-}: {
-  exportId: string;
-  page: number;
-}) {
+}: { page: number } & (
+  | { exportId: string; path?: never }
+  | { path: string; exportId?: never }
+)) {
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
+  const imagePath = path ?? `/exports/${exportId}/page-${page}.png`;
   useEffect(
     /* 同步当前依赖对应的外部状态，并在需要时返回清理函数。 */ () => {
+      setUrl("");
+      setError("");
       let objectUrl = "",
         stopped = false;
-      void request(`/exports/${exportId}/page-${page}.png`)
+      void request(imagePath)
         .then(/* 将下载响应转换为浏览器可展示的文件内容。 */ (r) => r.blob())
         .then(
           /* 将下载响应转换为浏览器可展示的文件内容。 */ (blob) => {
@@ -34,7 +38,7 @@ export default function PrintedPage({
         if (objectUrl) URL.revokeObjectURL(objectUrl);
       };
     },
-    [exportId, page],
+    [imagePath],
   );
   return url ? (
     <img

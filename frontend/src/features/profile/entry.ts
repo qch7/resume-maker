@@ -57,7 +57,7 @@ export function entryComposition(
     ...baseline,
     id: draft.id,
     version: draft.version,
-    template_id: null,
+    template_id: draft.template_id,
     document: {
       ...document,
       sections: sections.map(

@@ -6,6 +6,7 @@ from pydantic import Field
 
 from resume_maker.domain.models import Model, ResumeItem
 from resume_maker.domain.resume import ResumeDocument
+from resume_maker.domain.templates import TemplatePlan
 
 
 class ProjectInput(Model):
@@ -81,6 +82,34 @@ class PathInput(Model):
     """需要由后端校验并读取的本机路径。"""
 
     path: str
+
+
+class TemplateAnalysisInput(Model):
+    """分析本机模板，同时提供当前栏目的名称供语义匹配，不发送个人字段值。"""
+
+    path: str
+    document: ResumeDocument
+
+
+class TemplateMappingInput(Model):
+    """用户核对或修改后的声明式映射。"""
+
+    plan: TemplatePlan
+
+
+class AdaptiveTemplateInput(TemplateMappingInput):
+    """将分析快照及核对后的映射登记为可复用模板。"""
+
+    name: str = Field(min_length=1, max_length=200)
+    document: ResumeDocument
+    items: list[ResumeItem]
+
+
+class TemplatePreviewInput(TemplateMappingInput):
+    """用当前资料及固定项目引用试填，预览不会保存简历组合。"""
+
+    document: ResumeDocument
+    items: list[ResumeItem]
 
 
 class RevealSourceInput(Model):

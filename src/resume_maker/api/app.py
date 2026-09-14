@@ -25,6 +25,7 @@ from resume_maker.services.conversations import Conversations
 from resume_maker.services.documents import Documents
 from resume_maker.services.jobs import Jobs
 from resume_maker.services.projects import Projects
+from resume_maker.services.templates import Templates
 from resume_maker.services.workspace import Workspace
 
 
@@ -41,6 +42,7 @@ def create_app(config: Config | None = None, provider: Provider | None = None) -
         catalog=catalog,
         jobs=queue,
         documents=Documents(catalog, config.data_dir),
+        templates=Templates(catalog, config.data_dir, queue.provider),
         projects=Projects(catalog),
         conversations=Conversations(catalog),
         workspace=Workspace(catalog),
@@ -53,6 +55,7 @@ def create_app(config: Config | None = None, provider: Provider | None = None) -
         try:
             yield
         finally:
+            services.templates.stop()
             queue.stop()
 
     app = FastAPI(title="Resume Maker", version=__version__, lifespan=lifespan)

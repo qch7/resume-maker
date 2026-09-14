@@ -6,6 +6,7 @@ from pathlib import Path
 from lxml import etree
 
 from resume_maker.core.errors import Problem, need
+from resume_maker.domain.templates import TemplatePlan
 from resume_maker.infrastructure.database import dump, now, uid
 from resume_maker.integrations.sources import digest
 from resume_maker.integrations.word.full_resume import write_full_resume
@@ -20,6 +21,7 @@ from resume_maker.integrations.word.ooxml import (
     w,
 )
 from resume_maker.integrations.word.rendering import render_word
+from resume_maker.integrations.word.template_fill import fill_template
 from resume_maker.services.catalog import Catalog
 
 
@@ -90,6 +92,8 @@ class Documents:
             self.db.one("SELECT * FROM templates WHERE id=?", (resume["template_id"],)),
             "请先选择 Word 模板。",
         )
+        if "plan" in template["mapping"]:
+            return self.export_full(resume, template)
         if not resume["items"]:
             raise Problem("请至少选择一个项目经历。")
         source = self.data_dir / "templates" / template["id"] / "template.docx"
@@ -159,8 +163,10 @@ class Documents:
             )
         return self.db.one("SELECT * FROM exports WHERE id=?", (export_id,))
 
-    def export_full(self, resume: dict) -> dict:
+    def export_full(self, resume: dict, template: dict | None = None) -> dict:
         """导出完整简历并记录个人信息、栏目结构、固定项目版本及真实渲染结果。"""
+        if not resume["document"]:
+            raise Problem("请先填写个人资料和栏目，再导出完整简历。")
         manifest_items = []
         for item in resume["items"]:
             revision = self.catalog.revision(item["revision_id"], item["project_id"])
@@ -176,12 +182,25 @@ class Documents:
         directory = self.data_dir / "exports" / export_id
         directory.mkdir(parents=True)
         output = directory / "resume.docx"
-        write_full_resume(output, resume["document"], manifest_items)
+        if template:
+            source = self.data_dir / "templates" / template["id"] / "template.docx"
+            if digest(source.read_bytes()) != template["hash"]:
+                raise Problem("模板文件已在程序外变化，请重新导入。")
+            fill_template(
+                source,
+                output,
+                TemplatePlan.model_validate(template["mapping"]["plan"]),
+                resume["document"],
+                manifest_items,
+            )
+        else:
+            write_full_resume(output, resume["document"], manifest_items)
         pages, render_error = render_word(output, directory / "resume.pdf")
         manifest = {
             "resume": resume,
-            "template_id": None,
-            "layout": "full-resume-v1",
+            "template_id": template["id"] if template else None,
+            "template_hash": template["hash"] if template else None,
+            "layout": "adaptive-template" if template else "full-resume-v1",
             "items": manifest_items,
             "docx_hash": digest(output.read_bytes()),
             "renderer": "Microsoft Word" if pages else None,

@@ -54,6 +54,9 @@ interface Props {
 /** 编辑模板和固定版本组合，并展示内容预览或上次真实 Word 导出。 */
 export default function Composer(props: Props) {
   const { draft, state, revisions, result } = props;
+  const template = state.templates.find(
+    /* 识别当前模板的资料覆盖范围。 */ (item) => item.id === draft.template_id,
+  );
   const [tab, setTab] = useState<"content" | "print">("content");
   const [deleteTarget, setDeleteTarget] = useState<Resume | null>(null);
   const pane = useRef<HTMLElement>(null);
@@ -298,9 +301,7 @@ export default function Composer(props: Props) {
                   props.onChange({
                     ...draft,
                     template_id: e.target.value || null,
-                    document: !e.target.value
-                      ? (draft.document ?? newDocument())
-                      : draft.document,
+                    document: draft.document ?? newDocument(),
                   })
               }
             >
@@ -308,7 +309,8 @@ export default function Composer(props: Props) {
               {state.templates.map(
                 /* 按稳定标识生成对应的列表条目。 */ (t) => (
                   <option key={t.id} value={t.id}>
-                    {t.name} · 仅替换项目区
+                    {t.name} ·{" "}
+                    {t.kind === "adaptive" ? "完整资料替换" : "仅替换项目区"}
                   </option>
                 ),
               )}
@@ -318,9 +320,11 @@ export default function Composer(props: Props) {
             管理模板
           </button>
         </div>
-        {draft.template_id && (
+        {template && (
           <p className="subtle">
-            当前沿用原模板的个人信息和其他栏目。编辑个人资料或栏目编排后，会切换为内置完整简历。
+            {template?.kind === "adaptive"
+              ? "按已确认映射替换个人信息、照片和栏目，保留模板版式。内容预览展示资料，实际排版请查看 Word 导出预览。"
+              : "此模板仅替换项目经历。可在管理模板中用 AI 重新适配整份简历；编辑个人资料时会采用内置完整简历。"}
           </p>
         )}
         <div className="actions">
@@ -353,7 +357,7 @@ export default function Composer(props: Props) {
               props.previewChanged ||
               props.deleting ||
               (!draft.template_id && !draft.document) ||
-              (!!draft.template_id && !draft.items.length) ||
+              (template?.kind === "projects" && !draft.items.length) ||
               !draft.name.trim()
             }
           >
@@ -534,7 +538,11 @@ export default function Composer(props: Props) {
               )}
             </div>
           ) : (
-            <ResumePreview draft={draft} projects={projectPreview} />
+            <ResumePreview
+              draft={draft}
+              projects={projectPreview}
+              projectsOnly={template?.kind === "projects"}
+            />
           )}
         </div>
       </section>

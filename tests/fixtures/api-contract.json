@@ -1355,6 +1355,377 @@
           }
         }
       }
+    },
+    "/api/templates/analyses": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TemplateAnalysisInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/templates/analyses/{analysis_id}": {
+      "get": {
+        "parameters": [
+          {
+            "name": "analysis_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Analysis Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/templates/analyses/{analysis_id}/cancel": {
+      "post": {
+        "parameters": [
+          {
+            "name": "analysis_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Analysis Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/templates/analyses/{analysis_id}/review": {
+      "post": {
+        "parameters": [
+          {
+            "name": "analysis_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Analysis Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TemplateMappingInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/templates/analyses/{analysis_id}/images/{node_id}": {
+      "get": {
+        "parameters": [
+          {
+            "name": "analysis_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Analysis Id"
+            }
+          },
+          {
+            "name": "node_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Node Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/templates/analyses/{analysis_id}/save": {
+      "post": {
+        "parameters": [
+          {
+            "name": "analysis_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Analysis Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdaptiveTemplateInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/templates/analyses/{analysis_id}/preview": {
+      "post": {
+        "parameters": [
+          {
+            "name": "analysis_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Analysis Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TemplatePreviewInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/templates/analyses/{analysis_id}/previews/{preview_id}/{file_name}": {
+      "get": {
+        "parameters": [
+          {
+            "name": "analysis_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Analysis Id"
+            }
+          },
+          {
+            "name": "preview_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Preview Id"
+            }
+          },
+          {
+            "name": "file_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "File Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/templates/{template_id}/edit": {
+      "post": {
+        "parameters": [
+          {
+            "name": "template_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Template Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "schemas": {
@@ -1750,7 +2121,7 @@
         "expected_head"
       ],
       "title": "SaveInput",
-      "description": "发布或恢复经历的请求，携带预期项目头防止并发覆盖。"
+      "description": "发布或恢复经历的请求，携带所属分支预期头版本防止并发覆盖。"
     },
     "TemplateInput": {
       "properties": {
@@ -1934,6 +2305,11 @@
           "title": "Details",
           "default": ""
         },
+        "visible": {
+          "type": "boolean",
+          "title": "Visible",
+          "default": true
+        },
         "hidden_fields": {
           "items": {
             "type": "string",
@@ -1947,11 +2323,6 @@
           "type": "array",
           "maxItems": 4,
           "title": "Hidden Fields"
-        },
-        "visible": {
-          "type": "boolean",
-          "title": "Visible",
-          "default": true
         },
         "custom_fields": {
           "items": {
@@ -2099,6 +2470,246 @@
       ],
       "title": "CustomInfoField",
       "description": "用户自行命名的信息项；可隐藏，空项保留为草稿但不参与排版。"
+    },
+    "AdaptiveTemplateInput": {
+      "properties": {
+        "plan": {
+          "$ref": "#/components/schemas/TemplatePlan"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Name"
+        },
+        "document": {
+          "$ref": "#/components/schemas/ResumeDocument"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/components/schemas/ResumeItem"
+          },
+          "type": "array",
+          "title": "Items"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "plan",
+        "name",
+        "document",
+        "items"
+      ],
+      "title": "AdaptiveTemplateInput",
+      "description": "将分析快照及核对后的映射登记为可复用模板。"
+    },
+    "RepeatBinding": {
+      "properties": {
+        "section": {
+          "type": "string",
+          "title": "Section"
+        },
+        "start": {
+          "type": "string",
+          "title": "Start"
+        },
+        "end": {
+          "type": "string",
+          "title": "End"
+        },
+        "sample_start": {
+          "type": "string",
+          "title": "Sample Start"
+        },
+        "sample_end": {
+          "type": "string",
+          "title": "Sample End"
+        },
+        "fields": {
+          "items": {
+            "$ref": "#/components/schemas/TextBinding"
+          },
+          "type": "array",
+          "maxItems": 100,
+          "minItems": 1,
+          "title": "Fields"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "section",
+        "start",
+        "end",
+        "sample_start",
+        "sample_end",
+        "fields"
+      ],
+      "title": "RepeatBinding",
+      "description": "以一个条目为样式样本，替换同级节点范围内的全部示例条目。"
+    },
+    "TemplateAnalysisInput": {
+      "properties": {
+        "path": {
+          "type": "string",
+          "title": "Path"
+        },
+        "document": {
+          "$ref": "#/components/schemas/ResumeDocument"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "path",
+        "document"
+      ],
+      "title": "TemplateAnalysisInput",
+      "description": "分析本机模板，同时提供当前栏目的名称供语义匹配，不发送个人字段值。"
+    },
+    "TemplateMappingInput": {
+      "properties": {
+        "plan": {
+          "$ref": "#/components/schemas/TemplatePlan"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "plan"
+      ],
+      "title": "TemplateMappingInput",
+      "description": "用户核对或修改后的声明式映射。"
+    },
+    "TemplatePlan": {
+      "properties": {
+        "summary": {
+          "type": "string",
+          "maxLength": 2000,
+          "title": "Summary"
+        },
+        "fields": {
+          "items": {
+            "$ref": "#/components/schemas/TextBinding"
+          },
+          "type": "array",
+          "maxItems": 150,
+          "title": "Fields"
+        },
+        "repeats": {
+          "items": {
+            "$ref": "#/components/schemas/RepeatBinding"
+          },
+          "type": "array",
+          "maxItems": 40,
+          "title": "Repeats"
+        },
+        "photos": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 10,
+          "title": "Photos"
+        },
+        "keep": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 2000,
+          "title": "Keep"
+        },
+        "remove": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 2000,
+          "title": "Remove"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 30,
+          "title": "Warnings"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "summary",
+        "fields",
+        "repeats",
+        "photos",
+        "keep",
+        "remove",
+        "warnings"
+      ],
+      "title": "TemplatePlan",
+      "description": "待用户核对的字段、重复区、照片、固定文字和删除项。"
+    },
+    "TemplatePreviewInput": {
+      "properties": {
+        "plan": {
+          "$ref": "#/components/schemas/TemplatePlan"
+        },
+        "document": {
+          "$ref": "#/components/schemas/ResumeDocument"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/components/schemas/ResumeItem"
+          },
+          "type": "array",
+          "title": "Items"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "plan",
+        "document",
+        "items"
+      ],
+      "title": "TemplatePreviewInput",
+      "description": "用当前资料及固定项目引用试填，预览不会保存简历组合。"
+    },
+    "TextBinding": {
+      "properties": {
+        "node": {
+          "type": "string",
+          "title": "Node"
+        },
+        "quote": {
+          "type": "string",
+          "maxLength": 10000,
+          "title": "Quote"
+        },
+        "target": {
+          "type": "string",
+          "title": "Target"
+        },
+        "occurrence": {
+          "type": "integer",
+          "maximum": 100.0,
+          "minimum": 1.0,
+          "title": "Occurrence",
+          "default": 1
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "node",
+        "quote",
+        "target"
+      ],
+      "title": "TextBinding",
+      "description": "以精确引文定位段落中的值，可跨多个 Word 文本片段。"
     }
   }
 }

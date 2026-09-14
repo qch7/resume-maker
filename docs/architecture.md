@@ -33,6 +33,8 @@ flowchart LR
 | `services/projects.py` / `conversations.py` / `workspace.py` | 项目维护、会话维护及工作台聚合查询 |
 | `services/jobs.py` | 持久队列、上下文快照、建议校验、取消和结果发布 |
 | `services/documents.py` | 模板登记、固定版本导出与追溯清单编排 |
+| `services/templates.py` | 独立模板分析任务、映射核对、试填和保存 |
+| `domain/templates.py` | 字段引文、重复范围、照片和原文处置的声明式映射 |
 | `infrastructure/database.py` | SQLite 短连接、即时写事务和 JSON 列编解码 |
 | `infrastructure/schema.sql` | 当前完整数据库结构，空库一次性创建全部表和索引 |
 | `infrastructure/storage.py` | 跨进程实例锁、在线备份、离线验证和目录切换 |
@@ -51,6 +53,7 @@ flowchart LR
 - `conversations`：消息输入、建议对比卡和任务事件流。
 - `resumes`：固定版本组合 hook、内容预览与真实分页图片。
 - `settings`：来源、模板与 Provider 设置。
+- `templates`：AI 模板分析、字段和重复区域编辑、原图核对及真实试填。
 - `workflow`：制作指引状态推导和步骤定位。
 
 `shared/` 只包含可复用控件、尺寸/请求 hooks、网络和本机缓存工具，以及与 API 对齐的数据类型。经历与会话共同使用 `shared/lib/draftRegistry.ts`：导航、保存和导出前先等待注册的草稿写入，失败时保留编辑现场。共享层不能导入 `features` 或 `app`，业务模块不能导入 `app`；前端质量脚本自动检查这些边界。
@@ -66,7 +69,7 @@ flowchart LR
 5. **AI 输出先成为建议**：生成建议记录修改前后内容和来源快照；采用时再次校验原文及事务内状态，采用后仍须人工保存。
 6. **任务串行执行、会话相互隔离**：任务以请求标识幂等提交；同一会话只允许一个活动任务。取消后不得发布迟到结果。
 7. **来源可追溯**：快照记录读取文本、原文件及存储哈希、Git 状态和遗漏原因，之后的源码修改不改变已有证据。
-8. **Word 仅替换登记区域**：保留区域外正文与其他 DOCX 包文件；渲染在独立进程执行，按 PID 和创建时间核验后回收。
+8. **Word 按确认的映射替换**：手动模板只替换项目区；完整模板按精确引文替换资料、复制条目样式和更换照片。校验节点、重叠范围、未处理原文以及当前资料覆盖，保留样式与页面设置，清除未使用的旧照片资源。渲染在独立进程执行，按 PID 和创建时间核验后回收。
 9. **整体与子项目相互独立**：多来源整体项目通过 `project_hierarchy` 关联单来源子项目；经历、草稿、快照、会话和简历引用仍按各自项目标识隔离。导入和来源更新在事务中同步子项目，启动时不再补建数据。来源移除时解除分组并保留旧子项目历史。
 
 经历历史由 `services/history.py` 管理，`revision_branches` 记录修订所属分支。创建分支时追加一个内容相同的起点修订，并可复制来源草稿到新修订的草稿空间；因此两个分支从同一版本出发也不会共享未发布修改。保存、恢复及 AI 建议采用均校验目标分支头，分支指针和修订、草稿清理在一个 SQLite 写事务中完成。历史树按真实父子关系绘制，不按时间猜测；查看旧节点后必须创建分支或追加恢复才能继续发布。项目创建时在同一事务内建立 `main` 与初始修订。经历数据不双写 Git，避免数据库与仓库出现部分提交。
@@ -75,8 +78,12 @@ flowchart LR
 
 ## 扩展方式
 
+完整模板复用 `templates.mapping_json` 保存 `{"plan": TemplatePlan}`，工作台返回 `kind=adaptive`；手动项目区模板返回 `kind=projects`。这是两种受支持的导出模式，无数据库升级或历史格式转换。`template_map.py` 给正文、表格、页眉页脚、文本框与图片分配快照内稳定节点，`template_fill.py` 校验后执行替换。模型仅输出声明式映射，模板文字按数据处理。
+
+模板分析复用项目队列的 Provider 实例和设置，使用独立工作区、结果 schema 与取消信号，不占用项目会话。分析任务保存在当前应用实例内存，应用退出时取消并回收；已确认模板另存常规模板目录并进入备份。试填与导出共用填充器，预览使用独立目录，HTTP 路由验证任务归属、文件类型及实例令牌。
+
 - 新增业务接口：在 `api/schemas.py` 定义请求；把规则或事务放入 `domain/` 或 `services/`，再接入相应路由。不要把后台线程放到导入时启动。
-- 新增 AI Provider：实现 `integrations/providers/base.py` 的协议，通过 `create_app(provider=...)` 注入；适配器返回 `AIResult`，不能直接发布修订。
+- 新增 AI Provider：实现 `integrations/providers/base.py` 的协议，通过 `create_app(provider=...)` 注入。`run` 返回经历建议 `AIResult`，`run_structured` 按指定领域模型生成严格结构化结果；适配器不能直接发布修订或登记模板。
 - 新增模板或渲染方式：扩展 `integrations/word/`，保持 DOCX 包保留约束；由 `services/documents.py` 记录结果清单。
 - 修改数据库：项目尚未上线，直接维护完整 `schema.sql`，不维护历史升级链。结构变化时更新 `SCHEMA_VERSION`，建库、备份恢复和安装包检查共用该版本；使用新的测试数据目录，不自动转换或清空旧库。
 - 修改跨功能 UI：状态协调留在 `app/`，通用机制抽到 `shared/`，先验证草稿刷写、快速切换与异步响应的归属。
@@ -84,3 +91,7 @@ flowchart LR
 `tests/fixtures/api-contract.json` 记录当前接口定义；测试忽略说明文字，核验路径、参数、请求模型及响应格式。修改通信协议时同步更新前端与该契约，不保留旧客户端适配。`resume_maker.api.create_app` 和 CLI 是应用入口。
 
 个人资料和栏目条目由前端工厂生成完整字段，显隐与自定义信息数组始终存在；后端拒绝已停用的 `deleted_fields`。方案保存完整替换资料，`document=null` 表示无完整资料的项目组合；模板项目区导出仍按 `template_id` 选择。浏览器简历草稿使用 `rm.resume.v2.*` 键，直接保存当前结构，不读取或转换旧缓存。
+
+前端“Word 模板”是紧随“栏目编排”的独立功能区。`TemplateAdapter` 持续挂载以保留切换功能区时的人工编辑；`TemplateCanvas` 依据节点祖先关系呈现结构和字段高亮，`TemplateInspector` 编辑当前选区，`AdvancedMapping` 提供完整映射和精确边界，`ManualTemplate` 保留项目区工具。范围选择仅接受相同 Word 部件和直接父节点的同级块；所有人工修改会使校验和试填失效。结构视图不模拟实际 Word 排版，真实分页通过试填结果呈现。
+
+`POST /api/templates/{template_id}/edit` 对已保存完整模板做哈希核验后创建当前实例的独立编辑快照，不调用模型。保存仍生成新的模板 ID，不修改旧模板或已有简历引用。分析、编辑副本和试填都沿用实例鉴权与受控文件路径。

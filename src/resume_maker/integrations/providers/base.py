@@ -5,7 +5,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
 
-from resume_maker.domain.models import AIResult, ProviderSettings
+from resume_maker.domain.models import AIResult, Model, ProviderSettings
 
 
 class ProviderError(Exception):
@@ -34,4 +34,18 @@ class Provider(Protocol):
         emit: Callable[[str, dict], None],
     ) -> AIResult:
         """按给定上下文生成建议，并通过事件回调报告进度、响应取消。"""
+        ...
+
+    def run_structured[T: Model](
+        self,
+        *,
+        result_model: type[T],
+        workspace: Path,
+        prompt: str,
+        thread_id: str | None,
+        settings: ProviderSettings,
+        cancelled: threading.Event,
+        emit: Callable[[str, dict], None],
+    ) -> T:
+        """复用同一 AI 配置生成指定领域模型，用于模板映射等独立分析。"""
         ...

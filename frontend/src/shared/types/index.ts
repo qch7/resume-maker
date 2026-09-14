@@ -208,6 +208,7 @@ export interface ResumeDocument {
 export interface Template {
   id: string;
   name: string;
+  kind: "adaptive" | "projects";
   created_at: string;
 }
 export interface State {

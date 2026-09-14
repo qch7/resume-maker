@@ -10,7 +10,7 @@ export function personalComposition(draft: Resume, saved?: Resume): Resume {
     ...baseline,
     id: draft.id,
     version: draft.version,
-    template_id: null,
+    template_id: draft.template_id,
     document: {
       ...(baseline.document ?? newDocument()),
       personal: draft.document?.personal ?? newDocument().personal,

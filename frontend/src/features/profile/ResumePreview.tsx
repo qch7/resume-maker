@@ -7,15 +7,17 @@ import {
   siblings,
 } from "./document";
 
-/** 展示与完整 Word 导出一致的顶部资料和栏目层级，保留项目区的交互操作。 */
+/** 展示当前可见资料和栏目层级，保留项目区交互；模板实际版式以导出预览为准。 */
 export default function ResumePreview({
   draft,
   projects,
+  projectsOnly,
 }: {
   draft: Resume;
   projects: ReactNode;
+  projectsOnly: boolean;
 }) {
-  const content = !draft.template_id ? draft.document : null;
+  const content = projectsOnly ? null : draft.document;
   if (!content)
     return (
       <div className="resume-paper">

@@ -12,6 +12,7 @@ from resume_maker.services.conversations import Conversations
 from resume_maker.services.documents import Documents
 from resume_maker.services.jobs import Jobs
 from resume_maker.services.projects import Projects
+from resume_maker.services.templates import Templates
 from resume_maker.services.workspace import Workspace
 
 
@@ -27,6 +28,7 @@ class Services:
     workspace: Workspace
     conversations: Conversations
     projects: Projects
+    templates: Templates
 
 
 def get_services(request: Request) -> Services:

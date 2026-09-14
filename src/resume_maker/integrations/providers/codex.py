@@ -12,14 +12,14 @@ from pathlib import Path
 
 import psutil
 
-from resume_maker.domain.models import AIResult, ProviderSettings
+from resume_maker.domain.models import AIResult, Model, ProviderSettings
 from resume_maker.integrations.providers.base import Cancelled, ProviderError
 from resume_maker.integrations.sources import redact
 
 
-def schema() -> dict:
+def schema(result_model: type[Model]) -> dict:
     """把结果模型转换为严格 JSON Schema，使输出字段完整且禁止额外键。"""
-    value = AIResult.model_json_schema()
+    value = result_model.model_json_schema()
 
     def strict(node):
         """递归清除默认值，并将对象的所有属性设为必填。"""
@@ -96,10 +96,32 @@ class CodexProvider:
         cancelled: threading.Event,
         emit: Callable[[str, dict], None],
     ) -> AIResult:
+        """使用经历结果模型调用通用结构化执行器。"""
+        return self.run_structured(
+            result_model=AIResult,
+            workspace=workspace,
+            prompt=prompt,
+            thread_id=thread_id,
+            settings=settings,
+            cancelled=cancelled,
+            emit=emit,
+        )
+
+    def run_structured[T: Model](
+        self,
+        *,
+        result_model: type[T],
+        workspace: Path,
+        prompt: str,
+        thread_id: str | None,
+        settings: ProviderSettings,
+        cancelled: threading.Event,
+        emit: Callable[[str, dict], None],
+    ) -> T:
         """以只读沙箱调用 Codex，解析 JSON 事件并处理超时、取消和进程回收。"""
         workspace.mkdir(parents=True, exist_ok=True)
         schema_path = workspace / "response-schema.json"
-        schema_path.write_text(json.dumps(schema()), encoding="utf-8")
+        schema_path.write_text(json.dumps(schema(result_model)), encoding="utf-8")
         command = [
             self.executable(settings),
             "exec",
@@ -198,9 +220,9 @@ class CodexProvider:
             if code != 0 or errors:
                 raise ProviderError("\n".join(errors or diagnostics[-5:]) or f"Codex 退出码 {code}")
             try:
-                return AIResult.model_validate_json(last_message)
+                return result_model.model_validate_json(last_message)
             except ValueError as exc:
-                raise ProviderError("Codex 返回的数据不符合经历格式，原有内容未被修改。") from exc
+                raise ProviderError("Codex 返回的数据不符合要求的格式，原有内容未被修改。") from exc
         finally:
             if process.poll() is None:
                 terminate_tree(process)

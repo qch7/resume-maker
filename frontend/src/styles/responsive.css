@@ -168,7 +168,7 @@
     display: none;
   }
 }
-@media (max-width: 760px) {
+@media (max-width: 1000px) {
   .app-header {
     height: 96px;
     min-height: 96px;

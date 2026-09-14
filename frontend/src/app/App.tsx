@@ -1,5 +1,6 @@
 import {
   FilePenLine,
+  FileScan,
   FolderPlus,
   LoaderCircle,
   PanelLeftOpen,
@@ -28,10 +29,12 @@ import Composer from "../features/resumes/Composer";
 import ProfileEditor from "../features/profile/ProfileEditor";
 import SectionOrganizer from "../features/profile/SectionOrganizer";
 import { newDocument } from "../features/profile/document";
+import { templateForDocument } from "../features/templates/mapping";
 import {
   NEW_RESUME,
   useResumeComposition,
 } from "../features/resumes/useResumeComposition";
+import TemplateAdapter from "../features/templates/TemplateAdapter";
 import Settings from "../features/settings/Settings";
 import { getWorkflow, type GuideTarget } from "../features/workflow/state";
 import Workflow from "../features/workflow/Workflow";
@@ -64,9 +67,9 @@ const EMPTY: State = {
 };
 /** 组装工作台，并协调项目导航、经历发布、会话和简历组合之间的状态。 */
 export default function App() {
-  const [area, setArea] = useState<"projects" | "personal" | "structure">(
-    "projects",
-  );
+  const [area, setArea] = useState<
+    "projects" | "personal" | "structure" | "templates"
+  >("projects");
   const {
     sidebar,
     setSidebar,
@@ -113,9 +116,7 @@ export default function App() {
   const [folded, setFolded] = useState<Record<string, boolean>>({});
   const [edited, setEdited] = useState<Record<string, boolean>>({});
   const [guideTarget, setGuideTarget] = useState<GuideTarget | null>(null);
-  const [modal, setModal] = useState<
-    "projects" | "templates" | "settings" | null
-  >(null);
+  const [modal, setModal] = useState<"projects" | "settings" | null>(null);
   const [refresh, setRefresh] = useState(0),
     [toast, setToast] = useState<{ text: string; error?: boolean } | null>(
       null,
@@ -564,7 +565,7 @@ export default function App() {
       return;
     }
     if (target === "template-select" && !state.templates.length) {
-      setModal("templates");
+      setArea("templates");
       return;
     }
     run(
@@ -638,7 +639,7 @@ export default function App() {
   const error = remoteProject.error || remoteChat.error;
   return (
     <div
-      className={`app-shell ${sidebar && area === "projects" ? "" : "sidebar-hidden"} ${previewFocused ? "preview-focused" : ""} ${area !== "projects" ? "profile-area" : ""}`}
+      className={`app-shell ${sidebar && area === "projects" ? "" : "sidebar-hidden"} ${previewFocused ? "preview-focused" : ""} ${area === "templates" ? "template-area" : area !== "projects" ? "profile-area" : ""}`}
       style={
         {
           "--sidebar-width": `${columns.sidebar}px`,
@@ -683,6 +684,7 @@ export default function App() {
                 label: "栏目编排",
                 icon: ListTree,
               },
+              { id: "templates", label: "Word 模板", icon: FileScan },
             ] as const
           ).map(
             /* 每个功能区共享当前简历草稿，切换前刷新项目编辑。 */ (item) => (
@@ -873,11 +875,20 @@ export default function App() {
                 )?.document?.sections
               }
               onChange={
-                /* 保存完整个人资料时采用可编排的内置简历版式。 */ (document) =>
+                /* 完整模板随资料编辑保留，项目区模板切换为内置版式。 */ (
+                  document,
+                ) =>
                   setDraft(
                     /* 使用最新方案，避免照片读取期间覆盖其他设置。 */ (
                       current,
-                    ) => ({ ...current, document, template_id: null }),
+                    ) => ({
+                      ...current,
+                      document,
+                      template_id: templateForDocument(
+                        current,
+                        state.templates,
+                      ),
+                    }),
                   )
               }
               onStructure={
@@ -890,12 +901,15 @@ export default function App() {
               key={draft.id}
               value={draft.document ?? newDocument()}
               onChange={
-                /* 栏目结构与个人资料共用完整简历版式。 */ (document) =>
+                /* 栏目结构与个人资料共用当前完整模板。 */ (document) =>
                   setDraft(
                     /* 保留栏目编辑期间的其他简历设置。 */ (current) => ({
                       ...current,
                       document,
-                      template_id: null,
+                      template_id: templateForDocument(
+                        current,
+                        state.templates,
+                      ),
                     }),
                   )
               }
@@ -1207,13 +1221,40 @@ export default function App() {
           }
           onTemplates={
             /* 处理 onTemplates 回调，将变化同步到工作台状态。 */ () =>
-              setModal("templates")
+              run(
+                /* 保存草稿后打开完整模板工作区。 */ async () => {
+                  setArea("templates");
+                  setPreviewFocused(false);
+                },
+              )
           }
           onEditProject={
             /* 处理 onEditProject 回调，将变化同步到工作台状态。 */ (id) =>
               followGuide("experience-use", id)
           }
           run={run}
+        />
+      </div>
+      <div className="template-workspace" hidden={area !== "templates"}>
+        <TemplateAdapter
+          resume={draft}
+          onSelected={
+            /* 将已确认的完整模板用于当前草稿。 */ (id) =>
+              setDraft(
+                /* 采用新模板时保留全部个人资料与项目选择。 */ (current) => ({
+                  ...current,
+                  template_id: id,
+                  document: current.document ?? newDocument(),
+                }),
+              )
+          }
+          templates={state.templates}
+          onChanged={
+            /* 保存模板后刷新模板库。 */ async () => {
+              await reload();
+              changed();
+            }
+          }
         />
       </div>
       {modal && (
