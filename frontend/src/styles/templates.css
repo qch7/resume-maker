@@ -604,7 +604,7 @@
   .template-source-divider {
     display: none;
   }
-  .template-source-bar > label:nth-of-type(2) {
+  .template-source-bar > label {
     grid-column: 1;
   }
   .template-source-bar > button:last-child {
@@ -702,10 +702,14 @@
   .template-source-bar {
     grid-template-columns: minmax(180px, 1fr) auto auto;
   }
-  .template-source-bar > label:first-child {
+  .template-source-bar > .path-field:first-child {
     grid-column: 1 / 3;
   }
   .template-source-bar > button:last-child {
     grid-column: 3;
   }
+}
+
+.template-source-bar .path-field {
+  margin: 0;
 }

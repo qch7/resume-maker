@@ -1,6 +1,6 @@
 """HTTP 请求模型；领域模型单独维护，避免业务层依赖 FastAPI。"""
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import Field
 
@@ -82,6 +82,13 @@ class PathInput(Model):
     """需要由后端校验并读取的本机路径。"""
 
     path: str
+
+
+class PathPickerInput(Model):
+    """选择本机文件或文件夹，已有路径仅用于设置窗口初始位置。"""
+
+    kind: Literal["docx", "folder", "executable"]
+    initial_path: str = Field(default="", max_length=8192)
 
 
 class TemplateAnalysisInput(Model):

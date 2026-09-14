@@ -1,3 +1,4 @@
+import PathInput from "../../shared/components/PathInput";
 import { arrayMove } from "@dnd-kit/sortable";
 import {
   ArrowDown,
@@ -506,17 +507,13 @@ export default function Editor(props: EditorProps) {
         )}
         <details>
           <summary>重新绑定项目目录</summary>
-          <label>
-            来源路径（每行一个）
-            <textarea
-              rows={3}
-              value={roots}
-              onChange={
-                /* 把控件的新值同步到对应编辑状态。 */ (e) =>
-                  setRoots(e.target.value)
-              }
-            />
-          </label>
+          <PathInput
+            label="来源路径（每行一个）"
+            kind="folder"
+            multiline
+            value={roots}
+            onChange={setRoots}
+          />
           <button
             onClick={
               /* 响应当前操作按钮，执行对应业务动作。 */ () =>

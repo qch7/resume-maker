@@ -1,5 +1,6 @@
 import { FolderPlus, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import PathInput from "../../shared/components/PathInput";
 import { api, download } from "../../shared/lib/api";
 import type { Conversation, ProviderSettings } from "../../shared/types/index";
 
@@ -114,17 +115,14 @@ export default function Settings(props: Props) {
           <p className="subtle">
             扫描项目集合后确认归组。关联多个代码目录的项目会同时建立可独立勾选和对话的子项目。
           </p>
-          <label>
-            项目集合目录
-            <input
-              placeholder="D:\...\Projects"
-              value={root}
-              onChange={
-                /* 把控件的新值同步到对应编辑状态。 */ (e) =>
-                  setRoot(e.target.value)
-              }
-            />
-          </label>
+          <PathInput
+            label="项目集合目录"
+            kind="folder"
+            placeholder="D:\...\Projects"
+            value={root}
+            onChange={setRoot}
+            disabled={busy}
+          />
           <button
             disabled={busy || !root.trim()}
             onClick={
@@ -233,17 +231,14 @@ export default function Settings(props: Props) {
                 }
               />
             </label>
-            <label>
-              来源目录（每行一个）
-              <textarea
-                rows={3}
-                value={manualRoots}
-                onChange={
-                  /* 把控件的新值同步到对应编辑状态。 */ (e) =>
-                    setManualRoots(e.target.value)
-                }
-              />
-            </label>
+            <PathInput
+              label="来源目录（每行一个）"
+              kind="folder"
+              multiline
+              value={manualRoots}
+              onChange={setManualRoots}
+              disabled={busy}
+            />
             <button
               disabled={busy || !manualName.trim() || !manualRoots.trim()}
               onClick={
@@ -280,16 +275,16 @@ export default function Settings(props: Props) {
             复用当前 CLI 配置，包括 CCSwitch 的
             Provider。模型留空时继承当前配置。
           </p>
-          <label>
-            可执行文件
-            <input
-              value={provider.executable}
-              onChange={
-                /* 把控件的新值同步到对应编辑状态。 */ (e) =>
-                  setProvider({ ...provider, executable: e.target.value })
-              }
-            />
-          </label>
+          <PathInput
+            label="可执行文件"
+            kind="executable"
+            value={provider.executable}
+            disabled={busy}
+            onChange={
+              /* 选择本机 CLI 启动文件，保留其他 Provider 设置。 */ (value) =>
+                setProvider({ ...provider, executable: value })
+            }
+          />
           <div className="form-grid">
             <label>
               模型覆盖（可留空）

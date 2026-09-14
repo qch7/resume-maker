@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { FileCheck2, FileScan, LoaderCircle, Sparkles, X } from "lucide-react";
+import PathInput from "../../shared/components/PathInput";
 import { api, download } from "../../shared/lib/api";
 import type { Resume, Template } from "../../shared/types";
 import { newDocument } from "../profile/document";
@@ -263,18 +264,14 @@ export default function TemplateAdapter({
       </div>
       <div className="template-adaptive-workspace" hidden={mode !== "adaptive"}>
         <div className="template-source-bar">
-          <label>
-            导入 Word 文档
-            <input
-              placeholder="D:\...\陌生简历.docx"
-              value={path}
-              disabled={busy || running}
-              onChange={
-                /* 输入原始 Word 路径，原文件不会被修改。 */ (event) =>
-                  setPath(event.target.value)
-              }
-            />
-          </label>
+          <PathInput
+            label="导入 Word 文档"
+            kind="docx"
+            placeholder="D:\...\陌生简历.docx"
+            value={path}
+            disabled={busy || running}
+            onChange={setPath}
+          />
           <button
             className="primary"
             disabled={busy || running || !path.trim()}

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import PathInput from "../../shared/components/PathInput";
 import { api } from "../../shared/lib/api";
 import type { Inspection } from "../../shared/types";
 
@@ -33,19 +34,19 @@ export default function ManualTemplate(props: {
         <p className="subtle">
           保留模板其他栏目，仅替换选定的项目经历区域。原文件保留，每次导入创建独立模板版本。
         </p>
-        <label>
-          Word 模板路径
-          <input
-            placeholder="D:\...\简历.docx"
-            value={templatePath}
-            onChange={
-              /* 把控件的新值同步到对应编辑状态。 */ (e) => {
-                setTemplatePath(e.target.value);
-                setInspection(null);
-              }
+        <PathInput
+          label="Word 模板路径"
+          kind="docx"
+          placeholder="D:\...\简历.docx"
+          value={templatePath}
+          disabled={busy}
+          onChange={
+            /* 选择或输入新模板后撤销旧段落检查。 */ (value) => {
+              setTemplatePath(value);
+              setInspection(null);
             }
-          />
-        </label>
+          }
+        />
         <button
           disabled={busy || !templatePath.trim()}
           onClick={

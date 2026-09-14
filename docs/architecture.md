@@ -95,3 +95,5 @@ flowchart LR
 前端“Word 模板”是紧随“栏目编排”的独立功能区。`TemplateAdapter` 持续挂载以保留切换功能区时的人工编辑；`TemplateCanvas` 依据节点祖先关系呈现结构和字段高亮，`TemplateInspector` 编辑当前选区，`AdvancedMapping` 提供完整映射和精确边界，`ManualTemplate` 保留项目区工具。范围选择仅接受相同 Word 部件和直接父节点的同级块；所有人工修改会使校验和试填失效。结构视图不模拟实际 Word 排版，真实分页通过试填结果呈现。
 
 `POST /api/templates/{template_id}/edit` 对已保存完整模板做哈希核验后创建当前实例的独立编辑快照，不调用模型。保存仍生成新的模板 ID，不修改旧模板或已有简历引用。分析、编辑副本和试填都沿用实例鉴权与受控文件路径。
+
+本机路径输入统一使用共享 `PathInput` 组件，调用受实例令牌和来源校验保护的 `POST /api/paths/pick`。`integrations/path_picker.py` 在 HTTP 工作线程初始化 STA 并调用 Windows `IFileOpenDialog`，文件和文件夹都返回文件系统完整路径；取消返回空值。跨请求互斥避免重复窗口，COM 对象与文件名内存在原线程释放，输入路径只决定初始浏览目录，不参与命令执行。多来源输入追加并去重，组件卸载或资料切换时丢弃迟到结果。

@@ -1726,6 +1726,40 @@
           }
         }
       }
+    },
+    "/api/paths/pick": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PathPickerInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "schemas": {
@@ -2710,6 +2744,32 @@
       ],
       "title": "TextBinding",
       "description": "以精确引文定位段落中的值，可跨多个 Word 文本片段。"
+    },
+    "PathPickerInput": {
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "docx",
+            "folder",
+            "executable"
+          ],
+          "title": "Kind"
+        },
+        "initial_path": {
+          "type": "string",
+          "maxLength": 8192,
+          "title": "Initial Path",
+          "default": ""
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "kind"
+      ],
+      "title": "PathPickerInput",
+      "description": "选择本机文件或文件夹，已有路径仅用于设置窗口初始位置。"
     }
   }
 }
