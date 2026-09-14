@@ -713,3 +713,191 @@
 .template-source-bar .path-field {
   margin: 0;
 }
+
+/* 默认结果页按资料和栏目组织，精细结构仍在独立视图中可调整。 */
+.template-result-scroll {
+  overflow-y: auto;
+  min-height: 0;
+  padding: 28px;
+}
+.template-result-heading {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  margin-bottom: 22px;
+}
+.template-result-heading > svg {
+  flex-shrink: 0;
+  color: var(--accent);
+  margin-top: 3px;
+}
+.template-result-heading h3 {
+  margin: 0 0 8px;
+  font-size: 22px;
+}
+.template-result-heading p {
+  margin: 0;
+  color: var(--subtle);
+  line-height: 1.7;
+}
+.template-result-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 28px;
+}
+.template-result-stats > span {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--subtle);
+}
+.template-result-stats strong {
+  color: var(--text);
+  font-size: 22px;
+}
+.template-result-section {
+  margin-bottom: 26px;
+}
+.template-result-section h3 {
+  margin: 0 0 12px;
+  font-size: 15px;
+}
+.template-field-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.template-field-cards > button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  text-align: left;
+  padding: 16px;
+  min-width: 0;
+  background: var(--surface);
+  border-radius: 9px;
+}
+.template-field-cards strong {
+  font-size: 13px;
+}
+.template-field-cards span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.template-field-cards small,
+.template-section-cards small {
+  color: var(--subtle);
+  font-size: 11px;
+}
+.template-section-cards {
+  display: grid;
+  gap: 10px;
+}
+.template-section-cards > button {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  text-align: left;
+  background: var(--surface);
+  border-radius: 9px;
+}
+.template-section-cards > button > div {
+  display: grid;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+.template-section-cards > button > div > span {
+  color: var(--subtle);
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.template-section-cards > button > span {
+  color: var(--subtle);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.template-questions {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 18px;
+  line-height: 1.8;
+}
+.template-questions > p {
+  color: var(--subtle);
+}
+.template-questions button {
+  display: block;
+  text-align: left;
+  margin: 8px 0;
+  width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.template-questions details {
+  margin-top: 12px;
+}
+.template-ai-assistant {
+  display: grid;
+  gap: 12px;
+  margin: 20px 0;
+  padding: 18px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.template-ai-assistant h3,
+.template-ai-assistant p {
+  margin: 0;
+}
+.template-ai-assistant textarea {
+  resize: vertical;
+  min-height: 105px;
+}
+.template-ai-assistant button {
+  justify-content: center;
+}
+@media (max-width: 760px) {
+  .template-result-scroll {
+    padding: 18px 12px;
+    overflow: visible;
+  }
+  .template-result-stats {
+    gap: 6px;
+  }
+  .template-result-stats > span {
+    padding: 10px 6px;
+    gap: 5px;
+    flex-wrap: wrap;
+    font-size: 11px;
+  }
+  .template-field-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .template-result-heading h3 {
+    font-size: 18px;
+  }
+}
+
+.template-source-section {
+  flex-shrink: 0;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.template-source-section > summary {
+  padding: 12px 24px;
+  color: var(--subtle);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.template-source-section .template-source-bar {
+  border-bottom: 0;
+}

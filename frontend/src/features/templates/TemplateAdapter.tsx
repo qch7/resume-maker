@@ -1,15 +1,15 @@
-import { useEffect, useRef, useState } from "react";
-import { FileCheck2, FileScan, LoaderCircle, Sparkles, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { FileScan, LoaderCircle, Sparkles, X } from "lucide-react";
 import PathInput from "../../shared/components/PathInput";
 import { api, download } from "../../shared/lib/api";
 import type { Resume, Template } from "../../shared/types";
 import { newDocument } from "../profile/document";
 import PrintedPage from "../resumes/PrintedPage";
+import RecognitionSummary from "./RecognitionSummary";
 import AdvancedMapping from "./AdvancedMapping";
 import ManualTemplate from "./ManualTemplate";
 import TemplateCanvas from "./TemplateCanvas";
 import TemplateInspector from "./TemplateInspector";
-import { nodeLabel } from "./mapping";
 import { REGION_LABELS, siblingRange } from "./visual";
 import type { MappingReview, TemplateAnalysis, TemplatePlan } from "./types";
 
@@ -44,12 +44,20 @@ export default function TemplateAdapter({
   const [preview, setPreview] = useState<Preview | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [rangeAnchor, setRangeAnchor] = useState<string | null>(null);
-  const [view, setView] = useState<"structure" | "preview">("structure");
+  const [view, setView] = useState<"summary" | "structure" | "preview">(
+    "summary",
+  );
   const [filter, setFilter] = useState<"all" | "unresolved">("all");
   const [mode, setMode] = useState<"adaptive" | "manual">("adaptive");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
-  const document = resume.document ?? newDocument();
+  const [feedback, setFeedback] = useState("");
+  const autoPreview = useRef(true);
+  const document = useMemo(
+    /* 空白简历也保持资料对象稳定，避免异步响应被误判为过期。 */ () =>
+      resume.document ?? newDocument(),
+    [resume.document],
+  );
   const latest = useRef({
     taskId,
     plan,
@@ -73,7 +81,7 @@ export default function TemplateAdapter({
   useEffect(
     /* 资料变化后旧试填不再代表当前简历，必须重新生成。 */ () => {
       setPreview(null);
-      setView("structure");
+      setView("summary");
     },
     [resume.document, resume.items, resume.id],
   );
@@ -118,6 +126,61 @@ export default function TemplateAdapter({
     },
     [taskId],
   );
+  useEffect(
+    /* 每次调整后自动校验当前方案，取消旧请求以免覆盖较新的修改。 */ () => {
+      if (!plan || !taskId || running) return;
+      const controller = new AbortController();
+      const timer = setTimeout(
+        /* 等待连续编辑结束再校验。 */ async () => {
+          try {
+            const value = await api<MappingReview>(
+              `/templates/analyses/${taskId}/review`,
+              "POST",
+              { plan, document, items: resume.items },
+              controller.signal,
+            );
+            if (!controller.signal.aborted && isCurrent()) setReview(value);
+          } catch (error) {
+            if (!controller.signal.aborted) setNotice((error as Error).message);
+          }
+        },
+        450,
+      );
+      return /* 切换任务或继续输入时撤销旧校验。 */ () => {
+        clearTimeout(timer);
+        controller.abort();
+      };
+    },
+    [plan, taskId, document, resume.items, running],
+  );
+  useEffect(
+    /* 新分析检查通过后自动试填一次，人工调整保留主动生成入口。 */ () => {
+      if (
+        !autoPreview.current ||
+        !plan ||
+        !review?.ready ||
+        review.missing === undefined ||
+        busy ||
+        running
+      )
+        return;
+      autoPreview.current = false;
+      void perform(trial);
+    },
+    [plan, review, busy, running],
+  );
+  /** 带上当前人工修改和用户说明，交给 AI 自动补全并建立独立结果。 */
+  async function repair() {
+    const value = await api<TemplateAnalysis>(
+      `/templates/analyses/${taskId}/repair`,
+      "POST",
+      { plan, document, items: resume.items, feedback },
+    );
+    if (isCurrent()) {
+      openTask(value);
+      setFeedback("");
+    }
+  }
   /** 检查短操作是否仍对应当前模板和当前简历的同一份资料。 */
   function isCurrent() {
     const current = latest.current;
@@ -131,6 +194,7 @@ export default function TemplateAdapter({
   }
   /** 修改立即显示在画布，并撤销过期的校验和预览。 */
   function edit(value: TemplatePlan) {
+    autoPreview.current = false;
     setPlan(value);
     setReview(null);
     setPreview(null);
@@ -150,13 +214,14 @@ export default function TemplateAdapter({
   }
   /** 接入新分析或已保存模板快照，清除上一份模板的选区和试填。 */
   function openTask(value: TemplateAnalysis) {
+    autoPreview.current = true;
     setAnalysis(value);
     setPlan(null);
     setReview(null);
     setPreview(null);
     setSelected([]);
     setRangeAnchor(null);
-    setView("structure");
+    setView("summary");
     setFilter("all");
     setTaskId(value.id);
     sessionStorage.setItem("rm.template.analysis", value.id);
@@ -190,15 +255,6 @@ export default function TemplateAdapter({
     setRangeAnchor(null);
     setSelected([id]);
     setView("structure");
-  }
-  /** 检查全部映射并返回仍需人工处理的具体原文。 */
-  async function check() {
-    const value = await api<MappingReview>(
-      `/templates/analyses/${taskId}/review`,
-      "POST",
-      { plan },
-    );
-    if (isCurrent()) setReview(value);
   }
   /** 使用当前简历生成真实 Word 和分页图，不让迟到预览覆盖后续资料。 */
   async function trial() {
@@ -238,7 +294,7 @@ export default function TemplateAdapter({
             Word 模板
           </h2>
           <p className="subtle">
-            识别整份简历，点击原文核对映射，再用当前资料试填。
+            导入 Word，AI 自动识别、检查和修正，直接查看当前资料的试填效果。
           </p>
         </div>
         <nav className="tabs" aria-label="模板模式">
@@ -263,90 +319,97 @@ export default function TemplateAdapter({
         <ManualTemplate onChanged={onChanged} />
       </div>
       <div className="template-adaptive-workspace" hidden={mode !== "adaptive"}>
-        <div className="template-source-bar">
-          <PathInput
-            label="导入 Word 文档"
-            kind="docx"
-            placeholder="D:\...\陌生简历.docx"
-            value={path}
-            disabled={busy || running}
-            onChange={setPath}
-          />
-          <button
-            className="primary"
-            disabled={busy || running || !path.trim()}
-            onClick={
-              /* 将模板文本交给设置中的 AI 识别，个人字段值不传给模型。 */ () =>
-                void perform(
-                  /* 执行当前操作并接收结果。 */ async () => {
-                    openTask(
-                      await api<TemplateAnalysis>(
-                        "/templates/analyses",
-                        "POST",
-                        { path, document },
-                      ),
-                    );
-                  },
-                )
-            }
-          >
-            <Sparkles size={16} />
-            AI 识别
-          </button>
-          <div className="template-source-divider" />
-          <label>
-            已保存模板
-            <select
-              value={saved?.id ?? ""}
+        <details className="template-source-section" open={!plan}>
+          <summary>
+            {analysis?.file_name
+              ? `模板来源：${analysis.file_name} · 更换文档或选择模板`
+              : "导入 Word 文档或使用已保存模板"}
+          </summary>
+          <div className="template-source-bar">
+            <PathInput
+              label="导入 Word 文档"
+              kind="docx"
+              placeholder="D:\...\陌生简历.docx"
+              value={path}
               disabled={busy || running}
-              onChange={
-                /* 选择要继续调整或使用的模板。 */ (event) =>
-                  setLibraryId(event.target.value)
+              onChange={setPath}
+            />
+            <button
+              className="primary"
+              disabled={busy || running || !path.trim()}
+              onClick={
+                /* 将模板文本交给设置中的 AI 识别，个人字段值不传给模型。 */ () =>
+                  void perform(
+                    /* 执行当前操作并接收结果。 */ async () => {
+                      openTask(
+                        await api<TemplateAnalysis>(
+                          "/templates/analyses",
+                          "POST",
+                          { path, document, items: resume.items },
+                        ),
+                      );
+                    },
+                  )
               }
             >
-              <option value="" disabled>
-                选择模板
-              </option>
-              {templates.map(
-                /* 区分整份简历与仅项目区模板。 */ (item) => (
-                  <option value={item.id} key={item.id}>
-                    {item.name}
-                    {item.kind === "projects" ? " · 项目区" : ""}
-                  </option>
-                ),
-              )}
-            </select>
-          </label>
-          <button
-            disabled={busy || running || saved?.kind !== "adaptive"}
-            onClick={
-              /* 从已保存原文与映射建立可编辑副本，不再次调用 AI。 */ () =>
-                void perform(
-                  /* 执行当前操作并接收结果。 */ async () => {
-                    openTask(
-                      await api<TemplateAnalysis>(
-                        `/templates/${savedId}/edit`,
-                        "POST",
-                      ),
-                    );
-                  },
-                )
-            }
-          >
-            调整映射
-          </button>
-          <button
-            disabled={busy || running || !saved}
-            onClick={
-              /* 直接采用已保存的模板版本。 */ () => {
-                onSelected(savedId);
-                setNotice("已用于当前简历。");
+              <Sparkles size={16} />
+              AI 识别
+            </button>
+            <div className="template-source-divider" />
+            <label>
+              已保存模板
+              <select
+                value={saved?.id ?? ""}
+                disabled={busy || running}
+                onChange={
+                  /* 选择要继续调整或使用的模板。 */ (event) =>
+                    setLibraryId(event.target.value)
+                }
+              >
+                <option value="" disabled>
+                  选择模板
+                </option>
+                {templates.map(
+                  /* 区分整份简历与仅项目区模板。 */ (item) => (
+                    <option value={item.id} key={item.id}>
+                      {item.name}
+                      {item.kind === "projects" ? " · 项目区" : ""}
+                    </option>
+                  ),
+                )}
+              </select>
+            </label>
+            <button
+              disabled={busy || running || saved?.kind !== "adaptive"}
+              onClick={
+                /* 从已保存原文与映射建立可编辑副本，不再次调用 AI。 */ () =>
+                  void perform(
+                    /* 执行当前操作并接收结果。 */ async () => {
+                      openTask(
+                        await api<TemplateAnalysis>(
+                          `/templates/${savedId}/edit`,
+                          "POST",
+                        ),
+                      );
+                    },
+                  )
               }
-            }
-          >
-            使用模板
-          </button>
-        </div>
+            >
+              调整映射
+            </button>
+            <button
+              disabled={busy || running || !saved}
+              onClick={
+                /* 直接采用已保存的模板版本。 */ () => {
+                  onSelected(savedId);
+                  setNotice("已用于当前简历。");
+                }
+              }
+            >
+              使用模板
+            </button>
+          </div>
+        </details>
         {running && (
           <div className="template-progress" role="status">
             <LoaderCircle size={17} className="template-spinner" />
@@ -386,26 +449,39 @@ export default function TemplateAdapter({
             <p>导入 .docx 后，AI 会识别姓名、联系方式、照片和各个经历栏目。</p>
             <div className="template-empty-steps">
               <span>1 · 导入并识别</span>
-              <span>2 · 点击原文调整</span>
-              <span>3 · 试填并应用</span>
+              <span>2 · 自动检查与修正</span>
+              <span>3 · 查看试填并应用</span>
             </div>
             <p className="subtle">
-              模板文字会交给设置中的 AI 分析。原文件保留；识别结果可逐项修正。
+              模板文字和图片会交给设置中的 AI
+              分析。原文件保留；识别结果可逐项修正。
             </p>
           </div>
         ) : (
           <>
-            <fieldset disabled={busy} className="template-editor-layout">
+            <fieldset
+              disabled={busy || running}
+              className="template-editor-layout"
+            >
               <div className="template-visual-panel">
                 <div className="template-canvas-toolbar">
                   <nav className="tabs" aria-label="模板视图">
+                    <button
+                      className={view === "summary" ? "active" : ""}
+                      onClick={
+                        /* 以资料和栏目概览代替底层段落清单。 */ () =>
+                          setView("summary")
+                      }
+                    >
+                      识别摘要
+                    </button>
                     <button
                       className={view === "structure" ? "active" : ""}
                       onClick={
                         /* 切回可编辑的结构视图。 */ () => setView("structure")
                       }
                     >
-                      识别结构
+                      精细调整
                     </button>
                     <button
                       className={view === "preview" ? "active" : ""}
@@ -436,7 +512,14 @@ export default function TemplateAdapter({
                     </label>
                   )}
                 </div>
-                {view === "structure" ? (
+                {view === "summary" ? (
+                  <RecognitionSummary
+                    nodes={nodes}
+                    plan={plan}
+                    review={review}
+                    onLocate={locate}
+                  />
+                ) : view === "structure" ? (
                   <>
                     <div className="template-legend">
                       {Object.entries(REGION_LABELS)
@@ -551,18 +634,77 @@ export default function TemplateAdapter({
                     }
                   />
                 </label>
-                <TemplateInspector
-                  nodes={nodes}
-                  plan={plan}
-                  document={document}
-                  selected={selected}
-                  onChange={edit}
-                  onSelect={locate}
-                  onRange={
-                    /* 将当前首节点设置为下次选择的起点。 */ () =>
-                      setRangeAnchor(selected[0])
-                  }
-                />
+                {view === "structure" && (
+                  <TemplateInspector
+                    nodes={nodes}
+                    plan={plan}
+                    document={document}
+                    selected={selected}
+                    onChange={edit}
+                    onSelect={locate}
+                    onRange={
+                      /* 将当前首节点设置为下次选择的起点。 */ () =>
+                        setRangeAnchor(selected[0])
+                    }
+                  />
+                )}
+                <div className="template-ai-assistant">
+                  <h3>
+                    <Sparkles size={18} /> AI 助手
+                  </h3>
+                  <p className="subtle">
+                    不用逐段设置。说明哪里需要调整，AI
+                    会保留正确部分并继续完善。
+                  </p>
+                  <textarea
+                    aria-label="告诉 AI 如何调整模板"
+                    value={feedback}
+                    maxLength={4000}
+                    rows={4}
+                    placeholder="例如：顶部图片是证件照；把教育经历对应到教育背景。"
+                    onChange={
+                      /* 保存用户对模板用途的文字说明。 */ (event) =>
+                        setFeedback(event.target.value)
+                    }
+                  />
+                  <button
+                    className="primary"
+                    disabled={busy || running}
+                    onClick={
+                      /* 主动继续完善当前映射。 */ () => void perform(repair)
+                    }
+                  >
+                    <Sparkles size={16} />
+                    {feedback.trim() ? "按说明调整" : "AI 继续完善"}
+                  </button>
+                  {analysis?.attempts && (
+                    <p className="subtle">
+                      已完成 {analysis.attempts} 轮识别与自动检查
+                    </p>
+                  )}
+                  {analysis?.repair_error && (
+                    <p className="template-notice">
+                      继续修正时遇到问题，已保留已有建议：
+                      {analysis.repair_error}
+                    </p>
+                  )}
+                </div>
+                {analysis?.inventory.notices?.map(
+                  /* 自动处理仅作说明，不阻止识别和试填。 */ (message) => (
+                    <p className="subtle" key={message}>
+                      {message}
+                    </p>
+                  ),
+                )}
+                {review?.notices?.map(
+                  /* 在试填前说明复杂栏目的排版调整，方便核对模板效果。 */ (
+                    message,
+                  ) => (
+                    <p className="subtle" key={message}>
+                      {message}
+                    </p>
+                  ),
+                )}
                 <details className="template-analysis-summary">
                   <summary>
                     识别说明
@@ -579,53 +721,39 @@ export default function TemplateAdapter({
                     ),
                   )}
                 </details>
-                {review && (
+                {view !== "summary" && review && (
                   <div className="template-review" aria-live="polite">
-                    {review.errors.map(
-                      /* 逐项显示需要纠正的结构错误。 */ (error, index) => (
-                        <p className="template-notice" key={index}>
-                          {error}
-                        </p>
-                      ),
-                    )}
-                    {review.unresolved.length > 0 && (
-                      <details open>
-                        <summary>
-                          待处理原文与图片 · {review.unresolved.length}
-                        </summary>
-                        {review.unresolved.map(
-                          /* 点击待处理条目定位到画布并开启右侧调整。 */ (
-                            node,
-                          ) => (
-                            <button
-                              className="template-unresolved-link"
-                              key={node.id}
-                              onClick={
-                                /* 定位并保留当前映射。 */ () => locate(node.id)
-                              }
-                            >
-                              {nodeLabel(node)}
-                            </button>
-                          ),
-                        )}
-                      </details>
-                    )}
-                    {review.ready && (
-                      <p className="template-ready">
-                        <FileCheck2 size={17} />
-                        映射完整，请试填核对内容和排版。
-                      </p>
+                    <p
+                      className={
+                        review.ready ? "template-ready" : "template-notice"
+                      }
+                    >
+                      {review.ready
+                        ? "自动检查通过，可查看试填并应用。"
+                        : "还有需要确认的内容，可让 AI 继续完善。"}
+                    </p>
+                    {!review.ready && (
+                      <button
+                        onClick={
+                          /* 返回集中问题列表，不重复显示大量段落。 */ () =>
+                            setView("summary")
+                        }
+                      >
+                        查看需要确认的内容
+                      </button>
                     )}
                   </div>
                 )}
-                <AdvancedMapping
-                  nodes={nodes}
-                  plan={plan}
-                  document={document}
-                  taskId={taskId}
-                  edit={edit}
-                  onLocate={locate}
-                />
+                {view === "structure" && (
+                  <AdvancedMapping
+                    nodes={nodes}
+                    plan={plan}
+                    document={document}
+                    taskId={taskId}
+                    edit={edit}
+                    onLocate={locate}
+                  />
+                )}
               </aside>
             </fieldset>
             <footer className="template-workspace-footer">
@@ -633,20 +761,12 @@ export default function TemplateAdapter({
                 {busy
                   ? "正在处理…"
                   : !review
-                    ? "映射已修改，请重新检查"
+                    ? "正在自动检查…"
                     : review.ready
-                      ? "全部原文已分类"
-                      : `还有 ${review.errors.length} 项问题、${review.unresolved.length} 处待处理`}
+                      ? "自动检查通过"
+                      : "部分内容需要确认，可交给 AI 继续完善"}
               </span>
               <div className="actions">
-                <button
-                  disabled={busy}
-                  onClick={
-                    /* 校验刚调整的完整方案。 */ () => void perform(check)
-                  }
-                >
-                  检查映射
-                </button>
                 <button
                   disabled={busy || !review?.ready}
                   onClick={

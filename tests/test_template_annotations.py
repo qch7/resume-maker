@@ -67,26 +67,35 @@ def test_default_annotation_parts_allow_analysis_and_filling(tmp_path):
         )
     assert Document(output).paragraphs[0].text == "新的用户资料"
     with ZipFile(source) as before, ZipFile(output) as after:
-        for kind in ("footnote", "endnote", "comment"):
+        for kind in ("footnote", "endnote"):
             part = f"word/{kind}s.xml"
             assert before.read(part) == after.read(part)
+        assert "word/comments.xml" not in after.namelist()
 
 
 @pytest.mark.parametrize("kind", ["footnote", "endnote", "comment"])
 @pytest.mark.parametrize("content", ["", "<w:p><w:r><w:t>注释中的原资料</w:t></w:r></w:p>"])
-def test_actual_annotations_are_still_reported(tmp_path, kind, content):
-    """即使注释为空或使用零编号，实际注释仍不能作为默认分隔线放行。"""
+def test_annotations_participate_in_recognition_without_blocking(tmp_path, kind, content):
+    """脚注尾注按普通文字识别，批注自动忽略，均不阻止导入。"""
     doc = Document()
     doc.add_paragraph("原姓名")
     add_annotation_part(doc, kind, f'<w:{kind} w:id="0">{content}</w:{kind}>')
     source = tmp_path / "annotations.docx"
     doc.save(source)
-    assert "脚注、尾注或批注" in "".join(TemplatePackage(source).inventory()["warnings"])
+    inventory = TemplatePackage(source).inventory()
+    assert not inventory["warnings"]
+    annotation_text = [
+        row["text"] for row in inventory["nodes"] if row["part"] != "word/document.xml"
+    ]
+    if kind == "comment":
+        assert not annotation_text and inventory["notices"]
+    elif content:
+        assert "注释中的原资料" in annotation_text
 
 
 @pytest.mark.parametrize("kind", ["footnote", "endnote"])
-def test_custom_separator_text_is_still_reported(tmp_path, kind):
-    """分隔线若被添加个人文字，也须提示处理，避免导出后遗漏原资料。"""
+def test_custom_separator_text_is_included(tmp_path, kind):
+    """分隔线中的用户文字也参与映射，防止遗漏原资料。"""
     doc = Document()
     doc.add_paragraph("原姓名")
     add_annotation_part(
@@ -97,7 +106,9 @@ def test_custom_separator_text_is_still_reported(tmp_path, kind):
     )
     source = tmp_path / "custom-separator.docx"
     doc.save(source)
-    assert "脚注、尾注或批注" in "".join(TemplatePackage(source).inventory()["warnings"])
+    inventory = TemplatePackage(source).inventory()
+    assert not inventory["warnings"]
+    assert "分隔线中的原资料" in [row["text"] for row in inventory["nodes"]]
 
 
 @pytest.mark.parametrize("tag", ["footnoteReference", "endnoteReference", "commentRangeStart"])
@@ -109,7 +120,11 @@ def test_annotation_references_without_parts_are_reported(tmp_path, tag):
     doc.add_paragraph("原姓名").add_run()._r.append(reference)
     source = tmp_path / "reference.docx"
     doc.save(source)
-    assert "脚注、尾注或批注" in "".join(TemplatePackage(source).inventory()["warnings"])
+    inventory = TemplatePackage(source).inventory()
+    if tag == "commentRangeStart":
+        assert not inventory["warnings"] and inventory["notices"]
+    else:
+        assert "内容缺失" in "".join(inventory["warnings"])
 
 
 def test_malformed_annotation_xml_reports_invalid_document(tmp_path):

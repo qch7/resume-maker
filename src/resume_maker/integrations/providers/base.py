@@ -46,6 +46,7 @@ class Provider(Protocol):
         settings: ProviderSettings,
         cancelled: threading.Event,
         emit: Callable[[str, dict], None],
+        images: list[Path] | None = None,
     ) -> T:
         """复用同一 AI 配置生成指定领域模型，用于模板映射等独立分析。"""
         ...

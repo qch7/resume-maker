@@ -12,6 +12,11 @@ from resume_maker.domain.resume import ResumeDocument
 from resume_maker.domain.templates import TemplatePlan, TextBinding
 from resume_maker.integrations.word.full_resume import displayed_entries, visible_custom_fields
 from resume_maker.integrations.word.ooxml import w
+from resume_maker.integrations.word.template_flow import (
+    effective_section,
+    flow_record,
+    requires_flow,
+)
 from resume_maker.integrations.word.template_map import (
     IMAGE_TAGS,
     NS,
@@ -336,6 +341,24 @@ def clean_resources(package: TemplatePackage):
     )
 
 
+def section_marker(properties):
+    """用空段落保存一次分节设置，使删去的内容不改变相邻区域的页面排版。"""
+    paragraph = etree.Element(w("p"))
+    etree.SubElement(paragraph, w("pPr")).append(deepcopy(properties))
+    return paragraph
+
+
+def remove_preserving_sections(node):
+    """删除旧示例时保留其分节边界，避免相邻正文继承错误的分栏或页边距。"""
+    parent = node.getparent()
+    if parent is not None:
+        position = parent.index(node)
+        for properties in node.iter(w("sectPr")):
+            parent.insert(position, section_marker(properties))
+            position += 1
+    remove_node(node)
+
+
 def fill_template(
     source: Path, output: Path, plan: TemplatePlan, content: dict, projects: list[dict]
 ):
@@ -355,7 +378,40 @@ def fill_template(
         original = package.region(region.start, region.end)
         sample = package.region(region.sample_start, region.sample_end)
         parent, position = original[0].getparent(), original[0].getparent().index(original[0])
-        for record in section_records(document, region.section, projects):
+        records = section_records(document, region.section, projects)
+        if records and requires_flow(sample):
+            leading = effective_section(original[0])
+            if leading is not None:
+                parent.insert(position, section_marker(leading))
+                position += 1
+            for record in records:
+                for node in flow_record(package, region, record, plan.keep):
+                    parent.insert(position, node)
+                    position += 1
+            if leading is not None:
+                closing = deepcopy(leading)
+                columns = closing.find(w("cols"))
+                if columns is not None:
+                    closing.remove(columns)
+                etree.SubElement(closing, w("cols")).set(w("num"), "1")
+                kind = closing.find(w("type"))
+                if kind is None:
+                    kind = etree.SubElement(closing, w("type"))
+                kind.set(w("val"), "continuous")
+                parent.insert(position, section_marker(closing))
+            for node in original:
+                parent.remove(node)
+            continue
+        has_sections = any(list(node.iter(w("sectPr"))) for node in sample)
+        # 多栏标题和单栏正文同属一条经历；每条复制结束时闭合原有连续分节。
+        trailing = (
+            next(iter(sample[-1].xpath("following::w:sectPr[1]", namespaces=NS)), None)
+            if has_sections
+            else None
+        )
+        if list(sample[-1].iter(w("sectPr"))):
+            trailing = None
+        for record in records:
             clones = [deepcopy(node) for node in sample]
             nodes = {
                 package.ids[old]: new
@@ -369,13 +425,26 @@ def fill_template(
                     bookmark.getparent().remove(bookmark)
                 parent.insert(position, clone)
                 position += 1
+            if trailing is not None:
+                marker = section_marker(trailing)
+                section_type = marker.find(".//w:sectPr/w:type", NS)
+                if section_type is None:
+                    section_type = etree.SubElement(marker.find(".//w:sectPr", NS), w("type"))
+                section_type.set(w("val"), "continuous")
+                parent.insert(position, marker)
+                position += 1
+        if not records:
+            for node in original:
+                for properties in node.iter(w("sectPr")):
+                    parent.insert(position, section_marker(properties))
+                    position += 1
         for node in original:
             parent.remove(node)
     values = personal_values(document)
     for identifier in plan.photos:
         fill_photo(package, identifier, values["personal.photo"])
     for identifier in plan.remove:
-        remove_node(package.node(identifier))
+        remove_preserving_sections(package.node(identifier))
     drawing_id = 0
     control_id = 0
     for root in package.parts.values():

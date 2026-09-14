@@ -13,8 +13,8 @@ from resume_maker.api.schemas import (
     PathInput,
     TemplateAnalysisInput,
     TemplateInput,
-    TemplateMappingInput,
     TemplatePreviewInput,
+    TemplateRepairInput,
 )
 from resume_maker.core.errors import Problem
 from resume_maker.integrations.word.ooxml import inspect_template
@@ -38,7 +38,7 @@ def import_template(services: ServicesDep, body: TemplateInput):
 @router.post("/templates/analyses")
 def analyze_template(services: ServicesDep, body: TemplateAnalysisInput):
     """启动可取消的模板语义分析，立即返回独立任务标识。"""
-    return services.templates.analyze(Path(body.path), body.document)
+    return services.templates.analyze(Path(body.path), body.document, body.items)
 
 
 @router.post("/templates/{template_id}/edit")
@@ -60,9 +60,17 @@ def cancel_analysis(services: ServicesDep, analysis_id: str):
 
 
 @router.post("/templates/analyses/{analysis_id}/review")
-def review_mapping(services: ServicesDep, analysis_id: str, body: TemplateMappingInput):
+def review_mapping(services: ServicesDep, analysis_id: str, body: TemplatePreviewInput):
     """重新验证修改后的字段与区域，返回仍需处理的具体内容。"""
-    return services.templates.review(analysis_id, body.plan)
+    return services.templates.review(analysis_id, body.plan, body.document, body.items)
+
+
+@router.post("/templates/analyses/{analysis_id}/repair")
+def repair_mapping(services: ServicesDep, analysis_id: str, body: TemplateRepairInput):
+    """让 AI 根据当前方案、校验问题和用户文字说明继续完善。"""
+    return services.templates.repair(
+        analysis_id, body.plan, body.document, body.items, body.feedback
+    )
 
 
 @router.get("/templates/analyses/{analysis_id}/images/{node_id}")

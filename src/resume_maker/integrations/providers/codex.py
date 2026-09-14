@@ -117,6 +117,7 @@ class CodexProvider:
         settings: ProviderSettings,
         cancelled: threading.Event,
         emit: Callable[[str, dict], None],
+        images: list[Path] | None = None,
     ) -> T:
         """以只读沙箱调用 Codex，解析 JSON 事件并处理超时、取消和进程回收。"""
         workspace.mkdir(parents=True, exist_ok=True)
@@ -140,6 +141,8 @@ class CodexProvider:
             command += ["--model", settings.model]
         if settings.profile:
             command += ["--profile", settings.profile]
+        for image in images or []:
+            command += ["--image", str(image)]
         if thread_id:
             command += ["resume", thread_id]
         command.append("-")

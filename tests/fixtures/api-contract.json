@@ -1478,7 +1478,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TemplateMappingInput"
+                "$ref": "#/components/schemas/TemplatePreviewInput"
               }
             }
           }
@@ -1738,6 +1738,51 @@
             }
           },
           "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/templates/analyses/{analysis_id}/repair": {
+      "post": {
+        "parameters": [
+          {
+            "name": "analysis_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Analysis Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TemplateRepairInput"
+              }
+            }
+          }
         },
         "responses": {
           "200": {
@@ -2591,6 +2636,13 @@
         },
         "document": {
           "$ref": "#/components/schemas/ResumeDocument"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/components/schemas/ResumeItem"
+          },
+          "type": "array",
+          "title": "Items"
         }
       },
       "additionalProperties": false,
@@ -2601,20 +2653,6 @@
       ],
       "title": "TemplateAnalysisInput",
       "description": "分析本机模板，同时提供当前栏目的名称供语义匹配，不发送个人字段值。"
-    },
-    "TemplateMappingInput": {
-      "properties": {
-        "plan": {
-          "$ref": "#/components/schemas/TemplatePlan"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "plan"
-      ],
-      "title": "TemplateMappingInput",
-      "description": "用户核对或修改后的声明式映射。"
     },
     "TemplatePlan": {
       "properties": {
@@ -2770,6 +2808,38 @@
       ],
       "title": "PathPickerInput",
       "description": "选择本机文件或文件夹，已有路径仅用于设置窗口初始位置。"
+    },
+    "TemplateRepairInput": {
+      "properties": {
+        "plan": {
+          "$ref": "#/components/schemas/TemplatePlan"
+        },
+        "document": {
+          "$ref": "#/components/schemas/ResumeDocument"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/components/schemas/ResumeItem"
+          },
+          "type": "array",
+          "title": "Items"
+        },
+        "feedback": {
+          "type": "string",
+          "maxLength": 4000,
+          "title": "Feedback",
+          "default": ""
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "plan",
+        "document",
+        "items"
+      ],
+      "title": "TemplateRepairInput",
+      "description": "基于当前方案与用户说明重新补全映射，保留原分析副本。"
     }
   }
 }

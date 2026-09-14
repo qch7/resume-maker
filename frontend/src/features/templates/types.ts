@@ -34,6 +34,9 @@ export interface MappingReview {
   ready: boolean;
   errors: string[];
   unresolved: TemplateNode[];
+  issues?: { message: string; nodes: string[] }[];
+  missing?: string[];
+  notices?: string[];
 }
 export interface TemplateAnalysis {
   id: string;
@@ -41,7 +44,9 @@ export interface TemplateAnalysis {
   status: "running" | "completed" | "failed" | "cancelled";
   activity: string;
   error: string | null;
-  inventory: { nodes: TemplateNode[]; warnings: string[] };
+  inventory: { nodes: TemplateNode[]; warnings: string[]; notices?: string[] };
   plan: TemplatePlan | null;
   review: MappingReview | null;
+  attempts?: number;
+  repair_error?: string | null;
 }

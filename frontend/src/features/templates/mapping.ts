@@ -73,7 +73,11 @@ export function nodeLabel(node: TemplateNode) {
     ? "页眉"
     : node.part.includes("footer")
       ? "页脚"
-      : "正文";
+      : node.part.includes("footnotes")
+        ? "脚注"
+        : node.part.includes("endnotes")
+          ? "尾注"
+          : "正文";
   const kind =
     node.kind === "tr"
       ? "表格行"

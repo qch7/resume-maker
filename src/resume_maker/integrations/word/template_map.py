@@ -12,6 +12,7 @@ from resume_maker.core.errors import Problem
 from resume_maker.domain.resume import PersonalInfo
 from resume_maker.domain.templates import TemplatePlan, TextBinding
 from resume_maker.integrations.word.ooxml import NS, w
+from resume_maker.integrations.word.template_prepare import prepare_parts, system_note
 
 NS = {
     **NS,
@@ -21,7 +22,7 @@ NS = {
 }
 IMAGE_TAGS = {f"{{{NS['a']}}}blip", f"{{{NS['v']}}}imagedata"}
 BLOCK_TAGS = {w("p"), w("tbl"), w("tr")}
-ANNOTATION_PARTS = {"word/footnotes.xml", "word/endnotes.xml", "word/comments.xml"}
+NOTE_PARTS = {"word/footnotes.xml", "word/endnotes.xml"}
 PERSONAL_TARGETS = {f"personal.{field}" for field in PersonalInfo.model_fields} - {
     "personal.hidden_fields",
     "personal.photo",
@@ -73,19 +74,6 @@ def can_insert(paragraph) -> bool:
     return True
 
 
-def has_annotations(root) -> bool:
-    """忽略 Word 自动生成的注释分隔线，实际注释及分隔线中的自定义内容仍须处理。"""
-    for node in root:
-        if node.tag == w("comment") or (
-            node.tag in {w("footnote"), w("endnote")}
-            and node.get(w("type")) not in {"separator", "continuationSeparator"}
-        ):
-            return True
-        if node.xpath(".//w:t | .//w:drawing | .//w:pict | .//w:object", namespaces=NS):
-            return True
-    return False
-
-
 def quote_range(text: str, binding: TextBinding) -> tuple[int, int]:
     """定位指定次出现的精确引文，拒绝猜测或模糊匹配。"""
     if not binding.quote:
@@ -106,7 +94,7 @@ class TemplatePackage:
     def __init__(self, path: Path | BytesIO):
         """限制包大小并禁用 XML 外部实体，给结构和图片分配稳定标识。"""
         self.parts, self.nodes, self.locations, self.ids = {}, {}, {}, {}
-        self.annotations = []
+        self.notices = []
         try:
             with ZipFile(path) as archive:
                 if sum(item.file_size for item in archive.infolist()) > 100_000_000:
@@ -115,22 +103,23 @@ class TemplatePackage:
                 if "word/document.xml" not in names or len(set(names)) != len(names):
                     raise Problem("文件不是有效的 DOCX 模板。")
                 self.files = {name: archive.read(name) for name in names}
+            self.notices = prepare_parts(self.files)
             for name in sorted(self.files):
-                if name in ANNOTATION_PARTS:
-                    self.annotations.append(
-                        etree.fromstring(
-                            self.files[name],
-                            etree.XMLParser(resolve_entities=False, no_network=True),
-                        )
-                    )
-                if name == "word/document.xml" or (
+                if name in NOTE_PARTS | {"word/document.xml"} or (
                     name.startswith(("word/header", "word/footer")) and name.endswith(".xml")
                 ):
                     root = etree.fromstring(
                         self.files[name], etree.XMLParser(resolve_entities=False, no_network=True)
                     )
+                    if name in NOTE_PARTS and all(system_note(child) for child in root):
+                        continue
                     self.parts[name] = root
                     for node in root.iter():
+                        if name in NOTE_PARTS and (
+                            system_note(node)
+                            or any(system_note(parent) for parent in node.iterancestors())
+                        ):
+                            continue
                         identifier = f"n{len(self.nodes) + 1}"
                         self.nodes[identifier] = node
                         self.ids[node] = identifier
@@ -196,20 +185,20 @@ class TemplatePackage:
             codes = root.xpath(".//w:instrText/text() | .//w:fldSimple/@w:instr", namespaces=NS)
             if any(code.strip().upper() not in {"PAGE", "NUMPAGES"} for code in codes):
                 warnings.append("模板含动态域，请先在 Word 中将页码以外的域转换为普通文字。")
-        if any(has_annotations(root) for root in self.annotations) or any(
-            root.xpath(
-                ".//w:footnoteReference | .//w:endnoteReference | "
-                ".//w:commentReference | .//w:commentRangeStart | .//w:commentRangeEnd",
-                namespaces=NS,
-            )
-            for root in self.parts.values()
-        ):
-            warnings.append("模板含脚注、尾注或批注，须先整理到正文或删除后再适配。")
+        for kind in ("footnote", "endnote"):
+            note_root = self.parts.get(f"word/{kind}s.xml")
+            note_ids = {node.get(w("id")) for node in note_root} if note_root is not None else set()
+            if any(
+                node.get(w("id")) not in note_ids
+                for root in self.parts.values()
+                for node in root.iter(w(f"{kind}Reference"))
+            ):
+                warnings.append("文档的脚注或尾注内容缺失，请在 Word 中修复引用后重试。")
         if not any(row["kind"] == "p" and row["text"].strip() for row in rows):
             warnings.append("没有可编辑文字，图片形式的简历须先转换为可编辑 DOCX。")
         if len(rows) > 2000 or sum(len(row["text"]) for row in rows) > 100000:
             raise Problem("模板内容过多，请只保留简历页面后再分析。")
-        return {"nodes": rows, "warnings": list(dict.fromkeys(warnings))}
+        return {"nodes": rows, "warnings": list(dict.fromkeys(warnings)), "notices": self.notices}
 
     def node(self, identifier: str):
         """只解析清单中实际存在的节点，拒绝模型生成的路径或外部引用。"""
@@ -249,8 +238,12 @@ class TemplatePackage:
         nodes = list(parent)[left : right + 1]
         if any(node.tag not in BLOCK_TAGS for node in nodes):
             raise Problem("重复区域只能包含段落、表格或表格行。")
-        if any(node.xpath(".//w:sectPr", namespaces=NS) for node in nodes):
-            raise Problem("重复区域不能跨越分节符，请缩小范围。")
+        if any(
+            section.find(w("type")) is None or section.find(w("type")).get(w("val")) != "continuous"
+            for node in nodes
+            for section in node.iter(w("sectPr"))
+        ):
+            raise Problem("重复区域跨越分页分节，请只选择同一连续排版中的条目。")
         return nodes
 
     def descendants(self, nodes: list) -> set[str]:
@@ -288,25 +281,43 @@ class TemplatePackage:
         return set(intervals)
 
     def review(self, plan: TemplatePlan) -> dict:
-        """阻止重叠区域和未分类原文通过确认，固定文字必须明确列为保留。"""
+        """逐项检查全部映射，单处错误不影响其他区域的覆盖统计和定位。"""
         inventory = self.inventory()
         errors = list(inventory["warnings"])
+        issues = [{"message": message, "nodes": []} for message in errors]
         covered, occupied = set(), set()
+
+        def report(message, identifiers):
+            """记录可定位的问题，继续检查其他独立映射。"""
+            errors.append(message)
+            issues.append(
+                {"message": message, "nodes": [i for i in identifiers if i in self.nodes]}
+            )
+
+        for identifiers in (plan.photos, plan.keep, plan.remove):
+            if len(identifiers) != len(set(identifiers)):
+                report("照片、保留项或删除项中存在重复位置。", identifiers)
+        conflicts = set(plan.keep) & (set(plan.photos) | set(plan.remove))
+        if conflicts:
+            report("同一位置不能同时保留和替换或删除。", conflicts)
+        # 已声明的区域即使需要修正，也不重复统计为尚未识别；错误仍会阻止导出。
+        covered.update(field.node for field in plan.fields if field.node in self.nodes)
         try:
-            for identifiers in (plan.photos, plan.keep, plan.remove):
-                if len(identifiers) != len(set(identifiers)):
-                    raise Problem("照片、保留项或删除项中存在重复位置。")
-            if set(plan.keep) & (set(plan.photos) | set(plan.remove)):
-                raise Problem("同一位置不能同时保留和替换或删除。")
-            covered |= self.validate_fields(plan.fields)
-            for repeat in plan.repeats:
+            self.validate_fields(plan.fields)
+        except Problem as exc:
+            report(str(exc), [field.node for field in plan.fields])
+        for repeat in plan.repeats:
+            try:
                 region = self.region(repeat.start, repeat.end)
+                ids = self.descendants(region)
+                overlap = ids & (occupied | covered)
+                covered |= ids
+                occupied |= ids
+                if overlap:
+                    raise Problem("重复区域之间或与独立字段发生重叠。")
                 sample = self.region(repeat.sample_start, repeat.sample_end)
                 if any(node not in region for node in sample):
                     raise Problem("样式样本必须包含在重复区域内。")
-                ids = self.descendants(region)
-                if ids & (occupied | covered):
-                    raise Problem("重复区域之间或与独立字段发生重叠。")
                 mapped = self.validate_fields(repeat.fields, local=True)
                 if not mapped <= self.descendants(sample):
                     raise Problem("重复字段必须位于所选样式样本内。")
@@ -322,42 +333,53 @@ class TemplatePackage:
                     for child in node.iter()
                     if child.tag in IMAGE_TAGS
                 }
-                if sample_content - mapped - set(plan.keep):
-                    raise Problem(
-                        "重复样本含未映射文字或图片，请映射内容或明确保留固定标签及装饰。"
+                missing = sample_content - mapped - set(plan.keep)
+                if missing:
+                    report(
+                        "重复样本含未映射文字或图片，请补充映射或确认固定标签。", sorted(missing)
                     )
-                covered |= ids
-                occupied |= ids
-            for identifier in plan.photos:
+            except Problem as exc:
+                report(str(exc), [repeat.sample_start, repeat.start])
+        for identifier in plan.photos:
+            covered.add(identifier)
+            try:
                 if self.node(identifier).tag not in IMAGE_TAGS or identifier in occupied:
                     raise Problem("照片位置无效或位于重复区域内。")
                 container = image_container(self.node(identifier))
                 if any(paragraph_text(p).strip() for p in container.iter(w("p"))):
                     raise Problem("照片与文字位于同一个组合绘图，请先在 Word 中取消组合。")
-                covered.add(identifier)
-            for identifier in plan.remove:
+            except Problem as exc:
+                report(str(exc), [identifier])
+        for identifier in plan.remove:
+            try:
                 node = self.node(identifier)
                 if node.tag not in BLOCK_TAGS | IMAGE_TAGS:
                     raise Problem("删除项须为文字区域或图片。")
                 ids = self.descendants([image_container(node) if node.tag in IMAGE_TAGS else node])
-                if ids & (covered | set(plan.keep)):
-                    raise Problem("删除项与替换区域重叠。")
-                if node.xpath(".//w:sectPr", namespaces=NS):
-                    raise Problem("删除项包含分节设置。")
+                overlap = ids & (covered | set(plan.keep))
                 covered |= ids
-            for identifier in plan.keep:
-                node = self.node(identifier)
-                if node.tag not in {w("p")} | IMAGE_TAGS:
+                if overlap:
+                    raise Problem("删除项与替换区域重叠。")
+            except Problem as exc:
+                report(str(exc), [identifier])
+        for identifier in plan.keep:
+            covered.add(identifier)
+            try:
+                if self.node(identifier).tag not in {w("p")} | IMAGE_TAGS:
                     raise Problem("请逐段确认固定文字，不能将整个表格直接标为保留。")
-                covered.add(identifier)
-        except Problem as exc:
-            errors.append(str(exc))
+            except Problem as exc:
+                report(str(exc), [identifier])
         unresolved = [
             row
             for row in inventory["nodes"]
             if row["id"] not in covered and row["kind"] in {"p", "image"} and row["text"].strip()
         ]
-        return {"errors": errors, "unresolved": unresolved, "ready": not errors and not unresolved}
+        return {
+            "errors": list(dict.fromkeys(errors)),
+            "issues": issues,
+            "unresolved": unresolved,
+            "ready": not errors and not unresolved,
+        }
 
     def write(self, output: Path):
         """重写已修改的 XML 部件，其他样式、页设置和资源保持原样。"""

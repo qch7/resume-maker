@@ -190,7 +190,11 @@ export default function TemplateCanvas(props: Props) {
                   ? "页眉"
                   : part.includes("footer")
                     ? "页脚"
-                    : "正文"}
+                    : part.includes("footnotes")
+                      ? "脚注"
+                      : part.includes("endnotes")
+                        ? "尾注"
+                        : "正文"}
                 <span>{index + 1}</span>
               </div>
               {(tree.get(part) ?? []).map(renderNode)}

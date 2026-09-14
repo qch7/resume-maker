@@ -96,6 +96,7 @@ class TemplateAnalysisInput(Model):
 
     path: str
     document: ResumeDocument
+    items: list[ResumeItem] = Field(default_factory=list)
 
 
 class TemplateMappingInput(Model):
@@ -117,6 +118,12 @@ class TemplatePreviewInput(TemplateMappingInput):
 
     document: ResumeDocument
     items: list[ResumeItem]
+
+
+class TemplateRepairInput(TemplatePreviewInput):
+    """基于当前方案与用户说明重新补全映射，保留原分析副本。"""
+
+    feedback: str = Field(default="", max_length=4000)
 
 
 class RevealSourceInput(Model):

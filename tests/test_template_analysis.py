@@ -260,6 +260,13 @@ def test_template_image_preview_is_embedded_and_authenticated(tmp_path):
         task = service.analyze(source, simple_document())
         result = completed(service, task["id"])
         image_id = next(row["id"] for row in result["inventory"]["nodes"] if row["kind"] == "image")
+        image_input = service.provider.calls[0]["images"]
+        assert image_input and image_input[0].read_bytes().startswith(b"\x89PNG")
+        assert image_input[0].parent == service.source(task["id"]).parent
+        assert (
+            image_id
+            in json.loads(service.provider.calls[0]["prompt"].split("\n")[-1])["visible_images"]
+        )
         prefix = f"/api/templates/analyses/{task['id']}/images/"
         assert client.get(prefix + image_id).status_code == 401
         response = client.get(prefix + image_id, headers={"x-resume-token": "test"})
