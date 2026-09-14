@@ -17,7 +17,6 @@ import type {
 } from "../../shared/types";
 import { buildLivePreview } from "./livePreview";
 import { newDocument } from "../profile/document";
-import { templateForDocument } from "../templates/mapping";
 import { entryComposition } from "../profile/entry";
 import { personalComposition } from "../profile/personal";
 import {
@@ -320,7 +319,7 @@ export function useResumeComposition({
     savingResume.current = true;
     try {
       const submitted = personalComposition(
-        { ...draft, template_id: templateForDocument(draft, state.templates) },
+        draft,
         state.resumes.find(
           /* 只读取当前方案已经保存的栏目和项目引用。 */ (resume) =>
             resume.id === draft.id,
@@ -355,7 +354,7 @@ export function useResumeComposition({
     savingResume.current = true;
     try {
       const submitted = entryComposition(
-        { ...draft, template_id: templateForDocument(draft, state.templates) },
+        draft,
         state.resumes.find(
           /* 从已保存方案中读取其他资料。 */ (resume) => resume.id === draft.id,
         ),

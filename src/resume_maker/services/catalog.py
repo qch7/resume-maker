@@ -43,6 +43,16 @@ class Catalog:
             raise Problem("经历版本不属于该项目。", 409)
         return row
 
+    def template(self, template_id: str) -> dict:
+        """只允许引用具有完整映射的模板，失效引用由用户重新选择或识别。"""
+        return need(
+            self.db.one(
+                "SELECT * FROM templates WHERE id=? AND json_type(mapping_json,'$.plan')='object'",
+                (template_id,),
+            ),
+            "完整简历模板不可用，请重新选择模板或导入 Word 进行 AI 识别。",
+        )
+
     def create_project(self, name: str, roots: list[str]) -> dict:
         """规范化来源并去重登记项目，同时建立初始经历和独立会话。"""
         roots = list(dict.fromkeys(str(Path(p).expanduser().resolve(strict=True)) for p in roots))
@@ -398,7 +408,7 @@ class Catalog:
                 raise Problem("亮点不能重复。")
             seen.add(item.project_id)
         if template_id:
-            need(self.db.one("SELECT id FROM templates WHERE id=?", (template_id,)), "模板不存在")
+            self.template(template_id)
         resume_id = resume_id or uid()
         with self.db.transaction() as conn:
             if conn.execute(

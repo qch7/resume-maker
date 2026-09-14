@@ -29,7 +29,6 @@ import Composer from "../features/resumes/Composer";
 import ProfileEditor from "../features/profile/ProfileEditor";
 import SectionOrganizer from "../features/profile/SectionOrganizer";
 import { newDocument } from "../features/profile/document";
-import { templateForDocument } from "../features/templates/mapping";
 import {
   NEW_RESUME,
   useResumeComposition,
@@ -884,10 +883,6 @@ export default function App() {
                     ) => ({
                       ...current,
                       document,
-                      template_id: templateForDocument(
-                        current,
-                        state.templates,
-                      ),
                     }),
                   )
               }
@@ -906,10 +901,6 @@ export default function App() {
                     /* 保留栏目编辑期间的其他简历设置。 */ (current) => ({
                       ...current,
                       document,
-                      template_id: templateForDocument(
-                        current,
-                        state.templates,
-                      ),
                     }),
                   )
               }

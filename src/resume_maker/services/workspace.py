@@ -32,9 +32,8 @@ class Workspace:
                 "(SELECT resume_id FROM resume_deletions) ORDER BY updated_at DESC"
             ),
             "templates": self.db.all(
-                "SELECT id,name,created_at,CASE WHEN json_type(mapping_json,'$.plan')='object' "
-                "THEN 'adaptive' ELSE 'projects' END AS kind "
-                "FROM templates ORDER BY created_at DESC"
+                "SELECT id,name,created_at FROM templates "
+                "WHERE json_type(mapping_json,'$.plan')='object' ORDER BY created_at DESC"
             ),
             "jobs": self.db.all(
                 "SELECT id,project_id,conversation_id,kind,status,error,created_at,finished_at "

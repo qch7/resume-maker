@@ -7,17 +7,15 @@ import {
   siblings,
 } from "./document";
 
-/** 展示当前可见资料和栏目层级，保留项目区交互；模板实际版式以导出预览为准。 */
+/** 展示当前可见资料和栏目层级，保留项目排序交互；实际版式见模板预览。 */
 export default function ResumePreview({
   draft,
   projects,
-  projectsOnly,
 }: {
   draft: Resume;
   projects: ReactNode;
-  projectsOnly: boolean;
 }) {
-  const content = projectsOnly ? null : draft.document;
+  const content = draft.document;
   if (!content)
     return (
       <div className="resume-paper">

@@ -1,8 +1,4 @@
-import type {
-  Resume,
-  ResumeDocument,
-  Template,
-} from "../../shared/types/index.ts";
+import type { ResumeDocument } from "../../shared/types/index.ts";
 import type { TemplateNode, TextBinding } from "./types.ts";
 
 export const PERSONAL_LABELS: Record<string, string> = {
@@ -28,16 +24,6 @@ export const ENTRY_LABELS: Record<string, string> = {
   highlights: "选中亮点",
   custom_fields: "自定义信息",
 };
-
-/** 完整模板随资料编辑保留，手动项目区模板继续按原规则切换至内置排版。 */
-export function templateForDocument(resume: Resume, templates: Template[]) {
-  return templates.find(
-    /* 读取当前选择的模板类型。 */ (template) =>
-      template.id === resume.template_id,
-  )?.kind === "projects"
-    ? null
-    : resume.template_id;
-}
 
 /** 生成用户当前可以映射的资料字段和栏目标题名称。 */
 export function personalTargets(document: ResumeDocument) {

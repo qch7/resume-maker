@@ -69,15 +69,6 @@ class ResumeInput(Model):
     document: ResumeDocument | None = None
 
 
-class TemplateInput(Model):
-    """本机模板路径及半开区间形式的经历替换范围。"""
-
-    path: str
-    name: str = ""
-    start: int
-    end: int
-
-
 class PreviewProject(ResumeItem):
     """预览可覆盖经历工作副本，但固定修订仍必须属于对应项目。"""
 
@@ -88,7 +79,7 @@ class ResumePreviewInput(Model):
     """当前模板和未保存资料的临时排版请求，不带简历保存或发布操作。"""
 
     template_id: str
-    document: ResumeDocument | None = None
+    document: ResumeDocument
     items: list[PreviewProject]
 
 

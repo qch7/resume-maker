@@ -115,9 +115,10 @@ def test_analysis_snapshot_save_restart_and_export(tmp_path, monkeypatch):
         saved = client.post(prefix + "/save", json={**body, "name": "完整模板"}, headers=headers)
         assert saved.status_code == 200
         template_id = saved.json()["id"]
-        assert (
-            client.get("/api/state", headers=headers).json()["templates"][0]["kind"] == "adaptive"
-        )
+        listed = client.get("/api/state", headers=headers).json()["templates"]
+        assert listed == [
+            {"id": template_id, "name": "完整模板", "created_at": saved.json()["created_at"]}
+        ]
         resume = app.state.services.catalog.save_resume(
             "试填简历",
             template_id,

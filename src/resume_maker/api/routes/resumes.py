@@ -15,7 +15,7 @@ def preview_resume(services: ServicesDep, body: ResumePreviewInput):
     """在当前模板中渲染未保存资料，仅生成临时预览，不创建简历或导出记录。"""
     return services.resume_previews.render(
         body.template_id,
-        body.document.model_dump() if body.document else None,
+        body.document.model_dump(),
         [item.model_dump() for item in body.items],
     )
 
@@ -49,7 +49,7 @@ def save_resume(services: ServicesDep, resume_id: str, body: ResumeInput):
 
 @router.post("/resumes/{resume_id}/exports")
 def export(services: ServicesDep, resume_id: str):
-    """读取固定版本组合，替换模板经历区并保存 DOCX、预览和追溯清单。"""
+    """读取固定版本组合，生成完整简历 Word、预览和追溯清单。"""
     return services.documents.export(resume_id)
 
 

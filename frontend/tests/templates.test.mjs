@@ -3,10 +3,7 @@ import assert from "node:assert/strict";
 import { newDocument } from "../src/features/profile/document.ts";
 import { personalComposition } from "../src/features/profile/personal.ts";
 import { entryComposition } from "../src/features/profile/entry.ts";
-import {
-  templateForDocument,
-  personalTargets,
-} from "../src/features/templates/mapping.ts";
+import { personalTargets } from "../src/features/templates/mapping.ts";
 
 test("完整模板在个人资料及栏目单独保存后继续生效", /* 验证资料编辑不会悄悄切回内置排版。 */ () => {
   const document = newDocument();
@@ -31,27 +28,13 @@ test("完整模板在个人资料及栏目单独保存后继续生效", /* 验�
     items: [],
   };
   const draft = structuredClone(saved);
-  const templates = [
-    { id: "adaptive", kind: "adaptive" },
-    { id: "manual", kind: "projects" },
-  ];
   draft.document.personal.name = "新姓名";
-  draft.template_id = templateForDocument(draft, templates);
   assert.equal(personalComposition(draft, saved).template_id, "adaptive");
   assert.equal(
     entryComposition(draft, saved, document.sections[0].id, "entry")
       .template_id,
     "adaptive",
   );
-  assert.equal(
-    templateForDocument({ ...draft, template_id: "manual" }, templates),
-    null,
-  );
-  assert.equal(
-    templateForDocument({ ...draft, template_id: null }, templates),
-    null,
-  );
-  assert.equal(templateForDocument(draft, []), "adaptive");
 });
 
 test("映射选项包括当前自定义信息和所有栏目标题", /* 栏目和个人自定义资料可以参与整份模板替换。 */ () => {

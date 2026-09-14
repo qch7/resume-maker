@@ -5,7 +5,6 @@ from pathlib import Path
 from zipfile import ZipFile
 
 import pytest
-from docx import Document
 from fastapi.testclient import TestClient
 from test_template_mapping import make_template, resume_content
 
@@ -108,21 +107,16 @@ def test_current_template_uses_unsaved_content_without_publishing(
     assert len(calls) == 3
 
 
-def test_project_template_preview_matches_formal_export(
+def test_complete_template_preview_matches_formal_export(
     preview, catalog, project, populated, tmp_path, monkeypatch
 ):
-    """手动项目区模板的预览与正式导出具有相同 XML 和包内容。"""
+    """完整模板的预览与正式导出具有相同内容和版式，关闭只回收临时预览。"""
     service, _ = preview
-    source = tmp_path / "manual.docx"
-    doc = Document()
-    for text in ("保留的抬头", "旧项目", "旧说明", "保留的页尾"):
-        doc.add_paragraph(text)
-    doc.save(source)
     documents = Documents(catalog, tmp_path / "data")
-    template = documents.import_template(source, "manual", 1, 3)
+    document = resume_content()
     item = ResumeItem(project_id=project["id"], revision_id=populated["id"], highlight_ids=["two"])
-    result = service.render(template["id"], None, [item.model_dump()])
-    resume = catalog.save_resume("固定方案", template["id"], [item])
+    result = service.render("mapped", document.model_dump(), [item.model_dump()])
+    resume = catalog.save_resume("固定方案", "mapped", [item], document=document)
     monkeypatch.setattr(
         "resume_maker.services.documents.render_word", lambda *_: (None, "No renderer")
     )
@@ -136,7 +130,7 @@ def test_project_template_preview_matches_formal_export(
     workspace = Path(service.directory.name)
     service.stop()
     assert not workspace.exists()
-    assert (tmp_path / "data/templates" / template["id"] / "template.docx").is_file()
+    assert (tmp_path / "data/templates/mapped/template.docx").is_file()
     assert (tmp_path / "data/exports" / exported["id"] / "resume.docx").is_file()
 
 
@@ -162,7 +156,7 @@ def test_rejects_invalid_references_and_changed_template(preview, project, popul
     service, calls = preview
     doc = resume_content().model_dump()
     item = {"project_id": project["id"], "revision_id": populated["id"], "highlight_ids": ["one"]}
-    with pytest.raises(Problem, match="不存在"):
+    with pytest.raises(Problem, match="不可用"):
         service.render("missing", doc, [])
     for invalid in (
         [item, item],

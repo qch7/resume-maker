@@ -208,7 +208,6 @@ export interface ResumeDocument {
 export interface Template {
   id: string;
   name: string;
-  kind: "adaptive" | "projects";
   created_at: string;
 }
 export interface State {
@@ -232,10 +231,4 @@ export interface ProviderSettings {
   model: string;
   profile: string;
   timeout_seconds: number;
-}
-export interface Inspection {
-  paragraphs: { index: number; text: string; has_section: boolean }[];
-  suggested_start: number | null;
-  suggested_end: number | null;
-  file_name: string;
 }

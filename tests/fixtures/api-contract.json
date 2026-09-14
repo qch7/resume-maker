@@ -1196,74 +1196,6 @@
         }
       }
     },
-    "/api/templates/inspect": {
-      "post": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PathInput"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/templates": {
-      "post": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TemplateInput"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/settings": {
       "get": {
         "responses": {
@@ -2326,36 +2258,6 @@
       "title": "SaveInput",
       "description": "发布或恢复经历的请求，携带所属分支预期头版本防止并发覆盖。"
     },
-    "TemplateInput": {
-      "properties": {
-        "path": {
-          "type": "string",
-          "title": "Path"
-        },
-        "name": {
-          "type": "string",
-          "title": "Name",
-          "default": ""
-        },
-        "start": {
-          "type": "integer",
-          "title": "Start"
-        },
-        "end": {
-          "type": "integer",
-          "title": "End"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "path",
-        "start",
-        "end"
-      ],
-      "title": "TemplateInput",
-      "description": "本机模板路径及半开区间形式的经历替换范围。"
-    },
     "ValidationError": {
       "properties": {
         "loc": {
@@ -3143,14 +3045,7 @@
           "title": "Template Id"
         },
         "document": {
-          "anyOf": [
-            {
-              "$ref": "#/components/schemas/ResumeDocument"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/components/schemas/ResumeDocument"
         },
         "items": {
           "items": {
@@ -3164,6 +3059,7 @@
       "type": "object",
       "required": [
         "template_id",
+        "document",
         "items"
       ],
       "title": "ResumePreviewInput",

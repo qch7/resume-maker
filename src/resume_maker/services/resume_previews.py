@@ -8,7 +8,6 @@ from resume_maker.core.errors import Problem, need
 from resume_maker.domain.templates import TemplatePlan
 from resume_maker.infrastructure.database import dump, uid
 from resume_maker.integrations.sources import digest
-from resume_maker.integrations.word.project_template import fill_project_template
 from resume_maker.integrations.word.rendering import render_word
 from resume_maker.integrations.word.template_fill import fill_template
 
@@ -26,10 +25,9 @@ class ResumePreviews:
 
     def render(self, template_id, document, items):
         """使用当前资料和可选经历工作副本试填，固定版本仅核验归属而不被修改。"""
-        template = need(
-            self.catalog.db.one("SELECT * FROM templates WHERE id=?", (template_id,)),
-            "模板不存在，请重新选择。",
-        )
+        template = self.catalog.template(template_id)
+        if document is None:
+            raise Problem("请先填写个人资料和栏目。")
         source = self.data_dir / "templates" / template_id / "template.docx"
         data = source.read_bytes()
         if digest(data) != template["hash"]:
@@ -62,18 +60,13 @@ class ResumePreviews:
             directory.mkdir()
             snapshot, output = directory / "template.docx", directory / "resume.docx"
             snapshot.write_bytes(data)
-            if "plan" in template["mapping"]:
-                if document is None:
-                    raise Problem("请先填写个人资料和栏目。")
-                fill_template(
-                    snapshot,
-                    output,
-                    TemplatePlan.model_validate(template["mapping"]["plan"]),
-                    document,
-                    projects,
-                )
-            else:
-                fill_project_template(snapshot, output, projects)
+            fill_template(
+                snapshot,
+                output,
+                TemplatePlan.model_validate(template["mapping"]["plan"]),
+                document,
+                projects,
+            )
             pages, error = render_word(output, directory / "resume.pdf")
             result = {"id": identifier, "pages": pages, "render_error": error}
             self.results[identifier] = result

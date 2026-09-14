@@ -8,7 +8,6 @@ import PrintedPage from "../resumes/PrintedPage";
 import TemplateProgress from "./TemplateProgress";
 import RecognitionSummary from "./RecognitionSummary";
 import AdvancedMapping from "./AdvancedMapping";
-import ManualTemplate from "./ManualTemplate";
 import TemplateCanvas from "./TemplateCanvas";
 import TemplateInspector from "./TemplateInspector";
 import { REGION_LABELS, siblingRange } from "./visual";
@@ -54,7 +53,6 @@ export default function TemplateAdapter({
     "summary",
   );
   const [filter, setFilter] = useState<"all" | "unresolved">("all");
-  const [mode, setMode] = useState<"adaptive" | "manual">("adaptive");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [feedback, setFeedback] = useState("");
@@ -351,28 +349,8 @@ export default function TemplateAdapter({
             导入 Word，AI 自动识别、检查和修正，直接查看当前资料的试填效果。
           </p>
         </div>
-        <nav className="tabs" aria-label="模板模式">
-          <button
-            className={mode === "adaptive" ? "active" : ""}
-            onClick={
-              /* 返回完整模板编辑，保留手动工具状态。 */ () =>
-                setMode("adaptive")
-            }
-          >
-            完整简历适配
-          </button>
-          <button
-            className={mode === "manual" ? "active" : ""}
-            onClick={/* 打开仅替换项目区的独立工具。 */ () => setMode("manual")}
-          >
-            手动项目区
-          </button>
-        </nav>
       </header>
-      <div className="template-manual-workspace" hidden={mode !== "manual"}>
-        <ManualTemplate onChanged={onChanged} />
-      </div>
-      <div className="template-adaptive-workspace" hidden={mode !== "adaptive"}>
+      <div className="template-adaptive-workspace">
         <details className="template-source-section" open={!plan}>
           <summary>
             {analysis?.file_name
@@ -424,17 +402,16 @@ export default function TemplateAdapter({
                   选择模板
                 </option>
                 {templates.map(
-                  /* 区分整份简历与仅项目区模板。 */ (item) => (
+                  /* 展示已识别并保存的完整简历模板。 */ (item) => (
                     <option value={item.id} key={item.id}>
                       {item.name}
-                      {item.kind === "projects" ? " · 项目区" : ""}
                     </option>
                   ),
                 )}
               </select>
             </label>
             <button
-              disabled={busy || running || saved?.kind !== "adaptive"}
+              disabled={busy || running || !saved}
               onClick={
                 /* 从已保存原文与映射建立可编辑副本，不再次调用 AI。 */ () =>
                   void perform(

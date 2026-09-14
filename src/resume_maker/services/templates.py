@@ -240,12 +240,8 @@ class Templates:
 
     def open(self, template_id: str) -> dict:
         """从已保存模板建立独立编辑快照，不调用 AI，也不修改原版本及简历引用。"""
-        template = need(
-            self.db.one("SELECT * FROM templates WHERE id=?", (template_id,)), "模板不存在。"
-        )
+        template = self.catalog.template(template_id)
         mapping = template["mapping"]
-        if "plan" not in mapping:
-            raise Problem("该模板仅替换项目区，请使用手动项目区工具重新导入。")
         source = self.data_dir / "templates" / template["id"] / "template.docx"
         data = source.read_bytes()
         if digest(data) != template["hash"]:

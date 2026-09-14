@@ -57,8 +57,10 @@ interface Props {
 export default function Composer(props: Props) {
   const { draft, state, revisions, result } = props;
   const template = state.templates.find(
-    /* 识别当前模板的资料覆盖范围。 */ (item) => item.id === draft.template_id,
+    /* 定位当前已识别的完整简历模板。 */ (item) =>
+      item.id === draft.template_id,
   );
+  const templateUnavailable = !!draft.template_id && !template;
   const [tab, setTab] = useState<"content" | "edit" | "print">("content");
   useEffect(
     /* 切换方案或模板时返回当前预览，避免把历史导出误认成新模板。 */ () => {
@@ -319,11 +321,13 @@ export default function Composer(props: Props) {
               }
             >
               <option value="">内置 · 完整简历</option>
+              {templateUnavailable && (
+                <option value={draft.template_id!}>请重新选择完整模板</option>
+              )}
               {state.templates.map(
                 /* 按稳定标识生成对应的列表条目。 */ (t) => (
                   <option key={t.id} value={t.id}>
-                    {t.name} ·{" "}
-                    {t.kind === "adaptive" ? "完整资料替换" : "仅替换项目区"}
+                    {t.name}
                   </option>
                 ),
               )}
@@ -335,9 +339,7 @@ export default function Composer(props: Props) {
         </div>
         {template && (
           <p className="subtle">
-            {template?.kind === "adaptive"
-              ? "按已确认映射替换个人信息、照片和栏目，保留模板版式；右侧模板预览随资料修改自动更新。"
-              : "此模板仅替换项目经历，预览保留模板中的其他信息。可在管理模板中用 AI 重新适配整份简历。"}
+            按已确认映射替换个人信息、照片和栏目，保留模板版式；右侧模板预览随资料修改自动更新。
           </p>
         )}
         <div className="actions">
@@ -355,7 +357,10 @@ export default function Composer(props: Props) {
             data-guide="composition-save"
             onClick={props.onSave}
             disabled={
-              props.deleting || props.previewChanged || !draft.name.trim()
+              props.deleting ||
+              props.previewChanged ||
+              templateUnavailable ||
+              !draft.name.trim()
             }
           >
             <Save size={15} />
@@ -370,7 +375,7 @@ export default function Composer(props: Props) {
               props.previewChanged ||
               props.deleting ||
               (!draft.template_id && !draft.document) ||
-              (template?.kind === "projects" && !draft.items.length) ||
+              templateUnavailable ||
               !draft.name.trim()
             }
           >
@@ -441,9 +446,9 @@ export default function Composer(props: Props) {
               /* 响应当前操作按钮，执行对应业务动作。 */ () => setTab("content")
             }
           >
-            {template ? "模板预览" : "内容预览"}
+            {draft.template_id ? "模板预览" : "内容预览"}
           </button>
-          {template && (
+          {draft.template_id && (
             <button
               className={tab === "edit" ? "active" : ""}
               onClick={
@@ -545,7 +550,7 @@ export default function Composer(props: Props) {
             </div>
           )}
           <TemplatePreview
-            input={previewInput}
+            input={templateUnavailable ? null : previewInput}
             templateId={template?.id}
             hidden={!template || tab !== "content"}
             run={props.run}
@@ -566,6 +571,11 @@ export default function Composer(props: Props) {
                 ),
               )}
             </div>
+          ) : templateUnavailable && tab === "content" ? (
+            <p className="warning" role="status">
+              当前完整模板不可用，请重新选择模板或在“管理模板”中导入 Word 进行
+              AI 识别。
+            </p>
           ) : !template || tab === "edit" ? (
             <>
               {template && (
@@ -573,11 +583,7 @@ export default function Composer(props: Props) {
                   此视图用于调整项目内容与顺序；模板的字体和分页请查看“模板预览”。
                 </p>
               )}
-              <ResumePreview
-                draft={draft}
-                projects={projectPreview}
-                projectsOnly={template?.kind === "projects"}
-              />
+              <ResumePreview draft={draft} projects={projectPreview} />
             </>
           ) : null}
         </div>
