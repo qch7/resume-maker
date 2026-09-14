@@ -21,6 +21,7 @@ NS = {
 }
 IMAGE_TAGS = {f"{{{NS['a']}}}blip", f"{{{NS['v']}}}imagedata"}
 BLOCK_TAGS = {w("p"), w("tbl"), w("tr")}
+ANNOTATION_PARTS = {"word/footnotes.xml", "word/endnotes.xml", "word/comments.xml"}
 PERSONAL_TARGETS = {f"personal.{field}" for field in PersonalInfo.model_fields} - {
     "personal.hidden_fields",
     "personal.photo",
@@ -72,6 +73,19 @@ def can_insert(paragraph) -> bool:
     return True
 
 
+def has_annotations(root) -> bool:
+    """忽略 Word 自动生成的注释分隔线，实际注释及分隔线中的自定义内容仍须处理。"""
+    for node in root:
+        if node.tag == w("comment") or (
+            node.tag in {w("footnote"), w("endnote")}
+            and node.get(w("type")) not in {"separator", "continuationSeparator"}
+        ):
+            return True
+        if node.xpath(".//w:t | .//w:drawing | .//w:pict | .//w:object", namespaces=NS):
+            return True
+    return False
+
+
 def quote_range(text: str, binding: TextBinding) -> tuple[int, int]:
     """定位指定次出现的精确引文，拒绝猜测或模糊匹配。"""
     if not binding.quote:
@@ -92,6 +106,7 @@ class TemplatePackage:
     def __init__(self, path: Path | BytesIO):
         """限制包大小并禁用 XML 外部实体，给结构和图片分配稳定标识。"""
         self.parts, self.nodes, self.locations, self.ids = {}, {}, {}, {}
+        self.annotations = []
         try:
             with ZipFile(path) as archive:
                 if sum(item.file_size for item in archive.infolist()) > 100_000_000:
@@ -101,6 +116,13 @@ class TemplatePackage:
                     raise Problem("文件不是有效的 DOCX 模板。")
                 self.files = {name: archive.read(name) for name in names}
             for name in sorted(self.files):
+                if name in ANNOTATION_PARTS:
+                    self.annotations.append(
+                        etree.fromstring(
+                            self.files[name],
+                            etree.XMLParser(resolve_entities=False, no_network=True),
+                        )
+                    )
                 if name == "word/document.xml" or (
                     name.startswith(("word/header", "word/footer")) and name.endswith(".xml")
                 ):
@@ -174,9 +196,13 @@ class TemplatePackage:
             codes = root.xpath(".//w:instrText/text() | .//w:fldSimple/@w:instr", namespaces=NS)
             if any(code.strip().upper() not in {"PAGE", "NUMPAGES"} for code in codes):
                 warnings.append("模板含动态域，请先在 Word 中将页码以外的域转换为普通文字。")
-        if any(
-            name in self.files
-            for name in ("word/footnotes.xml", "word/endnotes.xml", "word/comments.xml")
+        if any(has_annotations(root) for root in self.annotations) or any(
+            root.xpath(
+                ".//w:footnoteReference | .//w:endnoteReference | "
+                ".//w:commentReference | .//w:commentRangeStart | .//w:commentRangeEnd",
+                namespaces=NS,
+            )
+            for root in self.parts.values()
         ):
             warnings.append("模板含脚注、尾注或批注，须先整理到正文或删除后再适配。")
         if not any(row["kind"] == "p" and row["text"].strip() for row in rows):
