@@ -339,29 +339,13 @@ export default function TemplateAdapter({
   }
   return (
     <section className="template-adapter" aria-label="Word 模板工作区">
-      <header className="template-workspace-header">
-        <div>
-          <h2>
-            <FileScan size={23} />
-            Word 模板
-          </h2>
-          <p className="subtle">
-            导入 Word，AI 自动识别、检查和修正，直接查看当前资料的试填效果。
-          </p>
-        </div>
-      </header>
       <div className="template-adaptive-workspace">
-        <details className="template-source-section" open={!plan}>
-          <summary>
-            {analysis?.file_name
-              ? `模板来源：${analysis.file_name} · 更换文档或选择模板`
-              : "导入 Word 文档或使用已保存模板"}
-          </summary>
-          <div className="template-source-bar">
+        <div className="template-source-bar" role="group" aria-label="模板操作">
+          <div className="template-import-controls">
             <PathInput
-              label="导入 Word 文档"
+              label="Word 文档"
               kind="docx"
-              placeholder="D:\...\陌生简历.docx"
+              placeholder=".docx 文件路径"
               value={path}
               disabled={busy || running}
               onChange={setPath}
@@ -387,7 +371,8 @@ export default function TemplateAdapter({
               <Sparkles size={16} />
               AI 识别
             </button>
-            <div className="template-source-divider" />
+          </div>
+          <div className="template-library-controls">
             <label>
               已保存模板
               <select
@@ -440,7 +425,7 @@ export default function TemplateAdapter({
               使用模板
             </button>
           </div>
-        </details>
+        </div>
         {analysis && (
           <TemplateProgress
             data={analysis}
@@ -466,22 +451,12 @@ export default function TemplateAdapter({
           </p>
         )}
         {!plan ? (
-          <div className="template-workspace-empty">
-            <FileScan size={48} />
-            <h3>
-              {running ? "正在识别模板结构" : "让你的 Word 简历成为可复用模板"}
-            </h3>
-            <p>导入 .docx 后，AI 会识别姓名、联系方式、照片和各个经历栏目。</p>
-            <div className="template-empty-steps">
-              <span>1 · 导入并识别</span>
-              <span>2 · 自动检查与修正</span>
-              <span>3 · 查看试填并应用</span>
-            </div>
-            <p className="subtle">
-              模板文字和图片会交给设置中的 AI
-              分析。原文件保留；识别结果可逐项修正。
+          !analysis && (
+            <p className="template-workspace-empty">
+              <FileScan size={18} />
+              暂无识别结果
             </p>
-          </div>
+          )
         ) : (
           <>
             <fieldset
@@ -519,6 +494,12 @@ export default function TemplateAdapter({
                       Word 试填{preview?.pages ? ` · ${preview.pages} 页` : ""}
                     </button>
                   </nav>
+                  <span
+                    className="template-current-source"
+                    title={analysis?.file_name}
+                  >
+                    {analysis?.file_name}
+                  </span>
                   {view === "structure" && (
                     <label className="template-filter">
                       显示
