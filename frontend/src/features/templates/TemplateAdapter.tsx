@@ -1,17 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FileScan, LoaderCircle, Sparkles, X } from "lucide-react";
+import { FileScan, Sparkles } from "lucide-react";
 import PathInput from "../../shared/components/PathInput";
-import { api, download } from "../../shared/lib/api";
+import { api, ApiError, download } from "../../shared/lib/api";
 import type { Resume, Template } from "../../shared/types";
 import { newDocument } from "../profile/document";
 import PrintedPage from "../resumes/PrintedPage";
+import TemplateProgress from "./TemplateProgress";
 import RecognitionSummary from "./RecognitionSummary";
 import AdvancedMapping from "./AdvancedMapping";
 import ManualTemplate from "./ManualTemplate";
 import TemplateCanvas from "./TemplateCanvas";
 import TemplateInspector from "./TemplateInspector";
 import { REGION_LABELS, siblingRange } from "./visual";
-import type { MappingReview, TemplateAnalysis, TemplatePlan } from "./types";
+import type {
+  MappingReview,
+  TemplateAnalysis,
+  TemplatePlan,
+  TemplateProgressData,
+} from "./types";
 
 type Preview = {
   id: string;
@@ -86,22 +92,56 @@ export default function TemplateAdapter({
     [resume.document, resume.items, resume.id],
   );
   useEffect(
-    /* 只轮询当前任务；离开功能区保持挂载，继续接收分析进度。 */ () => {
+    /* 首次及完成时加载结果，运行中只拉增量活动；重连不丢失任务。 */ () => {
       if (!taskId) return;
       const controller = new AbortController();
       let timer: ReturnType<typeof setTimeout>;
+      let loaded = false;
+      let cursor = 0;
       /** 响应后才安排下一轮，结束后不再覆盖用户的人工调整。 */
       async function poll() {
         try {
+          if (loaded) {
+            const progress = await api<TemplateProgressData>(
+              `/templates/analyses/${taskId}/progress?after=${cursor}`,
+              "GET",
+              undefined,
+              controller.signal,
+            );
+            if (controller.signal.aborted) return;
+            setNotice(
+              /* 重连成功只清除连接提示，保留其他操作反馈。 */ (previous) =>
+                previous === "实时动态连接中断，正在重新连接…" ? "" : previous,
+            );
+            cursor = progress.cursor;
+            setAnalysis(
+              /* 合并增量活动，保留已加载的清单和方案。 */ (previous) =>
+                previous?.id === taskId
+                  ? {
+                      ...previous,
+                      ...progress,
+                      events: [...previous.events, ...progress.events].slice(
+                        -80,
+                      ),
+                    }
+                  : previous,
+            );
+            if (progress.status === "running") {
+              timer = setTimeout(poll, 800);
+              return;
+            }
+          }
           const value = await api<TemplateAnalysis>(
             `/templates/analyses/${taskId}`,
             "GET",
             undefined,
             controller.signal,
           );
+          loaded = true;
+          cursor = value.cursor;
           if (controller.signal.aborted) return;
           setAnalysis(value);
-          if (value.status === "running") timer = setTimeout(poll, 1200);
+          if (value.status === "running") timer = setTimeout(poll, 800);
           else {
             setPlan(value.plan);
             setReview(value.review);
@@ -113,8 +153,22 @@ export default function TemplateAdapter({
           }
         } catch (error) {
           if (!controller.signal.aborted) {
-            setNotice((error as Error).message);
-            sessionStorage.removeItem("rm.template.analysis");
+            if (
+              error instanceof ApiError &&
+              [401, 404].includes(error.status)
+            ) {
+              setNotice(error.message);
+              setAnalysis(
+                /* 服务重启或鉴权失效后结束旧进度展示。 */ (previous) =>
+                  previous
+                    ? { ...previous, status: "failed", activity: error.message }
+                    : previous,
+              );
+              sessionStorage.removeItem("rm.template.analysis");
+            } else {
+              setNotice("实时动态连接中断，正在重新连接…");
+              timer = setTimeout(poll, 2000);
+            }
           }
         }
       }
@@ -410,30 +464,24 @@ export default function TemplateAdapter({
             </button>
           </div>
         </details>
-        {running && (
-          <div className="template-progress" role="status">
-            <LoaderCircle size={17} className="template-spinner" />
-            <span>{analysis.activity}</span>
-            <button
-              disabled={busy}
-              onClick={
-                /* 主动取消分析，保留原文快照。 */ () =>
-                  void perform(
-                    /* 执行当前操作并接收结果。 */ async () => {
-                      setAnalysis(
-                        await api<TemplateAnalysis>(
-                          `/templates/analyses/${taskId}/cancel`,
-                          "POST",
-                        ),
-                      );
-                    },
-                  )
-              }
-            >
-              <X size={15} />
-              取消分析
-            </button>
-          </div>
+        {analysis && (
+          <TemplateProgress
+            data={analysis}
+            busy={busy}
+            onCancel={
+              /* 取消后立即呈现冻结的进度，服务端拒绝迟到结果。 */ () =>
+                void perform(
+                  /* 读取取消响应并保留本任务的活动记录。 */ async () => {
+                    setAnalysis(
+                      await api<TemplateAnalysis>(
+                        `/templates/analyses/${taskId}/cancel`,
+                        "POST",
+                      ),
+                    );
+                  },
+                )
+            }
+          />
         )}
         {notice && (
           <p className="template-notice template-banner" role="status">
@@ -677,9 +725,9 @@ export default function TemplateAdapter({
                     <Sparkles size={16} />
                     {feedback.trim() ? "按说明调整" : "AI 继续完善"}
                   </button>
-                  {analysis?.attempts && (
+                  {(analysis?.attempts ?? 0) > 0 && (
                     <p className="subtle">
-                      已完成 {analysis.attempts} 轮识别与自动检查
+                      已完成 {analysis?.attempts} 轮识别与自动检查
                     </p>
                   )}
                   {analysis?.repair_error && (

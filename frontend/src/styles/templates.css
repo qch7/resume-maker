@@ -901,3 +901,92 @@
 .template-source-section .template-source-bar {
   border-bottom: 0;
 }
+
+/* 实际活动与耗时独立于模板清单，长消息与窄屏均可自然换行。 */
+.template-live-progress {
+  flex-shrink: 0;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+.template-live-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.template-live-heading > svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+.template-live-heading > div {
+  display: grid;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+}
+.template-live-heading strong {
+  font-size: 13px;
+}
+.template-live-heading span {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.template-live-heading > div > span {
+  color: var(--subtle);
+}
+.template-live-time {
+  color: var(--subtle);
+  font-variant-numeric: tabular-nums;
+}
+.template-live-progress details {
+  margin-top: 12px;
+  font-size: 12px;
+}
+.template-live-progress summary {
+  cursor: pointer;
+  color: var(--subtle);
+}
+.template-live-events {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  max-height: 155px;
+  overflow-y: auto;
+}
+.template-live-events li {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  padding: 6px 0;
+  line-height: 1.6;
+}
+.template-live-events time {
+  color: var(--subtle);
+  min-width: 64px;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+.template-live-events span {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  min-width: 0;
+}
+.template-live-usage {
+  color: var(--subtle);
+  margin-bottom: 0;
+}
+@media (max-width: 760px) {
+  .template-live-progress {
+    padding: 12px 14px;
+  }
+  .template-live-heading {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .template-live-heading > div {
+    flex-basis: calc(100% - 30px);
+  }
+  .template-live-time {
+    flex: 1;
+  }
+}

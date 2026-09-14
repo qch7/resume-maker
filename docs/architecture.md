@@ -97,3 +97,14 @@ flowchart LR
 `POST /api/templates/{template_id}/edit` 对已保存完整模板做哈希核验后创建当前实例的独立编辑快照，不调用模型。保存仍生成新的模板 ID，不修改旧模板或已有简历引用。分析、编辑副本和试填都沿用实例鉴权与受控文件路径。
 
 本机路径输入统一使用共享 `PathInput` 组件，调用受实例令牌和来源校验保护的 `POST /api/paths/pick`。`integrations/path_picker.py` 在 HTTP 工作线程初始化 STA 并调用 Windows `IFileOpenDialog`，文件和文件夹都返回文件系统完整路径；取消返回空值。跨请求互斥避免重复窗口，COM 对象与文件名内存在原线程释放，输入路径只决定初始浏览目录，不参与命令执行。多来源输入追加并去重，组件卸载或资料切换时丢弃迟到结果。
+
+
+模板分析把 `skills/resume-template-mapping/SKILL.md` 内容直接注入首轮请求，不要求模型额外读文件；这是运行时使用的唯一映射说明来源。节点清单按部件分组，段落原文与真实父节点、祖先、可插入状态完整保留，表格容器不再重复汇总正文。自动修正只续用本任务 `thread.started` 返回的会话，省去清单和图片；无会话标识时携带完整上下文。人工修正新建任务、首轮携带人工方案。
+
+`template-cache/` 是可重建的建议缓存，不是已应用模板。缓存键包括规范化包内容、资料字段需求、schema、skill 和执行契约版本；资料值不入键。只有通过结构及当前资料覆盖检查的自动分析结果入缓存，命中后再校验，反馈修正绕过缓存；损坏或不可用缓存不阻塞分析。修改清单编号或填充语义时同时调整缓存契约版本。缓存无需数据库迁移，也不代替已确认模板备份。
+
+`GET /api/templates/analyses/{id}/progress?after=N` 仅返回状态、耗时、累计用量和增量公开活动，服务端最多保留 80 条活动。界面首次及完成时各加载一次完整任务，运行中每 800 ms 顺序请求轻量进度，连接失败时重试。Codex `exec --json` 的会话、回合、工具状态和公开文字会转为摘要；推理原文、命令参数、最终映射不进入活动记录。用量只来自 CLI 完成事件，不模拟 token 流或完成百分比。取消后阻止迟到事件并冻结单调时钟耗时。
+
+Codex 接口依据 [OpenAI 官方非交互模式说明](https://learn.chatgpt.com/docs/non-interactive-mode)，并在本机验证结构化输出与 `exec resume` 组合。
+
+模板任务前两轮使用 `medium` 推理，第三轮仍有问题才升级 `high`；以本次调用的 CLI 参数生效，不修改用户全局配置或经历对话，也不切换用户选择的模型。任务预算配置参见 [OpenAI 配置参考](https://learn.chatgpt.com/docs/config-file/config-reference)。

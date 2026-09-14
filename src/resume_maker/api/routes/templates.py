@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 from uuid import UUID
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from fastapi.responses import FileResponse, Response
 
 from resume_maker.api.dependencies import ServicesDep
@@ -51,6 +51,12 @@ def edit_template(services: ServicesDep, template_id: str):
 def get_analysis(services: ServicesDep, analysis_id: str):
     """读取本实例分析进度、节点清单、建议映射及未处理内容。"""
     return services.templates.get(analysis_id)
+
+
+@router.get("/templates/analyses/{analysis_id}/progress")
+def analysis_progress(services: ServicesDep, analysis_id: str, after: int = Query(0, ge=0)):
+    """读取轻量状态和新增公开活动，避免轮询时重复传输整份模板。"""
+    return services.templates.progress(analysis_id, after)
 
 
 @router.post("/templates/analyses/{analysis_id}/cancel")

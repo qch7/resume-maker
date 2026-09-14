@@ -38,12 +38,31 @@ export interface MappingReview {
   missing?: string[];
   notices?: string[];
 }
-export interface TemplateAnalysis {
+export interface TemplateProgressData {
   id: string;
-  file_name: string;
   status: "running" | "completed" | "failed" | "cancelled";
   activity: string;
   error: string | null;
+  phase: string;
+  round: number;
+  elapsed_ms: number;
+  cursor: number;
+  events: { id: number; elapsed_ms: number; text: string }[];
+  usage: {
+    input_tokens?: number;
+    cached_input_tokens?: number;
+    output_tokens?: number;
+  };
+  metrics: {
+    round: number;
+    prompt_chars: number;
+    images: number;
+    resumed: boolean;
+  }[];
+  reused: boolean;
+}
+export interface TemplateAnalysis extends TemplateProgressData {
+  file_name: string;
   inventory: { nodes: TemplateNode[]; warnings: string[]; notices?: string[] };
   plan: TemplatePlan | null;
   review: MappingReview | null;

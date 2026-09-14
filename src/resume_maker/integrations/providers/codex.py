@@ -9,6 +9,7 @@ import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
+from typing import Literal
 
 import psutil
 
@@ -118,6 +119,7 @@ class CodexProvider:
         cancelled: threading.Event,
         emit: Callable[[str, dict], None],
         images: list[Path] | None = None,
+        reasoning_effort: Literal["medium", "high"] | None = None,
     ) -> T:
         """以只读沙箱调用 Codex，解析 JSON 事件并处理超时、取消和进程回收。"""
         workspace.mkdir(parents=True, exist_ok=True)
@@ -141,6 +143,9 @@ class CodexProvider:
             command += ["--model", settings.model]
         if settings.profile:
             command += ["--profile", settings.profile]
+        if reasoning_effort:
+            # 任务级预算不写回用户配置；普通经历会话仍继承原来的推理强度。
+            command += ["--config", f'model_reasoning_effort="{reasoning_effort}"']
         for image in images or []:
             command += ["--image", str(image)]
         if thread_id:
@@ -200,23 +205,43 @@ class CodexProvider:
                 kind = event.get("type")
                 if kind == "thread.started":
                     emit("thread", {"id": event["thread_id"]})
+                    emit("activity", {"type": "connected", "text": "Codex 会话已连接"})
+                elif kind == "turn.started":
+                    emit("activity", {"type": "working", "text": "Codex 已开始处理请求"})
                 elif kind == "turn.completed":
-                    emit("usage", event.get("usage", {}))
+                    # exec resume 返回整个会话累计值，调用方据此避免重复累加旧轮次。
+                    emit("usage", {**event.get("usage", {}), "cumulative": True})
                 elif kind in {"turn.failed", "error"}:
                     detail = event.get("error", event.get("message", event))
                     errors.append(redact(json.dumps(detail, ensure_ascii=False)))
-                elif kind in {"item.started", "item.completed"}:
+                elif kind in {"item.started", "item.updated", "item.completed"}:
                     item = event.get("item", {})
                     item_type = item.get("type")
                     if item_type == "agent_message" and kind == "item.completed":
                         last_message = item.get("text", "")
+                        # 仅展示公开文字消息，最终结构化结果交给调用方，不显示映射原文。
+                        try:
+                            json.loads(last_message)
+                        except ValueError:
+                            emit(
+                                "activity", {"type": "message", "text": redact(last_message)[:1000]}
+                            )
+                    elif item_type == "reasoning":
+                        # 只报告真实执行状态，不转发推理内容。
+                        emit("activity", {"type": "working", "text": "Codex 正在分析"})
                     elif item_type in {"command_execution", "mcp_tool_call", "web_search"}:
+                        label = {
+                            "command_execution": "执行工具",
+                            "mcp_tool_call": "调用工具",
+                            "web_search": "检索资料",
+                        }[item_type]
                         emit(
                             "activity",
                             {
                                 "type": item_type,
                                 "state": kind.split(".")[1],
-                                "text": redact(item.get("command", item_type))[:2000],
+                                "text": f"Codex {label} · "
+                                + ("完成" if kind == "item.completed" else "进行中"),
                             },
                         )
             code = process.wait(timeout=5)

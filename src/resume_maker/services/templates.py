@@ -1,6 +1,7 @@
 """模板分析、映射核对、试填与登记；复用现有 Provider 并支持取消。"""
 
 import threading
+import time
 from copy import deepcopy
 from io import BytesIO
 from pathlib import Path
@@ -20,6 +21,7 @@ from resume_maker.integrations.word.template_fill import (
 from resume_maker.integrations.word.template_map import TemplatePackage
 from resume_maker.services.catalog import Catalog
 from resume_maker.services.template_analysis import analyze_plan, assess_plan
+from resume_maker.services.template_cache import cache_path, cached_plan, remember_plan
 
 
 class Templates:
@@ -34,6 +36,7 @@ class Templates:
             provider,
         )
         self.tasks, self.flags, self.threads = {}, {}, []
+        self.started = {}
         self.lock = threading.Lock()
         self.stopped = False
 
@@ -84,7 +87,9 @@ class Templates:
                 "review": None,
                 "inventory": inventory,
                 "error": None,
+                **new_progress(),
             }
+            self.started[identifier] = time.monotonic()
             self.tasks[identifier] = task
             flag = self.flags[identifier] = threading.Event()
             settings = ProviderSettings.model_validate(self.db.setting("provider", {}))
@@ -104,30 +109,79 @@ class Templates:
         """执行一次受超时控制的模型分析，取消或失败均不能登记模板。"""
 
         def emit(kind, data):
-            """只向界面报告简短活动摘要，不混入模型的最终映射。"""
-            if kind == "activity":
-                with self.lock:
-                    self.tasks[identifier]["activity"] = redact(str(data.get("text", "分析中")))[
-                        :200
-                    ]
+            """记录有界的公开活动和计量，取消后不再接受迟到事件。"""
+            with self.lock:
+                task = self.tasks[identifier]
+                if task["status"] != "running" or flag.is_set():
+                    return
+                if kind == "activity":
+                    text = redact(str(data.get("text", "分析中")))[:1000]
+                    phase = data.get("type")
+                    if phase in {"prepare", "analysis", "validation", "cache"}:
+                        task["phase"] = phase
+                    if isinstance(data.get("round"), int):
+                        task["round"] = data["round"]
+                    if text != task["activity"]:
+                        task["cursor"] += 1
+                        task["events"] = (
+                            task["events"]
+                            + [
+                                {
+                                    "id": task["cursor"],
+                                    "text": text,
+                                    "elapsed_ms": self._elapsed(task),
+                                }
+                            ]
+                        )[-80:]
+                        task["activity"] = text
+                elif kind == "usage":
+                    for key in ("input_tokens", "cached_input_tokens", "output_tokens"):
+                        value = data.get(key)
+                        if isinstance(value, int) and value >= 0:
+                            task["usage"][key] = task["usage"].get(key, 0) + value
+                elif kind == "metrics":
+                    task["metrics"].append(
+                        {key: data[key] for key in ("round", "prompt_chars", "images", "resumed")}
+                    )
 
         try:
-            plan, review, attempts, repair_error = analyze_plan(
-                TemplatePackage(directory / "original.docx"),
-                self.provider,
-                directory,
-                document,
-                projects,
-                settings,
-                flag,
-                emit,
-                initial,
-                feedback,
+            package = TemplatePackage(directory / "original.docx")
+            path = cache_path(self.data_dir, package, document, projects)
+            hit = (
+                cached_plan(path, package, document, projects)
+                if initial is None and not feedback
+                else None
             )
+            if hit:
+                emit(
+                    "activity",
+                    {"type": "cache", "text": "已复用相同模板的识别结果，当前资料覆盖检查通过"},
+                )
+                plan, review = hit
+                attempts, repair_error = 0, None
+            else:
+                plan, review, attempts, repair_error = analyze_plan(
+                    package,
+                    self.provider,
+                    directory,
+                    document,
+                    projects,
+                    settings,
+                    flag,
+                    emit,
+                    initial,
+                    feedback,
+                )
             with self.lock:
                 if flag.is_set():
                     raise Cancelled("模板分析已取消。")
-                self.tasks[identifier].update(
+                task = self.tasks[identifier]
+                task["elapsed_ms"] = self._elapsed(task)
+                if review["ready"] and initial is None and not feedback:
+                    remember_plan(path, plan)
+                task.update(
+                    reused=bool(hit),
+                    phase="completed",
                     status="completed",
                     plan=plan.model_dump(),
                     review=review,
@@ -139,14 +193,50 @@ class Templates:
                 )
         except Exception as exc:
             with self.lock:
-                self.tasks[identifier].update(
-                    status="cancelled" if flag.is_set() else "failed", error=redact(str(exc))[:2000]
+                task = self.tasks[identifier]
+                task["elapsed_ms"] = self._elapsed(task)
+                task.update(
+                    phase="cancelled" if flag.is_set() else "failed",
+                    status="cancelled" if flag.is_set() else "failed",
+                    error=redact(str(exc))[:2000],
                 )
 
     def get(self, identifier: str) -> dict:
         """读取当前实例的分析结果，关闭应用后需重新分析，已登记模板不受影响。"""
         with self.lock:
-            return deepcopy(need(self.tasks.get(identifier), "模板分析已不存在，请重新分析。"))
+            task = need(self.tasks.get(identifier), "模板分析已不存在，请重新分析。")
+            return {**deepcopy(task), "elapsed_ms": self._elapsed(task)}
+
+    def _elapsed(self, task):
+        """运行时使用单调时钟，完成或取消后冻结耗时；调用方持有状态锁。"""
+        return (
+            round((time.monotonic() - self.started[task["id"]]) * 1000)
+            if task["status"] == "running"
+            else task["elapsed_ms"]
+        )
+
+    def progress(self, identifier, after=0):
+        """仅返回轻量进度与游标之后的活动，不复制或传输模板清单和映射。"""
+        with self.lock:
+            task = need(self.tasks.get(identifier), "模板分析已不存在，请重新分析。")
+            value = {
+                key: deepcopy(task[key])
+                for key in (
+                    "id",
+                    "status",
+                    "activity",
+                    "error",
+                    "phase",
+                    "round",
+                    "cursor",
+                    "usage",
+                    "reused",
+                    "metrics",
+                )
+            }
+            value["elapsed_ms"] = self._elapsed(task)
+            value["events"] = [deepcopy(event) for event in task["events"] if event["id"] > after]
+            return value
 
     def open(self, template_id: str) -> dict:
         """从已保存模板建立独立编辑快照，不调用 AI，也不修改原版本及简历引用。"""
@@ -180,7 +270,9 @@ class Templates:
                 "review": package.review(plan),
                 "inventory": inventory,
                 "error": None,
+                **new_progress(),
             }
+            self.started[identifier] = time.monotonic()
             self.tasks[identifier] = task
             return deepcopy(task)
 
@@ -190,7 +282,8 @@ class Templates:
             task = need(self.tasks.get(identifier), "模板分析不存在。")
             if task["status"] == "running":
                 self.flags[identifier].set()
-                task.update(status="cancelled", activity="已取消")
+                task["elapsed_ms"] = self._elapsed(task)
+                task.update(status="cancelled", phase="cancelled", activity="已取消")
         return self.get(identifier)
 
     def source(self, identifier: str) -> Path:
@@ -292,3 +385,17 @@ class Templates:
                 flag.set()
         for thread in self.threads:
             thread.join(timeout=8)
+
+
+def new_progress():
+    """为每个任务分配独立进度容器，避免共享活动列表与统计。"""
+    return {
+        "phase": "prepare",
+        "round": 0,
+        "elapsed_ms": 0,
+        "events": [],
+        "cursor": 0,
+        "usage": {},
+        "metrics": [],
+        "reused": False,
+    }

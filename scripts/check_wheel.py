@@ -31,6 +31,8 @@ sys.path.insert(0, str(Path.cwd() / "package"))
 from resume_maker.api import create_app
 from resume_maker.core.config import Config
 from resume_maker.infrastructure.database import SCHEMA_VERSION
+from resume_maker.services.template_analysis import INSTRUCTIONS
+assert "name: resume-template-mapping" in INSTRUCTIONS
 config = Config(data_dir=Path.cwd() / "data")
 assert config.frontend == (Path.cwd() / "package/resume_maker/web").resolve(), config.frontend
 assert (config.frontend / "index.html").is_file()
