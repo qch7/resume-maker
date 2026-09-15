@@ -203,10 +203,8 @@ def blank_template(output, document, projects):
     result.save(output)
 
 
-def prepare_template(
-    source, output, provider, settings, flag, emit, document, projects, force=False
-):
-    """优先直接整理 DOCX，再尝试 Word 自动修复；复杂版式与扫描内容自动转入逐页恢复。"""
+def prepare_template(source, output, provider, settings, flag, emit, document, projects):
+    """可编辑 DOCX 始终保留原生版式，只有无可编辑文字的来源才逐页恢复。"""
     package, notices = None, []
     emit("activity", {"type": "prepare", "text": "正在自动整理模板格式"})
     try:
@@ -239,7 +237,7 @@ def prepare_template(
             blank_template(output, document, projects)
             notices.append("源模板没有可读取内容，已按当前资料字段建立可编辑占位框架。")
             return TemplatePackage(output), notices
-        if not inventory["warnings"] and not force:
+        if any(row["kind"] == "p" and row["text"].strip() for row in inventory["nodes"]):
             return package, notices
         emit("activity", {"type": "prepare", "text": "正在自动恢复复杂对象与图片中的内容"})
         pdf = output.parent / "recovery.pdf"

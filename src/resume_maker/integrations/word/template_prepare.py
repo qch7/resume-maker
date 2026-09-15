@@ -3,6 +3,7 @@
 from lxml import etree
 
 from resume_maker.integrations.word.ooxml import NS, w
+from resume_maker.integrations.word.template_anchors import separate_anchors
 from resume_maker.integrations.word.template_fields import freeze_fields
 
 COMMENT_RELATIONS = {"comments", "commentsExtended", "commentsIds", "commentsExtensible", "people"}
@@ -96,6 +97,7 @@ def prepare_parts(files: dict[str, bytes]) -> list[str]:
                     position += 1
                 parent.remove(alternate)
                 dirty = True
+        dirty |= separate_anchors(root)
         # 接受当前修订：保留插入与移入，移除已删除内容及旧属性快照。
         for node in list(root.iter()):
             if node.getparent() is None:

@@ -56,11 +56,25 @@ def paragraph_text(paragraph) -> str:
 
 
 def image_container(node):
-    """定位图片所属 Word 绘图，校验与删除共用同一个真实操作范围。"""
-    return next(
-        (parent for parent in node.iterancestors() if parent.tag in {w("drawing"), w("pict")}),
-        node,
-    )
+    """定位单张图片的叶子图形，组合中的背景和文字不属于照片操作范围。"""
+    leaf = None
+    grouped = False
+    for parent in node.iterancestors():
+        if etree.QName(parent).localname in {"wgp", "grpSp", "group"}:
+            grouped = True
+        if (
+            parent.tag
+            in {
+                "{http://schemas.openxmlformats.org/drawingml/2006/picture}pic",
+                f"{{{NS['v']}}}shape",
+            }
+            and leaf is None
+        ):
+            leaf = parent
+        if parent.tag in {w("drawing"), w("pict")}:
+            # 独立图片需要移除完整绘图，不能留下 Word 无法打开的空 graphicData。
+            return leaf if grouped and leaf is not None else parent
+    return node
 
 
 def can_insert(paragraph) -> bool:
@@ -115,18 +129,23 @@ class TemplatePackage:
                     if name in NOTE_PARTS and all(system_note(child) for child in root):
                         continue
                     self.parts[name] = root
-                    for node in root.iter():
-                        if name in NOTE_PARTS and (
-                            system_note(node)
-                            or any(system_note(parent) for parent in node.iterancestors())
-                        ):
-                            continue
-                        identifier = f"n{len(self.nodes) + 1}"
-                        self.nodes[identifier] = node
-                        self.ids[node] = identifier
-                        self.locations[identifier] = name
+            self.reindex()
         except (BadZipFile, etree.XMLSyntaxError, KeyError) as exc:
             raise Problem("文件不是有效的 Word DOCX 模板。") from exc
+
+    def reindex(self):
+        """结构变动后按序重建编号，顺序与写回后重新读取完全一致。"""
+        self.nodes, self.locations, self.ids = {}, {}, {}
+        for name, root in sorted(self.parts.items()):
+            for node in root.iter():
+                if name in NOTE_PARTS and (
+                    system_note(node) or any(system_note(parent) for parent in node.iterancestors())
+                ):
+                    continue
+                identifier = f"n{len(self.nodes) + 1}"
+                self.nodes[identifier] = node
+                self.ids[node] = identifier
+                self.locations[identifier] = name
 
     def inventory(self) -> dict:
         """列出正文、表格、文本框、页眉页脚及图片，报告不能自动处理的对象。"""
@@ -138,19 +157,13 @@ class TemplatePackage:
             text = paragraph_text(node) if kind == "p" else "".join(node.itertext())[:300]
             if kind == "image":
                 text = "图片或照片"
-                picture = next(
-                    (
-                        parent
-                        for parent in node.iterancestors()
-                        if parent.tag in {w("drawing"), w("pict")}
-                    ),
-                    None,
-                )
+                picture = image_container(node)
                 if picture is not None:
                     description = picture.xpath(
-                        ".//*[local-name()='docPr']/@descr | .//*[local-name()='docPr']/@name"
+                        ".//*[local-name()='docPr' or local-name()='cNvPr']/@descr | "
+                        ".//*[local-name()='docPr' or local-name()='cNvPr']/@name"
                     )
-                    dimensions = picture.xpath(".//*[local-name()='extent']")
+                    dimensions = picture.xpath(".//*[local-name()='extent' or local-name()='ext']")
                     if dimensions:
                         size = dimensions[0]
                         try:

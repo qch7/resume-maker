@@ -70,7 +70,8 @@ class TemplateProvider:
 def completed(service, identifier):
     """有界等待实际分析线程结束，返回完成或失败的任务结果。"""
     for thread in service.threads:
-        thread.join(timeout=3)
+        # 整页图片生成涉及磁盘和字体缓存，繁忙 Windows 主机上不能假设三秒内结束。
+        thread.join(timeout=10)
         assert not thread.is_alive()
     return service.get(identifier)
 
@@ -108,6 +109,22 @@ def test_analysis_snapshot_save_restart_and_export(tmp_path, monkeypatch):
         assert client.get(preview_prefix + "/resume.docx", headers=headers).status_code == 200
         assert client.get(preview_prefix + "/original.docx", headers=headers).status_code == 404
         assert client.get(preview_prefix + "/resume.docx").status_code == 401
+        vector = (
+            config.data_dir
+            / "workspaces"
+            / f"template-{task['id']}"
+            / preview.json()["id"]
+            / "page-1.svg"
+        )
+        vector.write_text('<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0L10 10"/></svg>')
+        response = client.get(preview_prefix + "/page-1.svg", headers=headers)
+        assert response.status_code == 200 and response.headers["content-type"].startswith(
+            "image/svg+xml"
+        )
+        assert "<path" in response.text
+        assert client.get(preview_prefix + "/page-1.svg").status_code == 401
+        assert client.get(preview_prefix + "/page-0.svg", headers=headers).status_code == 404
+        assert client.get(preview_prefix + "/page-2.svg", headers=headers).status_code == 404
         assert (
             client.get(prefix + "/previews/not-a-uuid/resume.docx", headers=headers).status_code
             == 404

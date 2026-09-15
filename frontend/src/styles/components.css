@@ -1031,6 +1031,7 @@
 .printed-page {
   width: 100%;
   display: block;
+  background: #fff;
   margin-bottom: 16px;
   border: 1px solid var(--line);
 }

@@ -12,8 +12,9 @@ def cache_path(directory, package, document, projects, settings) -> Path:
     """按模板、字段需求、映射契约和 AI 配置生成键，切换模型后重新识别。"""
     context = analysis_context(package, document, projects)
     context.pop("template")
+    context.pop("layout")
     identity = {
-        "contract": 6,
+        "contract": 10,
         "provider": {
             "executable": settings.executable,
             "profile": settings.profile,

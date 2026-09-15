@@ -26,6 +26,7 @@ import BuiltinTemplate from "./BuiltinTemplate";
 import TemplateCanvas from "./TemplateCanvas";
 import TemplateInspector from "./TemplateInspector";
 import { REGION_LABELS, siblingRange } from "./visual";
+import { reviewProblems, reviewProblemSummary } from "./review";
 import type {
   MappingReview,
   TemplateAnalysis,
@@ -114,6 +115,23 @@ export default function TemplateAdapter({
     resumeId: resume.id,
   };
   const running = analysis?.status === "running";
+  const problems = reviewProblems(review);
+  const problemSummary = reviewProblemSummary(problems);
+  const trialDisabledReason =
+    busy || running
+      ? "正在处理，请稍候"
+      : !review
+        ? "正在自动检查模板"
+        : !review.ready
+          ? `暂不可用：${problemSummary}`
+          : "";
+  const saveDisabledReason =
+    trialDisabledReason ||
+    (!name.trim()
+      ? "请先填写模板名称"
+      : !preview
+        ? "请先生成试填预览，核对后即可保存"
+        : "");
   const nodes = analysis?.inventory.nodes ?? [];
   const savedId = libraryId ?? resume.template_id ?? "";
   const builtin = savedId === "" && !taskId;
@@ -316,15 +334,16 @@ export default function TemplateAdapter({
     [active, plan, review, busy, loading, running],
   );
   /** 带上当前人工修改和用户说明，交给 AI 自动补全并建立独立结果。 */
-  async function repair() {
+  async function repair(instructions = feedback) {
     const value = await api<TemplateAnalysis>(
       `/templates/analyses/${taskId}/repair`,
       "POST",
-      { plan, document, items: resume.items, feedback },
+      { plan, document, items: resume.items, feedback: instructions },
     );
     if (isCurrent()) {
       openTask(value);
-      setFeedback("");
+      // 只清除本次已提交的说明，修复问题时保留用户尚未提交的文字。
+      if (instructions === feedback) setFeedback("");
     }
   }
   /** 检查短操作是否仍对应当前模板和当前简历的同一份资料。 */
@@ -466,6 +485,16 @@ export default function TemplateAdapter({
     setSelected([id]);
     setView("structure");
   }
+  /** 从固定操作区返回完整问题列表，并将键盘焦点和滚动位置移到原因。 */
+  function showProblems() {
+    setView("summary");
+    requestAnimationFrame(
+      /* 等待摘要挂载后定位，避免用户仍停留在长列表底部。 */ () =>
+        workspace.current
+          ?.querySelector<HTMLElement>(".template-questions")
+          ?.focus(),
+    );
+  }
   /** 使用当前简历生成真实 Word 和分页图，不让迟到预览覆盖后续资料。 */
   async function trial() {
     const value = await api<Preview>(
@@ -605,6 +634,7 @@ export default function TemplateAdapter({
           <TemplateProgress
             key={analysis.id}
             data={analysis}
+            review={review}
             busy={busy}
             height={sizes.progress}
             maxHeight={sizes.progressMax}
@@ -725,6 +755,13 @@ export default function TemplateAdapter({
                     plan={plan}
                     review={review}
                     onLocate={locate}
+                    onRepair={
+                      /* 专门修复检查问题，不混入尚未提交的调整说明。 */ () =>
+                        void perform(
+                          /* 空说明仍会把当前方案及完整校验结果交给 AI。 */ () =>
+                            repair(""),
+                        )
+                    }
                   />
                 ) : view === "structure" ? (
                   <>
@@ -820,7 +857,7 @@ export default function TemplateAdapter({
                           /* 按实际页序展示全部页面。 */ (_, index) => (
                             <PrintedPage
                               key={`${preview.id}-${index}`}
-                              path={`/templates/analyses/${taskId}/previews/${preview.id}/page-${index + 1}.png`}
+                              path={`/templates/analyses/${taskId}/previews/${preview.id}/page-${index + 1}.svg`}
                               page={index + 1}
                             />
                           ),
@@ -1011,18 +1048,28 @@ export default function TemplateAdapter({
               </aside>
             </fieldset>
             <footer className="template-workspace-footer">
-              <span className="subtle">
-                {busy
-                  ? "正在处理…"
-                  : !review
-                    ? "正在自动检查…"
-                    : review.ready
-                      ? "当前模板检查通过"
-                      : "部分内容需要确认，可交给 AI 继续完善"}
-              </span>
+              <div className="template-footer-status">
+                <span
+                  id="template-action-status"
+                  className={problems.length ? "template-notice" : "subtle"}
+                  role="status"
+                  title={trialDisabledReason || saveDisabledReason}
+                >
+                  {trialDisabledReason ||
+                    saveDisabledReason ||
+                    "试填已生成，可以保存并用于当前简历"}
+                </span>
+                {!!problems.length && (
+                  <button disabled={busy || running} onClick={showProblems}>
+                    查看问题 · {problems.length}
+                  </button>
+                )}
+              </div>
               <div className="actions">
                 <button
-                  disabled={busy || !review?.ready}
+                  disabled={!!trialDisabledReason}
+                  title={trialDisabledReason || undefined}
+                  aria-describedby="template-action-status"
                   onClick={
                     /* 生成当前资料对应的 Word 试填。 */ () =>
                       void perform(trial)
@@ -1032,7 +1079,9 @@ export default function TemplateAdapter({
                 </button>
                 <button
                   className="primary"
-                  disabled={busy || !review?.ready || !preview || !name.trim()}
+                  disabled={!!saveDisabledReason}
+                  title={saveDisabledReason || undefined}
+                  aria-describedby="template-action-status"
                   onClick={
                     /* 确认试填后保存独立版本并应用。 */ () =>
                       void perform(save)

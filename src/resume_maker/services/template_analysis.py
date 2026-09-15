@@ -12,8 +12,9 @@ from resume_maker.integrations.word.template_fill import (
     personal_values,
     section_records,
 )
-from resume_maker.integrations.word.template_flow import requires_flow
 from resume_maker.integrations.word.template_images import image_sheets
+from resume_maker.integrations.word.template_supplement import supplement_personal_fields
+from resume_maker.integrations.word.template_visuals import layout_context, source_pages
 
 SKILL_PATH = Path(__file__).resolve().parents[1] / "skills/resume-template-mapping/SKILL.md"
 INSTRUCTIONS = SKILL_PATH.read_text(encoding="utf-8")
@@ -55,7 +56,8 @@ def check_trial(source, plan, review, document, projects):
     if review["ready"]:
         output = source.parent / "layout-check.docx"
         try:
-            fill_template(source, output, plan, document.model_dump(), projects)
+            notices = fill_template(source, output, plan, document.model_dump(), projects)
+            review["notices"] = list(dict.fromkeys([*review.get("notices", []), *notices]))
         except Problem as exc:
             review["errors"].append(str(exc))
             review["ready"] = False
@@ -95,18 +97,7 @@ def assess_plan(package, plan, document, projects):
     except Problem as exc:
         missing = [str(exc)]
     review["missing"] = missing
-    flowing = []
-    for region in plan.repeats:
-        try:
-            if requires_flow(package.region(region.sample_start, region.sample_end)):
-                flowing.append("项目经历" if region.section == "projects" else region.section)
-        except Problem:
-            continue
-    review["notices"] = (
-        ["、".join(dict.fromkeys(flowing)) + "将保留原字体并整理为纵向条目，支持多条经历自然换行。"]
-        if flowing
-        else []
-    )
+    review["notices"] = []
     review["ready"] = review["ready"] and not missing
     return review
 
@@ -151,6 +142,7 @@ def analysis_context(package, document, projects):
         ],
         "required_entry_fields": requirements,
         "template": compact_inventory(package.inventory()),
+        "layout": layout_context(package),
     }
 
 
@@ -167,18 +159,54 @@ def analyze_plan(
     feedback="",
 ):
     """最多分析三轮，把具体校验反馈交回 AI；失败或退步时保留已有最佳建议。"""
+    source = workspace / "original.docx"
+    if initial is not None and not feedback:
+        package, initial, notices = supplement_personal_fields(
+            package, complete_labels(package, initial), document, projects, source
+        )
+        if notices:
+            for text in notices:
+                emit("activity", {"type": "repair", "text": text})
+            review = check_trial(
+                source,
+                initial,
+                assess_plan(package, initial, document, projects),
+                document,
+                projects,
+            )
+            review["notices"].extend(notices)
+            if review["ready"]:
+                return initial, review, 0, None
     context = analysis_context(package, document, projects)
     emit("activity", {"type": "prepare", "text": "正在准备模板清单与图片"})
-    images, shown = image_sheets(package, workspace)
+    sheets, shown = image_sheets(package, workspace)
+    pages, visual, visual_notices = source_pages(source, workspace, flag)
+    images = [*pages, *sheets]
+    evidence_source = source.read_bytes()
     context["visible_images"] = shown
+    context["source_pages"] = visual
     context["image_instructions"] = (
-        "随请求附带的图片拼图标注了对应节点。请根据实际图片内容识别证件照与装饰；不要仅凭尺寸猜测。"
+        "附件先为 source_pages 指定的源模板整页图，再为标注节点的图片拼图。"
+        "结合整页的空间关系、layout 中的显式换行和制表位及 template 中的精确原文映射；"
+        "不能由字段名字、编号顺序或图片尺寸推测位置。缺少整页证据时不要声称已验证视觉布局。"
     )
     candidate = initial
-    best, best_review = None, None
+    best, best_review, best_source = None, None, None
+    candidate_review = None
     if candidate is not None:
         candidate = complete_labels(package, candidate)
-        best, best_review = candidate, assess_plan(package, candidate, document, projects)
+        best, best_review = (
+            candidate,
+            check_trial(
+                source,
+                candidate,
+                assess_plan(package, candidate, document, projects),
+                document,
+                projects,
+            ),
+        )
+        candidate_review = best_review
+        best_source = source.read_bytes()
     last_error = None
     attempts = 0
     thread_id = None
@@ -203,6 +231,15 @@ def analyze_plan(
     for attempt in range(1, 4):
         if flag.is_set():
             raise Cancelled("模板分析已取消。")
+        if source.read_bytes() != evidence_source:
+            # 补充结构后节点编号可能全部变化，重发对应快照的清单和图片，不能续用旧编号会话。
+            context.update(analysis_context(package, document, projects))
+            pages, visual, visual_notices = source_pages(source, workspace, flag)
+            sheets, shown = image_sheets(package, workspace)
+            images = [*pages, *sheets]
+            context.update(source_pages=visual, visible_images=shown)
+            evidence_source = source.read_bytes()
+            thread_id = None
         stage = "正在识别资料和栏目" if candidate is None else "正在自动补全和修正"
         emit(
             "activity", {"type": "analysis", "round": attempt, "text": f"{stage} · 第 {attempt} 轮"}
@@ -212,7 +249,7 @@ def analyze_plan(
         if candidate is not None:
             if not resuming or candidate != last_raw:
                 request["previous_plan"] = candidate.model_dump()
-            validation = assess_plan(package, candidate, document, projects)
+            validation = candidate_review
             request["validation"] = {
                 key: validation[key] for key in ("errors", "missing", "unresolved")
             }
@@ -262,7 +299,19 @@ def analyze_plan(
             )
             last_raw = TemplatePlan.model_validate(result.model_dump())
             updated = complete_labels(package, last_raw)
-            review = assess_plan(package, updated, document, projects)
+            package, updated, notices = supplement_personal_fields(
+                package, updated, document, projects, source
+            )
+            for text in notices:
+                emit("activity", {"type": "repair", "text": text})
+            review = check_trial(
+                source,
+                updated,
+                assess_plan(package, updated, document, projects),
+                document,
+                projects,
+            )
+            review["notices"].extend(notices)
             score = (len(review["errors"]), len(review["missing"]), len(review["unresolved"]))
             previous_score = (
                 (
@@ -275,9 +324,11 @@ def analyze_plan(
             )
             if score <= previous_score:
                 best, best_review = updated, review
+                best_source = source.read_bytes()
             if review["ready"] or (candidate and updated == candidate):
                 break
             candidate = updated
+            candidate_review = review
         except Cancelled:
             raise
         except Exception as exc:
@@ -287,4 +338,10 @@ def analyze_plan(
             break
     if flag.is_set():
         raise Cancelled("模板分析已取消。")
+    # 最佳方案与源快照必须一起恢复，失败轮次新增的节点不能污染此前仍可核对的方案。
+    if best_source is not None and source.read_bytes() != best_source:
+        temporary = source.with_name("best-source.docx")
+        temporary.write_bytes(best_source)
+        temporary.replace(source)
+    best_review["notices"].extend(visual_notices)
     return best, best_review, attempts, last_error

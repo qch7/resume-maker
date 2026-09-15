@@ -7,6 +7,15 @@ from resume_maker.integrations.sources import capture_evidence, project_sources
 from resume_maker.services.catalog import Catalog
 
 
+@pytest.fixture(autouse=True)
+def isolate_template_visual_renderer(monkeypatch):
+    """单元测试不启动桌面 Word；整页证据测试显式注入 PDF，真实排版另做本机验收。"""
+    monkeypatch.setattr(
+        "resume_maker.integrations.word.template_visuals.word_process",
+        lambda *_: "测试环境未启动 Word",
+    )
+
+
 def record_source_files(db, data_dir, project, paths=("README.md",)):
     """仅为测试指定的来源文件建立证据记录，避免夹具依赖已经移除的整库采集。"""
     return capture_evidence(

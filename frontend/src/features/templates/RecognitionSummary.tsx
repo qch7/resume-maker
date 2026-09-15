@@ -4,9 +4,11 @@ import {
   ContactRound,
   Image,
   Layers3,
+  Sparkles,
 } from "lucide-react";
 import type { MappingReview, TemplateNode, TemplatePlan } from "./types";
 import { targetLabel } from "./visual";
+import { reviewProblems } from "./review";
 
 /** 用资料和栏目摘要呈现 AI 结果，原始段落范围留到主动调整时展示。 */
 export default function RecognitionSummary({
@@ -14,11 +16,13 @@ export default function RecognitionSummary({
   nodes,
   review,
   onLocate,
+  onRepair,
 }: {
   plan: TemplatePlan;
   nodes: TemplateNode[];
   review: MappingReview | null;
   onLocate: (id: string) => void;
+  onRepair: () => void;
 }) {
   const personal = plan.fields.filter(
     /* 栏目标题单独显示，不混入个人资料。 */ (field) =>
@@ -27,22 +31,62 @@ export default function RecognitionSummary({
   const groups = new Map<string, typeof personal>();
   for (const field of personal)
     groups.set(field.target, [...(groups.get(field.target) ?? []), field]);
-  const questions =
-    (review?.issues?.length ?? review?.errors.length ?? 0) +
-    (review?.missing?.length ?? 0);
+  const problems = reviewProblems(review);
   return (
     <div className="template-result-scroll">
       <div className="template-result-heading">
         {review?.ready ? <CheckCircle2 size={28} /> : <CircleHelp size={28} />}
         <div>
-          <h3>{review?.ready ? "当前模板已准备好" : "识别结果"}</h3>
+          <h3>
+            {!review
+              ? "正在检查识别结果"
+              : review.ready
+                ? "当前模板已准备好"
+                : `还需处理 ${problems.length} 项问题`}
+          </h3>
           <p>
-            {review?.ready
-              ? "当前模板检查已通过，可查看试填效果，也可以随时调整。"
-              : "先查看已识别的资料和栏目，剩余疑问可交给 AI 继续完善。"}
+            {!review
+              ? "检查通过后将自动生成试填预览。"
+              : review.ready
+                ? "当前模板检查已通过，可查看试填效果，也可以随时调整。"
+                : "以下问题解决后即可试填和保存，已识别的资料和栏目保留在下方。"}
           </p>
         </div>
       </div>
+      {!!problems.length && (
+        <section
+          className="template-result-section template-questions"
+          tabIndex={-1}
+          aria-label="阻止试填和保存的问题"
+        >
+          <h3>暂时无法试填和保存的原因</h3>
+          <div className="template-problem-list">
+            {problems.map(
+              /* 有位置的问题可直接调整，其余原因保持正常文字亮度。 */ (
+                problem,
+                index,
+              ) =>
+                problem.nodes.length ? (
+                  <button
+                    key={index}
+                    onClick={
+                      /* 定位问题原文，进入可编辑的结构视图。 */ () =>
+                        onLocate(problem.nodes[0])
+                    }
+                  >
+                    {problem.message} · 定位调整
+                  </button>
+                ) : (
+                  <p key={index}>{problem.message}</p>
+                ),
+            )}
+          </div>
+          <button className="primary" onClick={onRepair}>
+            <Sparkles size={16} /> AI 修复这些问题
+          </button>
+          <p>也可以在“精细调整”中补充填写位置或确认原文用途。</p>
+        </section>
+      )}
       <div className="template-result-stats">
         <span>
           <ContactRound size={19} />
@@ -139,61 +183,6 @@ export default function RecognitionSummary({
           )}
         </div>
       </section>
-      {review && !review.ready && (
-        <section className="template-result-section template-questions">
-          <h3>需要确认</h3>
-          <p>
-            {questions
-              ? `${questions} 项映射或资料位置需要完善。`
-              : "还有少量内容需要判断用途。"}
-            先使用右侧的“AI 继续完善”，也可以点击问题自行调整。
-          </p>
-          {(
-            review.issues ??
-            review.errors.map(
-              /* 没有定位信息的文档级问题仍显示说明。 */ (message) => ({
-                message,
-                nodes: [],
-              }),
-            )
-          ).map(
-            /* 每个错误只展示一次，点击定位相关内容。 */ (issue, index) => (
-              <button
-                key={index}
-                disabled={!issue.nodes.length}
-                onClick={
-                  /* 定位问题涉及的样本或资料。 */ () =>
-                    onLocate(issue.nodes[0])
-                }
-              >
-                {issue.message}
-              </button>
-            ),
-          )}
-          {review.missing?.map(
-            /* 资料名称转换成可读提示。 */ (target) => (
-              <p key={target}>还需安排：{targetLabel(target)}</p>
-            ),
-          )}
-          {!!review.unresolved.length && (
-            <details>
-              <summary>
-                查看尚未归类的 {review.unresolved.length} 处原文
-              </summary>
-              {review.unresolved.map(
-                /* 细节默认折叠，仍可逐项核对。 */ (node) => (
-                  <button
-                    key={node.id}
-                    onClick={/* 定位未知原文。 */ () => onLocate(node.id)}
-                  >
-                    {node.kind === "image" ? "图片用途待确认" : node.text}
-                  </button>
-                ),
-              )}
-            </details>
-          )}
-        </section>
-      )}
       {!nodes.length && <p className="subtle">正在读取模板内容…</p>}
     </div>
   );

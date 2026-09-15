@@ -174,9 +174,14 @@ def test_floating_heading_moves_inline_without_losing_its_graphic(tmp_path):
     """浮动标题以嵌入图形占据排版高度，标题不会被下一条正文覆盖。"""
     from resume_maker.integrations.word.template_layout import WP, inline_heading
 
-    paragraph = etree.Element(w("p"))
+    document = Document()
+    document.add_paragraph()
+    root = etree.fromstring(etree.tostring(document.element))
+    paragraph = root.find("w:body/w:p", NS)
     drawing = etree.SubElement(etree.SubElement(paragraph, w("r")), w("drawing"))
     anchor = etree.SubElement(drawing, f"{{{WP}}}anchor", behindDoc="1")
+    horizontal = etree.SubElement(anchor, f"{{{WP}}}positionH", relativeFrom="margin")
+    etree.SubElement(horizontal, f"{{{WP}}}posOffset").text = "127000"
     etree.SubElement(anchor, f"{{{WP}}}positionV", relativeFrom="page")
     extent = etree.SubElement(anchor, f"{{{WP}}}extent", cx="1000", cy="2000")
     graphic = etree.SubElement(
@@ -187,6 +192,7 @@ def test_floating_heading_moves_inline_without_losing_its_graphic(tmp_path):
     assert list(anchor) == [extent, graphic]
     assert "behindDoc" not in anchor.attrib
     assert paragraph.find("w:pPr/w:keepNext", NS) is not None
+    assert paragraph.find("w:pPr/w:ind", NS).get(w("left")) == "200"
 
 
 def shared_heading_template(path):

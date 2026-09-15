@@ -98,7 +98,7 @@ def preview_file(services: ServicesDep, analysis_id: str, preview_id: str, file_
         UUID(preview_id)
     except ValueError as exc:
         raise Problem("预览标识无效。", 404) from exc
-    if not re.fullmatch(r"resume\.(docx|pdf)|page-[1-9][0-9]*\.png", file_name):
+    if not re.fullmatch(r"resume\.(docx|pdf)|page-[1-9][0-9]*\.(png|svg)", file_name):
         raise Problem("预览文件不存在。", 404)
     path = services.templates.source(analysis_id).parent / preview_id / file_name
     if not path.is_file():

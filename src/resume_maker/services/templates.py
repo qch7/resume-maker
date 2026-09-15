@@ -162,12 +162,23 @@ class Templates:
                     inventory = package.inventory()
                     inventory["notices"] = list(dict.fromkeys([*notices, *inventory["notices"]]))
                     self.tasks[identifier]["inventory"] = inventory
+            cache_source = source.read_bytes()
             path = cache_path(self.data_dir, package, document, projects, settings)
             hit = (
                 cached_plan(path, package, document, projects)
                 if initial is None and not feedback
                 else None
             )
+            if hit:
+                plan, review = hit
+                review = check_trial(source, plan, review, document, projects)
+                if not review["ready"]:
+                    # 同字段的新资料仍可能触发排版约束，旧缓存失败时必须进入自动修正。
+                    initial, hit = plan, None
+                    emit(
+                        "activity",
+                        {"type": "validation", "text": "已复用映射未通过当前试填，正在自动修正"},
+                    )
             if hit:
                 emit(
                     "activity",
@@ -189,50 +200,30 @@ class Templates:
                     feedback,
                 )
             review = check_trial(source, plan, review, document, projects)
-            if any(
-                marker in error
-                for error in review["errors"]
-                for marker in ("同一容器", "分页分节", "同一个组合绘图", "栏目边界", "标题段落")
-            ):
-                package, notices = prepare_template(
-                    source,
-                    source,
-                    self.provider,
-                    settings,
-                    flag,
-                    emit,
-                    document,
-                    projects,
-                    force=True,
-                )
-                with self.lock:
-                    if flag.is_set():
-                        raise Cancelled("模板分析已取消。")
-                    inventory = package.inventory()
-                    inventory["notices"] = list(
-                        dict.fromkeys([*self.tasks[identifier]["inventory"]["notices"], *notices])
-                    )
-                    self.tasks[identifier]["inventory"] = inventory
-                plan, review, extra_attempts, repair_error = analyze_plan(
-                    package, self.provider, directory, document, projects, settings, flag, emit
-                )
-                hit = None
-                attempts += extra_attempts
-                review = check_trial(source, plan, review, document, projects)
-                path = cache_path(self.data_dir, package, document, projects, settings)
+            # 自动补位置会重新编号，结果清单必须读取同一份新快照；旧源文件不能复用新编号缓存。
+            inventory = TemplatePackage(source).inventory()
             with self.lock:
                 if flag.is_set():
                     raise Cancelled("模板分析已取消。")
                 task = self.tasks[identifier]
                 task["elapsed_ms"] = self._elapsed(task)
-                if review["ready"] and initial is None and not feedback:
+                if (
+                    review["ready"]
+                    and initial is None
+                    and not feedback
+                    and source.read_bytes() == cache_source
+                ):
                     remember_plan(path, plan)
+                inventory["notices"] = list(
+                    dict.fromkeys([*task["inventory"].get("notices", []), *inventory["notices"]])
+                )
                 task.update(
                     reused=bool(hit),
                     phase="completed",
                     status="completed",
                     plan=plan.model_dump(),
                     review=review,
+                    inventory=inventory,
                     activity="已完成自动检查，请查看试填。"
                     if review["ready"]
                     else "已自动修正，请核对剩余疑问。",

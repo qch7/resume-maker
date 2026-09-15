@@ -4,11 +4,13 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
+  CircleHelp,
   LoaderCircle,
   X,
 } from "lucide-react";
 import ResizeHandle from "../../shared/components/ResizeHandle";
-import type { TemplateProgressData } from "./types";
+import type { MappingReview, TemplateProgressData } from "./types";
+import { reviewProblems } from "./review";
 
 /** 将真实累计时间显示为便于阅读的分秒，不推测完成百分比。 */
 export function duration(milliseconds: number) {
@@ -21,6 +23,7 @@ export function duration(milliseconds: number) {
 /** 用紧凑状态栏展示当前动态或已保存的识别记录，展开后允许调整记录区高度。 */
 export default function TemplateProgress({
   data,
+  review,
   busy,
   height,
   maxHeight,
@@ -29,6 +32,7 @@ export default function TemplateProgress({
   onCancel,
 }: {
   data: TemplateProgressData;
+  review: MappingReview | null;
   busy: boolean;
   height: number;
   maxHeight: number;
@@ -45,7 +49,7 @@ export default function TemplateProgress({
     data.round > 0 ||
     data.elapsed_ms > 0 ||
     data.usage.input_tokens !== undefined;
-  const title = data.from_library
+  const baseTitle = data.from_library
     ? "已加载模板"
     : running
       ? data.phase === "prepare"
@@ -58,6 +62,10 @@ export default function TemplateProgress({
           : data.status === "cancelled"
             ? "识别已取消"
             : "识别未完成";
+  const title =
+    data.status === "completed"
+      ? `${baseTitle} · ${!review ? "正在检查" : review.ready ? "可试填" : `${reviewProblems(review).length} 项待处理`}`
+      : baseTitle;
   const canExpand = recorded || running;
   const showEvents = (expanded ?? running) && canExpand;
   return (
@@ -65,8 +73,10 @@ export default function TemplateProgress({
       <div className="template-live-heading">
         {running ? (
           <LoaderCircle size={16} className="template-spinner" />
-        ) : data.status === "completed" ? (
+        ) : data.status === "completed" && review?.ready ? (
           <CheckCircle2 size={16} />
+        ) : data.status === "completed" ? (
+          <CircleHelp size={16} className="template-progress-pending" />
         ) : (
           <Activity size={16} />
         )}

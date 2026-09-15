@@ -66,8 +66,8 @@ def test_cache_survives_restart_but_rechecks_changed_requirements(catalog, tmp_p
     assert second["plan"] == first["plan"] and second["review"]["ready"]
     doc.personal.phone = "10000000000"
     third = completed(service, service.analyze(source, doc)["id"])
-    assert not third["reused"] and not third["review"]["ready"]
-    assert "personal.phone" in third["review"]["missing"] and len(provider.calls) > 1
+    assert not third["reused"] and third["review"]["ready"]
+    assert not third["review"]["missing"] and len(provider.calls) == 2
     assert len(list((tmp_path / "template-cache").glob("*.json"))) == 1
 
 

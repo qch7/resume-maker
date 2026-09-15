@@ -12,11 +12,7 @@ from resume_maker.domain.resume import ResumeDocument
 from resume_maker.domain.templates import TemplatePlan, TextBinding
 from resume_maker.integrations.word.full_resume import displayed_entries, visible_custom_fields
 from resume_maker.integrations.word.ooxml import w
-from resume_maker.integrations.word.template_flow import (
-    effective_section,
-    flow_record,
-    requires_flow,
-)
+from resume_maker.integrations.word.template_flow import effective_section
 from resume_maker.integrations.word.template_layout import TemplateLayout
 from resume_maker.integrations.word.template_map import (
     IMAGE_TAGS,
@@ -29,6 +25,7 @@ from resume_maker.integrations.word.template_map import (
     relationship_part,
     relationship_target,
 )
+from resume_maker.integrations.word.template_project_slots import prepare_project_slots
 
 CONTENT_TYPES = "http://schemas.openxmlformats.org/package/2006/content-types"
 
@@ -58,10 +55,11 @@ def section_records(document: ResumeDocument, title: str, projects: list[dict]) 
         for project in projects:
             value = project["content"]
             points = {point["id"]: point for point in value["highlights"]}
-            highlights = "\n".join(
+            highlight_items = [
                 f"{points[identifier]['title']}：{points[identifier]['text']}"
                 for identifier in project["highlight_ids"]
-            )
+            ]
+            highlights = "\n".join(highlight_items)
             stack = "、".join(value["stack"])
             details = "\n".join(
                 filter(
@@ -79,6 +77,7 @@ def section_records(document: ResumeDocument, title: str, projects: list[dict]) 
                     **value,
                     "stack": stack,
                     "highlights": highlights,
+                    "_highlight_items": highlight_items,
                     "details": details,
                     "subtitle": value["role"],
                     "custom_fields": "",
@@ -187,15 +186,46 @@ def set_text(node, value: str):
 
 
 def fill_fields(nodes: dict, fields: list[TextBinding], values: dict):
-    """从段落末尾向前替换引文，保留相邻文字和样式，移除旧超链接行为。"""
+    """保留样式替换引文；按原文顺序分配亮点，返回可移除的多余亮点空段落。"""
     grouped = {}
+    blank_highlights = []
+    order = {identifier: index for index, identifier in enumerate(nodes)}
+    highlight_fields = sorted(
+        [field for field in fields if field.target == "highlights"],
+        key=lambda field: (
+            order[field.node],
+            quote_range(paragraph_text(nodes[field.node]), field),
+        ),
+    )
     for binding in fields:
         node = nodes[binding.node]
         start, end = quote_range(paragraph_text(node), binding)
         value = str(values.get(binding.target, ""))
+        if binding.target == "highlights" and "_highlight_items" in values:
+            position = highlight_fields.index(binding)
+            # 位置不足时将余下亮点合并到最后一处，位置过多时不重复填充整组内容。
+            stop = position + 1 if position < len(highlight_fields) - 1 else None
+            value = "\n".join(values["_highlight_items"][position:stop])
+            if (
+                not value
+                and binding.quote == paragraph_text(node)
+                and not any(child.tag in IMAGE_TAGS for child in node.iter())
+            ):
+                blank_highlights.append(node)
         if value and not binding.quote and binding.target.startswith("personal.custom:"):
             value = binding.target.partition(":")[2] + "：" + value
-        grouped.setdefault(binding.node, []).append((start, end, value))
+        colon = binding.quote.find("：")
+        replacement_colon = value.find("：")
+        if binding.target == "highlights" and 0 < colon < 40 and replacement_colon > 0:
+            # 标题和正文常使用不同字重，不能把整条亮点塞进原来的粗体标题运行。
+            grouped.setdefault(binding.node, []).extend(
+                [
+                    (start, start + colon + 1, value[: replacement_colon + 1]),
+                    (start + colon + 1, end, value[replacement_colon + 1 :]),
+                ]
+            )
+        else:
+            grouped.setdefault(binding.node, []).append((start, end, value))
     for identifier, replacements in grouped.items():
         paragraph = nodes[identifier]
         modified_links = set()
@@ -215,8 +245,20 @@ def fill_fields(nodes: dict, fields: list[TextBinding], values: dict):
                     position += len(child.text or "")
                 elif child.tag in {w("br"), w("cr"), w("tab")} and start < position < end:
                     child.getparent().remove(child)
-            position, inserted = 0, False
-            for text in paragraph_texts(paragraph):
+            texts = paragraph_texts(paragraph)
+            position, preferred = 0, None
+            for text in texts:
+                original = text.text or ""
+                limit = position + len(original)
+                if position < end and start < limit:
+                    if preferred is None:
+                        preferred = text
+                    if original[max(0, start - position) : end - position].strip():
+                        preferred = text
+                        break
+                position = limit
+            position = 0
+            for text in texts:
                 original = text.text or ""
                 limit = position + len(original)
                 if position < end and start < limit:
@@ -225,8 +267,7 @@ def fill_fields(nodes: dict, fields: list[TextBinding], values: dict):
                         modified_links.add(link)
                     prefix = original[: max(0, start - position)]
                     suffix = original[max(0, end - position) :]
-                    set_text(text, prefix + (value if not inserted else "") + suffix)
-                    inserted = True
+                    set_text(text, prefix + (value if text is preferred else "") + suffix)
                 position = limit
         for link in modified_links:
             if next(link.iterancestors(w("p")), None) is not paragraph:
@@ -235,6 +276,28 @@ def fill_fields(nodes: dict, fields: list[TextBinding], values: dict):
             for child in list(link):
                 parent.insert(parent.index(link), child)
             parent.remove(link)
+    return blank_highlights
+
+
+def region_values(record, fields):
+    """项目综合正文只补充未单独安排的资料，避免与技术栈、角色或亮点重复。"""
+    targets = {field.target for field in fields}
+    if "_highlight_items" not in record or "details" not in targets:
+        return record
+    content = {
+        "stack": f"技术栈：{record['stack']}" if record["stack"] else "",
+        "role": f"担任角色：{record['role']}" if record["role"] else "",
+        "description": record["description"],
+        "highlights": record["highlights"],
+    }
+    if "subtitle" in targets:
+        targets.add("role")
+    return {
+        **record,
+        "details": "\n".join(
+            value for target, value in content.items() if target not in targets and value
+        ),
+    }
 
 
 def remove_node(node):
@@ -272,7 +335,7 @@ def fill_photo(package: TemplatePackage, identifier: str, photo: str):
     root.append(relationship)
     node.set(attribute, rel_id)
     node.attrib.pop(f"{{{NS['r']}}}link", None)
-    picture = next((p for p in node.iterancestors() if p.tag in {w("drawing"), w("pict")}), None)
+    picture = image_container(node)
     if picture is not None:
         for metadata in picture.xpath(".//*[local-name()='docPr' or local-name()='cNvPr']"):
             metadata.attrib.pop("descr", None)
@@ -360,10 +423,34 @@ def remove_preserving_sections(node):
     remove_node(node)
 
 
+def close_empty_tail(package):
+    """删除末尾已清空栏目的空节，沿用最后有内容区域的页面设置以免产生空白页。"""
+    body = package.parts["word/document.xml"].find(w("body"))
+    if body is None or not len(body) or body[-1].tag != w("sectPr"):
+        return
+    trailing, properties = [], None
+    for block in reversed(list(body)[:-1]):
+        if block.tag != w("p") or block.xpath(
+            ".//w:t[normalize-space()] | .//w:drawing | .//w:pict | .//w:object | .//w:br "
+            "| .//w:fldChar | .//w:footnoteReference | .//w:endnoteReference",
+            namespaces=NS,
+        ):
+            break
+        trailing.append(block)
+        section = block.find("w:pPr/w:sectPr", NS)
+        if section is not None:
+            properties = section
+            break
+    if properties is not None:
+        body.replace(body[-1], deepcopy(properties))
+        for block in trailing:
+            body.remove(block)
+
+
 def fill_template(
     source: Path, output: Path, plan: TemplatePlan, content: dict, projects: list[dict]
-):
-    """仅执行通过结构与资料覆盖校验的映射，每次导出都从原模板重新生成。"""
+) -> list[str]:
+    """从源模板执行通过校验的映射，返回保留容器等需要向用户说明的版式约束。"""
     package = TemplatePackage(source)
     review = package.review(plan)
     if not review["ready"]:
@@ -385,32 +472,16 @@ def fill_template(
         original = package.region(region.start, region.end)
         sample = package.region(region.sample_start, region.sample_end)
         parent, position = original[0].getparent(), original[0].getparent().index(original[0])
-        records = section_records(document, region.section, projects)
-        if records and requires_flow(sample):
-            # 分节符只属于正文；写进文本框或单元格会让 Word 错读前面正文的分栏位置。
-            leading = effective_section(original[0]) if parent.tag == w("body") else None
-            if leading is not None:
-                parent.insert(position, section_marker(leading))
-                position += 1
-            for record in records:
-                for node in flow_record(package, region, record, plan.keep):
-                    parent.insert(position, node)
-                    position += 1
-            if leading is not None:
-                closing = deepcopy(leading)
-                columns = closing.find(w("cols"))
-                if columns is not None:
-                    closing.remove(columns)
-                etree.SubElement(closing, w("cols")).set(w("num"), "1")
-                kind = closing.find(w("type"))
-                if kind is None:
-                    kind = etree.SubElement(closing, w("type"))
-                kind.set(w("val"), "continuous")
-                parent.insert(position, section_marker(closing))
-            for node in original:
-                parent.remove(node)
-            continue
+        records = [
+            region_values(record, region.fields)
+            for record in section_records(document, region.section, projects)
+        ]
         has_sections = any(list(node.iter(w("sectPr"))) for node in sample)
+        closing = (
+            effective_section(sample[0])
+            if not has_sections and any(list(node.iter(w("sectPr"))) for node in original)
+            else None
+        )
         # 多栏标题和单栏正文同属一条经历；每条复制结束时闭合原有连续分节。
         trailing = (
             next(iter(sample[-1].xpath("following::w:sectPr[1]", namespaces=NS)), None)
@@ -426,13 +497,17 @@ def fill_template(
                 for old_root, new_root in zip(sample, clones, strict=True)
                 for old, new in zip(old_root.iter(), new_root.iter(), strict=True)
             }
-            fill_fields(nodes, region.fields, record)
             for clone in clones:
                 # 复制样本时不复制书签身份，避免不同记录共享同一个 Word 锚点。
                 for bookmark in list(clone.iter(w("bookmarkStart"), w("bookmarkEnd"))):
                     bookmark.getparent().remove(bookmark)
                 parent.insert(position, clone)
                 position += 1
+            fields, blank_slots = prepare_project_slots(nodes, region.fields, record, plan.keep)
+            blank_highlights = fill_fields(nodes, fields, record)
+            for blank in [*blank_slots, *blank_highlights]:
+                remove_preserving_sections(blank)
+            position = parent.index(original[0])
             if trailing is not None:
                 marker = section_marker(trailing)
                 section_type = marker.find(".//w:sectPr/w:type", NS)
@@ -446,6 +521,9 @@ def fill_template(
                 for properties in node.iter(w("sectPr")):
                     parent.insert(position, section_marker(properties))
                     position += 1
+        elif closing is not None:
+            # 样本外的旧记录可能结束当前页面设置，删除它们时仍须闭合样本所属的节。
+            parent.insert(position, section_marker(closing))
         for node in original:
             parent.remove(node)
     values = personal_values(document)
@@ -454,6 +532,7 @@ def fill_template(
     for identifier in plan.remove:
         remove_preserving_sections(package.node(identifier))
     layout.apply()
+    close_empty_tail(package)
     drawing_id = 0
     control_id = 0
     for root in package.parts.values():
@@ -465,7 +544,8 @@ def fill_template(
         for cell in root.iter(w("tc")):
             if not len(cell) or cell[-1].tag != w("p"):
                 etree.SubElement(cell, w("p"))
-        for drawing in root.xpath(".//*[local-name()='docPr']"):
+        # 组合子图形与外层绘图共享编号空间，单独重编号外层会碰撞并导致 Word 无法打开。
+        for drawing in root.xpath(".//*[local-name()='docPr' or local-name()='cNvPr']"):
             drawing_id += 1
             drawing.set("id", str(drawing_id))
         for control in root.xpath(".//w:sdtPr/w:id", namespaces=NS):
@@ -473,3 +553,4 @@ def fill_template(
             control.set(w("val"), str(control_id))
     clean_resources(package)
     package.write(output)
+    return layout.notices

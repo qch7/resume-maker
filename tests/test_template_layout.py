@@ -154,5 +154,5 @@ def test_repeated_experience_preserves_continuous_column_boundaries(tmp_path, co
     assert texts[-1] == "后续固定内容"
     assert sum(text.startswith("新项目") for text in texts) == count
     columns = [s.find(w("cols")).get(w("num")) for s in result.element.iter(w("sectPr"))]
-    assert columns == (["4", "1", "1"] if count else ["4", "1"])
-    assert len(result.tables) == count
+    assert columns == (["4", "1"] * count + ["1"] if count else ["4", "1"])
+    assert not result.tables

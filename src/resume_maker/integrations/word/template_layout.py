@@ -7,16 +7,42 @@ from lxml import etree
 
 from resume_maker.core.errors import Problem
 from resume_maker.domain.templates import TextBinding
-from resume_maker.integrations.word.ooxml import w
+from resume_maker.integrations.word.ooxml import NS, w
+from resume_maker.integrations.word.template_anchors import page_positioned
 from resume_maker.integrations.word.template_flow import (
     effective_section,
     flow_paragraph,
-    requires_flow,
 )
 from resume_maker.integrations.word.template_map import paragraph_text, paragraph_texts
 
 WP = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
 CONTAINERS = {w(tag) for tag in ("body", "tbl", "tc", "sdtContent", "txbxContent")}
+
+
+def independent_containers(anchors):
+    """仅将完整落在互不包含的单元格或文本框内的栏目分组，保留模板原有二维布局。"""
+    groups = defaultdict(list)
+    for title, nodes in anchors.items():
+        parent = next(
+            (
+                parent
+                for parent in nodes[0].iterancestors()
+                if parent.tag in {w("tc"), w("txbxContent")}
+                and all(parent in node.iterancestors() for node in nodes)
+            ),
+            None,
+        )
+        if parent is None:
+            return {}
+        groups[parent].append(title)
+    if len(groups) < 2 or any(
+        parent in other.iterancestors()
+        for parent in groups
+        for other in groups
+        if parent is not other
+    ):
+        return {}
+    return groups
 
 
 def child_in(node, parent):
@@ -28,11 +54,59 @@ def child_in(node, parent):
     return node
 
 
-def inline_drawing(block):
-    """将浮动图形改为占据实际高度的嵌入式，移动后不再覆盖相邻文字。"""
+def inline_drawing(block, following=None):
+    """栏目标题改为嵌入式时保留水平位置，抵扣原来用于给悬浮标题让位的段前空白。"""
     anchors = block.findall(f".//{{{WP}}}anchor")
+    converted = False
     for anchor in anchors:
+        horizontal = anchor.find(f"{{{WP}}}positionH")
+        offset = horizontal.find(f"{{{WP}}}posOffset") if horizontal is not None else None
+        if (
+            block.tag != w("p")
+            or block.getparent() is None
+            or block.getparent().tag != w("body")
+            or horizontal is None
+            or offset is None
+            or horizontal.get("relativeFrom") not in {"page", "margin"}
+        ):
+            # 字符、分栏、单元格或对齐式定位不能用页面左边距换算，保留原生锚点。
+            continue
+        if block.tag == w("p"):
+            properties = block.find(w("pPr"))
+            if properties is None:
+                properties = etree.Element(w("pPr"))
+                block.insert(0, properties)
+            section = effective_section(block)
+            margins = section.find(w("pgMar")) if section is not None else None
+            if horizontal is not None and offset is not None and margins is not None:
+                if horizontal.get("relativeFrom") in {"page", "margin"}:
+                    left = round(int(offset.text or "0") / 635)
+                    if horizontal.get("relativeFrom") == "page":
+                        left -= int(margins.get(w("left"), "0"))
+                    indent = properties.find(w("ind"))
+                    if indent is None:
+                        indent = etree.SubElement(properties, w("ind"))
+                    indent.set(w("left"), str(left))
+            extent = anchor.find(f"{{{WP}}}extent")
+            following = following if following is not None else block.getnext()
+            while following is not None and not isinstance(following.tag, str):
+                following = following.getnext()
+            spacing = following.find("w:pPr/w:spacing", NS) if following is not None else None
+            own_spacing = properties.find(w("spacing"))
+            if (
+                anchor.find(f"{{{WP}}}wrapNone") is not None
+                and extent is not None
+                and spacing is not None
+                and own_spacing is not None
+                and own_spacing.get(w("lineRule")) == "exact"
+                and own_spacing.get(w("line")) == "1"
+            ):
+                before = int(spacing.get(w("before"), "0"))
+                spacing.set(
+                    w("before"), str(max(0, before - round(int(extent.get("cy", "0")) / 635)))
+                )
         anchor.tag = f"{{{WP}}}inline"
+        converted = True
         anchor.attrib.clear()
         for child in list(anchor):
             if etree.QName(child).localname not in {
@@ -43,7 +117,7 @@ def inline_drawing(block):
                 "graphic",
             }:
                 anchor.remove(child)
-    if anchors and block.tag == w("p"):
+    if converted and block.tag == w("p"):
         properties = block.find(w("pPr"))
         spacing = properties.find(w("spacing")) if properties is not None else None
         if spacing is not None:
@@ -51,9 +125,9 @@ def inline_drawing(block):
             spacing.attrib.pop(w("lineRule"), None)
 
 
-def inline_heading(block):
+def inline_heading(block, following=None):
     """标题图形保留原字体与装饰，并与第一段正文保持同页。"""
-    inline_drawing(block)
+    inline_drawing(block, following)
     if block.tag == w("p"):
         properties = block.find(w("pPr"))
         if properties is None:
@@ -69,6 +143,8 @@ class TemplateLayout:
     def __init__(self, package, plan, document, records, values):
         """由标题和完整重复范围确定栏目归属，兼容正文段落及表格行。"""
         self.parent = None
+        self.children = []
+        self.notices = []
         self.segments = []
         self.fields = list(plan.fields)
         self.values = {}
@@ -77,6 +153,7 @@ class TemplateLayout:
         self.headings = []
         self.shared_headings = []
         self.empty_labels = []
+        self.fixed = []
         sections = {section.title: section for section in document.sections}
         project_title = next(s.title for s in document.sections if s.kind == "projects")
         aliases = {"projects": project_title}
@@ -113,10 +190,33 @@ class TemplateLayout:
         nodes = [node for group in anchors.values() for node in group]
         if not nodes or (len(anchors) == 1 and not title_fields):
             return
-        self.flow = any(
-            requires_flow(package.region(region.sample_start, region.sample_end))
-            for region in plan.repeats
-        )
+        for container, titles in independent_containers(anchors).items():
+            identifiers = package.descendants([container])
+            subset = plan.model_copy(
+                update={
+                    "fields": [field for field in plan.fields if field.node in identifiers],
+                    "repeats": [
+                        region
+                        for region in plan.repeats
+                        if aliases.get(region.section, region.section) in titles
+                    ],
+                    "keep": [identifier for identifier in plan.keep if identifier in identifiers],
+                    "photos": [
+                        identifier for identifier in plan.photos if identifier in identifiers
+                    ],
+                }
+            )
+            child = TemplateLayout(package, subset, document, records, values)
+            self.children.append(child)
+            self.fields = [
+                field for field in self.fields if field.node not in identifiers
+            ] + child.fields
+            self.values.update(child.values)
+        if self.children:
+            self.notices.append(
+                "栏目位于独立的单元格或文本框中，已保留原有位置，排序只在各容器内部生效。"
+            )
+            return
         self.parent = next(
             (
                 parent
@@ -147,9 +247,16 @@ class TemplateLayout:
                 node = package.node(field.node)
                 if self.parent in node.iterancestors():
                     personal[child_in(node, self.parent)].append(field.target)
+        if values.get("personal.photo"):
+            for identifier in plan.photos:
+                node = package.node(identifier)
+                if self.parent in node.iterancestors():
+                    personal[child_in(node, self.parent)].append("personal.photo")
         owners = {}
         for position in range(first, last + 1):
             block = blocks[position]
+            if block in personal and page_positioned(block):
+                self.fixed.append(block)
             containing = [
                 title for title, (start, end) in spans.items() if start <= position <= end
             ]
@@ -228,11 +335,28 @@ class TemplateLayout:
             properties = effective_section(blocks[last])
             if properties is not None and not list(blocks[last].iter(w("sectPr"))):
                 self.trailing = (owners[blocks[last]], deepcopy(properties))
+        # 标题仍在原树中时计算横坐标和让位间距，重复样本会继承修正后的段前距离。
+        for block in self.headings:
+            following = next(
+                (
+                    candidate
+                    for candidate in blocks[blocks.index(block) + 1 :]
+                    if owners.get(candidate) == owners.get(block)
+                    and candidate.xpath(".//w:t[normalize-space()]", namespaces=NS)
+                ),
+                None,
+            )
+            inline_heading(block, following)
 
     def apply(self):
         """将填好的完整栏目按当前大栏目及子栏目顺序放回，空栏目连同旧标签一起省略。"""
+        for child in self.children:
+            child.apply()
         if self.parent is None:
             return
+        for block in self.fixed:
+            # 组合页首即使借用教育或课程段落锚定，也不随栏目隐藏或移动到下一页。
+            self.parent.insert(self.parent.index(self.segments[0][1]), block)
         for node in self.empty_labels:
             if node.getparent() is not None:
                 node.getparent().remove(node)
@@ -262,19 +386,9 @@ class TemplateLayout:
             groups[title].insert(0, heading)
             for text in paragraph_texts(node):
                 text.text = ""
-        for block in self.headings:
-            inline_heading(block)
         for title in self.order:
             if title not in self.visible:
                 continue
             for node in groups[title]:
-                inline_drawing(node)
-                if self.flow:
-                    # 复杂记录已转为自然段与表格，栏目外的旧分栏标记也必须闭合为单栏。
-                    for properties in node.iter(w("sectPr")):
-                        columns = properties.find(w("cols"))
-                        if columns is not None:
-                            properties.remove(columns)
-                        etree.SubElement(properties, w("cols")).set(w("num"), "1")
                 self.parent.insert(position, node)
                 position += 1
