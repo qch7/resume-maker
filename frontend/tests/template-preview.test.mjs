@@ -157,8 +157,14 @@ test("payload follows unsaved content, visibility and order without saving refer
     key,
   );
   assert.equal(templatePreviewInput(draft, {}, sources), null);
-  assert.equal(
+  const builtin = JSON.parse(
     templatePreviewInput({ ...draft, template_id: null }, revisions, sources),
+  );
+  assert.equal(builtin.template_id, null);
+  assert.deepEqual(builtin.document, draft.document);
+  assert.equal(builtin.items[0].content.title, "Typing");
+  assert.equal(
+    templatePreviewInput({ ...draft, document: null }, revisions, sources),
     null,
   );
 });

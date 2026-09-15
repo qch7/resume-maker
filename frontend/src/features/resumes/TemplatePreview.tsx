@@ -13,11 +13,13 @@ interface PreviewResult {
 export default function TemplatePreview({
   input,
   templateId,
+  zoom,
   hidden,
   run,
 }: {
   input: string | null;
-  templateId?: string;
+  templateId: string | null;
+  zoom: number;
   hidden: boolean;
   run: (work: () => Promise<void>) => void;
 }) {
@@ -57,7 +59,8 @@ export default function TemplatePreview({
 
   const current = state.key === input;
   const previousTemplate = state.result
-    ? (JSON.parse(state.result.key) as { template_id: string }).template_id
+    ? (JSON.parse(state.result.key) as { template_id: string | null })
+        .template_id
     : null;
   const result =
     previousTemplate === templateId ? state.result?.value : undefined;
@@ -70,64 +73,70 @@ export default function TemplatePreview({
     ? "正在读取经历版本…"
     : error
       ? "当前资料预览未完成"
-      : updated
-        ? `已按当前模板排版 · ${result.pages} 页`
-        : current && state.status === "rendering"
-          ? "正在用 Word 排版，完成后自动更新…"
-          : "资料已变化，稍后自动更新排版…";
+      : current && state.status === "rendering"
+        ? "正在更新预览…"
+        : "资料已变化，稍后自动更新预览…";
 
   return (
-    <div hidden={hidden} className="template-live-preview">
-      <div className="template-preview-status" role="status" aria-live="polite">
-        <strong>{status}</strong>
-        {error && <p className="warning">{error}</p>}
-        {result?.pages && !updated && (
-          <span className="warning">
-            下方是此模板的上次预览，尚未反映当前修改。
-          </span>
-        )}
-        {!result?.pages && !error && (
-          <span className="subtle">
-            预览沿用 Word 模板的字体、布局和分页。可切到“编辑内容”调整项目。
-          </span>
-        )}
-        {error && (
-          <div className="actions">
-            <button
-              onClick={
-                /* 相同输入失败时显式重新尝试排版。 */ () =>
-                  queue.current?.submit(input, true)
-              }
-            >
-              重新生成预览
-            </button>
-            {complete && result && (
+    <div className="template-live-preview" hidden={hidden}>
+      {!updated && (
+        <div
+          className="template-preview-status"
+          role="status"
+          aria-live="polite"
+        >
+          <span>{status}</span>
+          {error && <p className="warning">{error}</p>}
+          {result?.pages && !updated && (
+            <span className="warning">
+              下方是此模板的上次预览，尚未反映当前修改。
+            </span>
+          )}
+          {error && (
+            <div className="actions">
               <button
                 onClick={
-                  /* 排版失败仍允许查看已填好的临时 Word 文件。 */ () =>
-                    run(
-                      /* 下载当前未保存资料的试填文档。 */ () =>
-                        download(
-                          `/resume-previews/${result.id}/resume.docx`,
-                          "当前模板预览.docx",
-                        ),
-                    )
+                  /* 相同输入失败时显式重新尝试排版。 */ () =>
+                    queue.current?.submit(input, true)
                 }
               >
-                下载试填 Word
+                重新生成预览
               </button>
-            )}
-          </div>
-        )}
-      </div>
+              {complete && result && (
+                <button
+                  onClick={
+                    /* 排版失败仍允许查看已填好的临时 Word 文件。 */ () =>
+                      run(
+                        /* 下载当前未保存资料的试填文档。 */ () =>
+                          download(
+                            `/resume-previews/${result.id}/resume.docx`,
+                            "当前模板预览.docx",
+                          ),
+                      )
+                  }
+                >
+                  下载试填 Word
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
       {result?.pages && (
-        <div className="print-preview" aria-busy={!updated}>
+        <div
+          className="print-preview"
+          aria-busy={!updated}
+          style={{
+            width: zoom ? `${794 * zoom}px` : "100%",
+            maxWidth: zoom ? "none" : "1000px",
+          }}
+        >
           {Array.from(
             { length: result.pages },
-            /* 显示当前模板的真实分页图片。 */ (_, index) => (
+            /* 以矢量页面呈现真实分页，放大时保持文字清晰。 */ (_, index) => (
               <PrintedPage
                 key={`${result.id}.${index}`}
-                path={`/resume-previews/${result.id}/page-${index + 1}.png`}
+                path={`/resume-previews/${result.id}/page-${index + 1}.svg`}
                 page={index + 1}
               />
             ),

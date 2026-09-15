@@ -371,8 +371,8 @@ def test_empty_text_does_not_make_a_photo_paragraph_an_insertion_slot(tmp_path):
     assert "空白的段落" in "".join(package.review(plan)["errors"])
 
 
-def test_dynamic_fields_and_revisions_are_reported(tmp_path):
-    """不会把能恢复旧值的数据绑定或修订文档伪装成完整可适配模板。"""
+def test_dynamic_fields_are_frozen_without_restoring_old_values(tmp_path):
+    """无缓存的合并域自动变为可编辑空位，指令不会恢复旧值。"""
     path = tmp_path / "dynamic.docx"
     doc = Document()
     paragraph = doc.add_paragraph("姓名")
@@ -380,7 +380,10 @@ def test_dynamic_fields_and_revisions_are_reported(tmp_path):
     field.set(w("instr"), "MERGEFIELD OldName")
     paragraph._p.append(field)
     doc.save(path)
-    assert "动态域" in "".join(TemplatePackage(path).inventory()["warnings"])
+    package = TemplatePackage(path)
+    assert not package.inventory()["warnings"]
+    assert "动态域" in "".join(package.notices)
+    assert not package.parts["word/document.xml"].xpath(".//w:fldSimple", namespaces=NS)
 
 
 def test_only_replaced_hyperlinks_are_removed(tmp_path):

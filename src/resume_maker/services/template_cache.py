@@ -8,12 +8,18 @@ from resume_maker.integrations.sources import digest
 from resume_maker.services.template_analysis import INSTRUCTIONS, analysis_context, assess_plan
 
 
-def cache_path(directory, package, document, projects) -> Path:
-    """按规范化包内容、字段需求、映射契约和 skill 生成键，不受 ZIP 时间戳影响。"""
+def cache_path(directory, package, document, projects, settings) -> Path:
+    """按模板、字段需求、映射契约和 AI 配置生成键，切换模型后重新识别。"""
     context = analysis_context(package, document, projects)
     context.pop("template")
     identity = {
-        "contract": 2,
+        "contract": 6,
+        "provider": {
+            "executable": settings.executable,
+            "profile": settings.profile,
+            "model": settings.model,
+            "reasoning_effort": settings.reasoning_effort,
+        },
         "skill": INSTRUCTIONS,
         "schema": TemplatePlan.model_json_schema(),
         "requirements": context,

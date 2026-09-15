@@ -1,7 +1,4 @@
-import { arrayMove } from "@dnd-kit/sortable";
 import {
-  ArrowDown,
-  ArrowUp,
   Download,
   FileDown,
   Maximize2,
@@ -9,22 +6,16 @@ import {
   Plus,
   Save,
   Trash2,
-  X,
 } from "lucide-react";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useRef, useState, type CSSProperties } from "react";
 import ResizeHandle from "../../shared/components/ResizeHandle";
-import {
-  SortableItem,
-  SortableList,
-} from "../../shared/components/SortableList";
+import TemplateOptions from "../../shared/components/TemplateOptions";
 import { useElementSize } from "../../shared/hooks/useElementSize";
 import { download } from "../../shared/lib/api";
 import { clamp, DEFAULT_LAYOUT } from "../../shared/lib/layout";
 import type { Export, Resume, Revision, State } from "../../shared/types/index";
 import { isCurrentExport, sameComposition } from "./composition.ts";
-import PrintedPage from "./PrintedPage";
 import DeleteResumeDialog from "./DeleteResumeDialog";
-import ResumePreview from "../profile/ResumePreview";
 import { newDocument } from "../profile/document";
 import TemplatePreview from "./TemplatePreview";
 import { templatePreviewInput } from "./templatePreviewInput";
@@ -49,11 +40,10 @@ interface Props {
   onNew: () => void;
   onDelete: (resume: Resume) => void;
   onTemplates: () => void;
-  onEditProject: (id: string) => void;
   run: (work: () => Promise<void>) => void;
 }
 
-/** 编辑固定版本组合，默认展示所选模板的真实排版，保留内容调整与历史导出。 */
+/** 编辑固定版本组合并展示真实排版，项目编排由栏目工作区管理。 */
 export default function Composer(props: Props) {
   const { draft, state, revisions, result } = props;
   const template = state.templates.find(
@@ -61,13 +51,7 @@ export default function Composer(props: Props) {
       item.id === draft.template_id,
   );
   const templateUnavailable = !!draft.template_id && !template;
-  const [tab, setTab] = useState<"content" | "edit" | "print">("content");
-  useEffect(
-    /* 切换方案或模板时返回当前预览，避免把历史导出误认成新模板。 */ () => {
-      setTab("content");
-    },
-    [draft.id, draft.template_id],
-  );
+  const [zoom, setZoom] = useState(0);
   const previewInput = templatePreviewInput(
     draft,
     revisions,
@@ -83,164 +67,6 @@ export default function Composer(props: Props) {
   );
   const dirty = !sameComposition(saved, draft);
   const currentExport = !props.previewChanged && isCurrentExport(result, draft);
-  /** 按目标位置移动条目，并沿用当前组件的版本或组合保存规则。 */
-  function move(from: number, to: number) {
-    props.onChange({ ...draft, items: arrayMove(draft.items, from, to) });
-  }
-  const projectPreview = (
-    <>
-      {!draft.items.length && (
-        <div className="empty compact preview-empty">
-          <p>从左侧勾选项目</p>
-          <span>选择经历版本与亮点，再调整项目顺序。</span>
-        </div>
-      )}
-      <SortableList
-        key={draft.id}
-        items={draft.items.map(
-          /* 逐项转换数据，保留当前业务需要的字段。 */ (item) => ({
-            id: item.project_id,
-            label:
-              (
-                props.previewSources[item.project_id] ??
-                revisions[item.revision_id]
-              )?.content.title || "项目",
-          }),
-        )}
-        disabled={draft.items.some(
-          /* 检查条目是否满足当前选择或校验条件。 */ (item) =>
-            !revisions[item.revision_id],
-        )}
-        onMove={move}
-      >
-        {draft.items.map(
-          /* 按稳定标识生成对应的列表条目。 */ (item, index) => {
-            const revision =
-              props.previewSources[item.project_id] ??
-              revisions[item.revision_id];
-            if (!revision)
-              return <p key={item.project_id}>正在读取经历版本…</p>;
-            const value = revision.content;
-            return (
-              <SortableItem
-                as="article"
-                className="resume-project"
-                key={item.project_id}
-                id={item.project_id}
-                label={`项目 ${value.title}`}
-              >
-                {
-                  /* 将排序手柄嵌入对应业务条目的操作区。 */ (handle) => (
-                    <>
-                      <div className="resume-project-title">
-                        <strong>{value.title}</strong>
-                        <div className="row">
-                          <button
-                            className="icon-button"
-                            aria-label={`上移项目 ${value.title}`}
-                            disabled={index === 0}
-                            onClick={
-                              /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-                                move(index, index - 1)
-                            }
-                          >
-                            <ArrowUp size={13} />
-                          </button>
-                          {handle}
-                          <button
-                            className="icon-button"
-                            aria-label={`下移项目 ${value.title}`}
-                            disabled={index === draft.items.length - 1}
-                            onClick={
-                              /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-                                move(index, index + 1)
-                            }
-                          >
-                            <ArrowDown size={13} />
-                          </button>
-                          <button
-                            className="icon-button"
-                            aria-label={`移除项目 ${value.title}`}
-                            onClick={
-                              /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-                                props.onChange({
-                                  ...draft,
-                                  items: draft.items.filter(
-                                    /* 保留满足当前范围或有效性条件的条目。 */ (
-                                      _,
-                                      i,
-                                    ) => i !== index,
-                                  ),
-                                })
-                            }
-                          >
-                            <X size={13} />
-                          </button>
-                        </div>
-                      </div>
-                      <span className="resume-period">
-                        {value.period} {value.role}
-                      </span>
-                      {value.stack.length > 0 && (
-                        <p>
-                          <b>技术栈：</b>
-                          {value.stack.join("、")}
-                        </p>
-                      )}
-                      {value.description && (
-                        <p>
-                          <b>项目描述：</b>
-                          {value.description}
-                        </p>
-                      )}
-                      {value.highlights
-                        .filter(
-                          /* 按编辑区当前顺序显示勾选条目，取消后重选不改变位置。 */ (
-                            h,
-                          ) => item.highlight_ids.includes(h.id),
-                        )
-                        .map(
-                          /* 按稳定标识生成对应的列表条目。 */ (h) => (
-                            <p key={h.id}>
-                              <b>{h.title}：</b>
-                              {h.text}
-                            </p>
-                          ),
-                        )}
-                      {!value.highlights.length && !value.description && (
-                        <p className="subtle">
-                          尚未填写项目经历，可先分析源码。
-                        </p>
-                      )}
-                      <span className="version-note">
-                        {revision !== revisions[item.revision_id]
-                          ? `实时预览 · 基于 r${revision.number}`
-                          : `固定引用 r${revision.number}`}
-                      </span>
-                      {state.branches.find(
-                        /* 定位与当前标识或条件匹配的条目。 */ (branch) =>
-                          branch.id === revision.branch_id,
-                      )?.head_revision !== revision.id && (
-                        <button
-                          className="text-button revision-update"
-                          onClick={
-                            /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-                              props.onEditProject(item.project_id)
-                          }
-                        >
-                          有更新的经历版本 · 查看
-                        </button>
-                      )}
-                    </>
-                  )
-                }
-              </SortableItem>
-            );
-          },
-        )}
-      </SortableList>
-    </>
-  );
   return (
     <aside
       className="composition-pane"
@@ -320,17 +146,10 @@ export default function Composer(props: Props) {
                   })
               }
             >
-              <option value="">内置 · 完整简历</option>
               {templateUnavailable && (
                 <option value={draft.template_id!}>请重新选择完整模板</option>
               )}
-              {state.templates.map(
-                /* 按稳定标识生成对应的列表条目。 */ (t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ),
-              )}
+              <TemplateOptions templates={state.templates} />
             </select>
           </label>
           <button className="text-button" onClick={props.onTemplates}>
@@ -339,7 +158,7 @@ export default function Composer(props: Props) {
         </div>
         {template && (
           <p className="subtle">
-            按已确认映射替换个人信息、照片和栏目，保留模板版式；右侧模板预览随资料修改自动更新。
+            按已确认映射替换个人信息、照片和栏目，保留模板版式；右侧简历预览随资料修改自动更新。
           </p>
         )}
         <div className="actions">
@@ -411,78 +230,13 @@ export default function Composer(props: Props) {
             正在生成文档并检查分页…
           </div>
         )}
-      </header>
-      {deleteTarget && (
-        <DeleteResumeDialog
-          resume={deleteTarget}
-          onClose={/* 取消删除并返回组合编辑。 */ () => setDeleteTarget(null)}
-          onConfirm={
-            /* 关闭确认弹窗并删除已经确认的方案。 */ () => {
-              setDeleteTarget(null);
-              props.onDelete(deleteTarget);
-              setTab("content");
-            }
-          }
-        />
-      )}
-      <ResizeHandle
-        className="settings-resize"
-        label="调整设置与预览高度"
-        axis="y"
-        value={settingsHeight}
-        min={80}
-        max={settingsMax}
-        onChange={props.onSettingsHeight}
-        onReset={
-          /* 恢复该区域的默认布局尺寸。 */ () =>
-            props.onSettingsHeight(DEFAULT_LAYOUT.settings)
-        }
-      />
-      <section className="preview-pane" aria-label="简历预览">
-        <nav className="tabs preview-tabs">
-          <button
-            className={tab === "content" ? "active" : ""}
-            onClick={
-              /* 响应当前操作按钮，执行对应业务动作。 */ () => setTab("content")
-            }
-          >
-            {draft.template_id ? "模板预览" : "内容预览"}
-          </button>
-          {draft.template_id && (
-            <button
-              className={tab === "edit" ? "active" : ""}
-              onClick={
-                /* 保留项目排序和版本调整的内容视图。 */ () => setTab("edit")
-              }
-            >
-              编辑内容
-            </button>
-          )}
-          <button
-            className={tab === "print" ? "active" : ""}
-            disabled={!result}
-            onClick={
-              /* 响应当前操作按钮，执行对应业务动作。 */ () => setTab("print")
-            }
-          >
-            上次导出预览{result?.pages ? ` · ${result.pages} 页` : ""}
-          </button>
-          <button
-            className="icon-button preview-focus"
-            aria-label={props.previewFocused ? "退出放大预览" : "放大预览"}
-            title={props.previewFocused ? "退出放大预览（Esc）" : "放大预览"}
-            aria-pressed={props.previewFocused}
-            onClick={props.onFocusPreview}
-          >
-            {props.previewFocused ? (
-              <Minimize2 size={16} />
-            ) : (
-              <Maximize2 size={16} />
-            )}
-          </button>
-        </nav>
-        <div className="composition-scroll">
-          {tab === "print" && result && (
+        {result && (
+          <details className="export-downloads">
+            <summary>
+              {currentExport
+                ? "下载已导出的文件"
+                : "上次导出文件（内容已变化）"}
+            </summary>
             <div className="export-result">
               <strong>
                 {currentExport ? "当前组合已导出" : "上次导出"}
@@ -490,7 +244,7 @@ export default function Composer(props: Props) {
               </strong>
               {!currentExport && (
                 <span className="warning">
-                  组合已变化，重新导出后更新文件与预览。
+                  组合已变化，以下下载仍是上次导出的文件。
                 </span>
               )}
               <span className="subtle">
@@ -548,44 +302,82 @@ export default function Composer(props: Props) {
                 </button>
               </div>
             </div>
-          )}
-          <TemplatePreview
-            input={templateUnavailable ? null : previewInput}
-            templateId={template?.id}
-            hidden={!template || tab !== "content"}
-            run={props.run}
-          />
-          {tab === "print" && result ? (
-            <div className="print-preview">
-              {Array.from(
-                { length: result.pages ?? 0 },
-                /* 执行当前异步流程，保持请求结果与所属组件状态一致。 */ (
-                  _,
-                  i,
-                ) => (
-                  <PrintedPage
-                    key={`${result.id}.${i}`}
-                    exportId={result.id}
-                    page={i + 1}
-                  />
-                ),
-              )}
-            </div>
-          ) : templateUnavailable && tab === "content" ? (
+          </details>
+        )}
+      </header>
+      {deleteTarget && (
+        <DeleteResumeDialog
+          resume={deleteTarget}
+          onClose={/* 取消删除并返回组合编辑。 */ () => setDeleteTarget(null)}
+          onConfirm={
+            /* 关闭确认弹窗并删除已经确认的方案。 */ () => {
+              setDeleteTarget(null);
+              props.onDelete(deleteTarget);
+            }
+          }
+        />
+      )}
+      <ResizeHandle
+        className="settings-resize"
+        label="调整设置与预览高度"
+        axis="y"
+        value={settingsHeight}
+        min={80}
+        max={settingsMax}
+        onChange={props.onSettingsHeight}
+        onReset={
+          /* 恢复该区域的默认布局尺寸。 */ () =>
+            props.onSettingsHeight(DEFAULT_LAYOUT.settings)
+        }
+      />
+      <section className="preview-pane" aria-label="简历预览">
+        <div className="preview-toolbar">
+          <strong>简历预览</strong>
+          <select
+            aria-label="预览缩放"
+            value={zoom}
+            onChange={
+              /* 缩放矢量页面，零值表示适应可用宽度。 */ (event) =>
+                setZoom(Number(event.target.value))
+            }
+          >
+            <option value={0}>适应宽度</option>
+            <option value={0.75}>75%</option>
+            <option value={1}>100%</option>
+            <option value={1.25}>125%</option>
+            <option value={1.5}>150%</option>
+            <option value={2}>200%</option>
+          </select>
+          <button
+            className="icon-button preview-focus"
+            aria-label={props.previewFocused ? "退出放大预览" : "放大预览"}
+            title={props.previewFocused ? "退出放大预览（Esc）" : "放大预览"}
+            aria-pressed={props.previewFocused}
+            onClick={props.onFocusPreview}
+          >
+            {props.previewFocused ? (
+              <Minimize2 size={16} />
+            ) : (
+              <Maximize2 size={16} />
+            )}
+          </button>
+        </div>
+        <div className="composition-scroll">
+          {templateUnavailable ? (
             <p className="warning" role="status">
               当前完整模板不可用，请重新选择模板或在“管理模板”中导入 Word 进行
               AI 识别。
             </p>
-          ) : !template || tab === "edit" ? (
-            <>
-              {template && (
-                <p className="subtle">
-                  此视图用于调整项目内容与顺序；模板的字体和分页请查看“模板预览”。
-                </p>
-              )}
-              <ResumePreview draft={draft} projects={projectPreview} />
-            </>
+          ) : !draft.document ? (
+            <p className="subtle">填写个人资料后，即可查看简历排版。</p>
           ) : null}
+          <TemplatePreview
+            input={templateUnavailable ? null : previewInput}
+            templateId={draft.template_id}
+            zoom={zoom}
+            hidden={templateUnavailable || !draft.document}
+            run={props.run}
+          />
         </div>
       </section>
     </aside>

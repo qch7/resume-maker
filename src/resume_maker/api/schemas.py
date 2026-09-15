@@ -78,7 +78,7 @@ class PreviewProject(ResumeItem):
 class ResumePreviewInput(Model):
     """当前模板和未保存资料的临时排版请求，不带简历保存或发布操作。"""
 
-    template_id: str
+    template_id: str | None = None
     document: ResumeDocument
     items: list[PreviewProject]
 

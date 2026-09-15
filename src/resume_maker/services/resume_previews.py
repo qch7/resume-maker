@@ -8,6 +8,7 @@ from resume_maker.core.errors import Problem, need
 from resume_maker.domain.templates import TemplatePlan
 from resume_maker.infrastructure.database import dump, uid
 from resume_maker.integrations.sources import digest
+from resume_maker.integrations.word.full_resume import write_full_resume
 from resume_maker.integrations.word.rendering import render_word
 from resume_maker.integrations.word.template_fill import fill_template
 
@@ -25,13 +26,15 @@ class ResumePreviews:
 
     def render(self, template_id, document, items):
         """使用当前资料和可选经历工作副本试填，固定版本仅核验归属而不被修改。"""
-        template = self.catalog.template(template_id)
+        template = self.catalog.template(template_id) if template_id else None
         if document is None:
             raise Problem("请先填写个人资料和栏目。")
-        source = self.data_dir / "templates" / template_id / "template.docx"
-        data = source.read_bytes()
-        if digest(data) != template["hash"]:
-            raise Problem("模板文件已在程序外变化，请重新导入。")
+        data = None
+        if template:
+            source = self.data_dir / "templates" / template_id / "template.docx"
+            data = source.read_bytes()
+            if digest(data) != template["hash"]:
+                raise Problem("模板文件已在程序外变化，请重新导入。")
         if len({item["project_id"] for item in items}) != len(items):
             raise Problem("项目引用不能重复。")
         projects = []
@@ -58,15 +61,19 @@ class ResumePreviews:
             identifier = uid()
             directory = Path(self.directory.name) / identifier
             directory.mkdir()
-            snapshot, output = directory / "template.docx", directory / "resume.docx"
-            snapshot.write_bytes(data)
-            fill_template(
-                snapshot,
-                output,
-                TemplatePlan.model_validate(template["mapping"]["plan"]),
-                document,
-                projects,
-            )
+            output = directory / "resume.docx"
+            if template:
+                snapshot = directory / "template.docx"
+                snapshot.write_bytes(data)
+                fill_template(
+                    snapshot,
+                    output,
+                    TemplatePlan.model_validate(template["mapping"]["plan"]),
+                    document,
+                    projects,
+                )
+            else:
+                write_full_resume(output, document, projects)
             pages, error = render_word(output, directory / "resume.pdf")
             result = {"id": identifier, "pages": pages, "render_error": error}
             self.results[identifier] = result
@@ -82,6 +89,7 @@ class ResumePreviews:
         if result["pages"]:
             allowed.add("resume.pdf")
             allowed.update(f"page-{i}.png" for i in range(1, result["pages"] + 1))
+            allowed.update(f"page-{i}.svg" for i in range(1, result["pages"] + 1))
         if filename not in allowed:
             raise Problem("预览文件不存在。", 404)
         path = Path(self.directory.name) / identifier / filename

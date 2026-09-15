@@ -19,8 +19,9 @@ from resume_maker.integrations.word.template_fill import (
     missing_targets,
 )
 from resume_maker.integrations.word.template_map import TemplatePackage
+from resume_maker.integrations.word.template_recovery import prepare_template
 from resume_maker.services.catalog import Catalog
-from resume_maker.services.template_analysis import analyze_plan, assess_plan
+from resume_maker.services.template_analysis import analyze_plan, assess_plan, check_trial
 from resume_maker.services.template_cache import cache_path, cached_plan, remember_plan
 
 
@@ -45,9 +46,7 @@ class Templates:
     ) -> dict:
         """先复制源文档为受控快照，再异步分析；源文件后续变化不影响确认结果。"""
         path = path.expanduser().resolve(strict=True)
-        if path.suffix.lower() != ".docx":
-            raise Problem("请先将 Word 文档另存为 .docx 格式。")
-        return self._start(TemplatePackage(path), path.name, document, items or [])
+        return self._start(None, path.name, document, items or [], raw=path.read_bytes())
 
     def repair(self, identifier, plan, document, items, feedback=""):
         """基于当前人工方案另开修正任务，原建议仍保留且不会被失败覆盖。"""
@@ -60,11 +59,9 @@ class Templates:
             feedback,
         )
 
-    def _start(self, package, file_name, document, items, initial=None, feedback=""):
+    def _start(self, package, file_name, document, items, initial=None, feedback="", raw=None):
         """统一准备分析副本与异步任务，校验项目引用后才调用模型。"""
-        inventory = package.inventory()
-        if inventory["warnings"]:
-            raise Problem("；".join(inventory["warnings"]))
+        inventory = package.inventory() if package else {"nodes": [], "warnings": [], "notices": []}
         projects = self.projects(items)
         with self.lock:
             if self.stopped:
@@ -77,13 +74,17 @@ class Templates:
             directory.mkdir(parents=True)
             # 保存刚解析的同一字节快照，防止分析和确认时读到不同文档。
             source = directory / "original.docx"
-            package.write(source)
+            if package is not None:
+                package.write(source)
+            else:
+                suffix = Path(file_name).suffix.lower()
+                (directory / ("uploaded" + suffix)).write_bytes(raw)
             task = {
                 **new_progress(),
                 "id": identifier,
                 "file_name": file_name,
                 "status": "running",
-                "activity": "正在识别字段和栏目…",
+                "activity": "正在自动整理模板格式…",
                 "plan": None,
                 "review": None,
                 "inventory": inventory,
@@ -92,7 +93,9 @@ class Templates:
             self.started[identifier] = time.monotonic()
             self.tasks[identifier] = task
             flag = self.flags[identifier] = threading.Event()
-            settings = ProviderSettings.model_validate(self.db.setting("provider", {}))
+            settings = ProviderSettings.model_validate(
+                self.db.setting("provider", {})
+            ).for_function("template_repair" if initial is not None else "template_analysis")
             thread = threading.Thread(
                 target=self._analyze,
                 args=(identifier, directory, document, projects, settings, flag, initial, feedback),
@@ -145,8 +148,21 @@ class Templates:
                     )
 
         try:
-            package = TemplatePackage(directory / "original.docx")
-            path = cache_path(self.data_dir, package, document, projects)
+            source = directory / "original.docx"
+            if source.exists():
+                package = TemplatePackage(source)
+            else:
+                uploaded = next(directory.glob("uploaded*"))
+                package, notices = prepare_template(
+                    uploaded, source, self.provider, settings, flag, emit, document, projects
+                )
+                with self.lock:
+                    if flag.is_set():
+                        raise Cancelled("模板分析已取消。")
+                    inventory = package.inventory()
+                    inventory["notices"] = list(dict.fromkeys([*notices, *inventory["notices"]]))
+                    self.tasks[identifier]["inventory"] = inventory
+            path = cache_path(self.data_dir, package, document, projects, settings)
             hit = (
                 cached_plan(path, package, document, projects)
                 if initial is None and not feedback
@@ -172,6 +188,38 @@ class Templates:
                     initial,
                     feedback,
                 )
+            review = check_trial(source, plan, review, document, projects)
+            if any(
+                marker in error
+                for error in review["errors"]
+                for marker in ("同一容器", "分页分节", "同一个组合绘图", "栏目边界", "标题段落")
+            ):
+                package, notices = prepare_template(
+                    source,
+                    source,
+                    self.provider,
+                    settings,
+                    flag,
+                    emit,
+                    document,
+                    projects,
+                    force=True,
+                )
+                with self.lock:
+                    if flag.is_set():
+                        raise Cancelled("模板分析已取消。")
+                    inventory = package.inventory()
+                    inventory["notices"] = list(
+                        dict.fromkeys([*self.tasks[identifier]["inventory"]["notices"], *notices])
+                    )
+                    self.tasks[identifier]["inventory"] = inventory
+                plan, review, extra_attempts, repair_error = analyze_plan(
+                    package, self.provider, directory, document, projects, settings, flag, emit
+                )
+                hit = None
+                attempts += extra_attempts
+                review = check_trial(source, plan, review, document, projects)
+                path = cache_path(self.data_dir, package, document, projects, settings)
             with self.lock:
                 if flag.is_set():
                     raise Cancelled("模板分析已取消。")

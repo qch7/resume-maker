@@ -3,7 +3,19 @@
 import pytest
 
 from resume_maker.infrastructure.database import Database
+from resume_maker.integrations.sources import capture_evidence, project_sources
 from resume_maker.services.catalog import Catalog
+
+
+def record_source_files(db, data_dir, project, paths=("README.md",)):
+    """仅为测试指定的来源文件建立证据记录，避免夹具依赖已经移除的整库采集。"""
+    return capture_evidence(
+        db,
+        data_dir,
+        project,
+        project_sources(project),
+        [{"source": "source-0", "path": path, "status": "document"} for path in paths],
+    )
 
 
 @pytest.fixture

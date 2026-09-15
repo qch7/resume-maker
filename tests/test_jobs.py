@@ -22,7 +22,9 @@ class FakeProvider:
     def run(self, **kw):
         """返回可预测的结构化建议，并模拟独立会话标识与取消信号。"""
         context = json.loads(kw["prompt"].split("本轮上下文数据：\n")[1])
-        self.calls.append({"context": context, "thread": kw["thread_id"]})
+        self.calls.append(
+            {"context": context, "thread": kw["thread_id"], "settings": kw["settings"]}
+        )
         kw["emit"]("thread", {"id": kw["thread_id"] or uid()})
         while self.block:
             if kw["cancelled"].wait(0.01):

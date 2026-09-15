@@ -6,7 +6,7 @@ export function templatePreviewInput(
   revisions: Record<string, Revision>,
   sources: Record<string, Revision>,
 ): string | null {
-  if (!draft.template_id) return null;
+  if (!draft.document) return null;
   const items = [];
   for (const item of draft.items) {
     const revision = sources[item.project_id] ?? revisions[item.revision_id];

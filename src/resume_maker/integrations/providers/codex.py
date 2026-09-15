@@ -9,7 +9,6 @@ import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
-from typing import Literal
 
 import psutil
 
@@ -119,7 +118,6 @@ class CodexProvider:
         cancelled: threading.Event,
         emit: Callable[[str, dict], None],
         images: list[Path] | None = None,
-        reasoning_effort: Literal["medium", "high"] | None = None,
     ) -> T:
         """以只读沙箱调用 Codex，解析 JSON 事件并处理超时、取消和进程回收。"""
         workspace.mkdir(parents=True, exist_ok=True)
@@ -143,9 +141,9 @@ class CodexProvider:
             command += ["--model", settings.model]
         if settings.profile:
             command += ["--profile", settings.profile]
-        if reasoning_effort:
-            # 任务级预算不写回用户配置；普通经历会话仍继承原来的推理强度。
-            command += ["--config", f'model_reasoning_effort="{reasoning_effort}"']
+        if settings.reasoning_effort:
+            # 新请求及续聊均使用提交时的功能配置，不写回用户的 CLI 配置文件。
+            command += ["--config", f'model_reasoning_effort="{settings.reasoning_effort}"']
         for image in images or []:
             command += ["--image", str(image)]
         if thread_id:

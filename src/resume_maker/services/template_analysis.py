@@ -7,6 +7,7 @@ from resume_maker.domain.templates import TemplatePlan
 from resume_maker.infrastructure.database import dump
 from resume_maker.integrations.providers.base import Cancelled
 from resume_maker.integrations.word.template_fill import (
+    fill_template,
     missing_targets,
     personal_values,
     section_records,
@@ -47,6 +48,20 @@ FIXED_LABELS = {
     "学位",
     "时间",
 }
+
+
+def check_trial(source, plan, review, document, projects):
+    """识别通过后先实际生成试填副本，提前发现栏目容器与排序约束。"""
+    if review["ready"]:
+        output = source.parent / "layout-check.docx"
+        try:
+            fill_template(source, output, plan, document.model_dump(), projects)
+        except Problem as exc:
+            review["errors"].append(str(exc))
+            review["ready"] = False
+        finally:
+            output.unlink(missing_ok=True)
+    return review
 
 
 def complete_labels(package, plan):
@@ -237,7 +252,6 @@ def analyze_plan(
                 cancelled=flag,
                 emit=receive,
                 images=[] if resuming else images,
-                reasoning_effort="medium" if attempt < 3 else "high",
             )
             attempts += 1
             if flag.is_set():

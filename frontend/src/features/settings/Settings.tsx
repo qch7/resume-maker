@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import PathInput from "../../shared/components/PathInput";
 import { api, download } from "../../shared/lib/api";
 import type { Conversation, ProviderSettings } from "../../shared/types/index";
+import CodexModels from "./CodexModels";
 
 interface Props {
   initial: "projects" | "settings";
@@ -25,9 +26,12 @@ export default function Settings(props: Props) {
   const [provider, setProvider] = useState<ProviderSettings>({
     executable: "codex",
     model: "",
+    reasoning_effort: "",
     profile: "",
     timeout_seconds: 1200,
+    functions: {},
   });
+  const [loaded, setLoaded] = useState(false);
   const [dataDir, setDataDir] = useState(""),
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false);
@@ -57,6 +61,7 @@ export default function Settings(props: Props) {
           /* 在异步操作成功后同步结果及相关状态。 */ (value) => {
             setProvider(value.provider);
             setDataDir(value.data_dir);
+            setLoaded(true);
           },
         )
         .catch(
@@ -272,14 +277,13 @@ export default function Settings(props: Props) {
         <div className="settings-body">
           <h3>Codex CLI</h3>
           <p className="subtle">
-            复用当前 CLI 配置，包括 CCSwitch 的
-            Provider。模型留空时继承当前配置。
+            复用当前 CLI 配置，包括 CCSwitch 的 Provider。
           </p>
           <PathInput
             label="可执行文件"
             kind="executable"
             value={provider.executable}
-            disabled={busy}
+            disabled={busy || !loaded}
             onChange={
               /* 选择本机 CLI 启动文件，保留其他 Provider 设置。 */ (value) =>
                 setProvider({ ...provider, executable: value })
@@ -287,18 +291,9 @@ export default function Settings(props: Props) {
           />
           <div className="form-grid">
             <label>
-              模型覆盖（可留空）
-              <input
-                value={provider.model}
-                onChange={
-                  /* 把控件的新值同步到对应编辑状态。 */ (e) =>
-                    setProvider({ ...provider, model: e.target.value })
-                }
-              />
-            </label>
-            <label>
               CLI Profile（可留空）
               <input
+                disabled={busy || !loaded}
                 value={provider.profile}
                 onChange={
                   /* 把控件的新值同步到对应编辑状态。 */ (e) =>
@@ -306,32 +301,43 @@ export default function Settings(props: Props) {
                 }
               />
             </label>
+            <label>
+              单轮超时（秒）
+              <input
+                type="number"
+                min={30}
+                max={7200}
+                value={provider.timeout_seconds}
+                disabled={busy || !loaded}
+                onChange={
+                  /* 把控件的新值同步到对应编辑状态。 */ (e) =>
+                    setProvider({
+                      ...provider,
+                      timeout_seconds: Number(e.target.value),
+                    })
+                }
+              />
+            </label>
           </div>
-          <label>
-            单轮超时（秒）
-            <input
-              type="number"
-              min={30}
-              max={7200}
-              value={provider.timeout_seconds}
-              onChange={
-                /* 把控件的新值同步到对应编辑状态。 */ (e) =>
-                  setProvider({
-                    ...provider,
-                    timeout_seconds: Number(e.target.value),
-                  })
-              }
-            />
-          </label>
+          <CodexModels
+            value={provider}
+            disabled={busy || !loaded}
+            onChange={setProvider}
+          />
           <div className="actions">
             <button
-              disabled={busy}
+              disabled={busy || !loaded}
               onClick={
                 /* 响应当前操作按钮，执行对应业务动作。 */ () =>
                   run(
                     /* 在草稿刷新成功后执行当前业务操作。 */ async () => {
-                      await api("/settings/provider", "PUT", provider);
-                      setNotice("Provider 设置已保存。");
+                      const saved = await api<ProviderSettings>(
+                        "/settings/provider",
+                        "PUT",
+                        provider,
+                      );
+                      setProvider(saved);
+                      setNotice("Codex 设置已保存，将用于新提交的 AI 任务。");
                     },
                   )
               }
@@ -339,12 +345,17 @@ export default function Settings(props: Props) {
               保存设置
             </button>
             <button
-              disabled={busy}
+              disabled={busy || !loaded}
               onClick={
                 /* 响应当前操作按钮，执行对应业务动作。 */ () =>
                   run(
                     /* 在草稿刷新成功后执行当前业务操作。 */ async () => {
-                      await api("/settings/provider", "PUT", provider);
+                      const saved = await api<ProviderSettings>(
+                        "/settings/provider",
+                        "PUT",
+                        provider,
+                      );
+                      setProvider(saved);
                       const value = await api<{ reply: string }>(
                         "/providers/codex/check",
                         "POST",

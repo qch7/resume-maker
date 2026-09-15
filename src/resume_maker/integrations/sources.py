@@ -1,12 +1,14 @@
-"""项目来源扫描、受控文本快照与原文证据核验。"""
+"""项目目录定位、引用文件留存与原文证据核验。"""
 
 import hashlib
 import os
 import re
 import subprocess
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
+from tempfile import TemporaryDirectory
 
-from resume_maker.infrastructure.database import Database, dump, now, uid
+from resume_maker.infrastructure.database import dump, now, uid
+from resume_maker.integrations.providers.base import Cancelled
 
 EXCLUDED = {
     ".git",
@@ -31,45 +33,6 @@ EXCLUDED = {
     "bin",
     "obj",
     ".local",
-}
-TEXT_SUFFIXES = {
-    ".md",
-    ".txt",
-    ".rst",
-    ".py",
-    ".js",
-    ".jsx",
-    ".ts",
-    ".tsx",
-    ".vue",
-    ".svelte",
-    ".java",
-    ".kt",
-    ".go",
-    ".rs",
-    ".cs",
-    ".cpp",
-    ".c",
-    ".h",
-    ".hpp",
-    ".rb",
-    ".php",
-    ".sql",
-    ".json",
-    ".toml",
-    ".yaml",
-    ".yml",
-    ".xml",
-    ".html",
-    ".css",
-    ".scss",
-    ".sh",
-    ".ps1",
-    ".bat",
-    ".ini",
-    ".cfg",
-    ".proto",
-    ".gradle",
 }
 SECRET_FILE = re.compile(r"(^\.env($|\.)|credentials|^auth\.json$|private.?key|id_rsa)", re.I)
 SECRET_VALUE = re.compile(
@@ -138,116 +101,134 @@ def redact(text: str) -> str:
     return re.sub(r"\bsk-[A-Za-z0-9_-]{16,}\b", "<redacted>", text)
 
 
-def collect_snapshot(db: Database, data_dir: Path, project: dict) -> dict:
-    """采集受大小限制的文本副本，记录 Git 状态、哈希、来源及遗漏原因。"""
-    data_dir = data_dir.resolve()
-    snapshot_id = uid()
-    target = data_dir / "snapshots" / snapshot_id
-    target.mkdir(parents=True)
-    files, sources, omitted = [], [], []
-    total = 0
+def project_sources(project: dict) -> list[dict]:
+    """只解析当前关联目录及版本信息，不扫描或复制源码，让模型直接按需读取。"""
+    sources = []
     for index, root_name in enumerate(project["roots"]):
-        root = Path(root_name).resolve(strict=True)
-        source_id = f"source-{index}"
+        root = Path(root_name).expanduser().resolve(strict=True)
+        if not root.is_dir():
+            raise ValueError("项目来源必须是文件夹。")
         has_git = (root / ".git").exists()
-        commit = git(root, "rev-parse", "HEAD") if has_git else ""
         status = git(root, "status", "--porcelain", "--untracked-files=normal") if has_git else ""
         sources.append(
             {
-                "id": source_id,
+                "id": f"source-{index}",
                 "path": str(root),
                 "name": root.name,
-                "commit": commit,
+                "commit": git(root, "rev-parse", "HEAD") if has_git else "",
                 "branch": git(root, "branch", "--show-current") if has_git else "",
                 "dirty": bool(status),
                 "status": status,
             }
         )
-        for directory, dirs, names in os.walk(root, followlinks=False):
-            base = Path(directory)
-            # 数据目录可能位于源码内，避免把个人资料和正在生成的快照再次采集。
-            dirs[:] = sorted(
-                n
-                for n in dirs
-                if n not in EXCLUDED and not linked(base / n) and (base / n).resolve() != data_dir
-            )
-            for name in sorted(names):
-                path = base / name
-                relative = path.relative_to(root).as_posix()
-                if (
-                    linked(path)
-                    or SECRET_FILE.search(name)
-                    or name.endswith((".lock", "-lock.json"))
-                ):
-                    continue
-                if path.suffix.lower() not in TEXT_SUFFIXES and name not in {
-                    "Dockerfile",
-                    "Makefile",
-                }:
-                    continue
-                if len(files) >= 3000 or total >= 25_000_000:
-                    omitted.append({"source": source_id, "path": relative, "reason": "总量限制"})
-                    continue
-                try:
-                    before = path.stat()
-                    if before.st_size > 512_000:
-                        omitted.append(
-                            {"source": source_id, "path": relative, "reason": "文件过大"}
-                        )
-                        continue
-                    raw = path.read_bytes()
-                    after = path.stat()
-                    if (before.st_mtime_ns, before.st_size) != (after.st_mtime_ns, after.st_size):
-                        raise ValueError(f"采集时文件发生变化，请重试：{relative}")
-                    if b"\0" in raw:
-                        continue
+    return sources
+
+
+def evidence_file(sources, source, path, data_dir):
+    """仅定位本轮来源内的普通文件，拒绝越界、链接、密钥文件及应用自己的资料。"""
+    relative = PurePosixPath(path.replace("\\", "/"))
+    root_info = next((item for item in sources if item["id"] == source), None)
+    if (
+        root_info is None
+        or relative.is_absolute()
+        or PureWindowsPath(path).drive
+        or ".." in relative.parts
+        or ":" in path
+        or SECRET_FILE.search(relative.name)
+        or any(part in EXCLUDED for part in relative.parts[:-1])
+    ):
+        raise ValueError("引用文件必须是当前项目目录中的普通源码或文档。")
+    root = Path(root_info["path"]).resolve(strict=True)
+    candidate = root.joinpath(*relative.parts)
+    if any(
+        linked(part)
+        for part in (candidate, *candidate.parents)
+        if part != root and part.is_relative_to(root)
+    ):
+        raise ValueError("引用文件不能通过链接越出项目来源。")
+    target = candidate.resolve(strict=True)
+    if not target.is_relative_to(root) or target.is_relative_to(data_dir) or not target.is_file():
+        raise ValueError("引用文件必须位于当前项目来源内。")
+    return target, relative.as_posix()
+
+
+def capture_evidence(db, data_dir, project, sources, references, cancelled=None):
+    """模型完成后仅固化被引用文件；保留历史证据格式，不把整份源码复制作为分析前提。"""
+    data_dir = data_dir.resolve()
+    snapshots = data_dir / "snapshots"
+    snapshots.mkdir(parents=True, exist_ok=True)
+    files, omitted, seen = [], [], set()
+    with TemporaryDirectory(prefix=".evidence-", dir=snapshots) as directory:
+        staging = Path(directory)
+        for item in references:
+            if cancelled is not None and cancelled.is_set():
+                raise Cancelled("证据核对已取消。")
+            if item.get("status") not in {"code", "document"}:
+                continue
+            key = item["source"], item["path"]
+            if key in seen:
+                continue
+            seen.add(key)
+            try:
+                path, relative = evidence_file(sources, *key, data_dir)
+                before = path.stat()
+                raw = path.read_bytes()
+                after = path.stat()
+                if (before.st_mtime_ns, before.st_size) != (after.st_mtime_ns, after.st_size):
+                    raise ValueError("核对时引用文件发生变化。")
+                if raw.startswith((b"\xff\xfe", b"\xfe\xff")):
+                    original = raw.decode("utf-16")
+                else:
                     original = raw.decode("utf-8-sig")
-                except (OSError, UnicodeError) as exc:
-                    omitted.append(
-                        {"source": source_id, "path": relative, "reason": type(exc).__name__}
-                    )
-                    continue
-                text = redact(original)
-                stored = text.encode("utf-8")
-                # 追加文本后缀，让来源中的指令文件保持为分析数据，不成为工作区指令。
-                staged = f"{source_id}/{relative}.source.txt"
-                destination = target / staged
-                destination.parent.mkdir(parents=True, exist_ok=True)
-                destination.write_bytes(stored)
-                total += len(stored)
-                files.append(
-                    {
-                        "source": source_id,
-                        "path": relative,
-                        "staged": staged,
-                        "sha256": digest(raw),
-                        "stored_sha256": digest(stored),
-                        "size": len(stored),
-                        "lines": len(text.splitlines()),
-                        "redacted": text != original,
-                    }
-                )
-        if has_git and (
-            git(root, "rev-parse", "HEAD") != commit
-            or git(root, "status", "--porcelain", "--untracked-files=normal") != status
-        ):
-            raise ValueError("采集时 Git 工作区发生变化，请等待修改完成后重试。")
-    if not files:
-        raise ValueError("未找到可分析的文本文件，请检查项目路径和过滤范围。")
-    fingerprint = digest(dump({"sources": sources, "files": files}).encode())
-    manifest = {"sources": sources, "files": files, "omitted": omitted, "total_bytes": total}
-    (target / "manifest.json").write_text(dump(manifest), encoding="utf-8")
-    with db.transaction() as conn:
-        conn.execute(
-            "INSERT INTO snapshots VALUES (?,?,?,?,?)",
-            (snapshot_id, project["id"], fingerprint, dump(manifest), now()),
-        )
-    return db.one("SELECT * FROM snapshots WHERE id=?", (snapshot_id,))
+                if "\0" in original:
+                    raise ValueError("引用文件不是可读文本。")
+            except (OSError, UnicodeError, ValueError) as exc:
+                omitted.append({"source": key[0], "path": key[1], "reason": str(exc)})
+                continue
+            text = redact(original)
+            stored = text.encode("utf-8")
+            staged = f"{key[0]}/{relative}.source.txt"
+            destination = staging / staged
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(stored)
+            files.append(
+                {
+                    "source": key[0],
+                    "path": key[1],
+                    "staged": staged,
+                    "sha256": digest(raw),
+                    "stored_sha256": digest(stored),
+                    "size": len(stored),
+                    "lines": len(text.splitlines()),
+                    "redacted": text != original,
+                }
+            )
+        if cancelled is not None and cancelled.is_set():
+            raise Cancelled("证据核对已取消。")
+        manifest = {
+            "mode": "cited-files",
+            "sources": sources,
+            "files": files,
+            "omitted": omitted,
+            "total_bytes": sum(item["size"] for item in files),
+        }
+        fingerprint = digest(dump(manifest).encode())
+        identifier = uid()
+        (staging / "manifest.json").write_text(dump(manifest), encoding="utf-8")
+        with db.transaction() as conn:
+            conn.execute(
+                "INSERT INTO snapshots VALUES (?,?,?,?,?)",
+                (identifier, project["id"], fingerprint, dump(manifest), now()),
+            )
+            staging.rename(snapshots / identifier)
+    return db.one("SELECT * FROM snapshots WHERE id=?", (identifier,))
 
 
-def check_evidence(data_dir: Path, snapshot: dict, evidence: list[dict]) -> list[dict]:
-    """将证据行号和引文与固定快照比对，无法核实的引用降级为待确认。"""
-    entries = {(f["source"], f["path"]): f for f in snapshot["manifest"]["files"]}
+def check_evidence(data_dir: Path, snapshot: dict | None, evidence: list[dict]) -> list[dict]:
+    """将行号和引文与留存原文比对，无记录或无法核实的引用降级为待确认。"""
+    entries = (
+        {(f["source"], f["path"]): f for f in snapshot["manifest"]["files"]} if snapshot else {}
+    )
     result = []
     for item in evidence:
         item = dict(item)

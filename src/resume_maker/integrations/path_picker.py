@@ -129,7 +129,10 @@ def _windows_dialog(kind: str, directory: Path) -> str | None:
         if kind != "folder":
             # COMDLG_FILTERSPEC 是两项宽字符串指针，数组在 Show 结束前保持存活。
             filters = (
-                [("Word 文档 (*.docx)", "*.docx")]
+                [
+                    ("简历模板 / 扫描件", "*.docx;*.doc;*.docm;*.rtf;*.pdf;*.png;*.jpg;*.jpeg"),
+                    ("所有文件", "*.*"),
+                ]
                 if kind == "docx"
                 else [("可执行文件 (*.exe;*.cmd;*.bat)", "*.exe;*.cmd;*.bat"), ("所有文件", "*.*")]
             )

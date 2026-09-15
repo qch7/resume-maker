@@ -32,7 +32,7 @@ def test_repair_reuses_only_its_own_session(catalog, tmp_path):
     service = Templates(catalog, tmp_path, provider)
     task = completed(service, service.analyze(source, simple_document())["id"])
     first, second = provider.calls
-    assert first["reasoning_effort"] == second["reasoning_effort"] == "medium"
+    assert first["settings"].reasoning_effort == second["settings"].reasoning_effort == ""
     assert task["review"]["ready"] and task["attempts"] == 2
     assert task["usage"]["input_tokens"] == 200
     assert first["thread_id"] is None and second["thread_id"] == "template-session"

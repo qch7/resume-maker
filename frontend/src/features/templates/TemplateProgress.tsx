@@ -48,7 +48,9 @@ export default function TemplateProgress({
   const title = data.from_library
     ? "已加载模板"
     : running
-      ? "Codex 正在适配"
+      ? data.phase === "prepare"
+        ? "正在自动整理"
+        : "Codex 正在适配"
       : data.reused
         ? "已复用识别结果"
         : data.status === "completed"

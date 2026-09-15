@@ -8,6 +8,7 @@ import {
 import { FileScan, LoaderCircle, Sparkles } from "lucide-react";
 import PathInput from "../../shared/components/PathInput";
 import ResizeHandle from "../../shared/components/ResizeHandle";
+import TemplateOptions from "../../shared/components/TemplateOptions";
 import { useElementSize } from "../../shared/hooks/useElementSize";
 import {
   DEFAULT_LAYOUT,
@@ -15,12 +16,13 @@ import {
   type Layout,
 } from "../../shared/lib/layout";
 import { api, ApiError, download } from "../../shared/lib/api";
-import type { Resume, Template } from "../../shared/types";
+import type { Resume, Revision, Template } from "../../shared/types";
 import { newDocument } from "../profile/document";
 import PrintedPage from "../resumes/PrintedPage";
 import TemplateProgress from "./TemplateProgress";
 import RecognitionSummary from "./RecognitionSummary";
 import AdvancedMapping from "./AdvancedMapping";
+import BuiltinTemplate from "./BuiltinTemplate";
 import TemplateCanvas from "./TemplateCanvas";
 import TemplateInspector from "./TemplateInspector";
 import { REGION_LABELS, siblingRange } from "./visual";
@@ -43,6 +45,8 @@ export default function TemplateAdapter({
   layout,
   onResize,
   resume,
+  revisions,
+  previewSources,
   templates,
   onChanged,
   onSelected,
@@ -51,18 +55,20 @@ export default function TemplateAdapter({
   layout: Layout;
   onResize: (key: keyof Layout, value: number | boolean) => void;
   resume: Resume;
+  revisions: Record<string, Revision>;
+  previewSources: Record<string, Revision>;
   templates: Template[];
   onChanged: () => Promise<void>;
-  onSelected: (id: string) => void;
+  onSelected: (id: string | null) => void;
 }) {
   const workspace = useRef<HTMLElement>(null);
   const size = useElementSize(workspace);
   const sizes = templateSizes(size.width, size.height, layout);
   const [path, setPath] = useState("");
   const [name, setName] = useState("");
-  const [libraryId, setLibraryId] = useState(
-    /* 刷新后恢复与分析快照对应的模板选项，避免选项与预览错配。 */ () =>
-      sessionStorage.getItem("rm.template.library") ?? "",
+  const [libraryId, setLibraryId] = useState<string | null>(
+    /* 未显式选择时跟随当前简历，空字符串明确表示内置版式。 */ () =>
+      sessionStorage.getItem("rm.template.library"),
   );
   const [taskId, setTaskId] = useState(
     /* 恢复同一服务实例中尚未确认的分析。 */ () =>
@@ -82,6 +88,10 @@ export default function TemplateAdapter({
   const [loading, setLoading] = useState(false);
   const [openedId, setOpenedId] = useState(libraryId);
   const [notice, setNotice] = useState("");
+  const [importError, setImportError] = useState<{
+    fileName: string;
+    message: string;
+  } | null>(null);
   const [feedback, setFeedback] = useState("");
   const autoPreview = useRef(true);
   const document = useMemo(
@@ -105,7 +115,8 @@ export default function TemplateAdapter({
   };
   const running = analysis?.status === "running";
   const nodes = analysis?.inventory.nodes ?? [];
-  const savedId = libraryId || resume.template_id || "";
+  const savedId = libraryId ?? resume.template_id ?? "";
+  const builtin = savedId === "" && !taskId;
   const saved = templates.find(
     /* 定位模板库中当前选项。 */ (item) => item.id === savedId,
   );
@@ -114,12 +125,28 @@ export default function TemplateAdapter({
   const libraryRequest = useRef<AbortController | null>(null);
   const selectionVersion = useRef(0);
   const selection = selectionVersion.current;
+  const viewedResume = useRef<string | null>(null);
   useEffect(
-    /* 首次进入模板页时加载默认选项，切换栏目或刷新模板列表不重置人工调整。 */ () => {
+    /* 新进入的简历默认显示其实际版式；同一简历切换栏目不重置模板编辑。 */ () => {
+      if (!active) return;
+      const key = JSON.stringify([resume.id, resume.template_id]);
+      if (viewedResume.current !== key) {
+        const restoringImport =
+          viewedResume.current === null && taskId && !libraryId;
+        viewedResume.current = key;
+        if (
+          !restoringImport &&
+          !running &&
+          savedId !== (resume.template_id ?? "")
+        ) {
+          void loadSaved(resume.template_id ?? "");
+          return;
+        }
+      }
       if (active && saved && requestedId.current !== saved.id)
         void loadSaved(saved.id);
     },
-    [active, saved?.id, taskId],
+    [active, saved?.id, savedId, taskId, resume.id, resume.template_id],
   );
   useEffect(
     /* 请求跨栏目切换保留，只在卸载或选择另一模板时取消映射读取。 */ () =>
@@ -198,7 +225,9 @@ export default function TemplateAdapter({
           else {
             setPlan(value.plan);
             setReview(value.review);
-            setName(value.file_name.replace(/\.docx$/i, ""));
+            setName(
+              value.file_name.replace(/\.(docx?|docm|rtf|pdf|png|jpe?g)$/i, ""),
+            );
             setSelected(
               value.plan?.fields[0] ? [value.plan.fields[0].node] : [],
             );
@@ -330,16 +359,41 @@ export default function TemplateAdapter({
       setBusy(false);
     }
   }
-  /** 选择即打开已保存映射；清空旧预览并拒绝快速切换后迟到的读取结果。 */
+  /** 新文件识别失败单独显示文件名，保留当前模板结果并标明其归属。 */
+  async function recognize() {
+    setBusy(true);
+    setNotice("");
+    setImportError(null);
+    autoPreview.current = false;
+    try {
+      const value = await api<TemplateAnalysis>("/templates/analyses", "POST", {
+        path,
+        document,
+        items: resume.items,
+      });
+      if (isCurrent()) openTask(value);
+    } catch (error) {
+      if (isCurrent())
+        setImportError({
+          fileName: path.split(/[\\/]/).pop() || path,
+          message: (error as Error).message,
+        });
+    } finally {
+      setBusy(false);
+    }
+  }
+  /** 内置版式直接展示；导入模板读取映射，快速切换时拒绝迟到结果。 */
   async function loadSaved(id: string) {
     libraryRequest.current?.abort();
     const controller = new AbortController();
     libraryRequest.current = controller;
     requestedId.current = id;
+    setLibraryId(id);
     selectionVersion.current++;
     autoPreview.current = false;
-    setLoading(true);
+    setLoading(!!id);
     setNotice("");
+    setImportError(null);
     setAnalysis(null);
     setPlan(null);
     setReview(null);
@@ -348,6 +402,7 @@ export default function TemplateAdapter({
     setTaskId("");
     sessionStorage.removeItem("rm.template.analysis");
     sessionStorage.setItem("rm.template.library", id);
+    if (!id) return;
     try {
       const value = await api<TemplateAnalysis>(
         `/templates/${id}/edit`,
@@ -365,7 +420,9 @@ export default function TemplateAdapter({
   /** 接入新分析或已保存模板快照，清除上一份模板的选区和试填。 */
   function openTask(value: TemplateAnalysis, templateId = "") {
     autoPreview.current = true;
+    setImportError(null);
     setOpenedId(templateId);
+    setLibraryId(templateId);
     setAnalysis(value);
     setPlan(null);
     setReview(null);
@@ -456,28 +513,24 @@ export default function TemplateAdapter({
         <div className="template-source-bar" role="group" aria-label="模板操作">
           <div className="template-import-controls">
             <PathInput
-              label="Word 文档"
+              label="模板文件"
               kind="docx"
-              placeholder=".docx 文件路径"
+              placeholder="Word、PDF 或图片文件路径"
               value={path}
               disabled={busy || loading || running}
-              onChange={setPath}
+              onChange={
+                /* 改选文件后撤销上一份文件的导入错误。 */ (value) => {
+                  setPath(value);
+                  setImportError(null);
+                }
+              }
             />
             <button
               className="primary"
               disabled={busy || loading || running || !path.trim()}
               onClick={
-                /* 将模板文本交给设置中的 AI 识别，个人字段值不传给模型。 */ () =>
-                  void perform(
-                    /* 执行当前操作并接收结果。 */ async () => {
-                      const value = await api<TemplateAnalysis>(
-                        "/templates/analyses",
-                        "POST",
-                        { path, document, items: resume.items },
-                      );
-                      if (isCurrent()) openTask(value);
-                    },
-                  )
+                /* 将所选文件交给 AI 识别，失败信息与当前模板分开呈现。 */ () =>
+                  void recognize()
               }
             >
               <Sparkles size={16} />
@@ -486,47 +539,44 @@ export default function TemplateAdapter({
           </div>
           <div className="template-library-controls">
             <label>
-              已保存模板
+              模板库
               <select
-                value={saved?.id ?? ""}
+                value={taskId && !savedId ? "imported" : savedId}
                 disabled={running}
                 onChange={
-                  /* 选择后直接读取映射并试填，不改动当前简历的模板引用。 */ (
+                  /* 查看所选版式，点击使用后才更新当前简历的模板引用。 */ (
                     event,
                   ) => {
-                    setLibraryId(event.target.value);
                     void loadSaved(event.target.value);
                   }
                 }
               >
-                <option value="" disabled>
-                  选择模板
-                </option>
-                {templates.map(
-                  /* 展示已识别并保存的完整简历模板。 */ (item) => (
-                    <option value={item.id} key={item.id}>
-                      {item.name}
-                    </option>
-                  ),
+                {taskId && !savedId && (
+                  <option value="imported" disabled>
+                    当前导入 · 尚未保存
+                  </option>
                 )}
+                <TemplateOptions templates={templates} />
               </select>
             </label>
-            <button
-              disabled={busy || loading || running || !saved}
-              onClick={
-                /* 已加载时直接进入调整，保留人工修改；读取失败可在此重试。 */ () => {
-                  if (openedId === savedId && plan) setView("structure");
-                  else void loadSaved(savedId);
+            {!builtin && (
+              <button
+                disabled={busy || loading || running || !saved}
+                onClick={
+                  /* 已加载时直接进入调整，保留人工修改；读取失败可在此重试。 */ () => {
+                    if (openedId === savedId && plan) setView("structure");
+                    else void loadSaved(savedId);
+                  }
                 }
-              }
-            >
-              {notice && !analysis ? "重新加载" : "调整映射"}
-            </button>
+              >
+                {notice && !analysis ? "重新加载" : "调整映射"}
+              </button>
+            )}
             <button
-              disabled={busy || loading || running || !saved}
+              disabled={busy || loading || running || (!builtin && !saved)}
               onClick={
                 /* 直接采用已保存的模板版本。 */ () => {
-                  onSelected(savedId);
+                  onSelected(builtin ? null : savedId);
                   setNotice("已用于当前简历。");
                 }
               }
@@ -535,6 +585,22 @@ export default function TemplateAdapter({
             </button>
           </div>
         </div>
+        {importError && (
+          <div className="template-notice template-banner" role="alert">
+            <strong>未能识别「{importError.fileName}」</strong>
+            <div>{importError.message}</div>
+            {analysis && (
+              <div>
+                下方仍显示「
+                {analysis.file_name.replace(
+                  /\.(docx?|docm|rtf|pdf|png|jpe?g)$/i,
+                  "",
+                )}
+                」的已有结果。
+              </div>
+            )}
+          </div>
+        )}
         {analysis && (
           <TemplateProgress
             key={analysis.id}
@@ -570,7 +636,18 @@ export default function TemplateAdapter({
             {notice}
           </p>
         )}
-        {!plan ? (
+        {builtin ? (
+          <BuiltinTemplate
+            active={active}
+            resume={{ ...resume, document }}
+            revisions={revisions}
+            previewSources={previewSources}
+            run={
+              /* 将预览下载错误显示在模板工作区。 */ (work) =>
+                void perform(work)
+            }
+          />
+        ) : !plan ? (
           !analysis && (
             <p className="template-workspace-empty" role="status">
               {loading ? (
@@ -906,7 +983,7 @@ export default function TemplateAdapter({
                       }
                     >
                       {review.ready
-                        ? "自动检查通过，可查看试填并应用。"
+                        ? "当前模板检查通过，可查看试填并应用。"
                         : "还有需要确认的内容，可让 AI 继续完善。"}
                     </p>
                     {!review.ready && (
@@ -940,7 +1017,7 @@ export default function TemplateAdapter({
                   : !review
                     ? "正在自动检查…"
                     : review.ready
-                      ? "自动检查通过"
+                      ? "当前模板检查通过"
                       : "部分内容需要确认，可交给 AI 继续完善"}
               </span>
               <div className="actions">

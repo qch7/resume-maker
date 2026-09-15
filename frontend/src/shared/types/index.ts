@@ -76,6 +76,7 @@ export interface Snapshot {
   fingerprint: string;
   created_at: string;
   manifest: {
+    mode?: "cited-files";
     sources: {
       id: string;
       name: string;
@@ -226,9 +227,27 @@ export interface Export {
   created_at: string;
   manifest?: { resume: Resume };
 }
-export interface ProviderSettings {
-  executable: string;
+export type ReasoningEffort =
+  | ""
+  | "minimal"
+  | "low"
+  | "medium"
+  | "high"
+  | "xhigh";
+export type AIFunction =
+  | "project_analysis"
+  | "conversation"
+  | "highlight_edit"
+  | "template_analysis"
+  | "template_repair"
+  | "connection_check";
+export interface AISettings {
   model: string;
+  reasoning_effort: ReasoningEffort;
+}
+export interface ProviderSettings extends AISettings {
+  executable: string;
   profile: string;
   timeout_seconds: number;
+  functions: Partial<Record<AIFunction, AISettings>>;
 }

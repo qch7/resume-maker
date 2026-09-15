@@ -110,9 +110,9 @@ def test_discard_rejects_stale_version(catalog, project, populated):
 
 def test_restore_keeps_original_source_snapshot(catalog, project, populated):
     """验证恢复历史经历仍保留对应的原始来源快照。"""
-    from resume_maker.integrations.sources import collect_snapshot
+    from conftest import record_source_files
 
-    snapshot = collect_snapshot(catalog.db, catalog.db.path.parent, project)
+    snapshot = record_source_files(catalog.db, catalog.db.path.parent, project)
     with catalog.db.transaction() as conn:
         conn.execute(
             "UPDATE revisions SET snapshot_id=? WHERE id=?", (snapshot["id"], populated["id"])

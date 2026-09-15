@@ -122,6 +122,43 @@
 .template-workspace[hidden] {
   display: none;
 }
+.builtin-template {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+.builtin-template-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--line);
+}
+.builtin-template-header h2,
+.builtin-template-header p {
+  margin: 0;
+}
+.builtin-template-header p {
+  margin-top: 6px;
+}
+.builtin-template-preview {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+  padding: 24px;
+  background: var(--panel);
+}
+.builtin-template-preview .template-live-preview {
+  margin: 0 auto;
+  width: fit-content;
+  min-width: min(100%, 760px);
+  max-width: 100%;
+}
 /* 导入和模板库并排放置，表单标签内联，避免重复标题占用结果空间。 */
 .template-source-bar {
   display: grid;

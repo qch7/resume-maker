@@ -60,8 +60,7 @@ def test_public_events_and_resumed_schema(monkeypatch, tmp_path):
         workspace=tmp_path,
         prompt="测试",
         thread_id="own-session",
-        reasoning_effort="medium",
-        settings=ProviderSettings(),
+        settings=ProviderSettings(model="test-model", reasoning_effort="medium", profile="test"),
         cancelled=threading.Event(),
         emit=lambda kind, data: emitted.append((kind, data)),
     )
@@ -76,6 +75,8 @@ def test_public_events_and_resumed_schema(monkeypatch, tmp_path):
     assert "--output-schema" in commands[0] and commands[0][-3:] == ["resume", "own-session", "-"]
 
     assert 'model_reasoning_effort="medium"' in commands[0]
+    assert commands[0][commands[0].index("--model") + 1] == "test-model"
+    assert commands[0][commands[0].index("--profile") + 1] == "test"
     CodexProvider().run_structured(
         result_model=TemplatePlan,
         workspace=tmp_path,
@@ -86,3 +87,17 @@ def test_public_events_and_resumed_schema(monkeypatch, tmp_path):
         emit=lambda *_: None,
     )
     assert not any("model_reasoning_effort" in value for value in commands[1])
+    assert "--model" not in commands[1] and "--profile" not in commands[1]
+    for thread_id in (None, "own-session"):
+        for effort in ("minimal", "low", "medium", "high", "xhigh"):
+            CodexProvider().run_structured(
+                result_model=TemplatePlan,
+                workspace=tmp_path,
+                prompt="配置覆盖",
+                thread_id=thread_id,
+                settings=ProviderSettings(model="changed-model", reasoning_effort=effort),
+                cancelled=threading.Event(),
+                emit=lambda *_: None,
+            )
+            assert commands[-1][commands[-1].index("--model") + 1] == "changed-model"
+            assert f'model_reasoning_effort="{effort}"' in commands[-1]

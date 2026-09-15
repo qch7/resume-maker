@@ -14,7 +14,7 @@ from resume_maker.api.schemas import (
     SaveInput,
 )
 from resume_maker.domain.models import ProjectProfile
-from resume_maker.integrations.sources import collect_snapshot, scan_collection
+from resume_maker.integrations.sources import scan_collection
 
 router = APIRouter(prefix="/api", tags=["projects"])
 
@@ -61,14 +61,6 @@ def save_profile(services: ServicesDep, project_id: str, body: ProjectProfile):
 def update_sources(services: ServicesDep, project_id: str, body: ProjectInput):
     """校验并重新绑定项目来源目录，保留已经生成的经历与历史。"""
     return services.projects.update_sources(project_id, body.name, body.roots)
-
-
-@router.post("/projects/{project_id}/snapshots")
-def snapshot(services: ServicesDep, project_id: str):
-    """为当前项目创建新的受控文本快照并记录其指纹。"""
-    return collect_snapshot(
-        services.db, services.config.data_dir, services.catalog.project(project_id)
-    )
 
 
 @router.post("/projects/{project_id}/sources/reveal")

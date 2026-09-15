@@ -473,7 +473,12 @@ export default function Editor(props: EditorProps) {
         <summary>项目来源与本人贡献</summary>
         {snapshot ? (
           <div className="snapshot-info">
-            <b>r{current.number} 的来源版本</b>
+            <b>
+              r{current.number} 的
+              {snapshot.manifest.mode === "cited-files"
+                ? "证据记录"
+                : "历史快照"}
+            </b>
             <code className="path">{snapshot.fingerprint}</code>
             {snapshot.manifest.sources.map(
               /* 按稳定标识生成对应的列表条目。 */ (source) => (
@@ -489,15 +494,16 @@ export default function Editor(props: EditorProps) {
             )}
           </div>
         ) : (
-          <p className="subtle">该版本尚未关联 AI 分析快照。</p>
+          <p className="subtle">该版本尚无引用文件记录，不影响 AI 读取源码。</p>
         )}
         {snapshot &&
           detail.snapshots[0] &&
           snapshot.id !== detail.snapshots[0].id && (
             <p className="warning">
-              已有更新的采集记录，当前经历仍引用原快照。
+              已有更新的证据记录，当前经历保留原有引用。
             </p>
           )}
+        <p className="subtle">AI 直接读取下方关联目录的当前源码。</p>
         {detail.project.roots.map(
           /* 按稳定标识生成对应的列表条目。 */ (root) => (
             <code className="path" key={root}>
@@ -540,9 +546,14 @@ export default function Editor(props: EditorProps) {
         {detail.snapshots[0] && (
           <div className="snapshot-info">
             <span className="subtle">
-              最近采集{" "}
+              {detail.snapshots[0].manifest.mode === "cited-files"
+                ? "最近证据记录 "
+                : "历史快照 "}
               {new Date(detail.snapshots[0].created_at).toLocaleString()} ·{" "}
-              {detail.snapshots[0].manifest.files.length} 个文件
+              {detail.snapshots[0].manifest.files.length}
+              {detail.snapshots[0].manifest.mode === "cited-files"
+                ? " 个引用文件"
+                : " 个历史文件"}
             </span>
             {detail.snapshots[0].manifest.sources.map(
               /* 按稳定标识生成对应的列表条目。 */ (s) => (
@@ -557,7 +568,9 @@ export default function Editor(props: EditorProps) {
             {detail.snapshots[0].manifest.omitted.length > 0 && (
               <p className="warning">
                 {detail.snapshots[0].manifest.omitted.length}{" "}
-                个文件因大小、编码或读取限制未纳入，可在快照记录中检查。
+                {detail.snapshots[0].manifest.mode === "cited-files"
+                  ? "个引用文件未能留存，相关引文显示为待确认。"
+                  : "个文件未纳入历史快照；新对话直接读取当前目录，不受旧快照范围限制。"}
               </p>
             )}
           </div>

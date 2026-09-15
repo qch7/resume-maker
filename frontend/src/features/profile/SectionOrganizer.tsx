@@ -7,7 +7,7 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   SortableItem,
   SortableList,
@@ -20,10 +20,12 @@ export default function SectionOrganizer({
   value,
   onChange,
   onInfo,
+  projects,
 }: {
   value: ResumeDocument;
   onChange: (value: ResumeDocument) => void;
   onInfo: () => void;
+  projects: ReactNode;
 }) {
   const [title, setTitle] = useState("");
   const [kind, setKind] = useState<"education" | "text">("text");
@@ -272,6 +274,7 @@ export default function SectionOrganizer({
                           : `${section.entries.length} 条资料`}
                       </span>
                     </div>
+                    {section.kind === "projects" && projects}
                     {!parent && renderGroup(section.id)}
                   </>
                 )

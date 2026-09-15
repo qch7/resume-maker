@@ -1,6 +1,5 @@
 """验证聚合项目的子项目登记、历史保留、独立引用及 AI 上下文隔离。"""
 
-import json
 from pathlib import Path
 
 import pytest
@@ -138,16 +137,22 @@ def test_parent_and_subproject_jobs_use_separate_sources_histories_and_threads(c
             )
             assert wait_job(catalog, job["id"])["status"] == "completed"
             context = provider.calls[-1]["context"]
-            manifest = json.loads(
-                (Path(context["snapshot_directory"]) / "manifest.json").read_text(encoding="utf-8")
+            assert context["source_access"] == "direct-read-only"
+            assert "snapshot_directory" not in context
+            assert {source["path"] for source in context["source_directories"]} == set(
+                project["roots"]
             )
-            assert {source["path"] for source in manifest["sources"]} == set(project["roots"])
             expected_files = (
                 {"agent.py", "rag.py"}
                 if project["id"] == parent["id"]
                 else {f"{project['name']}.py"}
             )
-            assert {file["path"] for file in manifest["files"]} == expected_files
+            assert {
+                path.name
+                for source in context["source_directories"]
+                for path in Path(source["path"]).iterdir()
+            } == expected_files
+            assert not catalog.db.all("SELECT id FROM snapshots")
             assert context["current_experience"]["title"] == project["name"]
             assert context["recent_messages"] == [
                 {"role": "user", "text": f"仅此范围消息 {project['name']}"}

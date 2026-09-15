@@ -48,6 +48,7 @@ def preview(catalog, tmp_path, monkeypatch):
         calls.append(source)
         output.write_bytes(b"pdf")
         (output.parent / "page-1.png").write_bytes(b"png")
+        (output.parent / "page-1.svg").write_text('<svg xmlns="http://www.w3.org/2000/svg"/>')
         return 1, None
 
     monkeypatch.setattr("resume_maker.services.resume_previews.render_word", render)
@@ -95,7 +96,15 @@ def test_current_template_uses_unsaved_content_without_publishing(
     assert before == {table: catalog.db.all(f"SELECT * FROM {table}") for table in before}
     assert len(calls) == 1
     assert service.file(result["id"], "page-1.png").is_file()
-    for filename in ("template.docx", "page-0.png", "page-2.png", "../template.docx"):
+    assert service.file(result["id"], "page-1.svg").is_file()
+    for filename in (
+        "template.docx",
+        "page-0.png",
+        "page-2.png",
+        "page-0.svg",
+        "page-2.svg",
+        "../template.docx",
+    ):
         with pytest.raises(Problem, match="不存在"):
             service.file(result["id"], filename)
     assert service.render("mapped", document, items) == result
@@ -107,16 +116,18 @@ def test_current_template_uses_unsaved_content_without_publishing(
     assert len(calls) == 3
 
 
+@pytest.mark.parametrize("template_id", ["mapped", None])
 def test_complete_template_preview_matches_formal_export(
-    preview, catalog, project, populated, tmp_path, monkeypatch
+    preview, catalog, project, populated, tmp_path, monkeypatch, template_id
 ):
     """完整模板的预览与正式导出具有相同内容和版式，关闭只回收临时预览。"""
     service, _ = preview
     documents = Documents(catalog, tmp_path / "data")
     document = resume_content()
+    document.sections.reverse()
     item = ResumeItem(project_id=project["id"], revision_id=populated["id"], highlight_ids=["two"])
-    result = service.render("mapped", document.model_dump(), [item.model_dump()])
-    resume = catalog.save_resume("固定方案", "mapped", [item], document=document)
+    result = service.render(template_id, document.model_dump(), [item.model_dump()])
+    resume = catalog.save_resume("固定方案", template_id, [item], document=document)
     monkeypatch.setattr(
         "resume_maker.services.documents.render_word", lambda *_: (None, "No renderer")
     )
@@ -197,6 +208,11 @@ def test_preview_routes_enforce_auth_instance_and_file_scope(tmp_path, monkeypat
         )
         response = client.post("/api/resume-previews", json=body, headers=headers)
         assert response.status_code == 200
+        builtin = client.post(
+            "/api/resume-previews", json={**body, "template_id": None}, headers=headers
+        )
+        assert builtin.status_code == 200
+        assert builtin.json()["id"] != response.json()["id"]
         base = f"/api/resume-previews/{response.json()['id']}"
         assert client.get(base + "/resume.docx").status_code == 401
         assert client.get(base + "/resume.docx", headers=headers).status_code == 200

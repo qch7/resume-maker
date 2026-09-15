@@ -3,7 +3,7 @@
 import threading
 from collections.abc import Callable
 from pathlib import Path
-from typing import Literal, Protocol
+from typing import Protocol
 
 from resume_maker.domain.models import AIResult, Model, ProviderSettings
 
@@ -47,7 +47,6 @@ class Provider(Protocol):
         cancelled: threading.Event,
         emit: Callable[[str, dict], None],
         images: list[Path] | None = None,
-        reasoning_effort: Literal["medium", "high"] | None = None,
     ) -> T:
         """复用同一 AI 配置生成指定领域模型，用于模板映射等独立分析。"""
         ...

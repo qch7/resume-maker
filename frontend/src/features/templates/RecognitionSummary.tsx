@@ -35,10 +35,10 @@ export default function RecognitionSummary({
       <div className="template-result-heading">
         {review?.ready ? <CheckCircle2 size={28} /> : <CircleHelp size={28} />}
         <div>
-          <h3>{review?.ready ? "模板已准备好" : "识别结果"}</h3>
+          <h3>{review?.ready ? "当前模板已准备好" : "识别结果"}</h3>
           <p>
             {review?.ready
-              ? "自动检查已通过，可查看试填效果，也可以随时调整。"
+              ? "当前模板检查已通过，可查看试填效果，也可以随时调整。"
               : "先查看已识别的资料和栏目，剩余疑问可交给 AI 继续完善。"}
           </p>
         </div>

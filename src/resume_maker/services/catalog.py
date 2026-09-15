@@ -243,7 +243,8 @@ class Catalog:
         snapshot_id = base["snapshot_id"]
         for draft in working["drafts"]:
             if draft["origin"].startswith("ai:"):
-                snapshot_id = draft["origin"][3:]
+                # 无文件引用的 AI 建议没有新证据记录，沿用版本已有引用并允许空值。
+                snapshot_id = draft["origin"][3:] or snapshot_id
         new_id = uid()
         with self.db.transaction() as conn:
             head = conn.execute(
@@ -381,7 +382,7 @@ class Catalog:
                     proposal["target"],
                     dump(proposal["after"]),
                     row[0] + 1 if row else 1,
-                    f"ai:{proposal['snapshot_id']}",
+                    f"ai:{proposal['snapshot_id'] or ''}",
                     now(),
                 ),
             )

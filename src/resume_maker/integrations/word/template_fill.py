@@ -17,6 +17,7 @@ from resume_maker.integrations.word.template_flow import (
     flow_record,
     requires_flow,
 )
+from resume_maker.integrations.word.template_layout import TemplateLayout
 from resume_maker.integrations.word.template_map import (
     IMAGE_TAGS,
     NS,
@@ -373,14 +374,21 @@ def fill_template(
     missing = missing_targets(document, plan, projects)
     if missing:
         raise Problem("模板未覆盖这些已填写资料，请补充映射或在资料中隐藏：" + "、".join(missing))
-    fill_fields(package.nodes, plan.fields, personal_values(document))
+    values = personal_values(document)
+    records_by_section = {
+        section.title: section_records(document, section.title, projects)
+        for section in document.sections
+    }
+    layout = TemplateLayout(package, plan, document, records_by_section, values)
+    fill_fields(package.nodes, layout.fields, {**values, **layout.values})
     for region in plan.repeats:
         original = package.region(region.start, region.end)
         sample = package.region(region.sample_start, region.sample_end)
         parent, position = original[0].getparent(), original[0].getparent().index(original[0])
         records = section_records(document, region.section, projects)
         if records and requires_flow(sample):
-            leading = effective_section(original[0])
+            # 分节符只属于正文；写进文本框或单元格会让 Word 错读前面正文的分栏位置。
+            leading = effective_section(original[0]) if parent.tag == w("body") else None
             if leading is not None:
                 parent.insert(position, section_marker(leading))
                 position += 1
@@ -445,6 +453,7 @@ def fill_template(
         fill_photo(package, identifier, values["personal.photo"])
     for identifier in plan.remove:
         remove_preserving_sections(package.node(identifier))
+    layout.apply()
     drawing_id = 0
     control_id = 0
     for root in package.parts.values():

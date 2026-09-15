@@ -113,6 +113,8 @@ def test_ai_adoption_tracks_branch_head(catalog, project, tmp_path):
         saved = catalog.save_revision(p, branch["head_revision"], branch["head_revision"])
         assert saved["content"]["description"] == "New analysis"
         assert saved["snapshot_id"] == proposal["snapshot_id"]
+        assert saved["snapshot_id"] is None
+        assert saved["origin"] == "ai"
         second = jobs.submit(conv["id"], "再次分析", "analysis", saved["id"], "all", uid())
         assert wait_job(catalog, second["id"])["status"] == "completed"
         stale = catalog.db.one("SELECT * FROM proposals WHERE job_id=?", (second["id"],))

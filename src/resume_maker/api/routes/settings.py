@@ -18,7 +18,9 @@ def settings(
 ):
     """返回 Provider 设置和数据目录，未配置的字段使用默认值。"""
     return {
-        "provider": services.db.setting("provider", ProviderSettings().model_dump()),
+        "provider": ProviderSettings.model_validate(
+            services.db.setting("provider", {})
+        ).model_dump(),
         "data_dir": str(services.config.data_dir),
     }
 
@@ -50,7 +52,9 @@ def check_provider(
         prompt="连接测试。不要使用工具或读取文件。reply 写连接成功；"
         "experience=null，changes=[]，questions=[]。",
         thread_id=None,
-        settings=ProviderSettings.model_validate(services.db.setting("provider", {})),
+        settings=ProviderSettings.model_validate(services.db.setting("provider", {})).for_function(
+            "connection_check"
+        ),
         cancelled=threading.Event(),
         emit=lambda *_: None,
     )

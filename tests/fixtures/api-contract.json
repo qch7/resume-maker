@@ -345,41 +345,6 @@
         }
       }
     },
-    "/api/projects/{project_id}/snapshots": {
-      "post": {
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Project Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/projects/{project_id}/sources/reveal": {
       "post": {
         "parameters": [
@@ -2103,15 +2068,28 @@
     },
     "ProviderSettings": {
       "properties": {
-        "executable": {
-          "type": "string",
-          "title": "Executable",
-          "default": "codex"
-        },
         "model": {
           "type": "string",
           "title": "Model",
           "default": ""
+        },
+        "reasoning_effort": {
+          "type": "string",
+          "enum": [
+            "",
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ],
+          "title": "Reasoning Effort",
+          "default": ""
+        },
+        "executable": {
+          "type": "string",
+          "title": "Executable",
+          "default": "codex"
         },
         "profile": {
           "type": "string",
@@ -2124,12 +2102,29 @@
           "minimum": 30.0,
           "title": "Timeout Seconds",
           "default": 1200
+        },
+        "functions": {
+          "additionalProperties": {
+            "$ref": "#/components/schemas/AISettings"
+          },
+          "propertyNames": {
+            "enum": [
+              "project_analysis",
+              "conversation",
+              "highlight_edit",
+              "template_analysis",
+              "template_repair",
+              "connection_check"
+            ]
+          },
+          "type": "object",
+          "title": "Functions"
         }
       },
       "additionalProperties": false,
       "type": "object",
       "title": "ProviderSettings",
-      "description": "CLI 程序、模型、Profile 与任务超时的可保存配置。"
+      "description": "CLI 连接、全局默认值和各 AI 功能的可保存配置。"
     },
     "ResumeInput": {
       "properties": {
@@ -3041,7 +3036,14 @@
     "ResumePreviewInput": {
       "properties": {
         "template_id": {
-          "type": "string",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "title": "Template Id"
         },
         "document": {
@@ -3058,12 +3060,37 @@
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "template_id",
         "document",
         "items"
       ],
       "title": "ResumePreviewInput",
       "description": "当前模板和未保存资料的临时排版请求，不带简历保存或发布操作。"
+    },
+    "AISettings": {
+      "properties": {
+        "model": {
+          "type": "string",
+          "title": "Model",
+          "default": ""
+        },
+        "reasoning_effort": {
+          "type": "string",
+          "enum": [
+            "",
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ],
+          "title": "Reasoning Effort",
+          "default": ""
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "title": "AISettings",
+      "description": "模型和思考强度覆盖；空值表示继承上一级配置。"
     }
   }
 }

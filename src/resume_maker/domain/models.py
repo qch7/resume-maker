@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class Model(BaseModel):
@@ -52,13 +52,48 @@ class ProjectProfile(Model):
     notes: str = ""
 
 
-class ProviderSettings(Model):
-    """CLI 程序、模型、Profile 与任务超时的可保存配置。"""
+ReasoningEffort = Literal["", "minimal", "low", "medium", "high", "xhigh"]
+AIFunction = Literal[
+    "project_analysis",
+    "conversation",
+    "highlight_edit",
+    "template_analysis",
+    "template_repair",
+    "connection_check",
+]
+
+
+class AISettings(Model):
+    """模型和思考强度覆盖；空值表示继承上一级配置。"""
+
+    model: str = ""
+    reasoning_effort: ReasoningEffort = ""
+
+    @field_validator("model")
+    @classmethod
+    def trim_model(cls, value: str) -> str:
+        """清除模型名称首尾空格，使纯空白输入按继承配置处理。"""
+        return value.strip()
+
+
+class ProviderSettings(AISettings):
+    """CLI 连接、全局默认值和各 AI 功能的可保存配置。"""
 
     executable: str = "codex"
-    model: str = ""
     profile: str = ""
     timeout_seconds: int = Field(default=1200, ge=30, le=7200)
+    functions: dict[AIFunction, AISettings] = Field(default_factory=dict)
+
+    def for_function(self, function: AIFunction) -> "ProviderSettings":
+        """逐字段合并功能覆盖与全局默认，返回独立的本次任务配置快照。"""
+        override = self.functions.get(function, AISettings())
+        return self.model_copy(
+            update={
+                "model": override.model or self.model,
+                "reasoning_effort": override.reasoning_effort or self.reasoning_effort,
+                "functions": {},
+            }
+        )
 
 
 class SuggestedChange(Model):

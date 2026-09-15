@@ -12,6 +12,7 @@ from resume_maker.core.errors import Problem
 from resume_maker.domain.resume import PersonalInfo
 from resume_maker.domain.templates import TemplatePlan, TextBinding
 from resume_maker.integrations.word.ooxml import NS, w
+from resume_maker.integrations.word.template_fields import unsupported_fields
 from resume_maker.integrations.word.template_prepare import prepare_parts, system_note
 
 NS = {
@@ -182,9 +183,12 @@ class TemplatePackage:
                 )
             if root.xpath(".//w:dataBinding | .//a:t | .//*[local-name()='chart']", namespaces=NS):
                 warnings.append("模板包含数据绑定、图表或绘图文字，请先转换为普通 Word 文字。")
-            codes = root.xpath(".//w:instrText/text() | .//w:fldSimple/@w:instr", namespaces=NS)
-            if any(code.strip().upper() not in {"PAGE", "NUMPAGES"} for code in codes):
-                warnings.append("模板含动态域，请先在 Word 中将页码以外的域转换为普通文字。")
+            fields = unsupported_fields(root)
+            if fields:
+                warnings.append(
+                    f"模板含暂不支持的动态域（{'、'.join(fields)}）。"
+                    "请在 Word 中选中对应内容，按 Ctrl+Shift+F9 转为普通文字后重试；页码可保留。"
+                )
         for kind in ("footnote", "endnote"):
             note_root = self.parts.get(f"word/{kind}s.xml")
             note_ids = {node.get(w("id")) for node in note_root} if note_root is not None else set()
@@ -196,8 +200,6 @@ class TemplatePackage:
                 warnings.append("文档的脚注或尾注内容缺失，请在 Word 中修复引用后重试。")
         if not any(row["kind"] == "p" and row["text"].strip() for row in rows):
             warnings.append("没有可编辑文字，图片形式的简历须先转换为可编辑 DOCX。")
-        if len(rows) > 2000 or sum(len(row["text"]) for row in rows) > 100000:
-            raise Problem("模板内容过多，请只保留简历页面后再分析。")
         return {"nodes": rows, "warnings": list(dict.fromkeys(warnings)), "notices": self.notices}
 
     def node(self, identifier: str):

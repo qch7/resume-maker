@@ -124,7 +124,8 @@ def test_annotation_references_without_parts_are_reported(tmp_path, tag):
     if tag == "commentRangeStart":
         assert not inventory["warnings"] and inventory["notices"]
     else:
-        assert "内容缺失" in "".join(inventory["warnings"])
+        assert not inventory["warnings"]
+        assert "失效" in "".join(inventory["notices"])
 
 
 def test_malformed_annotation_xml_reports_invalid_document(tmp_path):

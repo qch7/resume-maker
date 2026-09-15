@@ -26,6 +26,7 @@ import { clearLocalDrafts } from "../features/experiences/useField";
 import ProjectSidebar from "../features/projects/ProjectSidebar";
 import { expandProjectPath } from "../features/projects/sort";
 import Composer from "../features/resumes/Composer";
+import ProjectOrder from "../features/resumes/ProjectOrder";
 import ProfileEditor from "../features/profile/ProfileEditor";
 import SectionOrganizer from "../features/profile/SectionOrganizer";
 import { newDocument } from "../features/profile/document";
@@ -895,6 +896,18 @@ export default function App() {
             <SectionOrganizer
               key={draft.id}
               value={draft.document ?? newDocument()}
+              projects={
+                <ProjectOrder
+                  draft={draft}
+                  revisions={revisionCache}
+                  sources={previewSources}
+                  onChange={setDraft}
+                  onEdit={
+                    /* 从栏目内选中项目并返回其经历编辑区。 */ (id) =>
+                      followGuide("experience-use", id)
+                  }
+                />
+              }
               onChange={
                 /* 栏目结构与个人资料共用当前完整模板。 */ (document) =>
                   setDraft(
@@ -1219,10 +1232,6 @@ export default function App() {
                 },
               )
           }
-          onEditProject={
-            /* 处理 onEditProject 回调，将变化同步到工作台状态。 */ (id) =>
-              followGuide("experience-use", id)
-          }
           run={run}
         />
       </div>
@@ -1232,6 +1241,8 @@ export default function App() {
           layout={layout}
           onResize={resize}
           resume={draft}
+          revisions={revisionCache}
+          previewSources={previewSources}
           onSelected={
             /* 将已确认的完整模板用于当前草稿。 */ (id) =>
               setDraft(
