@@ -7,6 +7,11 @@ export interface TemplateNode {
   can_insert: boolean;
   ancestors: string[];
 }
+export interface TemplateTrialPreview {
+  id: string;
+  pages: number | null;
+  render_error: string | null;
+}
 export interface TextBinding {
   node: string;
   quote: string;

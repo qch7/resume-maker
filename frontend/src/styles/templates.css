@@ -65,6 +65,7 @@
 }
 .template-preview {
   max-width: 1000px;
+  margin: 0 auto;
 }
 .template-image {
   display: block;
@@ -482,6 +483,98 @@
 }
 .template-inspector > label {
   margin: 0;
+}
+/* 真实分页常驻主区域；修正常用字段，只有主动展开才出现原文结构。 */
+.template-trial-empty {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  text-align: center;
+  line-height: 1.8;
+}
+.template-trial-empty > svg {
+  color: var(--accent);
+}
+.template-trial-empty h3,
+.template-trial-empty p {
+  margin: 8px 0 0;
+  max-width: 460px;
+}
+.template-preview-stale {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 10px 16px;
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.template-adjustments {
+  margin-top: 20px;
+}
+.template-adjustments > h3 {
+  font-size: 15px;
+  margin: 0;
+}
+.template-adjustments > p {
+  font-size: 12px;
+  line-height: 1.7;
+  margin: 8px 0 14px;
+}
+.template-adjustments > label {
+  margin: 0;
+}
+.template-classify-options {
+  font-size: 12px;
+  margin-top: 12px;
+}
+.template-structure-options {
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+  font-size: 12px;
+}
+.template-structure-options > p {
+  line-height: 1.7;
+}
+.template-blank-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.template-blank-toggle input {
+  width: auto;
+  margin: 0;
+}
+.template-structure-picker {
+  display: flex;
+  height: 280px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-top: 10px;
+}
+.template-structure-picker .template-canvas-scroll {
+  padding: 0;
+}
+.template-structure-picker .template-paper {
+  padding: 10px;
+  border: 0;
+  box-shadow: none;
+  min-height: 100%;
+}
+.template-structure-picker .template-node {
+  padding: 4px 6px;
+  gap: 2px;
+  font-size: 11px;
+}
+.template-structure-picker .template-table-cells {
+  display: block;
+}
+.template-structure-picker .template-table-cell {
+  border-right: 0;
 }
 .template-inspector input,
 .template-inspector select,

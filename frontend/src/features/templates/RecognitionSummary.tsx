@@ -70,7 +70,7 @@ export default function RecognitionSummary({
                   <button
                     key={index}
                     onClick={
-                      /* 定位问题原文，进入可编辑的结构视图。 */ () =>
+                      /* 定位问题原文，进入试填旁的修正面板。 */ () =>
                         onLocate(problem.nodes[0])
                     }
                   >
@@ -84,7 +84,7 @@ export default function RecognitionSummary({
           <button className="primary" onClick={onRepair}>
             <Sparkles size={16} /> AI 修复这些问题
           </button>
-          <p>也可以在“精细调整”中补充填写位置或确认原文用途。</p>
+          <p>也可以在“Word 试填与调整”右侧选择对应内容来修正。</p>
         </section>
       )}
       <div className="template-result-stats">

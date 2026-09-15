@@ -34,6 +34,7 @@ flowchart LR
 | `services/jobs.py` | 持久队列、真实来源上下文、建议校验、取消和结果发布 |
 | `services/documents.py` | 模板登记、固定版本导出与追溯清单编排 |
 | `services/templates.py` | 独立模板分析任务、映射核对、试填和保存 |
+| `services/template_library.py` | 模板分类和收藏事务、按源文件哈希缓存的真实首页缩略图 |
 | `domain/templates.py` | 字段引文、重复范围、照片和原文处置的声明式映射 |
 | `infrastructure/database.py` | SQLite 短连接、即时写事务和 JSON 列编解码 |
 | `infrastructure/schema.sql` | 当前完整数据库结构，空库一次性创建全部表和索引 |
@@ -45,6 +46,8 @@ flowchart LR
 依赖约束由 `scripts/check_quality.py` 检查：`core` 不反向依赖任何业务模块；`domain` 不依赖数据库、适配器、服务或 HTTP；`infrastructure` 与 `integrations` 不依赖服务和 HTTP；`services` 不依赖 HTTP。业务错误通过 `core.errors.Problem` 传递，接口层负责转换成响应。
 
 ## 前端职责
+
+模板选择共用 `shared/components/TemplatePicker.tsx` 与 `template-library/` 下的原生模态浏览器，通过 portal 进入顶层，避免父工作区裁切。分类及 Like 由 `/api/template-library` 写入现有 `settings` 表中的独立配置，单字段事务合并避免并发覆盖，不修改不可变模板映射或简历引用。缩略图使用独立源文件副本并按内容缓存到 `templates/.previews/`；卡片仅在进入可见范围时请求，失败显示原因并允许重试。
 
 `app/App.tsx` 负责跨业务导航、刷新和消息提示；布局状态交给 `app/useWorkspaceLayout.ts`。每个 `features/` 子目录维护本功能的组件及状态逻辑：
 
@@ -96,7 +99,7 @@ flowchart LR
 
 个人资料和栏目条目由前端工厂生成完整字段，显隐与自定义信息数组始终存在；后端拒绝已停用的 `deleted_fields`。方案保存完整替换资料，`document=null` 表示无完整资料的项目组合；导出按 `template_id` 选择完整模板，否则采用内置完整简历。浏览器简历草稿使用 `rm.resume.v2.*` 键，直接保存当前结构，不读取或转换旧缓存。
 
-前端“Word 模板”是紧随“栏目编排”的独立功能区。`TemplateAdapter` 持续挂载以保留切换功能区时的人工编辑；`TemplateCanvas` 依据节点祖先关系呈现结构和字段高亮，`TemplateInspector` 编辑当前选区，`AdvancedMapping` 提供完整映射和精确边界。范围选择仅接受相同 Word 部件和直接父节点的同级块；所有人工修改会使校验和试填失效。结构视图不模拟实际 Word 排版，真实分页通过试填结果呈现。
+前端“Word 模板”是紧随“栏目编排”的独立功能区。`TemplateAdapter` 持续挂载以保留切换功能区时的人工编辑；`TemplateTrial` 展示 Word 真实分页，`TemplateAdjustments` 在同一视图右侧按资料和栏目提供修正入口。高级选项内的 `TemplateCanvas` 依据节点祖先关系呈现结构和字段高亮，默认隐藏未使用空段；`TemplateInspector` 编辑当前选区，`AdvancedMapping` 提供完整映射和精确边界。范围选择仅接受相同 Word 部件和直接父节点的同级块；所有人工修改会使校验和试填失效；旧分页保留供对照并标明待更新，更新试填后才允许保存和下载。结构选择仅作为高级工具，真实分页在主区域持续展示。
 
 `TemplateOptions` 统一导出排版与模板库的选项，始终包含“内置 · 完整简历”。内置版式继续以 `template_id=null` 表示，不创建模板数据库记录或调用 AI 识别；模板页复用 `TemplatePreview` 和当前经历工作副本显示真实分页，选用后更新当前简历草稿。切换到内置版式会撤销旧映射读取，防止迟到结果覆盖当前预览。
 

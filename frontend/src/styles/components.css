@@ -795,13 +795,14 @@
 }
 .composition-pane {
   display: grid;
-  grid-template-rows: var(--settings-height) 8px minmax(0, 1fr);
+  /* 默认按内容收拢，用户拖动后沿用指定高度。 */
+  grid-template-rows: var(--settings-row-height) 8px minmax(0, 1fr);
   min-height: 0;
   min-width: 0;
   overflow: hidden;
 }
 .composition-header {
-  padding: 16px;
+  padding: 12px;
   background: var(--surface);
   border-bottom: 1px solid var(--line);
   min-height: 0;
@@ -811,9 +812,15 @@
   font-size: 15px;
 }
 .composition-header label {
-  font-size: 10px;
+  font-size: 11px;
   margin: 6px 0;
   gap: 4px;
+}
+.composition-header .composition-name {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
 }
 .composition-header input,
 .composition-header select {
@@ -823,10 +830,21 @@
 .composition-header button {
   font-size: 11px;
 }
+.composition-header .composition-actions {
+  gap: 6px;
+}
+.composition-actions > button {
+  min-height: 30px;
+  padding: 5px 9px;
+}
+.composition-header .composition-notice {
+  margin: 8px 0 0;
+  font-size: 11px;
+}
 .composition-summary {
   color: var(--subtle);
   font-size: 11px;
-  margin: 6px 0 0;
+  margin: 0 0 0 auto;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -847,7 +865,7 @@
   font-weight: 400;
 }
 .composition-header .actions > .primary {
-  min-width: 116px;
+  min-width: 100px;
 }
 .export-progress {
   position: relative;
@@ -904,15 +922,14 @@
   display: flex;
   gap: 8px;
   align-items: center;
-}
-.template-picker label {
-  flex: 1;
-  margin-top: 0;
+  margin: 6px 0 8px;
 }
 .template-picker button {
   white-space: nowrap;
-  margin-top: 3px;
-  font-size: 10px;
+  margin: 0;
+  font-size: 11px;
+  padding: 5px 8px;
+  min-height: 30px;
 }
 .preview-toolbar {
   display: flex;

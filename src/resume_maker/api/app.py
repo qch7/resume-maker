@@ -26,6 +26,7 @@ from resume_maker.services.documents import Documents
 from resume_maker.services.jobs import Jobs
 from resume_maker.services.projects import Projects
 from resume_maker.services.resume_previews import ResumePreviews
+from resume_maker.services.template_library import TemplateLibrary
 from resume_maker.services.templates import Templates
 from resume_maker.services.workspace import Workspace
 
@@ -45,6 +46,7 @@ def create_app(config: Config | None = None, provider: Provider | None = None) -
         documents=Documents(catalog, config.data_dir),
         resume_previews=ResumePreviews(catalog, config.data_dir),
         templates=Templates(catalog, config.data_dir, queue.provider),
+        template_library=TemplateLibrary(catalog, config.data_dir),
         projects=Projects(catalog),
         conversations=Conversations(catalog),
         workspace=Workspace(catalog),

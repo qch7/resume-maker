@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { useRef, useState, type CSSProperties } from "react";
 import ResizeHandle from "../../shared/components/ResizeHandle";
-import TemplateOptions from "../../shared/components/TemplateOptions";
+import TemplatePicker from "../../shared/components/TemplatePicker";
 import { useElementSize } from "../../shared/hooks/useElementSize";
 import { download } from "../../shared/lib/api";
 import { clamp, DEFAULT_LAYOUT } from "../../shared/lib/layout";
@@ -50,8 +50,8 @@ export default function Composer(props: Props) {
     /* 定位当前已识别的完整简历模板。 */ (item) =>
       item.id === draft.template_id,
   );
-  const templateUnavailable = !!draft.template_id && !template;
   const [zoom, setZoom] = useState(0);
+  const templateUnavailable = !!draft.template_id && !template;
   const previewInput = templatePreviewInput(
     draft,
     revisions,
@@ -59,7 +59,10 @@ export default function Composer(props: Props) {
   );
   const [deleteTarget, setDeleteTarget] = useState<Resume | null>(null);
   const pane = useRef<HTMLElement>(null);
+  const header = useRef<HTMLElement>(null);
   const size = useElementSize(pane);
+  const headerSize = useElementSize(header, "border-box");
+  const [settingsResized, setSettingsResized] = useState(false);
   const settingsMax = Math.max(80, size.height - 188);
   const settingsHeight = clamp(props.settingsHeight, 80, settingsMax);
   const saved = state.resumes.find(
@@ -71,9 +74,15 @@ export default function Composer(props: Props) {
     <aside
       className="composition-pane"
       ref={pane}
-      style={{ "--settings-height": `${settingsHeight}px` } as CSSProperties}
+      style={
+        {
+          "--settings-row-height": settingsResized
+            ? `${settingsHeight}px`
+            : `fit-content(${settingsHeight}px)`,
+        } as CSSProperties
+      }
     >
-      <header className="composition-header">
+      <header className="composition-header" ref={header}>
         <div className="section-heading">
           <h2>当前简历</h2>
           <span className={`tag ${dirty ? "warning-tag" : "success-tag"}`}>
@@ -121,7 +130,7 @@ export default function Composer(props: Props) {
             <Trash2 size={17} />
           </button>
         </div>
-        <label>
+        <label className="composition-name">
           方案名称
           <input
             value={draft.name}
@@ -132,36 +141,25 @@ export default function Composer(props: Props) {
           />
         </label>
         <div className="template-picker">
-          <label>
-            导出排版
-            <select
-              data-guide="template-select"
-              value={draft.template_id ?? ""}
-              onChange={
-                /* 把控件的新值同步到对应编辑状态。 */ (e) =>
-                  props.onChange({
-                    ...draft,
-                    template_id: e.target.value || null,
-                    document: draft.document ?? newDocument(),
-                  })
-              }
-            >
-              {templateUnavailable && (
-                <option value={draft.template_id!}>请重新选择完整模板</option>
-              )}
-              <TemplateOptions templates={state.templates} />
-            </select>
-          </label>
+          <TemplatePicker
+            label="导出排版"
+            guide="template-select"
+            templates={state.templates}
+            value={draft.template_id ?? ""}
+            onChange={
+              /* 确认弹窗选择后更新当前简历草稿。 */ (id) =>
+                props.onChange({
+                  ...draft,
+                  template_id: id || null,
+                  document: draft.document ?? newDocument(),
+                })
+            }
+          />
           <button className="text-button" onClick={props.onTemplates}>
             管理模板
           </button>
         </div>
-        {template && (
-          <p className="subtle">
-            按已确认映射替换个人信息、照片和栏目，保留模板版式；右侧简历预览随资料修改自动更新。
-          </p>
-        )}
-        <div className="actions">
+        <div className="actions composition-actions">
           {saved && saved.version !== draft.version && (
             <button
               onClick={
@@ -201,29 +199,27 @@ export default function Composer(props: Props) {
             <FileDown size={15} />
             {props.exporting ? "正在生成并渲染…" : "导出 Word"}
           </button>
+          <div className="composition-summary" aria-live="polite">
+            <span>
+              <b key={draft.items.length}>{draft.items.length}</b> 个项目
+            </span>
+            <span>
+              <b>
+                {draft.items.reduce(
+                  /* 汇总当前组合已选的亮点数量。 */ (sum, item) =>
+                    sum + item.highlight_ids.length,
+                  0,
+                )}
+              </b>{" "}
+              条亮点
+            </span>
+          </div>
         </div>
         {props.previewChanged && (
-          <p className="subtle" role="status">
-            正在实时预览编辑内容。提交修改并点击“用于当前简历”后，可保存和导出此内容。
+          <p className="subtle composition-notice" role="status">
+            先提交修改并“用于当前简历”，再保存或导出。
           </p>
         )}
-        <div className="composition-summary" aria-live="polite">
-          <span>
-            已选 <b key={draft.items.length}>{draft.items.length}</b> 个项目
-          </span>
-          <span>
-            <b>
-              {draft.items.reduce(
-                /* 执行当前异步流程，保持请求结果与所属组件状态一致。 */ (
-                  sum,
-                  item,
-                ) => sum + item.highlight_ids.length,
-                0,
-              )}
-            </b>{" "}
-            条亮点
-          </span>
-        </div>
         {props.exporting && (
           <div className="export-progress" role="status">
             <span />
@@ -321,13 +317,22 @@ export default function Composer(props: Props) {
         className="settings-resize"
         label="调整设置与预览高度"
         axis="y"
-        value={settingsHeight}
+        value={headerSize.height || settingsHeight}
         min={80}
         max={settingsMax}
-        onChange={props.onSettingsHeight}
+        onChange={
+          /* 从实际显示高度开始拖动，手动调整时仍允许扩大设置区。 */ (
+            height,
+          ) => {
+            setSettingsResized(true);
+            props.onSettingsHeight(height);
+          }
+        }
         onReset={
-          /* 恢复该区域的默认布局尺寸。 */ () =>
-            props.onSettingsHeight(DEFAULT_LAYOUT.settings)
+          /* 复位后重新按内容收拢。 */ () => {
+            setSettingsResized(false);
+            props.onSettingsHeight(DEFAULT_LAYOUT.settings);
+          }
         }
       />
       <section className="preview-pane" aria-label="简历预览">

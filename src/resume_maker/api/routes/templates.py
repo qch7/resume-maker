@@ -11,6 +11,8 @@ from resume_maker.api.dependencies import ServicesDep
 from resume_maker.api.schemas import (
     AdaptiveTemplateInput,
     TemplateAnalysisInput,
+    TemplateCategoryInput,
+    TemplateLibraryItemInput,
     TemplatePreviewInput,
     TemplateRepairInput,
 )
@@ -18,6 +20,36 @@ from resume_maker.core.errors import Problem
 from resume_maker.integrations.word.template_map import TemplatePackage
 
 router = APIRouter(prefix="/api", tags=["templates"])
+
+
+@router.get("/template-library")
+def template_library(services: ServicesDep):
+    """读取所有入口共用的模板分类与 Like。"""
+    return services.template_library.state()
+
+
+@router.patch("/template-library/items/{template_id}")
+def update_library_item(services: ServicesDep, template_id: str, body: TemplateLibraryItemInput):
+    """合并单个模板的组织信息，不改变其映射与内容。"""
+    return services.template_library.update(template_id, body.model_dump(exclude_unset=True))
+
+
+@router.post("/template-library/categories")
+def create_template_category(services: ServicesDep, body: TemplateCategoryInput):
+    """创建模板分类。"""
+    return services.template_library.create_category(body.name)
+
+
+@router.delete("/template-library/categories/{category_id}")
+def delete_template_category(services: ServicesDep, category_id: str):
+    """移除分类并将其中模板恢复为未分类。"""
+    return services.template_library.delete_category(category_id)
+
+
+@router.get("/template-library/items/{template_id}/thumbnail")
+def template_thumbnail(services: ServicesDep, template_id: str):
+    """提供受实例令牌保护的真实模板首屏图片。"""
+    return FileResponse(services.template_library.thumbnail(template_id), media_type="image/png")
 
 
 @router.post("/templates/analyses")

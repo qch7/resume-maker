@@ -8,37 +8,30 @@ import {
 import { FileScan, LoaderCircle, Sparkles } from "lucide-react";
 import PathInput from "../../shared/components/PathInput";
 import ResizeHandle from "../../shared/components/ResizeHandle";
-import TemplateOptions from "../../shared/components/TemplateOptions";
+import TemplatePicker from "../../shared/components/TemplatePicker";
 import { useElementSize } from "../../shared/hooks/useElementSize";
 import {
   DEFAULT_LAYOUT,
   templateSizes,
   type Layout,
 } from "../../shared/lib/layout";
-import { api, ApiError, download } from "../../shared/lib/api";
+import { api, ApiError } from "../../shared/lib/api";
 import type { Resume, Revision, Template } from "../../shared/types";
 import { newDocument } from "../profile/document";
-import PrintedPage from "../resumes/PrintedPage";
 import TemplateProgress from "./TemplateProgress";
 import RecognitionSummary from "./RecognitionSummary";
-import AdvancedMapping from "./AdvancedMapping";
 import BuiltinTemplate from "./BuiltinTemplate";
-import TemplateCanvas from "./TemplateCanvas";
-import TemplateInspector from "./TemplateInspector";
-import { REGION_LABELS, siblingRange } from "./visual";
+import TemplateAdjustments from "./TemplateAdjustments";
+import TemplateTrial from "./TemplateTrial";
+import { siblingRange } from "./visual";
 import { reviewProblems, reviewProblemSummary } from "./review";
 import type {
   MappingReview,
   TemplateAnalysis,
   TemplatePlan,
   TemplateProgressData,
+  TemplateTrialPreview,
 } from "./types";
-
-type Preview = {
-  id: string;
-  pages: number | null;
-  render_error: string | null;
-};
 
 /** 在独立工作区识别、可视化调整、试填和保存完整 Word 模板。 */
 export default function TemplateAdapter({
@@ -78,13 +71,11 @@ export default function TemplateAdapter({
   const [analysis, setAnalysis] = useState<TemplateAnalysis | null>(null);
   const [plan, setPlan] = useState<TemplatePlan | null>(null);
   const [review, setReview] = useState<MappingReview | null>(null);
-  const [preview, setPreview] = useState<Preview | null>(null);
+  const [preview, setPreview] = useState<TemplateTrialPreview | null>(null);
+  const [previewStale, setPreviewStale] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [rangeAnchor, setRangeAnchor] = useState<string | null>(null);
-  const [view, setView] = useState<"summary" | "structure" | "preview">(
-    "summary",
-  );
-  const [filter, setFilter] = useState<"all" | "unresolved">("all");
+  const [view, setView] = useState<"summary" | "preview">("summary");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [openedId, setOpenedId] = useState(libraryId);
@@ -100,19 +91,20 @@ export default function TemplateAdapter({
       resume.document ?? newDocument(),
     [resume.document],
   );
+  const previewInput = useMemo(
+    /* 保存或刷新会重建资料对象，只有实际内容变化才使已有分页失效。 */ () =>
+      JSON.stringify([resume.id, document, resume.items]),
+    [resume.id, document, resume.items],
+  );
   const latest = useRef({
     taskId,
     plan,
-    document,
-    items: resume.items,
-    resumeId: resume.id,
+    previewInput,
   });
   latest.current = {
     taskId,
     plan,
-    document,
-    items: resume.items,
-    resumeId: resume.id,
+    previewInput,
   };
   const running = analysis?.status === "running";
   const problems = reviewProblems(review);
@@ -129,8 +121,10 @@ export default function TemplateAdapter({
     trialDisabledReason ||
     (!name.trim()
       ? "请先填写模板名称"
-      : !preview
-        ? "请先生成试填预览，核对后即可保存"
+      : !preview || previewStale
+        ? previewStale
+          ? "已修改，请更新试填预览后再保存"
+          : "请先生成试填预览，核对后即可保存"
         : "");
   const nodes = analysis?.inventory.nodes ?? [];
   const savedId = libraryId ?? resume.template_id ?? "";
@@ -177,9 +171,9 @@ export default function TemplateAdapter({
   useEffect(
     /* 资料变化后旧试填不再代表当前简历，必须重新生成。 */ () => {
       setPreview(null);
-      setView("summary");
+      setPreviewStale(false);
     },
-    [resume.document, resume.items, resume.id],
+    [previewInput],
   );
   useEffect(
     /* 首次及完成时加载结果，运行中只拉增量活动；重连不丢失任务。 */ () => {
@@ -353,18 +347,16 @@ export default function TemplateAdapter({
       selectionVersion.current === selection &&
       current.taskId === taskId &&
       current.plan === plan &&
-      current.document === document &&
-      current.items === resume.items &&
-      current.resumeId === resume.id
+      current.previewInput === previewInput
     );
   }
-  /** 修改立即显示在画布，并撤销过期的校验和预览。 */
+  /** 修改后保留上次真实页面供对照，撤销旧校验并禁止保存过期预览。 */
   function edit(value: TemplatePlan) {
     autoPreview.current = false;
     setPlan(value);
     setReview(null);
-    setPreview(null);
-    setView("structure");
+    setPreviewStale(true);
+    setView("preview");
   }
   /** 将读取和保存的失败原因显示在工作区，保持用户已编辑的映射。 */
   async function perform(work: () => Promise<void>) {
@@ -449,7 +441,7 @@ export default function TemplateAdapter({
     setSelected([]);
     setRangeAnchor(null);
     setView("summary");
-    setFilter("all");
+    setPreviewStale(false);
     setTaskId(value.id);
     sessionStorage.setItem("rm.template.analysis", value.id);
     if (templateId) sessionStorage.setItem("rm.template.library", templateId);
@@ -477,13 +469,14 @@ export default function TemplateAdapter({
       setSelected([id]);
       setNotice("");
     }
-    setView("structure");
+    setView("preview");
   }
   /** 右侧定位始终选择单个位置，不继承尚未完成的范围选择。 */
   function locate(id: string) {
     setRangeAnchor(null);
     setSelected([id]);
-    setView("structure");
+    setNotice("");
+    setView("preview");
   }
   /** 从固定操作区返回完整问题列表，并将键盘焦点和滚动位置移到原因。 */
   function showProblems() {
@@ -497,13 +490,14 @@ export default function TemplateAdapter({
   }
   /** 使用当前简历生成真实 Word 和分页图，不让迟到预览覆盖后续资料。 */
   async function trial() {
-    const value = await api<Preview>(
+    const value = await api<TemplateTrialPreview>(
       `/templates/analyses/${taskId}/preview`,
       "POST",
       { plan, document, items: resume.items },
     );
     if (isCurrent()) {
       setPreview(value);
+      setPreviewStale(false);
       setView("preview");
     }
   }
@@ -520,6 +514,8 @@ export default function TemplateAdapter({
       setOpenedId(value.id);
       setLibraryId(value.id);
       sessionStorage.setItem("rm.template.library", value.id);
+      // 刷新后应重开刚保存的版本，不能恢复未包含人工修正的原分析结果。
+      sessionStorage.removeItem("rm.template.analysis");
       onSelected(value.id);
       setNotice(
         "模板已保存并用于当前简历。可返回个人信息或栏目编排继续填写资料。",
@@ -567,38 +563,31 @@ export default function TemplateAdapter({
             </button>
           </div>
           <div className="template-library-controls">
-            <label>
-              模板库
-              <select
-                value={taskId && !savedId ? "imported" : savedId}
-                disabled={running}
-                onChange={
-                  /* 查看所选版式，点击使用后才更新当前简历的模板引用。 */ (
-                    event,
-                  ) => {
-                    void loadSaved(event.target.value);
-                  }
+            <TemplatePicker
+              label="模板库"
+              templates={templates}
+              value={taskId && !savedId ? "imported" : savedId}
+              disabled={running || loading}
+              placeholder={
+                taskId && !savedId ? "当前导入 · 尚未保存" : undefined
+              }
+              onChange={
+                /* 确认后打开模板，继续沿用工作区的显式使用流程。 */ (id) => {
+                  void loadSaved(id);
                 }
-              >
-                {taskId && !savedId && (
-                  <option value="imported" disabled>
-                    当前导入 · 尚未保存
-                  </option>
-                )}
-                <TemplateOptions templates={templates} />
-              </select>
-            </label>
+              }
+            />
             {!builtin && (
               <button
                 disabled={busy || loading || running || !saved}
                 onClick={
                   /* 已加载时直接进入调整，保留人工修改；读取失败可在此重试。 */ () => {
-                    if (openedId === savedId && plan) setView("structure");
+                    if (openedId === savedId && plan) setView("preview");
                     else void loadSaved(savedId);
                   }
                 }
               >
-                {notice && !analysis ? "重新加载" : "调整映射"}
+                {notice && !analysis ? "重新加载" : "修正识别"}
               </button>
             )}
             <button
@@ -707,22 +696,14 @@ export default function TemplateAdapter({
                       识别摘要
                     </button>
                     <button
-                      className={view === "structure" ? "active" : ""}
-                      onClick={
-                        /* 切回可编辑的结构视图。 */ () => setView("structure")
-                      }
-                    >
-                      精细调整
-                    </button>
-                    <button
                       className={view === "preview" ? "active" : ""}
-                      disabled={!preview}
                       onClick={
                         /* 查看 Word 实际渲染的试填排版。 */ () =>
                           setView("preview")
                       }
                     >
-                      Word 试填{preview?.pages ? ` · ${preview.pages} 页` : ""}
+                      Word 试填与调整
+                      {preview?.pages ? ` · ${preview.pages} 页` : ""}
                     </button>
                   </nav>
                   <span
@@ -731,23 +712,6 @@ export default function TemplateAdapter({
                   >
                     {analysis?.file_name}
                   </span>
-                  {view === "structure" && (
-                    <label className="template-filter">
-                      显示
-                      <select
-                        value={filter}
-                        onChange={
-                          /* 淡化已处理区域，突出待核对原文。 */ (event) =>
-                            setFilter(
-                              event.target.value as "all" | "unresolved",
-                            )
-                        }
-                      >
-                        <option value="all">全部内容</option>
-                        <option value="unresolved">突出待处理</option>
-                      </select>
-                    </label>
-                  )}
                 </div>
                 {view === "summary" ? (
                   <RecognitionSummary
@@ -763,108 +727,18 @@ export default function TemplateAdapter({
                         )
                     }
                   />
-                ) : view === "structure" ? (
-                  <>
-                    <div className="template-legend">
-                      {Object.entries(REGION_LABELS)
-                        .filter(
-                          /* 空白位置只在画布内标注。 */ ([kind]) =>
-                            kind !== "blank" && kind !== "container",
-                        )
-                        .map(
-                          /* 使用文字和颜色共同说明每类用途。 */ ([
-                            kind,
-                            label,
-                          ]) => (
-                            <span
-                              className={`template-status tone-${kind}`}
-                              key={kind}
-                            >
-                              {label}
-                            </span>
-                          ),
-                        )}
-                    </div>
-                    <p className="template-canvas-hint">
-                      结构视图展示原文位置和映射；实际字体、分页与排版请查看
-                      Word 试填。
-                    </p>
-                    {rangeAnchor && (
-                      <div className="template-range-prompt">
-                        已设置起点，请点击同级终点。
-                        <button
-                          onClick={
-                            /* 退出范围选择，不修改当前方案。 */ () =>
-                              setRangeAnchor(null)
-                          }
-                        >
-                          取消选范围
-                        </button>
-                      </div>
-                    )}
-                    <TemplateCanvas
-                      nodes={nodes}
-                      plan={plan}
-                      taskId={taskId}
-                      selected={selected}
-                      onSelect={select}
-                      filter={filter}
-                    />
-                  </>
                 ) : (
-                  preview && (
-                    <div className="template-preview-scroll">
-                      <div className="template-preview">
-                        <div className="actions">
-                          <button
-                            onClick={
-                              /* 下载实际试填生成的 Word。 */ () =>
-                                void perform(
-                                  /* 执行当前操作并接收结果。 */ async () =>
-                                    download(
-                                      `/templates/analyses/${taskId}/previews/${preview.id}/resume.docx`,
-                                      `${name}-试填.docx`,
-                                    ),
-                                )
-                            }
-                          >
-                            下载试填 Word
-                          </button>
-                          {preview.pages && (
-                            <button
-                              onClick={
-                                /* 下载 Word 渲染的 PDF。 */ () =>
-                                  void perform(
-                                    /* 执行当前操作并接收结果。 */ async () =>
-                                      download(
-                                        `/templates/analyses/${taskId}/previews/${preview.id}/resume.pdf`,
-                                        `${name}-试填.pdf`,
-                                      ),
-                                  )
-                              }
-                            >
-                              下载 PDF
-                            </button>
-                          )}
-                        </div>
-                        {preview.render_error && (
-                          <p className="template-notice">
-                            {preview.render_error}
-                          </p>
-                        )}
-                        {Array.from(
-                          { length: preview.pages ?? 0 },
-                          /* 按实际页序展示全部页面。 */ (_, index) => (
-                            <PrintedPage
-                              key={`${preview.id}-${index}`}
-                              path={`/templates/analyses/${taskId}/previews/${preview.id}/page-${index + 1}.svg`}
-                              page={index + 1}
-                            />
-                          ),
-                        )}
-                      </div>
-                    </div>
-                  )
+                  <TemplateTrial
+                    preview={preview}
+                    stale={previewStale}
+                    taskId={taskId}
+                    name={name}
+                    pending={trialDisabledReason}
+                    run={
+                      /* 试填文件下载失败时保留当前编辑内容。 */ (work) =>
+                        void perform(work)
+                    }
+                  />
                 )}
               </div>
               <ResizeHandle
@@ -914,18 +788,19 @@ export default function TemplateAdapter({
                     }
                   />
                 </label>
-                {view === "structure" && (
-                  <TemplateInspector
+                {view === "preview" && (
+                  <TemplateAdjustments
+                    key={taskId}
                     nodes={nodes}
                     plan={plan}
                     document={document}
+                    taskId={taskId}
                     selected={selected}
+                    rangeAnchor={rangeAnchor}
                     onChange={edit}
-                    onSelect={locate}
-                    onRange={
-                      /* 将当前首节点设置为下次选择的起点。 */ () =>
-                        setRangeAnchor(selected[0])
-                    }
+                    onLocate={locate}
+                    onSelect={select}
+                    onRange={setRangeAnchor}
                   />
                 )}
                 <div className="template-ai-assistant">
@@ -1035,16 +910,6 @@ export default function TemplateAdapter({
                     )}
                   </div>
                 )}
-                {view === "structure" && (
-                  <AdvancedMapping
-                    nodes={nodes}
-                    plan={plan}
-                    document={document}
-                    taskId={taskId}
-                    edit={edit}
-                    onLocate={locate}
-                  />
-                )}
               </aside>
             </fieldset>
             <footer className="template-workspace-footer">
@@ -1075,7 +940,7 @@ export default function TemplateAdapter({
                       void perform(trial)
                   }
                 >
-                  生成试填预览
+                  {preview ? "更新试填预览" : "生成试填预览"}
                 </button>
                 <button
                   className="primary"

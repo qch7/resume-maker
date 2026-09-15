@@ -15,6 +15,7 @@ interface Props {
   selected: string[];
   onSelect: (id: string, extend?: boolean) => void;
   filter: "all" | "unresolved";
+  showBlanks?: boolean;
 }
 
 /** 以可点击的文档结构展示识别结果，字段高亮和表格层级均来自当前映射。 */
@@ -66,6 +67,13 @@ export default function TemplateCanvas(props: Props) {
     const children = tree.get(node.id) ?? [];
     const mapping = mappings.get(node.id)!;
     const active = props.selected.includes(node.id);
+    if (
+      !props.showBlanks &&
+      mapping.kind === "blank" &&
+      !children.length &&
+      !active
+    )
+      return null;
     const dim =
       props.filter === "unresolved" &&
       mapping.kind !== "unresolved" &&

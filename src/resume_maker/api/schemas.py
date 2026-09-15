@@ -104,6 +104,19 @@ class TemplateAnalysisInput(Model):
     items: list[ResumeItem] = Field(default_factory=list)
 
 
+class TemplateLibraryItemInput(Model):
+    """只修改显式提交的模板分类或收藏。"""
+
+    category_id: str = Field(default="", max_length=100)
+    liked: bool = False
+
+
+class TemplateCategoryInput(Model):
+    """新分类的展示名称，空白与重名由业务层校验。"""
+
+    name: str = Field(min_length=1, max_length=50)
+
+
 class TemplateMappingInput(Model):
     """用户核对或修改后的声明式映射。"""
 

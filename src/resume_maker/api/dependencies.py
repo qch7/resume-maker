@@ -13,6 +13,7 @@ from resume_maker.services.documents import Documents
 from resume_maker.services.jobs import Jobs
 from resume_maker.services.projects import Projects
 from resume_maker.services.resume_previews import ResumePreviews
+from resume_maker.services.template_library import TemplateLibrary
 from resume_maker.services.templates import Templates
 from resume_maker.services.workspace import Workspace
 
@@ -30,6 +31,7 @@ class Services:
     conversations: Conversations
     projects: Projects
     templates: Templates
+    template_library: TemplateLibrary
     resume_previews: ResumePreviews
 
 

@@ -9,12 +9,14 @@ export default function BindingEditor({
   targets,
   onChange,
   onLocate,
+  advanced = true,
 }: {
   fields: TextBinding[];
   nodes: TemplateNode[];
   targets: Record<string, string>;
   onChange: (fields: TextBinding[]) => void;
   onLocate?: (nodeId: string) => void;
+  advanced?: boolean;
 }) {
   const paragraphs = nodes.filter(
     /* 仅真正空白的段落可补字段，照片容器不能作为空位。 */ (node) =>
@@ -79,78 +81,82 @@ export default function BindingEditor({
             >
               <Trash2 size={15} />
             </button>
-            <details>
-              <summary>调整位置</summary>
-              {onLocate && (
-                <button
-                  onClick={
-                    /* 从字段表单定位回可视化区域。 */ () =>
-                      onLocate(field.node)
-                  }
-                >
-                  在模板中定位
-                </button>
-              )}
-              <label>
-                所在段落
-                <select
-                  value={field.node}
-                  onChange={
-                    /* 调整节点并使用该段原文。 */ (event) => {
-                      const node = paragraphs.find(
-                        /* 定位选中段落。 */ (item) =>
-                          item.id === event.target.value,
-                      )!;
-                      update(index, {
-                        ...field,
-                        node: node.id,
-                        quote: node.text,
-                      });
+            {advanced && (
+              <details>
+                <summary>调整位置</summary>
+                {onLocate && (
+                  <button
+                    onClick={
+                      /* 从字段表单定位回可视化区域。 */ () =>
+                        onLocate(field.node)
                     }
-                  }
-                >
-                  {paragraphs.map(
-                    /* 以位置和摘要列出段落。 */ (node) => (
-                      <option key={node.id} value={node.id}>
-                        {nodeLabel(node)}
-                      </option>
-                    ),
-                  )}
-                </select>
-              </label>
-              <label>
-                同段第几处
-                <input
-                  type="number"
-                  min="1"
-                  max="100"
-                  value={field.occurrence}
-                  onChange={
-                    /* 选择重复文字中的具体出现位置。 */ (event) =>
-                      update(index, {
-                        ...field,
-                        occurrence: Number(event.target.value),
-                      })
-                  }
-                />
-              </label>
-            </details>
+                  >
+                    在模板中定位
+                  </button>
+                )}
+                <label>
+                  所在段落
+                  <select
+                    value={field.node}
+                    onChange={
+                      /* 调整节点并使用该段原文。 */ (event) => {
+                        const node = paragraphs.find(
+                          /* 定位选中段落。 */ (item) =>
+                            item.id === event.target.value,
+                        )!;
+                        update(index, {
+                          ...field,
+                          node: node.id,
+                          quote: node.text,
+                        });
+                      }
+                    }
+                  >
+                    {paragraphs.map(
+                      /* 以位置和摘要列出段落。 */ (node) => (
+                        <option key={node.id} value={node.id}>
+                          {nodeLabel(node)}
+                        </option>
+                      ),
+                    )}
+                  </select>
+                </label>
+                <label>
+                  同段第几处
+                  <input
+                    type="number"
+                    min="1"
+                    max="100"
+                    value={field.occurrence}
+                    onChange={
+                      /* 选择重复文字中的具体出现位置。 */ (event) =>
+                        update(index, {
+                          ...field,
+                          occurrence: Number(event.target.value),
+                        })
+                    }
+                  />
+                </label>
+              </details>
+            )}
           </div>
         ),
       )}
-      <button
-        disabled={!paragraphs.length}
-        onClick={
-          /* 添加一条待核对映射。 */ () =>
-            onChange([
-              ...fields,
-              newBinding(paragraphs[0], Object.keys(targets)[0]),
-            ])
-        }
-      >
-        <Plus size={15} />
-        添加字段映射
-      </button>
+      {advanced && (
+        <button
+          disabled={!paragraphs.length}
+          onClick={
+            /* 添加一条待核对映射。 */ () =>
+              onChange([
+                ...fields,
+                newBinding(paragraphs[0], Object.keys(targets)[0]),
+              ])
+          }
+        >
+          <Plus size={15} />
+          添加字段映射
+        </button>
+      )}
     </div>
   );
 }

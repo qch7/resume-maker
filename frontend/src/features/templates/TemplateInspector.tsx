@@ -22,6 +22,7 @@ interface Props {
   plan: TemplatePlan;
   document: ResumeDocument;
   selected: string[];
+  advanced?: boolean;
   onChange: (plan: TemplatePlan) => void;
   onSelect: (id: string) => void;
   onRange: () => void;
@@ -33,6 +34,7 @@ export default function TemplateInspector({
   plan,
   document,
   selected,
+  advanced = false,
   onChange,
   onSelect,
   onRange,
@@ -47,9 +49,9 @@ export default function TemplateInspector({
     return (
       <div className="template-selection-empty">
         <Crosshair size={28} />
-        <h3>选择模板中的内容</h3>
-        <p>点击左侧文字、图片或表格行，在这里核对并调整映射。</p>
-        <p className="subtle">按住 Shift 选择同级范围，也可先设置范围起点。</p>
+        <h3>选择要修正的内容</h3>
+        <p>从上方选择资料或栏目，即可查看原文应该填写什么。</p>
+        <p className="subtle">其他文字和图片可在下方高级选项中查找。</p>
       </div>
     );
   const ids = new Set(descendants(nodes, selected));
@@ -214,7 +216,7 @@ export default function TemplateInspector({
         </p>
       )}
       <div className="section-heading">
-        <h3>所选区域</h3>
+        <h3>{advanced ? "所选区域" : "填写内容"}</h3>
         <span className={`template-status tone-${info.kind}`}>
           {REGION_LABELS[info.kind]}
         </span>
@@ -222,9 +224,11 @@ export default function TemplateInspector({
       <p className="template-selection-source">
         {selected.length > 1
           ? `已选 ${selected.length} 个同级区域`
-          : nodeLabel(node)}
+          : advanced
+            ? nodeLabel(node)
+            : node.text || "图片或空白位置"}
       </p>
-      {canRange && (
+      {advanced && canRange && (
         <button onClick={onRange}>
           <Crosshair size={14} />
           从此处开始选范围
@@ -235,7 +239,11 @@ export default function TemplateInspector({
           <ListTree size={16} />
           <span>
             属于 {region.section === "projects" ? "项目经历" : region.section}
-            {inSample ? " · 单条样本" : " · 原有示例"}
+            {advanced
+              ? inSample
+                ? " · 单条样本"
+                : " · 原有示例"
+              : " · 按条目自动填写"}
           </span>
         </div>
       )}
@@ -258,7 +266,7 @@ export default function TemplateInspector({
           {available.length > 0 && (
             <>
               <h4>{region ? "条目字段" : "资料字段"}</h4>
-              {region && (
+              {region && advanced && (
                 <p className="subtle">
                   每个重复栏目至少保留一个字段；全部设为固定内容时，请取消该栏目映射。
                 </p>
@@ -268,51 +276,56 @@ export default function TemplateInspector({
                 nodes={available}
                 targets={region ? ENTRY_LABELS : personalTargets(document)}
                 onChange={updateFields}
-                onLocate={onSelect}
+                onLocate={advanced ? onSelect : undefined}
+                advanced={advanced}
               />
             </>
           )}
-          <div className="template-selection-actions">
-            {node.kind === "image" && !region && (
+          <details className="template-classify-options" open={advanced}>
+            <summary>更多处理方式</summary>
+            <div className="template-selection-actions">
+              {node.kind === "image" && !region && (
+                <button
+                  onClick={
+                    /* 使用当前个人照片替换所选图片。 */ () =>
+                      classify("photos")
+                  }
+                >
+                  设为简历照片
+                </button>
+              )}
               <button
                 onClick={
-                  /* 使用当前个人照片替换所选图片。 */ () => classify("photos")
+                  /* 明确保留固定标签或装饰内容。 */ () => classify("keep")
                 }
               >
-                设为简历照片
+                保留为固定内容
               </button>
-            )}
-            <button
-              onClick={
-                /* 明确保留固定标签或装饰内容。 */ () => classify("keep")
-              }
-            >
-              保留为固定内容
-            </button>
-            {!region && (
-              <button
-                onClick={
-                  /* 删除整段旧示例或所选图片。 */ () => classify("remove")
-                }
-              >
-                <Trash2 size={14} />
-                删除原文
-              </button>
-            )}
-            {!region && (
-              <button
-                onClick={
-                  /* 撤回所选位置的全部分类，重新核对用途。 */ () =>
-                    onChange(clearNodes(plan, nodes, selected))
-                }
-              >
-                清除映射
-              </button>
-            )}
-          </div>
+              {!region && (
+                <button
+                  onClick={
+                    /* 删除整段旧示例或所选图片。 */ () => classify("remove")
+                  }
+                >
+                  <Trash2 size={14} />
+                  删除原文
+                </button>
+              )}
+              {!region && (
+                <button
+                  onClick={
+                    /* 撤回所选位置的全部分类，重新核对用途。 */ () =>
+                      onChange(clearNodes(plan, nodes, selected))
+                  }
+                >
+                  清除映射
+                </button>
+              )}
+            </div>
+          </details>
         </>
       )}
-      {canRange && (
+      {advanced && canRange && (
         <details
           className="template-range-editor"
           open={selected.length > 1 || !!region}
