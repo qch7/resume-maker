@@ -10,6 +10,7 @@ from resume_maker.infrastructure.database import Database
 from resume_maker.services.catalog import Catalog
 from resume_maker.services.conversations import Conversations
 from resume_maker.services.documents import Documents
+from resume_maker.services.honors import Honors
 from resume_maker.services.jobs import Jobs
 from resume_maker.services.projects import Projects
 from resume_maker.services.resume_previews import ResumePreviews
@@ -26,6 +27,7 @@ class Services:
     db: Database
     catalog: Catalog
     jobs: Jobs
+    honors: Honors
     documents: Documents
     workspace: Workspace
     conversations: Conversations

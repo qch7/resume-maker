@@ -7,12 +7,13 @@ import sqlite3
 import tempfile
 from contextlib import closing, contextmanager
 from pathlib import Path, PurePosixPath
+from uuid import UUID
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from resume_maker.core.errors import Problem
 from resume_maker.infrastructure.database import SCHEMA_VERSION, Database, dump, now, uid
 
-FOLDERS = ("templates", "snapshots", "exports")
+FOLDERS = ("templates", "snapshots", "exports", "honors")
 
 
 @contextmanager
@@ -77,6 +78,30 @@ def validate_database(path: Path):
             for (identifier,) in conn.execute(f"SELECT id FROM {table}"):
                 if not (path.parent / table / identifier / file).is_file():
                     raise Problem(f"备份缺少 {table} 文件：{identifier}")
+        for (payload,) in conn.execute("SELECT value_json FROM settings WHERE key LIKE 'honor:%'"):
+            item = json.loads(payload)
+            attachment = item.get("attachment")
+            if not attachment:
+                continue
+            identifier = item["id"]
+            extension = attachment["extension"]
+            if str(UUID(identifier)) != identifier or extension not in {
+                ".pdf",
+                ".png",
+                ".jpg",
+                ".jpeg",
+                ".webp",
+                ".bmp",
+                ".tif",
+                ".tiff",
+            }:
+                raise Problem("备份中的荣誉附件信息无效。")
+            folder = path.parent / "honors" / identifier
+            files = ["original" + extension] + [
+                f"page-{page}.png" for page in range(1, attachment["pages"] + 1)
+            ]
+            if not all((folder / file).is_file() for file in files):
+                raise Problem(f"备份缺少荣誉证书文件：{identifier}")
 
 
 def restore_backup(archive_path: Path, directory: Path) -> Path | None:

@@ -1,0 +1,554 @@
+.honor-area .workbench,
+.honor-area .guide-container,
+.honor-library[hidden],
+.honor-library input[hidden] {
+  display: none;
+}
+.honor-library {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--panel);
+}
+.honor-heading {
+  padding: 10px 20px;
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border-bottom: 1px solid var(--line);
+}
+.honor-heading h1 {
+  font-size: 16px;
+  white-space: nowrap;
+}
+.honor-heading > button {
+  padding: 5px 9px;
+  flex-shrink: 0;
+}
+.honor-stats {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  flex-wrap: wrap;
+  color: var(--subtle);
+  gap: 14px;
+  font-size: 12px;
+}
+.honor-stats strong {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+.honor-processing {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--accent);
+}
+.honor-content {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 16px;
+  padding: 14px 20px 24px;
+}
+.honor-sidebar > button {
+  width: 100%;
+  justify-content: space-between;
+  border: 0;
+  margin-bottom: 3px;
+  padding: 8px 10px;
+  background: transparent;
+}
+.honor-sidebar > button.active {
+  background: var(--selected);
+  color: var(--accent);
+  font-weight: 600;
+}
+.honor-main {
+  min-width: 0;
+}
+.honor-upload {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px dashed var(--accent);
+  border-radius: 4px;
+  background: var(--accent-soft);
+}
+.honor-upload.dragging {
+  outline: 3px solid var(--accent);
+  background: var(--selected);
+}
+.honor-upload > svg {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.honor-upload > div {
+  flex: 1;
+  min-width: 0;
+}
+.honor-upload h2 {
+  font-size: 13px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.honor-upload p {
+  margin: 2px 0 0;
+  color: var(--subtle);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.honor-upload > button {
+  flex-shrink: 0;
+  padding: 5px 10px;
+}
+.honor-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 10px 0;
+}
+.honor-search {
+  flex: 1 1 200px;
+  position: relative;
+  margin: 0;
+}
+.honor-search > svg {
+  position: absolute;
+  left: 11px;
+  top: 9px;
+}
+.honor-toolbar input,
+.honor-toolbar select,
+.honor-toolbar button {
+  padding: 5px 9px;
+  font-size: 12px;
+  min-height: 32px;
+}
+.honor-search > input {
+  padding-left: 35px;
+}
+.honor-toolbar > select {
+  width: 106px;
+}
+.honor-toolbar > .honor-target {
+  width: 160px;
+}
+.honor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(265px, 1fr));
+  gap: 12px;
+}
+.honor-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  overflow: hidden;
+  min-width: 0;
+}
+.honor-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  gap: 8px;
+  font-size: 11px;
+}
+.honor-checkbox {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  margin: 0;
+}
+.honor-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  border-radius: 3px;
+  color: var(--warning);
+  background: var(--warning-soft);
+  white-space: nowrap;
+}
+.honor-status-ready {
+  color: var(--success);
+  background: var(--success-soft);
+}
+.honor-status-running,
+.honor-status-queued {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.honor-status-failed {
+  color: var(--danger);
+  background: var(--error-soft);
+}
+.honor-cover {
+  display: block;
+  border: 0;
+  padding: 0;
+  margin: 0 12px;
+  height: 132px;
+  overflow: hidden;
+  background: var(--panel);
+  border-radius: 3px;
+}
+.honor-image {
+  width: 100%;
+  height: 100%;
+  min-height: 100px;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+}
+.honor-image img {
+  display: block;
+  max-width: 100%;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  min-height: 0;
+}
+.honor-image > span,
+.honor-no-file {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 12px;
+}
+.honor-no-file {
+  height: 100%;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.honor-card-body {
+  padding: 10px 12px 4px;
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+.honor-card h3 {
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 0 0 4px;
+}
+.honor-card p {
+  margin: 3px 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.honor-award {
+  color: var(--accent);
+}
+.honor-card-error {
+  color: var(--danger);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.honor-included {
+  color: var(--success);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.honor-card-actions {
+  display: flex;
+  gap: 8px;
+  padding: 6px 12px;
+}
+.honor-card-actions > button {
+  flex: 1;
+  padding: 7px 5px;
+  font-size: 12px;
+}
+.honor-card-secondary {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 0 10px 9px;
+}
+.honor-card-secondary button {
+  font-size: 11px;
+}
+.honor-empty {
+  min-height: 130px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--subtle);
+  text-align: center;
+  padding: 20px;
+  gap: 8px;
+}
+.honor-empty h2 {
+  color: var(--text);
+  font-size: 17px;
+  margin: 0;
+}
+.honor-empty p {
+  margin: 0;
+}
+.honor-notice,
+.honor-feedback {
+  background: var(--accent-soft);
+  padding: 8px 10px;
+  margin: 8px 0;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.honor-notice {
+  color: var(--warning);
+  background: var(--warning-soft);
+}
+.honor-notice p {
+  margin: 4px 0;
+}
+.honor-feedback {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.honor-feedback > span {
+  flex: 1;
+}
+.honor-dialog {
+  padding: 0;
+  width: min(1180px, calc(100vw - 48px));
+  height: min(860px, calc(100dvh - 48px));
+  max-width: none;
+  max-height: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  background: var(--surface);
+  overflow: hidden;
+}
+.honor-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+.honor-dialog::backdrop {
+  background: #0007;
+}
+.honor-dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--line);
+}
+.honor-dialog-header h2 {
+  font-size: 18px;
+  margin: 0 0 5px;
+}
+.honor-dialog-header p {
+  margin: 0;
+  font-size: 12px;
+}
+.honor-dialog-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 1fr);
+  flex: 1;
+  min-height: 0;
+}
+.honor-dialog-body.without-certificate {
+  grid-template-columns: 1fr;
+}
+.honor-original {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+}
+.honor-original > .honor-image {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 20px;
+}
+.honor-preview-toolbar,
+.honor-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  font-size: 12px;
+}
+.honor-preview-toolbar > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.honor-preview-toolbar > button {
+  flex-shrink: 0;
+}
+.honor-pagination {
+  justify-content: center;
+}
+.honor-form {
+  padding: 8px 24px 24px;
+  overflow: auto;
+  min-width: 0;
+}
+.honor-form fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.honor-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 14px;
+}
+.honor-fields label {
+  margin: 10px 0;
+}
+.honor-field-wide {
+  grid-column: 1 / -1;
+}
+.honor-extracted pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  line-height: 1.8;
+  background: var(--panel);
+  padding: 12px;
+}
+.honor-dialog-footer {
+  padding: 14px 24px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.honor-dialog-footer > span {
+  flex: 1;
+  font-size: 12px;
+}
+.honor-dialog-footer > p {
+  width: 100%;
+  margin: 0;
+}
+.honor-delete-banner {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  max-width: calc(100vw - 32px);
+  width: 620px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--danger);
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: 0 6px 28px #0003;
+}
+.honor-delete-banner > div {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+.honor-delete-banner p {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--subtle);
+}
+@media (max-width: 1000px) {
+  .honor-content {
+    grid-template-columns: 130px minmax(0, 1fr);
+    padding: 12px;
+    gap: 12px;
+  }
+}
+@media (max-width: 700px) {
+  .honor-heading {
+    padding: 8px 12px;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+  }
+  .honor-stats {
+    order: 1;
+    flex-basis: 100%;
+    gap: 12px;
+  }
+  .honor-content {
+    display: block;
+    padding: 10px 12px;
+  }
+  .honor-sidebar {
+    display: flex;
+    gap: 5px;
+    overflow-x: auto;
+    margin-bottom: 8px;
+  }
+  .honor-sidebar > button {
+    width: auto;
+    flex-shrink: 0;
+    gap: 8px;
+    padding: 7px 10px;
+  }
+  .honor-upload {
+    padding: 8px 10px;
+    gap: 8px;
+  }
+  .honor-upload > svg {
+    display: none;
+  }
+  .honor-search {
+    flex-basis: 100%;
+  }
+  .honor-toolbar > select {
+    flex: 1 1 100px;
+  }
+  .honor-toolbar > .honor-target {
+    flex: 1 1 160px;
+  }
+  .honor-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .honor-dialog {
+    width: calc(100vw - 16px);
+    height: calc(100dvh - 16px);
+  }
+  .honor-dialog-body {
+    display: block;
+    overflow-y: auto;
+  }
+  .honor-original {
+    height: 330px;
+    border: 0;
+  }
+  .honor-form {
+    overflow: visible;
+    padding: 8px 16px 20px;
+  }
+  .honor-dialog-footer,
+  .honor-dialog-header {
+    padding: 12px 16px;
+  }
+  .honor-dialog-footer > span {
+    flex-basis: 100%;
+  }
+  .honor-delete-banner {
+    flex-wrap: wrap;
+  }
+}

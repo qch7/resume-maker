@@ -240,6 +240,7 @@ export type AIFunction =
   | "highlight_edit"
   | "template_analysis"
   | "template_repair"
+  | "honor_recognition"
   | "connection_check";
 export interface AISettings {
   model: string;

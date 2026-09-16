@@ -59,6 +59,7 @@ AIFunction = Literal[
     "highlight_edit",
     "template_analysis",
     "template_repair",
+    "honor_recognition",
     "connection_check",
 ]
 

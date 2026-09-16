@@ -1989,6 +1989,337 @@
           }
         }
       }
+    },
+    "/api/honors": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HonorSave"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/honors/upload": {
+      "post": {
+        "parameters": [
+          {
+            "name": "filename",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 240,
+              "title": "Filename"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/honors/{honor_id}": {
+      "put": {
+        "parameters": [
+          {
+            "name": "honor_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Honor Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HonorSave"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "parameters": [
+          {
+            "name": "honor_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Honor Id"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Version"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/honors/{honor_id}/recognize": {
+      "post": {
+        "parameters": [
+          {
+            "name": "honor_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Honor Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/honors/{honor_id}/cancel": {
+      "post": {
+        "parameters": [
+          {
+            "name": "honor_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Honor Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/honors/{honor_id}/original": {
+      "get": {
+        "parameters": [
+          {
+            "name": "honor_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Honor Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/honors/{honor_id}/pages/{page}": {
+      "get": {
+        "parameters": [
+          {
+            "name": "honor_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Honor Id"
+            }
+          },
+          {
+            "name": "page",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Page"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "schemas": {
@@ -2277,6 +2608,7 @@
               "highlight_edit",
               "template_analysis",
               "template_repair",
+              "honor_recognition",
               "connection_check"
             ]
           },
@@ -3290,6 +3622,94 @@
       ],
       "title": "TemplateCategoryInput",
       "description": "新分类的展示名称，空白与重名由业务层校验。"
+    },
+    "HonorFields": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 300,
+          "title": "Name",
+          "default": ""
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "竞赛获奖",
+            "资格证书",
+            "奖学金",
+            "荣誉称号",
+            "其他"
+          ],
+          "title": "Category",
+          "default": "其他"
+        },
+        "level": {
+          "type": "string",
+          "maxLength": 100,
+          "title": "Level",
+          "default": ""
+        },
+        "award": {
+          "type": "string",
+          "maxLength": 200,
+          "title": "Award",
+          "default": ""
+        },
+        "issuer": {
+          "type": "string",
+          "maxLength": 500,
+          "title": "Issuer",
+          "default": ""
+        },
+        "date": {
+          "type": "string",
+          "maxLength": 100,
+          "title": "Date",
+          "default": ""
+        },
+        "recipient": {
+          "type": "string",
+          "maxLength": 300,
+          "title": "Recipient",
+          "default": ""
+        },
+        "certificate_number": {
+          "type": "string",
+          "maxLength": 300,
+          "title": "Certificate Number",
+          "default": ""
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 5000,
+          "title": "Description",
+          "default": ""
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "title": "HonorFields",
+      "description": "可核对和复用的证书资料；无法确认的信息保持空白。"
+    },
+    "HonorSave": {
+      "properties": {
+        "fields": {
+          "$ref": "#/components/schemas/HonorFields"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 0.0,
+          "title": "Version",
+          "default": 0
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "fields"
+      ],
+      "title": "HonorSave",
+      "description": "用户确认的资料和乐观并发版本。"
     }
   }
 }

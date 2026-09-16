@@ -32,6 +32,11 @@ const functions: { id: AIFunction; title: string; description: string }[] = [
     description: "AI 继续完善、按说明调整",
   },
   {
+    id: "honor_recognition",
+    title: "证书识别",
+    description: "从 PDF 或证书图片提取荣誉资料（需支持图片的模型）",
+  },
+  {
     id: "connection_check",
     title: "连接测试",
     description: "测试实际连接",

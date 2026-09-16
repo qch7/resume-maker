@@ -9,6 +9,7 @@ from resume_maker.api.dependencies import Services
 from resume_maker.api.middleware import configure_middleware
 from resume_maker.api.routes import (
     conversations,
+    honors,
     jobs,
     projects,
     resumes,
@@ -23,6 +24,7 @@ from resume_maker.integrations.providers.base import Provider
 from resume_maker.services.catalog import Catalog
 from resume_maker.services.conversations import Conversations
 from resume_maker.services.documents import Documents
+from resume_maker.services.honors import Honors
 from resume_maker.services.jobs import Jobs
 from resume_maker.services.projects import Projects
 from resume_maker.services.resume_previews import ResumePreviews
@@ -43,6 +45,7 @@ def create_app(config: Config | None = None, provider: Provider | None = None) -
         db=db,
         catalog=catalog,
         jobs=queue,
+        honors=Honors(db, config.data_dir, queue.provider),
         documents=Documents(catalog, config.data_dir),
         resume_previews=ResumePreviews(catalog, config.data_dir),
         templates=Templates(catalog, config.data_dir, queue.provider),
@@ -56,9 +59,11 @@ def create_app(config: Config | None = None, provider: Provider | None = None) -
     async def lifespan(_app: FastAPI):
         """随服务器启动队列，并在正常关闭或异常退出时回收任务进程。"""
         queue.start()
+        services.honors.start()
         try:
             yield
         finally:
+            services.honors.stop()
             services.templates.stop()
             services.resume_previews.stop()
             queue.stop()
@@ -66,7 +71,7 @@ def create_app(config: Config | None = None, provider: Provider | None = None) -
     app = FastAPI(title="Resume Maker", version=__version__, lifespan=lifespan)
     app.state.services = services
     configure_middleware(app, config)
-    for module in (system, projects, conversations, jobs, resumes, templates, settings):
+    for module in (system, projects, conversations, jobs, resumes, templates, settings, honors):
         app.include_router(module.router)
     mount_frontend(app, config)
     return app

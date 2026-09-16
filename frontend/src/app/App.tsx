@@ -12,6 +12,7 @@ import {
   UserRound,
   PanelsTopLeft,
   ListTree,
+  Award,
 } from "lucide-react";
 import {
   useCallback,
@@ -28,6 +29,8 @@ import { expandProjectPath } from "../features/projects/sort";
 import Composer from "../features/resumes/Composer";
 import ProjectOrder from "../features/resumes/ProjectOrder";
 import ProfileEditor from "../features/profile/ProfileEditor";
+import HonorLibrary from "../features/honors/HonorLibrary";
+import { addHonors } from "../features/honors/model";
 import SectionOrganizer from "../features/profile/SectionOrganizer";
 import { newDocument } from "../features/profile/document";
 import {
@@ -68,7 +71,7 @@ const EMPTY: State = {
 /** 组装工作台，并协调项目导航、经历发布、会话和简历组合之间的状态。 */
 export default function App() {
   const [area, setArea] = useState<
-    "projects" | "personal" | "structure" | "templates"
+    "projects" | "personal" | "structure" | "templates" | "honors"
   >("projects");
   const {
     sidebar,
@@ -639,7 +642,7 @@ export default function App() {
   const error = remoteProject.error || remoteChat.error;
   return (
     <div
-      className={`app-shell ${sidebar && area === "projects" ? "" : "sidebar-hidden"} ${previewFocused ? "preview-focused" : ""} ${area === "templates" ? "template-area" : area !== "projects" ? "profile-area" : ""}`}
+      className={`app-shell ${sidebar && area === "projects" ? "" : "sidebar-hidden"} ${previewFocused ? "preview-focused" : ""} ${area === "honors" ? "honor-area" : area === "templates" ? "template-area" : area !== "projects" ? "profile-area" : ""}`}
       style={
         {
           "--sidebar-width": `${columns.sidebar}px`,
@@ -684,6 +687,7 @@ export default function App() {
                 label: "栏目编排",
                 icon: ListTree,
               },
+              { id: "honors", label: "荣誉证书", icon: Award },
               { id: "templates", label: "Word 模板", icon: FileScan },
             ] as const
           ).map(
@@ -1235,6 +1239,24 @@ export default function App() {
           run={run}
         />
       </div>
+      <HonorLibrary
+        active={area === "honors"}
+        document={draft.document}
+        resumeName={draft.name}
+        onAdd={
+          /* 将已确认的荣誉复制到当前简历草稿，保留其他资料。 */ (
+            honors,
+            target,
+          ) => {
+            const document = addHonors(
+              draft.document ?? newDocument(),
+              honors,
+              target,
+            );
+            setDraft({ ...draft, document });
+          }
+        }
+      />
       <div className="template-workspace" hidden={area !== "templates"}>
         <TemplateAdapter
           active={area === "templates"}
