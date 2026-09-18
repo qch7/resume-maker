@@ -3,7 +3,40 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { newDocument } from "../src/features/profile/document.ts";
 import { sameSectionEntry } from "../src/features/profile/comparison.ts";
-import { entryComposition, findEntry } from "../src/features/profile/entry.ts";
+import {
+  entryComposition,
+  findEntry,
+  replaceEntry,
+} from "../src/features/profile/entry.ts";
+
+test("modal entry saves apply only on success and retain unrelated drafts", /* 模态表单不提前污染草稿，保存时只提交本条，保留其他输入。 */ () => {
+  const saved = baseline();
+  const draft = structuredClone(saved);
+  draft.document.personal.name = "未保存姓名";
+  findEntry(draft.document, "education", "two").title = "另一条草稿";
+  const before = structuredClone(draft);
+  const edited = {
+    ...findEntry(draft.document, "education", "one"),
+    title: "表单名称",
+    hidden_fields: ["period"],
+  };
+  const pending = replaceEntry(draft, "education", edited);
+  const submitted = entryComposition(pending, saved, "education", edited.id);
+  assert.deepEqual(draft, before);
+  assert.equal(submitted.document.personal.name, "已保存姓名");
+  assert.equal(findEntry(submitted.document, "education", "two").title, "two");
+  const accepted = acceptSavedComposition(pending, submitted, {
+    ...submitted,
+    version: 3,
+  });
+  assert.equal(accepted.document.personal.name, "未保存姓名");
+  assert.equal(
+    findEntry(accepted.document, "education", "two").title,
+    "另一条草稿",
+  );
+  assert.deepEqual(findEntry(accepted.document, "education", "one"), edited);
+  assert.equal(accepted.version, 3);
+});
 
 /** 使用独立测试资料覆盖多条经历及字段显隐。 */
 function baseline() {

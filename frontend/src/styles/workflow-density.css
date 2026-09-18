@@ -1,0 +1,98 @@
+/* 按用户拖动后的实际空间调整密度，保持分隔条可继续向上、向下拖动。 */
+@container resume-guide (height < 144px) or ((width <= 760px) and (height < 236px)) {
+  .workflow:not(.collapsed) {
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 10px;
+    padding: 3px 12px;
+    overflow: hidden;
+  }
+  .workflow:not(.collapsed) .workflow-overview {
+    width: 100px;
+    gap: 4px;
+  }
+  .workflow:not(.collapsed) .workflow-overview progress,
+  .workflow:not(.collapsed) .workflow-steps small,
+  .workflow:not(.collapsed) .workflow-steps li::after,
+  .workflow:not(.collapsed) .workflow-next {
+    display: none;
+  }
+  .workflow:not(.collapsed) .workflow-main {
+    flex-basis: auto;
+    gap: 4px;
+  }
+  .workflow:not(.collapsed) .workflow-steps button {
+    flex-direction: row;
+    gap: 6px;
+    padding: 3px 6px;
+  }
+  .workflow:not(.collapsed) .step-number {
+    width: 22px;
+    height: 22px;
+    font-size: 11px;
+  }
+  .workflow:not(.collapsed) .workflow-substeps {
+    flex-wrap: nowrap;
+    flex-shrink: 0;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  .workflow:not(.collapsed) .workflow-substeps li {
+    flex-shrink: 0;
+  }
+  .workflow:not(.collapsed) .workflow-toggle {
+    position: static;
+    align-self: center;
+  }
+}
+
+/* 最简模式保留全部六个可点击步骤，隐藏说明和子步骤，不制造纵向滚动条。 */
+@container resume-guide (height < 88px) {
+  .workflow:not(.collapsed) .workflow-overview {
+    width: auto;
+  }
+  .workflow:not(.collapsed) .workflow-overview span,
+  .workflow:not(.collapsed) .workflow-substeps {
+    display: none;
+  }
+}
+
+/* 窄屏优先给步骤名称留出空间，子步骤在紧凑模式下可横向滚动。 */
+@container resume-guide (width <= 760px) and (height < 236px) {
+  .workflow:not(.collapsed) {
+    gap: 4px;
+    padding-inline: 8px;
+  }
+  .workflow:not(.collapsed) .workflow-overview,
+  .workflow:not(.collapsed) .step-number {
+    display: none;
+  }
+  .workflow:not(.collapsed) .workflow-steps {
+    gap: 2px;
+  }
+  .workflow:not(.collapsed) .workflow-steps button {
+    width: 100%;
+    justify-content: center;
+    padding: 6px 1px;
+  }
+  .workflow:not(.collapsed) .workflow-steps strong {
+    font-size: 11px;
+  }
+  .workflow:not(.collapsed) .workflow-toggle {
+    padding: 4px;
+  }
+}
+
+/* 手机项目库从指引下方展开，避免最简导航被侧栏遮挡。 */
+@media (max-width: 600px) {
+  .sidebar {
+    top: calc(96px + var(--guide-height) + 8px);
+  }
+  .app-shell:has(.guide-collapsed) .sidebar {
+    top: 136px;
+  }
+}

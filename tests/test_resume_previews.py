@@ -12,6 +12,7 @@ from resume_maker.api import create_app
 from resume_maker.core.config import Config
 from resume_maker.core.errors import Problem
 from resume_maker.domain.models import ResumeItem
+from resume_maker.domain.resume import ResumeSection, SectionEntry
 from resume_maker.infrastructure.database import dump, now
 from resume_maker.integrations.sources import digest
 from resume_maker.services import resume_previews
@@ -124,8 +125,37 @@ def test_complete_template_preview_matches_formal_export(
     service, _ = preview
     documents = Documents(catalog, tmp_path / "data")
     document = resume_content()
+    # 已保存模板中没有这些字段，预览和正式导出均须自动补行，不能要求再次识别。
+    document.personal.website = "https://example.test/new-profile"
+    document.personal.age = "23"
+    document.personal.hidden_fields = ["phone"]
     document.sections.reverse()
-    item = ResumeItem(project_id=project["id"], revision_id=populated["id"], highlight_ids=["two"])
+    document.sections.insert(
+        0,
+        ResumeSection(
+            id="internship",
+            title="实习经历",
+            entries=[SectionEntry(id="company", title="示例公司", details="研发实习内容")],
+        ),
+    )
+    source = tmp_path / "data/templates/mapped/template.docx"
+    original = source.read_bytes()
+    mapping = deepcopy(catalog.template("mapped")["mapping"])
+    catalog.put_draft(
+        project["id"],
+        populated["id"],
+        "meta",
+        {
+            "role": "仅保留的角色原文",
+            "hidden_fields": ["role", "stack"],
+            "custom_fields": [
+                {"id": "link", "label": "项目链接", "value": "https://example.test/project"}
+            ],
+        },
+        0,
+    )
+    saved = catalog.save_revision(project["id"], populated["id"], populated["id"])
+    item = ResumeItem(project_id=project["id"], revision_id=saved["id"], highlight_ids=["two"])
     result = service.render(template_id, document.model_dump(), [item.model_dump()])
     resume = catalog.save_resume("固定方案", template_id, [item], document=document)
     monkeypatch.setattr(
@@ -138,6 +168,15 @@ def test_complete_template_preview_matches_formal_export(
     ):
         assert left.namelist() == right.namelist()
         assert all(left.read(name) == right.read(name) for name in left.namelist())
+        xml = left.read("word/document.xml").decode()
+        assert "https://example.test/new-profile" in xml and "23" in xml
+        assert "电话：" not in xml and document.personal.phone not in xml
+        assert "实习经历" in xml and "示例公司" in xml and "研发实习内容" in xml
+        assert "https://example.test/project" in xml
+        assert "仅保留的角色原文" not in xml and "Python" not in xml
+    assert exported["manifest"]["items"][0]["content"]["role"] == "仅保留的角色原文"
+    assert source.read_bytes() == original
+    assert catalog.template("mapped")["mapping"] == mapping
     workspace = Path(service.directory.name)
     service.stop()
     assert not workspace.exists()

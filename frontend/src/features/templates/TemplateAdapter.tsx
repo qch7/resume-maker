@@ -79,6 +79,7 @@ export default function TemplateAdapter({
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [openedId, setOpenedId] = useState(libraryId);
+  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const [importError, setImportError] = useState<{
     fileName: string;
@@ -132,6 +133,30 @@ export default function TemplateAdapter({
   const saved = templates.find(
     /* 定位模板库中当前选项。 */ (item) => item.id === savedId,
   );
+  const currentSnapshot = JSON.stringify([name.trim(), plan]);
+  const mappingSaved =
+    !!saved && openedId === savedId && savedSnapshot === currentSnapshot;
+  const templateApplied =
+    (builtin || mappingSaved) && (resume.template_id ?? "") === savedId;
+  const applyDisabledReason =
+    busy || loading || running
+      ? "正在处理，请稍候"
+      : templateApplied
+        ? "当前简历已使用此模板"
+        : builtin
+          ? ""
+          : trialDisabledReason ||
+            (!mappingSaved ? "请先保存当前识别结果" : "");
+  const actionStatus = builtin
+    ? templateApplied
+      ? "当前简历已使用内置模板"
+      : "内置模板可直接用于当前简历"
+    : trialDisabledReason ||
+      (mappingSaved
+        ? templateApplied
+          ? "当前简历已使用此模板"
+          : "识别结果已保存，可用于当前简历"
+        : saveDisabledReason || "试填已生成，可以保存识别结果");
   // 恢复中的分析优先保留；显式选模板时才替换，避免覆盖尚未保存的识别。
   const requestedId = useRef(taskId ? savedId : "");
   const libraryRequest = useRef<AbortController | null>(null);
@@ -143,11 +168,11 @@ export default function TemplateAdapter({
       if (!active) return;
       const key = JSON.stringify([resume.id, resume.template_id]);
       if (viewedResume.current !== key) {
-        const restoringImport =
-          viewedResume.current === null && taskId && !libraryId;
+        const restoringSelection =
+          viewedResume.current === null && (taskId || libraryId !== null);
         viewedResume.current = key;
         if (
-          !restoringImport &&
+          !restoringSelection &&
           !running &&
           savedId !== (resume.template_id ?? "")
         ) {
@@ -237,8 +262,15 @@ export default function TemplateAdapter({
           else {
             setPlan(value.plan);
             setReview(value.review);
-            setName(
-              value.file_name.replace(/\.(docx?|docm|rtf|pdf|png|jpe?g)$/i, ""),
+            const templateName = value.file_name.replace(
+              /\.(docx?|docm|rtf|pdf|png|jpe?g)$/i,
+              "",
+            );
+            setName(templateName);
+            setSavedSnapshot(
+              value.from_library
+                ? JSON.stringify([templateName.trim(), value.plan])
+                : null,
             );
             setSelected(
               value.plan?.fields[0] ? [value.plan.fields[0].node] : [],
@@ -410,6 +442,7 @@ export default function TemplateAdapter({
     setReview(null);
     setPreview(null);
     setOpenedId("");
+    setSavedSnapshot(null);
     setTaskId("");
     sessionStorage.removeItem("rm.template.analysis");
     sessionStorage.setItem("rm.template.library", id);
@@ -418,7 +451,7 @@ export default function TemplateAdapter({
       const value = await api<TemplateAnalysis>(
         `/templates/${id}/edit`,
         "POST",
-        undefined,
+        { document, items: resume.items },
         controller.signal,
       );
       if (!controller.signal.aborted) openTask(value, id);
@@ -433,6 +466,7 @@ export default function TemplateAdapter({
     autoPreview.current = true;
     setImportError(null);
     setOpenedId(templateId);
+    setSavedSnapshot(null);
     setLibraryId(templateId);
     setAnalysis(value);
     setPlan(null);
@@ -501,7 +535,7 @@ export default function TemplateAdapter({
       setView("preview");
     }
   }
-  /** 保存为独立模板版本，再应用到仍在编辑的同一份简历。 */
+  /** 只保存识别结果到模板库，当前简历的模板选择由独立操作控制。 */
   async function save() {
     const value = await api<{ id: string }>(
       `/templates/analyses/${taskId}/save`,
@@ -513,14 +547,18 @@ export default function TemplateAdapter({
       requestedId.current = value.id;
       setOpenedId(value.id);
       setLibraryId(value.id);
+      setSavedSnapshot(currentSnapshot);
       sessionStorage.setItem("rm.template.library", value.id);
       // 刷新后应重开刚保存的版本，不能恢复未包含人工修正的原分析结果。
       sessionStorage.removeItem("rm.template.analysis");
-      onSelected(value.id);
-      setNotice(
-        "模板已保存并用于当前简历。可返回个人信息或栏目编排继续填写资料。",
-      );
+      setNotice("识别结果已保存到模板库。");
     }
+  }
+  /** 仅应用当前已保存版本，人工修改尚未保存时不能悄悄采用旧版本。 */
+  function applySaved() {
+    if (applyDisabledReason) return;
+    onSelected(builtin ? null : savedId);
+    setNotice("已用于当前简历。");
   }
   return (
     <section
@@ -577,30 +615,6 @@ export default function TemplateAdapter({
                 }
               }
             />
-            {!builtin && (
-              <button
-                disabled={busy || loading || running || !saved}
-                onClick={
-                  /* 已加载时直接进入调整，保留人工修改；读取失败可在此重试。 */ () => {
-                    if (openedId === savedId && plan) setView("preview");
-                    else void loadSaved(savedId);
-                  }
-                }
-              >
-                {notice && !analysis ? "重新加载" : "修正识别"}
-              </button>
-            )}
-            <button
-              disabled={busy || loading || running || (!builtin && !saved)}
-              onClick={
-                /* 直接采用已保存的模板版本。 */ () => {
-                  onSelected(builtin ? null : savedId);
-                  setNotice("已用于当前简历。");
-                }
-              }
-            >
-              使用模板
-            </button>
           </div>
         </div>
         {importError && (
@@ -675,6 +689,17 @@ export default function TemplateAdapter({
                 <FileScan size={18} />
               )}
               {loading ? "正在加载模板…" : "暂无识别结果"}
+              {!loading && saved && notice && (
+                <button
+                  disabled={busy || running}
+                  onClick={
+                    /* 加载失败时保留明确重试入口，不覆盖已打开的人工调整。 */ () =>
+                      void loadSaved(savedId)
+                  }
+                >
+                  重新加载模板
+                </button>
+              )}
             </p>
           )
         ) : (
@@ -895,7 +920,7 @@ export default function TemplateAdapter({
                       }
                     >
                       {review.ready
-                        ? "当前模板检查通过，可查看试填并应用。"
+                        ? "当前模板检查通过，可查看试填并保存。"
                         : "还有需要确认的内容，可让 AI 继续完善。"}
                     </p>
                     {!review.ready && (
@@ -912,51 +937,66 @@ export default function TemplateAdapter({
                 )}
               </aside>
             </fieldset>
-            <footer className="template-workspace-footer">
-              <div className="template-footer-status">
-                <span
-                  id="template-action-status"
-                  className={problems.length ? "template-notice" : "subtle"}
-                  role="status"
-                  title={trialDisabledReason || saveDisabledReason}
-                >
-                  {trialDisabledReason ||
-                    saveDisabledReason ||
-                    "试填已生成，可以保存并用于当前简历"}
-                </span>
-                {!!problems.length && (
-                  <button disabled={busy || running} onClick={showProblems}>
-                    查看问题 · {problems.length}
-                  </button>
-                )}
-              </div>
-              <div className="actions">
-                <button
-                  disabled={!!trialDisabledReason}
-                  title={trialDisabledReason || undefined}
-                  aria-describedby="template-action-status"
-                  onClick={
-                    /* 生成当前资料对应的 Word 试填。 */ () =>
-                      void perform(trial)
-                  }
-                >
-                  {preview ? "更新试填预览" : "生成试填预览"}
-                </button>
-                <button
-                  className="primary"
-                  disabled={!!saveDisabledReason}
-                  title={saveDisabledReason || undefined}
-                  aria-describedby="template-action-status"
-                  onClick={
-                    /* 确认试填后保存独立版本并应用。 */ () =>
-                      void perform(save)
-                  }
-                >
-                  保存并用于当前简历
-                </button>
-              </div>
-            </footer>
           </>
+        )}
+        {(builtin || plan) && (
+          <footer className="template-workspace-footer">
+            <div className="template-footer-status">
+              <span
+                id="template-action-status"
+                className={problems.length ? "template-notice" : "subtle"}
+                role="status"
+                title={actionStatus}
+              >
+                {actionStatus}
+              </span>
+              {!builtin && !!problems.length && (
+                <button disabled={busy || running} onClick={showProblems}>
+                  查看问题 · {problems.length}
+                </button>
+              )}
+            </div>
+            <div className="actions">
+              {!builtin && (
+                <>
+                  <button
+                    disabled={!!trialDisabledReason}
+                    title={trialDisabledReason || undefined}
+                    aria-describedby="template-action-status"
+                    onClick={
+                      /* 生成当前资料对应的 Word 试填。 */ () =>
+                        void perform(trial)
+                    }
+                  >
+                    {preview ? "更新试填预览" : "生成试填预览"}
+                  </button>
+                  <button
+                    className="primary"
+                    disabled={!!saveDisabledReason || mappingSaved}
+                    title={
+                      mappingSaved
+                        ? "当前识别结果已保存"
+                        : saveDisabledReason || undefined
+                    }
+                    aria-describedby="template-action-status"
+                    onClick={
+                      /* 确认试填后仅保存独立模板版本。 */ () =>
+                        void perform(save)
+                    }
+                  >
+                    {mappingSaved ? "识别结果已保存" : "保存识别结果"}
+                  </button>
+                </>
+              )}
+              <button
+                disabled={!!applyDisabledReason}
+                title={applyDisabledReason || undefined}
+                onClick={applySaved}
+              >
+                {templateApplied ? "当前已使用" : "用于当前简历"}
+              </button>
+            </div>
+          </footer>
         )}
       </div>
     </section>

@@ -87,7 +87,7 @@ export default function TemplateEntries({
               aria-label={`${item.liked ? "取消喜欢" : "喜欢"} ${item.name}`}
               title={item.liked ? "取消 Like" : "Like · 喜欢"}
               aria-pressed={item.liked}
-              disabled={pending}
+              disabled={pending || !!item.deleted_at}
               onClick={
                 /* 收藏不改变当前选择，也不关闭弹窗。 */ () => onLike(item)
               }

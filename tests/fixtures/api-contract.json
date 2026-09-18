@@ -1,5 +1,39 @@
 {
   "paths": {
+    "/api/paths/pick": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PathPickerInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/health": {
       "get": {
         "responses": {
@@ -480,6 +514,51 @@
         }
       }
     },
+    "/api/projects/{project_id}/drafts/discard": {
+      "post": {
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiscardDraftsInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/projects/{project_id}/revisions": {
       "post": {
         "parameters": [
@@ -927,6 +1006,84 @@
         }
       }
     },
+    "/api/resume-previews": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResumePreviewInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/resume-previews/{preview_id}/{file_name}": {
+      "get": {
+        "parameters": [
+          {
+            "name": "preview_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Preview Id"
+            }
+          },
+          {
+            "name": "file_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "File Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/resumes": {
       "post": {
         "requestBody": {
@@ -1161,7 +1318,7 @@
         }
       }
     },
-    "/api/settings": {
+    "/api/template-library": {
       "get": {
         "responses": {
           "200": {
@@ -1175,13 +1332,101 @@
         }
       }
     },
-    "/api/settings/provider": {
-      "put": {
+    "/api/template-library/items/{template_id}": {
+      "patch": {
+        "parameters": [
+          {
+            "name": "template_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Template Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TemplateLibraryItemInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "parameters": [
+          {
+            "name": "template_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Template Id"
+            }
+          },
+          {
+            "name": "permanent",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Permanent"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/template-library/categories": {
+      "post": {
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ProviderSettings"
+                "$ref": "#/components/schemas/TemplateCategoryInput"
               }
             }
           },
@@ -1209,22 +1454,19 @@
         }
       }
     },
-    "/api/providers/codex": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/providers/codex/check": {
+    "/api/template-library/items/{template_id}/restore": {
       "post": {
+        "parameters": [
+          {
+            "name": "template_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Template Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -1233,19 +1475,83 @@
                 "schema": {}
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
         }
       }
     },
-    "/": {
-      "get": {
+    "/api/template-library/categories/{category_id}": {
+      "delete": {
+        "parameters": [
+          {
+            "name": "category_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Category Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
-              "text/html": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/template-library/items/{template_id}/thumbnail": {
+      "get": {
+        "parameters": [
+          {
+            "name": "template_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Template Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -1287,6 +1593,58 @@
         }
       }
     },
+    "/api/templates/{template_id}/edit": {
+      "post": {
+        "parameters": [
+          {
+            "name": "template_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Template Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TemplateEditInput"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/templates/analyses/{analysis_id}": {
       "get": {
         "parameters": [
@@ -1297,6 +1655,52 @@
             "schema": {
               "type": "string",
               "title": "Analysis Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/templates/analyses/{analysis_id}/progress": {
+      "get": {
+        "parameters": [
+          {
+            "name": "analysis_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Analysis Id"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "After"
             }
           }
         ],
@@ -1376,6 +1780,51 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/TemplatePreviewInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/templates/analyses/{analysis_id}/repair": {
+      "post": {
+        "parameters": [
+          {
+            "name": "analysis_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Analysis Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TemplateRepairInput"
               }
             }
           }
@@ -1589,19 +2038,8 @@
         }
       }
     },
-    "/api/templates/{template_id}/edit": {
-      "post": {
-        "parameters": [
-          {
-            "name": "template_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Template Id"
-            }
-          }
-        ],
+    "/api/settings/resume-defaults": {
+      "get": {
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -1610,27 +2048,15 @@
                 "schema": {}
               }
             }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
           }
         }
-      }
-    },
-    "/api/paths/pick": {
-      "post": {
+      },
+      "put": {
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PathPickerInput"
+                "$ref": "#/components/schemas/ResumeDefaults"
               }
             }
           },
@@ -1658,75 +2084,8 @@
         }
       }
     },
-    "/api/templates/analyses/{analysis_id}/repair": {
-      "post": {
-        "parameters": [
-          {
-            "name": "analysis_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Analysis Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TemplateRepairInput"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/templates/analyses/{analysis_id}/progress": {
+    "/api/settings": {
       "get": {
-        "parameters": [
-          {
-            "name": "analysis_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Analysis Id"
-            }
-          },
-          {
-            "name": "after",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "default": 0,
-              "title": "After"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -1735,27 +2094,17 @@
                 "schema": {}
               }
             }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
           }
         }
       }
     },
-    "/api/resume-previews": {
-      "post": {
+    "/api/settings/provider": {
+      "put": {
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ResumePreviewInput"
+                "$ref": "#/components/schemas/ProviderSettings"
               }
             }
           },
@@ -1783,51 +2132,7 @@
         }
       }
     },
-    "/api/resume-previews/{preview_id}/{file_name}": {
-      "get": {
-        "parameters": [
-          {
-            "name": "preview_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Preview Id"
-            }
-          },
-          {
-            "name": "file_name",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "File Name"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/template-library": {
+    "/api/providers/codex": {
       "get": {
         "responses": {
           "200": {
@@ -1841,149 +2146,14 @@
         }
       }
     },
-    "/api/template-library/items/{template_id}": {
-      "patch": {
-        "parameters": [
-          {
-            "name": "template_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Template Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TemplateLibraryItemInput"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/template-library/categories": {
+    "/api/providers/codex/check": {
       "post": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TemplateCategoryInput"
-              }
-            }
-          },
-          "required": true
-        },
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/template-library/categories/{category_id}": {
-      "delete": {
-        "parameters": [
-          {
-            "name": "category_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Category Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/template-library/items/{template_id}/thumbnail": {
-      "get": {
-        "parameters": [
-          {
-            "name": "template_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Template Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
               }
             }
           }
@@ -2320,9 +2490,84 @@
           }
         }
       }
+    },
+    "/": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "schemas": {
+    "AISettings": {
+      "properties": {
+        "model": {
+          "type": "string",
+          "title": "Model",
+          "default": ""
+        },
+        "reasoning_effort": {
+          "type": "string",
+          "enum": [
+            "",
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ],
+          "title": "Reasoning Effort",
+          "default": ""
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "title": "AISettings",
+      "description": "模型和思考强度覆盖；空值表示继承上一级配置。"
+    },
+    "AdaptiveTemplateInput": {
+      "properties": {
+        "plan": {
+          "$ref": "#/components/schemas/TemplatePlan"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Name"
+        },
+        "document": {
+          "$ref": "#/components/schemas/ResumeDocument"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/components/schemas/ResumeItem"
+          },
+          "type": "array",
+          "title": "Items"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "plan",
+        "name",
+        "document",
+        "items"
+      ],
+      "title": "AdaptiveTemplateInput",
+      "description": "将分析快照及核对后的映射登记为可复用模板。"
+    },
     "BranchInput": {
       "properties": {
         "name": {
@@ -2404,6 +2649,151 @@
       "title": "ConversationInput",
       "description": "会话可修改字段的白名单，空值表示不修改该字段。"
     },
+    "CustomInfoField": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Id"
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 50,
+          "title": "Label",
+          "default": ""
+        },
+        "value": {
+          "type": "string",
+          "maxLength": 1000,
+          "title": "Value",
+          "default": ""
+        },
+        "visible": {
+          "type": "boolean",
+          "title": "Visible",
+          "default": true
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id"
+      ],
+      "title": "CustomInfoField",
+      "description": "用户自行命名的信息项；可隐藏，空项保留为草稿但不参与排版。"
+    },
+    "DefaultField": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Id"
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 50,
+          "minLength": 1,
+          "title": "Label"
+        },
+        "visible": {
+          "type": "boolean",
+          "title": "Visible",
+          "default": true
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "label"
+      ],
+      "title": "DefaultField",
+      "description": "默认表单字段的稳定标识、名称和初始显隐。"
+    },
+    "DefaultSection": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Id"
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Title"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "education",
+            "projects",
+            "text"
+          ],
+          "title": "Kind"
+        },
+        "parent_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Parent Id"
+        },
+        "visible": {
+          "type": "boolean",
+          "title": "Visible",
+          "default": true
+        },
+        "fields": {
+          "items": {
+            "$ref": "#/components/schemas/DefaultField"
+          },
+          "type": "array",
+          "maxItems": 30,
+          "title": "Fields"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "kind",
+        "fields"
+      ],
+      "title": "DefaultSection",
+      "description": "新简历的栏目及其新增条目所用的字段定义。"
+    },
+    "DiscardDraftsInput": {
+      "properties": {
+        "base_revision": {
+          "type": "string",
+          "title": "Base Revision"
+        },
+        "versions": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "type": "object",
+          "title": "Versions"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "base_revision",
+        "versions"
+      ],
+      "title": "DiscardDraftsInput",
+      "description": "撤销单个基线版本的全部草稿，要求确认时的完整草稿版本集合一致。"
+    },
     "DraftInput": {
       "properties": {
         "base_revision": {
@@ -2433,6 +2823,141 @@
       "title": "DraftInput",
       "description": "带基础修订和草稿版本号的字段编辑请求。"
     },
+    "Evidence": {
+      "properties": {
+        "source": {
+          "type": "string",
+          "title": "Source",
+          "default": ""
+        },
+        "path": {
+          "type": "string",
+          "title": "Path",
+          "default": ""
+        },
+        "line_start": {
+          "type": "integer",
+          "minimum": 0.0,
+          "title": "Line Start",
+          "default": 0
+        },
+        "line_end": {
+          "type": "integer",
+          "minimum": 0.0,
+          "title": "Line End",
+          "default": 0
+        },
+        "quote": {
+          "type": "string",
+          "title": "Quote",
+          "default": ""
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "code",
+            "document",
+            "user",
+            "unverified"
+          ],
+          "title": "Status",
+          "default": "unverified"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "title": "Evidence",
+      "description": "来源文件、行号和引文组成的证据及其核验状态。"
+    },
+    "Experience": {
+      "properties": {
+        "title": {
+          "type": "string",
+          "maxLength": 200,
+          "title": "Title"
+        },
+        "period": {
+          "type": "string",
+          "maxLength": 200,
+          "title": "Period",
+          "default": ""
+        },
+        "role": {
+          "type": "string",
+          "maxLength": 300,
+          "title": "Role",
+          "default": ""
+        },
+        "stack": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 60,
+          "title": "Stack"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 10000,
+          "title": "Description",
+          "default": ""
+        },
+        "hidden_fields": {
+          "items": {
+            "type": "string",
+            "enum": [
+              "title",
+              "period",
+              "role",
+              "stack",
+              "description"
+            ]
+          },
+          "type": "array",
+          "maxItems": 5,
+          "title": "Hidden Fields"
+        },
+        "custom_fields": {
+          "items": {
+            "$ref": "#/components/schemas/CustomInfoField"
+          },
+          "type": "array",
+          "maxItems": 20,
+          "title": "Custom Fields"
+        },
+        "highlights": {
+          "items": {
+            "$ref": "#/components/schemas/Highlight"
+          },
+          "type": "array",
+          "maxItems": 60,
+          "title": "Highlights"
+        },
+        "body_order": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string",
+                "pattern": "^(role|stack|description|highlights|custom:.{1,100})$"
+              },
+              "type": "array",
+              "maxItems": 204
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Body Order"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "title"
+      ],
+      "title": "Experience",
+      "description": "可发布的完整项目经历数据，修订后保持不可变。"
+    },
     "HTTPValidationError": {
       "properties": {
         "detail": {
@@ -2445,6 +2970,131 @@
       },
       "type": "object",
       "title": "HTTPValidationError"
+    },
+    "Highlight": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Id"
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 200,
+          "title": "Title"
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 10000,
+          "title": "Text"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/components/schemas/Evidence"
+          },
+          "type": "array",
+          "maxItems": 30,
+          "title": "Evidence"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "text"
+      ],
+      "title": "Highlight",
+      "description": "具有稳定标识的经历亮点，包含标题、正文与证据。"
+    },
+    "HonorFields": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 300,
+          "title": "Name",
+          "default": ""
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "竞赛获奖",
+            "资格证书",
+            "奖学金",
+            "荣誉称号",
+            "其他"
+          ],
+          "title": "Category",
+          "default": "其他"
+        },
+        "level": {
+          "type": "string",
+          "maxLength": 100,
+          "title": "Level",
+          "default": ""
+        },
+        "award": {
+          "type": "string",
+          "maxLength": 200,
+          "title": "Award",
+          "default": ""
+        },
+        "issuer": {
+          "type": "string",
+          "maxLength": 500,
+          "title": "Issuer",
+          "default": ""
+        },
+        "date": {
+          "type": "string",
+          "maxLength": 100,
+          "title": "Date",
+          "default": ""
+        },
+        "recipient": {
+          "type": "string",
+          "maxLength": 300,
+          "title": "Recipient",
+          "default": ""
+        },
+        "certificate_number": {
+          "type": "string",
+          "maxLength": 300,
+          "title": "Certificate Number",
+          "default": ""
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 5000,
+          "title": "Description",
+          "default": ""
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "title": "HonorFields",
+      "description": "可核对和复用的证书资料；无法确认的信息保持空白。"
+    },
+    "HonorSave": {
+      "properties": {
+        "fields": {
+          "$ref": "#/components/schemas/HonorFields"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 0.0,
+          "title": "Version",
+          "default": 0
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "fields"
+      ],
+      "title": "HonorSave",
+      "description": "用户确认的资料和乐观并发版本。"
     },
     "MessageInput": {
       "properties": {
@@ -2500,441 +3150,31 @@
       "title": "PathInput",
       "description": "需要由后端校验并读取的本机路径。"
     },
-    "ProjectInput": {
+    "PathPickerInput": {
       "properties": {
-        "name": {
-          "type": "string",
-          "maxLength": 200,
-          "minLength": 1,
-          "title": "Name"
-        },
-        "roots": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array",
-          "maxItems": 30,
-          "minItems": 1,
-          "title": "Roots"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "name",
-        "roots"
-      ],
-      "title": "ProjectInput",
-      "description": "项目登记或来源重绑请求，限制名称和来源数量。"
-    },
-    "ProjectProfile": {
-      "properties": {
-        "role": {
-          "type": "string",
-          "title": "Role",
-          "default": ""
-        },
-        "period": {
-          "type": "string",
-          "title": "Period",
-          "default": ""
-        },
-        "contribution": {
-          "type": "string",
-          "title": "Contribution",
-          "default": ""
-        },
-        "outcomes": {
-          "type": "string",
-          "title": "Outcomes",
-          "default": ""
-        },
-        "notes": {
-          "type": "string",
-          "title": "Notes",
-          "default": ""
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "title": "ProjectProfile",
-      "description": "由用户本人补充和确认的角色、日期、贡献及成果。"
-    },
-    "ProviderSettings": {
-      "properties": {
-        "model": {
-          "type": "string",
-          "title": "Model",
-          "default": ""
-        },
-        "reasoning_effort": {
-          "type": "string",
-          "enum": [
-            "",
-            "minimal",
-            "low",
-            "medium",
-            "high",
-            "xhigh"
-          ],
-          "title": "Reasoning Effort",
-          "default": ""
-        },
-        "executable": {
-          "type": "string",
-          "title": "Executable",
-          "default": "codex"
-        },
-        "profile": {
-          "type": "string",
-          "title": "Profile",
-          "default": ""
-        },
-        "timeout_seconds": {
-          "type": "integer",
-          "maximum": 7200.0,
-          "minimum": 30.0,
-          "title": "Timeout Seconds",
-          "default": 1200
-        },
-        "functions": {
-          "additionalProperties": {
-            "$ref": "#/components/schemas/AISettings"
-          },
-          "propertyNames": {
-            "enum": [
-              "project_analysis",
-              "conversation",
-              "highlight_edit",
-              "template_analysis",
-              "template_repair",
-              "honor_recognition",
-              "connection_check"
-            ]
-          },
-          "type": "object",
-          "title": "Functions"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "title": "ProviderSettings",
-      "description": "CLI 连接、全局默认值和各 AI 功能的可保存配置。"
-    },
-    "ResumeInput": {
-      "properties": {
-        "name": {
-          "type": "string",
-          "maxLength": 200,
-          "minLength": 1,
-          "title": "Name"
-        },
-        "template_id": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Template Id"
-        },
-        "items": {
-          "items": {
-            "$ref": "#/components/schemas/ResumeItem"
-          },
-          "type": "array",
-          "title": "Items"
-        },
-        "version": {
-          "type": "integer",
-          "title": "Version",
-          "default": 0
-        },
-        "document": {
-          "anyOf": [
-            {
-              "$ref": "#/components/schemas/ResumeDocument"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "name",
-        "items"
-      ],
-      "title": "ResumeInput",
-      "description": "包含模板、固定版本条目及乐观锁版本的简历请求。"
-    },
-    "ResumeItem": {
-      "properties": {
-        "project_id": {
-          "type": "string",
-          "title": "Project Id"
-        },
-        "revision_id": {
-          "type": "string",
-          "title": "Revision Id"
-        },
-        "highlight_ids": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array",
-          "title": "Highlight Ids"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "project_id",
-        "revision_id",
-        "highlight_ids"
-      ],
-      "title": "ResumeItem",
-      "description": "简历对特定项目版本及其亮点的固定引用。"
-    },
-    "RevealSourceInput": {
-      "properties": {
-        "snapshot_id": {
-          "type": "string",
-          "minLength": 1,
-          "title": "Snapshot Id"
-        },
-        "source": {
-          "type": "string",
-          "minLength": 1,
-          "title": "Source"
-        },
-        "path": {
-          "type": "string",
-          "minLength": 1,
-          "title": "Path"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "snapshot_id",
-        "source",
-        "path"
-      ],
-      "title": "RevealSourceInput",
-      "description": "用项目快照和来源相对路径定位文件，不接受任意本机绝对路径。"
-    },
-    "SaveInput": {
-      "properties": {
-        "base_revision": {
-          "type": "string",
-          "title": "Base Revision"
-        },
-        "expected_head": {
-          "type": "string",
-          "title": "Expected Head"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "base_revision",
-        "expected_head"
-      ],
-      "title": "SaveInput",
-      "description": "发布或恢复经历的请求，携带所属分支预期头版本防止并发覆盖。"
-    },
-    "ValidationError": {
-      "properties": {
-        "loc": {
-          "items": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "integer"
-              }
-            ]
-          },
-          "type": "array",
-          "title": "Location"
-        },
-        "msg": {
-          "type": "string",
-          "title": "Message"
-        },
-        "type": {
-          "type": "string",
-          "title": "Error Type"
-        },
-        "input": {
-          "title": "Input"
-        },
-        "ctx": {
-          "type": "object",
-          "title": "Context"
-        }
-      },
-      "type": "object",
-      "required": [
-        "loc",
-        "msg",
-        "type"
-      ],
-      "title": "ValidationError"
-    },
-    "ResumeDocument": {
-      "properties": {
-        "personal": {
-          "$ref": "#/components/schemas/PersonalInfo"
-        },
-        "sections": {
-          "items": {
-            "$ref": "#/components/schemas/ResumeSection"
-          },
-          "type": "array",
-          "maxItems": 40,
-          "title": "Sections"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "sections"
-      ],
-      "title": "ResumeDocument",
-      "description": "一份简历独立保存的顶部资料与栏目编排，允许大栏目加子栏目两层。"
-    },
-    "ResumeSection": {
-      "properties": {
-        "id": {
-          "type": "string",
-          "maxLength": 100,
-          "minLength": 1,
-          "title": "Id"
-        },
-        "title": {
-          "type": "string",
-          "maxLength": 100,
-          "minLength": 1,
-          "title": "Title"
-        },
         "kind": {
           "type": "string",
           "enum": [
-            "education",
-            "projects",
-            "text"
+            "docx",
+            "folder",
+            "executable"
           ],
-          "title": "Kind",
-          "default": "text"
+          "title": "Kind"
         },
-        "parent_id": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Parent Id"
-        },
-        "visible": {
-          "type": "boolean",
-          "title": "Visible",
-          "default": true
-        },
-        "entries": {
-          "items": {
-            "$ref": "#/components/schemas/SectionEntry"
-          },
-          "type": "array",
-          "maxItems": 100,
-          "title": "Entries"
+        "initial_path": {
+          "type": "string",
+          "maxLength": 8192,
+          "title": "Initial Path",
+          "default": ""
         }
       },
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "id",
-        "title"
+        "kind"
       ],
-      "title": "ResumeSection",
-      "description": "可排序、隐藏或归入大栏目的栏目；项目区使用独立版本引用。"
-    },
-    "SectionEntry": {
-      "properties": {
-        "id": {
-          "type": "string",
-          "maxLength": 100,
-          "minLength": 1,
-          "title": "Id"
-        },
-        "title": {
-          "type": "string",
-          "maxLength": 300,
-          "title": "Title",
-          "default": ""
-        },
-        "subtitle": {
-          "type": "string",
-          "maxLength": 500,
-          "title": "Subtitle",
-          "default": ""
-        },
-        "period": {
-          "type": "string",
-          "maxLength": 100,
-          "title": "Period",
-          "default": ""
-        },
-        "details": {
-          "type": "string",
-          "maxLength": 10000,
-          "title": "Details",
-          "default": ""
-        },
-        "visible": {
-          "type": "boolean",
-          "title": "Visible",
-          "default": true
-        },
-        "hidden_fields": {
-          "items": {
-            "type": "string",
-            "enum": [
-              "title",
-              "subtitle",
-              "period",
-              "details"
-            ]
-          },
-          "type": "array",
-          "maxItems": 4,
-          "title": "Hidden Fields"
-        },
-        "custom_fields": {
-          "items": {
-            "$ref": "#/components/schemas/CustomInfoField"
-          },
-          "type": "array",
-          "maxItems": 20,
-          "title": "Custom Fields"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "id"
-      ],
-      "title": "SectionEntry",
-      "description": "栏目下的经历或文本条目，支持学校、专业、时间与多行正文。"
+      "title": "PathPickerInput",
+      "description": "选择本机文件或文件夹，已有路径仅用于设置窗口初始位置。"
     },
     "PersonalInfo": {
       "properties": {
@@ -3025,6 +3265,21 @@
           "type": "array",
           "maxItems": 20,
           "title": "Custom Fields"
+        },
+        "field_definitions": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/components/schemas/DefaultField"
+              },
+              "type": "array",
+              "maxItems": 30
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Field Definitions"
         }
       },
       "additionalProperties": false,
@@ -3032,72 +3287,206 @@
       "title": "PersonalInfo",
       "description": "固定展示在简历顶部的基本信息；空字段不参与排版。"
     },
-    "CustomInfoField": {
+    "PreviewProject": {
       "properties": {
-        "id": {
+        "project_id": {
           "type": "string",
-          "maxLength": 100,
-          "minLength": 1,
-          "title": "Id"
+          "title": "Project Id"
         },
-        "label": {
+        "revision_id": {
           "type": "string",
-          "maxLength": 50,
-          "title": "Label",
-          "default": ""
+          "title": "Revision Id"
         },
-        "value": {
-          "type": "string",
-          "maxLength": 1000,
-          "title": "Value",
-          "default": ""
+        "highlight_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "title": "Highlight Ids"
         },
-        "visible": {
-          "type": "boolean",
-          "title": "Visible",
-          "default": true
+        "content": {
+          "anyOf": [
+            {
+              "$ref": "#/components/schemas/Experience"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "id"
+        "project_id",
+        "revision_id",
+        "highlight_ids"
       ],
-      "title": "CustomInfoField",
-      "description": "用户自行命名的信息项；可隐藏，空项保留为草稿但不参与排版。"
+      "title": "PreviewProject",
+      "description": "预览可覆盖经历工作副本，但固定修订仍必须属于对应项目。"
     },
-    "AdaptiveTemplateInput": {
+    "ProjectInput": {
       "properties": {
-        "plan": {
-          "$ref": "#/components/schemas/TemplatePlan"
-        },
         "name": {
           "type": "string",
           "maxLength": 200,
           "minLength": 1,
           "title": "Name"
         },
-        "document": {
-          "$ref": "#/components/schemas/ResumeDocument"
-        },
-        "items": {
+        "roots": {
           "items": {
-            "$ref": "#/components/schemas/ResumeItem"
+            "type": "string"
           },
           "type": "array",
-          "title": "Items"
+          "maxItems": 30,
+          "minItems": 1,
+          "title": "Roots"
         }
       },
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "plan",
         "name",
-        "document",
-        "items"
+        "roots"
       ],
-      "title": "AdaptiveTemplateInput",
-      "description": "将分析快照及核对后的映射登记为可复用模板。"
+      "title": "ProjectInput",
+      "description": "项目登记或来源重绑请求，限制名称和来源数量。"
+    },
+    "ProjectProfile": {
+      "properties": {
+        "role": {
+          "type": "string",
+          "title": "Role",
+          "default": ""
+        },
+        "period": {
+          "type": "string",
+          "title": "Period",
+          "default": ""
+        },
+        "contribution": {
+          "type": "string",
+          "title": "Contribution",
+          "default": ""
+        },
+        "outcomes": {
+          "type": "string",
+          "title": "Outcomes",
+          "default": ""
+        },
+        "notes": {
+          "type": "string",
+          "title": "Notes",
+          "default": ""
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "title": "ProjectProfile",
+      "description": "由用户本人补充和确认的角色、日期、贡献及成果。"
+    },
+    "ProjectVisibility": {
+      "properties": {
+        "fields": {
+          "additionalProperties": {
+            "type": "boolean"
+          },
+          "propertyNames": {
+            "enum": [
+              "title",
+              "period",
+              "role",
+              "stack",
+              "description"
+            ]
+          },
+          "type": "object",
+          "maxProperties": 5,
+          "title": "Fields"
+        },
+        "custom_fields": {
+          "additionalProperties": {
+            "type": "boolean"
+          },
+          "type": "object",
+          "maxProperties": 200,
+          "title": "Custom Fields"
+        },
+        "order": {
+          "items": {
+            "type": "string",
+            "pattern": "^(role|stack|description|highlights|custom:.{1,100})$"
+          },
+          "type": "array",
+          "maxItems": 204,
+          "title": "Order"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "title": "ProjectVisibility",
+      "description": "一份简历独立保存的项目显隐覆盖，不改变项目原文或生成经历版本。"
+    },
+    "ProviderSettings": {
+      "properties": {
+        "model": {
+          "type": "string",
+          "title": "Model",
+          "default": ""
+        },
+        "reasoning_effort": {
+          "type": "string",
+          "enum": [
+            "",
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ],
+          "title": "Reasoning Effort",
+          "default": ""
+        },
+        "executable": {
+          "type": "string",
+          "title": "Executable",
+          "default": "codex"
+        },
+        "profile": {
+          "type": "string",
+          "title": "Profile",
+          "default": ""
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "maximum": 7200.0,
+          "minimum": 30.0,
+          "title": "Timeout Seconds",
+          "default": 1200
+        },
+        "functions": {
+          "additionalProperties": {
+            "$ref": "#/components/schemas/AISettings"
+          },
+          "propertyNames": {
+            "enum": [
+              "project_analysis",
+              "conversation",
+              "highlight_edit",
+              "template_analysis",
+              "template_repair",
+              "honor_recognition",
+              "connection_check"
+            ]
+          },
+          "type": "object",
+          "title": "Functions"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "title": "ProviderSettings",
+      "description": "CLI 连接、全局默认值和各 AI 功能的可保存配置。"
     },
     "RepeatBinding": {
       "properties": {
@@ -3144,6 +3533,386 @@
       "title": "RepeatBinding",
       "description": "以一个条目为样式样本，替换同级节点范围内的全部示例条目。"
     },
+    "ResumeDefaults": {
+      "properties": {
+        "version": {
+          "type": "integer",
+          "minimum": 0.0,
+          "title": "Version",
+          "default": 0
+        },
+        "personal_fields": {
+          "items": {
+            "$ref": "#/components/schemas/DefaultField"
+          },
+          "type": "array",
+          "maxItems": 30,
+          "title": "Personal Fields"
+        },
+        "sections": {
+          "items": {
+            "$ref": "#/components/schemas/DefaultSection"
+          },
+          "type": "array",
+          "maxItems": 40,
+          "title": "Sections"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "personal_fields",
+        "sections"
+      ],
+      "title": "ResumeDefaults",
+      "description": "带版本的本机默认配置，保护多个窗口的并发编辑。"
+    },
+    "ResumeDocument": {
+      "properties": {
+        "personal": {
+          "$ref": "#/components/schemas/PersonalInfo"
+        },
+        "sections": {
+          "items": {
+            "$ref": "#/components/schemas/ResumeSection"
+          },
+          "type": "array",
+          "maxItems": 40,
+          "title": "Sections"
+        },
+        "project_visibility": {
+          "additionalProperties": {
+            "$ref": "#/components/schemas/ProjectVisibility"
+          },
+          "type": "object",
+          "maxProperties": 1000,
+          "title": "Project Visibility"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "sections"
+      ],
+      "title": "ResumeDocument",
+      "description": "一份简历独立保存的顶部资料与栏目编排，允许大栏目加子栏目两层。"
+    },
+    "ResumeInput": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Name"
+        },
+        "template_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Template Id"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/components/schemas/ResumeItem"
+          },
+          "type": "array",
+          "title": "Items"
+        },
+        "version": {
+          "type": "integer",
+          "title": "Version",
+          "default": 0
+        },
+        "document": {
+          "anyOf": [
+            {
+              "$ref": "#/components/schemas/ResumeDocument"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "items"
+      ],
+      "title": "ResumeInput",
+      "description": "包含模板、固定版本条目及乐观锁版本的简历请求。"
+    },
+    "ResumeItem": {
+      "properties": {
+        "project_id": {
+          "type": "string",
+          "title": "Project Id"
+        },
+        "revision_id": {
+          "type": "string",
+          "title": "Revision Id"
+        },
+        "highlight_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "title": "Highlight Ids"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "project_id",
+        "revision_id",
+        "highlight_ids"
+      ],
+      "title": "ResumeItem",
+      "description": "简历对特定项目版本及其亮点的固定引用。"
+    },
+    "ResumePreviewInput": {
+      "properties": {
+        "template_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Template Id"
+        },
+        "document": {
+          "$ref": "#/components/schemas/ResumeDocument"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/components/schemas/PreviewProject"
+          },
+          "type": "array",
+          "title": "Items"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "document",
+        "items"
+      ],
+      "title": "ResumePreviewInput",
+      "description": "当前模板和未保存资料的临时排版请求，不带简历保存或发布操作。"
+    },
+    "ResumeSection": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Id"
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Title"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "education",
+            "projects",
+            "text"
+          ],
+          "title": "Kind",
+          "default": "text"
+        },
+        "parent_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Parent Id"
+        },
+        "visible": {
+          "type": "boolean",
+          "title": "Visible",
+          "default": true
+        },
+        "entries": {
+          "items": {
+            "$ref": "#/components/schemas/SectionEntry"
+          },
+          "type": "array",
+          "maxItems": 100,
+          "title": "Entries"
+        },
+        "field_definitions": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/components/schemas/DefaultField"
+              },
+              "type": "array",
+              "maxItems": 30
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Field Definitions"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "title"
+      ],
+      "title": "ResumeSection",
+      "description": "可排序、隐藏或归入大栏目的栏目；项目区使用独立版本引用。"
+    },
+    "RevealSourceInput": {
+      "properties": {
+        "snapshot_id": {
+          "type": "string",
+          "minLength": 1,
+          "title": "Snapshot Id"
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "title": "Source"
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "title": "Path"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "snapshot_id",
+        "source",
+        "path"
+      ],
+      "title": "RevealSourceInput",
+      "description": "用项目快照和来源相对路径定位文件，不接受任意本机绝对路径。"
+    },
+    "SaveInput": {
+      "properties": {
+        "base_revision": {
+          "type": "string",
+          "title": "Base Revision"
+        },
+        "expected_head": {
+          "type": "string",
+          "title": "Expected Head"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "base_revision",
+        "expected_head"
+      ],
+      "title": "SaveInput",
+      "description": "发布或恢复经历的请求，携带所属分支预期头版本防止并发覆盖。"
+    },
+    "SectionEntry": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Id"
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 300,
+          "title": "Title",
+          "default": ""
+        },
+        "subtitle": {
+          "type": "string",
+          "maxLength": 500,
+          "title": "Subtitle",
+          "default": ""
+        },
+        "period": {
+          "type": "string",
+          "maxLength": 100,
+          "title": "Period",
+          "default": ""
+        },
+        "details": {
+          "type": "string",
+          "maxLength": 10000,
+          "title": "Details",
+          "default": ""
+        },
+        "visible": {
+          "type": "boolean",
+          "title": "Visible",
+          "default": true
+        },
+        "hidden_fields": {
+          "items": {
+            "type": "string",
+            "enum": [
+              "title",
+              "subtitle",
+              "period",
+              "details"
+            ]
+          },
+          "type": "array",
+          "maxItems": 4,
+          "title": "Hidden Fields"
+        },
+        "custom_fields": {
+          "items": {
+            "$ref": "#/components/schemas/CustomInfoField"
+          },
+          "type": "array",
+          "maxItems": 25,
+          "title": "Custom Fields"
+        },
+        "field_definitions": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/components/schemas/DefaultField"
+              },
+              "type": "array",
+              "maxItems": 30
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Field Definitions"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id"
+      ],
+      "title": "SectionEntry",
+      "description": "栏目下的经历或文本条目，支持学校、专业、时间与多行正文。"
+    },
     "TemplateAnalysisInput": {
       "properties": {
         "path": {
@@ -3169,6 +3938,70 @@
       ],
       "title": "TemplateAnalysisInput",
       "description": "分析本机模板，同时提供当前栏目的名称供语义匹配，不发送个人字段值。"
+    },
+    "TemplateCategoryInput": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 50,
+          "minLength": 1,
+          "title": "Name"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "title": "TemplateCategoryInput",
+      "description": "新分类的展示名称，空白与重名由业务层校验。"
+    },
+    "TemplateEditInput": {
+      "properties": {
+        "document": {
+          "$ref": "#/components/schemas/ResumeDocument"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/components/schemas/ResumeItem"
+          },
+          "type": "array",
+          "title": "Items"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "document"
+      ],
+      "title": "TemplateEditInput",
+      "description": "打开已保存模板时提供当前资料，以便在编辑副本中自动补齐可用位置。"
+    },
+    "TemplateLibraryItemInput": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Name",
+          "default": ""
+        },
+        "category_id": {
+          "type": "string",
+          "maxLength": 100,
+          "title": "Category Id",
+          "default": ""
+        },
+        "liked": {
+          "type": "boolean",
+          "title": "Liked",
+          "default": false
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "title": "TemplateLibraryItemInput",
+      "description": "只修改显式提交的模板名称、分类或收藏。"
     },
     "TemplatePlan": {
       "properties": {
@@ -3266,6 +4099,38 @@
       "title": "TemplatePreviewInput",
       "description": "用当前资料及固定项目引用试填，预览不会保存简历组合。"
     },
+    "TemplateRepairInput": {
+      "properties": {
+        "plan": {
+          "$ref": "#/components/schemas/TemplatePlan"
+        },
+        "document": {
+          "$ref": "#/components/schemas/ResumeDocument"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/components/schemas/ResumeItem"
+          },
+          "type": "array",
+          "title": "Items"
+        },
+        "feedback": {
+          "type": "string",
+          "maxLength": 4000,
+          "title": "Feedback",
+          "default": ""
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "plan",
+        "document",
+        "items"
+      ],
+      "title": "TemplateRepairInput",
+      "description": "基于当前方案与用户说明重新补全映射，保留原分析副本。"
+    },
     "TextBinding": {
       "properties": {
         "node": {
@@ -3299,417 +4164,45 @@
       "title": "TextBinding",
       "description": "以精确引文定位段落中的值，可跨多个 Word 文本片段。"
     },
-    "PathPickerInput": {
+    "ValidationError": {
       "properties": {
-        "kind": {
-          "type": "string",
-          "enum": [
-            "docx",
-            "folder",
-            "executable"
-          ],
-          "title": "Kind"
-        },
-        "initial_path": {
-          "type": "string",
-          "maxLength": 8192,
-          "title": "Initial Path",
-          "default": ""
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "kind"
-      ],
-      "title": "PathPickerInput",
-      "description": "选择本机文件或文件夹，已有路径仅用于设置窗口初始位置。"
-    },
-    "TemplateRepairInput": {
-      "properties": {
-        "plan": {
-          "$ref": "#/components/schemas/TemplatePlan"
-        },
-        "document": {
-          "$ref": "#/components/schemas/ResumeDocument"
-        },
-        "items": {
+        "loc": {
           "items": {
-            "$ref": "#/components/schemas/ResumeItem"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ]
           },
           "type": "array",
-          "title": "Items"
+          "title": "Location"
         },
-        "feedback": {
+        "msg": {
           "type": "string",
-          "maxLength": 4000,
-          "title": "Feedback",
-          "default": ""
+          "title": "Message"
+        },
+        "type": {
+          "type": "string",
+          "title": "Error Type"
+        },
+        "input": {
+          "title": "Input"
+        },
+        "ctx": {
+          "type": "object",
+          "title": "Context"
         }
       },
-      "additionalProperties": false,
       "type": "object",
       "required": [
-        "plan",
-        "document",
-        "items"
+        "loc",
+        "msg",
+        "type"
       ],
-      "title": "TemplateRepairInput",
-      "description": "基于当前方案与用户说明重新补全映射，保留原分析副本。"
-    },
-    "Evidence": {
-      "properties": {
-        "source": {
-          "type": "string",
-          "title": "Source",
-          "default": ""
-        },
-        "path": {
-          "type": "string",
-          "title": "Path",
-          "default": ""
-        },
-        "line_start": {
-          "type": "integer",
-          "minimum": 0.0,
-          "title": "Line Start",
-          "default": 0
-        },
-        "line_end": {
-          "type": "integer",
-          "minimum": 0.0,
-          "title": "Line End",
-          "default": 0
-        },
-        "quote": {
-          "type": "string",
-          "title": "Quote",
-          "default": ""
-        },
-        "status": {
-          "type": "string",
-          "enum": [
-            "code",
-            "document",
-            "user",
-            "unverified"
-          ],
-          "title": "Status",
-          "default": "unverified"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "title": "Evidence",
-      "description": "来源文件、行号和引文组成的证据及其核验状态。"
-    },
-    "Experience": {
-      "properties": {
-        "title": {
-          "type": "string",
-          "maxLength": 200,
-          "title": "Title"
-        },
-        "period": {
-          "type": "string",
-          "maxLength": 200,
-          "title": "Period",
-          "default": ""
-        },
-        "role": {
-          "type": "string",
-          "maxLength": 300,
-          "title": "Role",
-          "default": ""
-        },
-        "stack": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array",
-          "maxItems": 60,
-          "title": "Stack"
-        },
-        "description": {
-          "type": "string",
-          "maxLength": 10000,
-          "title": "Description",
-          "default": ""
-        },
-        "highlights": {
-          "items": {
-            "$ref": "#/components/schemas/Highlight"
-          },
-          "type": "array",
-          "maxItems": 60,
-          "title": "Highlights"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "title"
-      ],
-      "title": "Experience",
-      "description": "可发布的完整项目经历数据，修订后保持不可变。"
-    },
-    "Highlight": {
-      "properties": {
-        "id": {
-          "type": "string",
-          "maxLength": 100,
-          "minLength": 1,
-          "title": "Id"
-        },
-        "title": {
-          "type": "string",
-          "maxLength": 200,
-          "title": "Title"
-        },
-        "text": {
-          "type": "string",
-          "maxLength": 10000,
-          "title": "Text"
-        },
-        "evidence": {
-          "items": {
-            "$ref": "#/components/schemas/Evidence"
-          },
-          "type": "array",
-          "maxItems": 30,
-          "title": "Evidence"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "id",
-        "title",
-        "text"
-      ],
-      "title": "Highlight",
-      "description": "具有稳定标识的经历亮点，包含标题、正文与证据。"
-    },
-    "PreviewProject": {
-      "properties": {
-        "project_id": {
-          "type": "string",
-          "title": "Project Id"
-        },
-        "revision_id": {
-          "type": "string",
-          "title": "Revision Id"
-        },
-        "highlight_ids": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array",
-          "title": "Highlight Ids"
-        },
-        "content": {
-          "anyOf": [
-            {
-              "$ref": "#/components/schemas/Experience"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "project_id",
-        "revision_id",
-        "highlight_ids"
-      ],
-      "title": "PreviewProject",
-      "description": "预览可覆盖经历工作副本，但固定修订仍必须属于对应项目。"
-    },
-    "ResumePreviewInput": {
-      "properties": {
-        "template_id": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "title": "Template Id"
-        },
-        "document": {
-          "$ref": "#/components/schemas/ResumeDocument"
-        },
-        "items": {
-          "items": {
-            "$ref": "#/components/schemas/PreviewProject"
-          },
-          "type": "array",
-          "title": "Items"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "document",
-        "items"
-      ],
-      "title": "ResumePreviewInput",
-      "description": "当前模板和未保存资料的临时排版请求，不带简历保存或发布操作。"
-    },
-    "AISettings": {
-      "properties": {
-        "model": {
-          "type": "string",
-          "title": "Model",
-          "default": ""
-        },
-        "reasoning_effort": {
-          "type": "string",
-          "enum": [
-            "",
-            "minimal",
-            "low",
-            "medium",
-            "high",
-            "xhigh"
-          ],
-          "title": "Reasoning Effort",
-          "default": ""
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "title": "AISettings",
-      "description": "模型和思考强度覆盖；空值表示继承上一级配置。"
-    },
-    "TemplateLibraryItemInput": {
-      "properties": {
-        "category_id": {
-          "type": "string",
-          "maxLength": 100,
-          "title": "Category Id",
-          "default": ""
-        },
-        "liked": {
-          "type": "boolean",
-          "title": "Liked",
-          "default": false
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "title": "TemplateLibraryItemInput",
-      "description": "只修改显式提交的模板分类或收藏。"
-    },
-    "TemplateCategoryInput": {
-      "properties": {
-        "name": {
-          "type": "string",
-          "maxLength": 50,
-          "minLength": 1,
-          "title": "Name"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "name"
-      ],
-      "title": "TemplateCategoryInput",
-      "description": "新分类的展示名称，空白与重名由业务层校验。"
-    },
-    "HonorFields": {
-      "properties": {
-        "name": {
-          "type": "string",
-          "maxLength": 300,
-          "title": "Name",
-          "default": ""
-        },
-        "category": {
-          "type": "string",
-          "enum": [
-            "竞赛获奖",
-            "资格证书",
-            "奖学金",
-            "荣誉称号",
-            "其他"
-          ],
-          "title": "Category",
-          "default": "其他"
-        },
-        "level": {
-          "type": "string",
-          "maxLength": 100,
-          "title": "Level",
-          "default": ""
-        },
-        "award": {
-          "type": "string",
-          "maxLength": 200,
-          "title": "Award",
-          "default": ""
-        },
-        "issuer": {
-          "type": "string",
-          "maxLength": 500,
-          "title": "Issuer",
-          "default": ""
-        },
-        "date": {
-          "type": "string",
-          "maxLength": 100,
-          "title": "Date",
-          "default": ""
-        },
-        "recipient": {
-          "type": "string",
-          "maxLength": 300,
-          "title": "Recipient",
-          "default": ""
-        },
-        "certificate_number": {
-          "type": "string",
-          "maxLength": 300,
-          "title": "Certificate Number",
-          "default": ""
-        },
-        "description": {
-          "type": "string",
-          "maxLength": 5000,
-          "title": "Description",
-          "default": ""
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "title": "HonorFields",
-      "description": "可核对和复用的证书资料；无法确认的信息保持空白。"
-    },
-    "HonorSave": {
-      "properties": {
-        "fields": {
-          "$ref": "#/components/schemas/HonorFields"
-        },
-        "version": {
-          "type": "integer",
-          "minimum": 0.0,
-          "title": "Version",
-          "default": 0
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "fields"
-      ],
-      "title": "HonorSave",
-      "description": "用户确认的资料和乐观并发版本。"
+      "title": "ValidationError"
     }
   }
 }

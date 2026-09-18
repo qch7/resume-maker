@@ -8,13 +8,18 @@ from lxml import etree
 from resume_maker.core.errors import Problem
 from resume_maker.domain.templates import TextBinding
 from resume_maker.integrations.word.ooxml import NS, w
-from resume_maker.integrations.word.template_fill import missing_targets, personal_values
+from resume_maker.integrations.word.template_contact_style import (
+    SLOT_VERSION,
+    inherit_contact_runs,
+    labelled_contact,
+)
 from resume_maker.integrations.word.template_flow import flow_paragraph
 from resume_maker.integrations.word.template_layout import child_in
 from resume_maker.integrations.word.template_map import (
     TemplatePackage,
     paragraph_text,
 )
+from resume_maker.integrations.word.template_values import missing_targets, personal_values
 
 PERSONAL_LABELS = {
     "personal.name": "姓名",
@@ -68,9 +73,18 @@ def personal_insertion(package, plan, document):
             if field.target in CONTACT_FIELDS and field.quote
         }
         sequence = {node: index for index, node in enumerate(package.nodes.values())}
+        labelled = {
+            node
+            for _, node in preceding
+            if labelled_contact(
+                node, [field for field in plan.fields if package.node(field.node) is node]
+            )
+            is not None
+        }
         position, donor = max(
             preceding,
             key=lambda pair: (
+                pair[1] in contacts and pair[1] in labelled,
                 pair[1] in contacts,
                 bool(paragraph_text(pair[1]).strip()),
                 pair[0],
@@ -111,7 +125,7 @@ def remap_plan(plan, previous, package):
 
 
 def loose_contact_fields(package, plan, body, donor):
-    """正文联系方式前的无标签空段落通常是版式留白，不能把城市等资料孤立填在这里。"""
+    """个人资料区内无标签空位统一回到联系方式，前后留白都不能直接输出孤立的值。"""
     if donor is None or donor.getparent() is not body:
         return []
     if not any(
@@ -119,6 +133,22 @@ def loose_contact_fields(package, plan, body, donor):
         for field in plan.fields
     ):
         return []
+    boundaries = [region.start for region in plan.repeats]
+    boundaries.extend(
+        field.node
+        for field in plan.fields
+        if field.target.startswith("section-title:")
+        or field.target in {"personal.job_title", "personal.gpa"}
+    )
+    boundary = min(
+        (
+            body.index(child_in(package.node(identifier), body))
+            for identifier in boundaries
+            if body in package.node(identifier).iterancestors()
+            and body.index(child_in(package.node(identifier), body)) > body.index(donor)
+        ),
+        default=len(body),
+    )
     loose = []
     for field in plan.fields:
         node = package.node(field.node)
@@ -126,7 +156,8 @@ def loose_contact_fields(package, plan, body, donor):
             field.target not in CONTACT_FIELDS
             or field.quote
             or node.getparent() is not body
-            or body.index(node) >= body.index(donor)
+            or body.index(node) >= boundary
+            or paragraph_text(node).strip()
             or node.xpath(
                 "w:pPr/w:framePr | w:pPr/w:sectPr | w:pPr/w:pBdr | w:pPr/w:shd | w:pPr/w:numPr",
                 namespaces=NS,
@@ -183,24 +214,32 @@ def vacant_contact_column(paragraph) -> bool:
     )
 
 
-def append_personal_slot(body, position, donor, label):
+def append_personal_slot(body, position, donor, label, style_donor=None):
     """沿用联系信息的空右列或段落缩进添加带标签位置，不改变照片留白和原列坐标。"""
     paragraph = flow_paragraph(f"{label}：{PLACEHOLDER}", donor)
+    inherit_contact_runs(paragraph, style_donor, label, PLACEHOLDER)
+    paragraph.set(SLOT_VERSION, "1")
     if donor is not None and donor.getparent() is body and vacant_contact_column(donor):
         run = paragraph.find(w("r"))
         run.insert(1 if run.find(w("rPr")) is not None else 0, etree.Element(w("tab")))
-        donor.append(run)
+        donor.extend(paragraph.findall(w("r")))
         return donor, position
     if donor is not None and donor.getparent() is body:
-        indent = donor.find("w:pPr/w:ind", NS)
-        if indent is not None:
-            paragraph.find(w("pPr")).append(deepcopy(indent))
+        # 新行与同一资料区域的样本沿用缩进、制表位和行距，不继承绝对定位或分节。
+        properties = paragraph.find(w("pPr"))
+        for tag in ("ind", "tabs", "spacing", "jc"):
+            original = donor.find(f"w:pPr/w:{tag}", NS)
+            if original is not None:
+                current = properties.find(w(tag))
+                if current is not None:
+                    properties.remove(current)
+                properties.append(deepcopy(original))
     body.insert(position, paragraph)
     return paragraph, position + 1
 
 
-def supplement_personal_fields(package, plan, document, projects, source):
-    """仅在原文和结构已完整识别时补齐个人文字字段；模板副本只写标签和占位符。"""
+def supplement_personal_fields(package, plan, document, projects, source=None):
+    """在独立副本补齐个人文字位置；识别阶段可保存快照，填充时仅在内存扩展。"""
     if not package.review(plan)["ready"]:
         return package, plan, []
     body, _, donor = personal_insertion(package, plan, document)
@@ -210,27 +249,50 @@ def supplement_personal_fields(package, plan, document, projects, source):
         for field in loose_contact_fields(package, plan, body, donor)
         if values.get(field.target)
     ]
+    # 旧版自动生成的位置有可验证的占位符，重建它们即可让已保存模板也获得样式修复。
+    legacy = [
+        field
+        for field in plan.fields
+        if field.quote == PLACEHOLDER
+        and not package.node(field.node).get(SLOT_VERSION)
+        and paragraph_text(package.node(field.node)).strip()
+        == PERSONAL_LABELS.get(field.target, field.target.partition(":")[2]) + "：" + PLACEHOLDER
+        and sum(other.node == field.node for other in plan.fields) == 1
+        and field.node not in {*plan.keep, *plan.remove}
+    ]
     base = plan.model_copy(deep=True)
-    base.fields = [field for field in base.fields if field not in loose]
+    base.fields = [field for field in base.fields if field not in [*loose, *legacy]]
     try:
-        missing = missing_targets(document, base, projects)
+        missing = [
+            target
+            for target in missing_targets(document, base, projects)
+            if target in PERSONAL_LABELS or target.startswith("personal.custom:")
+        ]
     except Problem:
         return package, plan, []
-    if not missing or any(
-        target not in PERSONAL_LABELS and not target.startswith("personal.custom:")
-        for target in missing
-    ):
+    # 栏目、照片等缺项继续由完整校验报告，不能阻止可独立完成的个人文字补位。
+    if not missing:
         return package, plan, []
     labels = [PERSONAL_LABELS.get(target, target.partition(":")[2]) for target in missing]
-    # 先在完整副本中新增并校验，再原子替换本任务快照；用户上传的原文件保持可恢复。
+    # 先在完整副本中新增并校验，预览和导出不能修改已保存的模板及映射。
     buffer = BytesIO()
     package.write(buffer)
     working = TemplatePackage(buffer)
     previous = dict(working.nodes)
+    for field in legacy:
+        node = working.node(field.node)
+        node.getparent().remove(node)
     body, position, donor = personal_insertion(working, base, document)
+    style_donor = (
+        labelled_contact(
+            donor, [field for field in base.fields if working.node(field.node) is donor]
+        )
+        if donor is not None
+        else None
+    )
     added = []
     for label in labels:
-        paragraph, position = append_personal_slot(body, position, donor, label)
+        paragraph, position = append_personal_slot(body, position, donor, label, style_donor)
         added.append((paragraph, paragraph_text(paragraph).count(PLACEHOLDER)))
     working.reindex()
     updated = remap_plan(base, previous, working)
@@ -249,8 +311,9 @@ def supplement_personal_fields(package, plan, document, projects, source):
         else "已在个人资料区自动补充" + "、".join(labels) + "的填写位置。"
     )
     updated.summary = "已保留原有资料、栏目和照片映射。" + notice
-    temporary = source.with_name("supplemented.docx")
-    working.write(temporary)
-    temporary.replace(source)
+    if source is not None:
+        temporary = source.with_name("supplemented.docx")
+        working.write(temporary)
+        temporary.replace(source)
     working.notices = [*package.notices, notice]
     return working, updated, [notice]

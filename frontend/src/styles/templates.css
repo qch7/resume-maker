@@ -107,8 +107,7 @@
 }
 
 /* 独立模板区占满工作台，离开时只隐藏以保留选区和人工调整。 */
-.template-area .workbench,
-.template-area .guide-container {
+.template-area .workbench {
   display: none;
 }
 .template-workspace,
@@ -181,7 +180,7 @@
   grid-template-columns: minmax(0, 1fr) auto;
 }
 .template-library-controls {
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr);
   padding-left: 20px;
   border-left: 1px solid var(--line);
 }

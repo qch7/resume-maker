@@ -16,8 +16,9 @@ from resume_maker.core.errors import Problem
 from resume_maker.domain.resume import ResumeDocument
 from resume_maker.domain.templates import RepeatBinding, TemplatePlan, TextBinding
 from resume_maker.integrations.word.ooxml import w
-from resume_maker.integrations.word.template_fill import fill_template, missing_targets
+from resume_maker.integrations.word.template_fill import fill_template
 from resume_maker.integrations.word.template_map import NS, TemplatePackage, paragraph_text
+from resume_maker.integrations.word.template_values import missing_targets
 
 
 def photo_bytes(color):

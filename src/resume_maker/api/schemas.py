@@ -25,6 +25,13 @@ class DraftInput(Model):
     version: int = Field(default=0, ge=0)
 
 
+class DiscardDraftsInput(Model):
+    """撤销单个基线版本的全部草稿，要求确认时的完整草稿版本集合一致。"""
+
+    base_revision: str
+    versions: dict[str, int]
+
+
 class SaveInput(Model):
     """发布或恢复经历的请求，携带所属分支预期头版本防止并发覆盖。"""
 
@@ -105,8 +112,9 @@ class TemplateAnalysisInput(Model):
 
 
 class TemplateLibraryItemInput(Model):
-    """只修改显式提交的模板分类或收藏。"""
+    """只修改显式提交的模板名称、分类或收藏。"""
 
+    name: str = Field(default="", min_length=1, max_length=200)
     category_id: str = Field(default="", max_length=100)
     liked: bool = False
 
@@ -115,6 +123,13 @@ class TemplateCategoryInput(Model):
     """新分类的展示名称，空白与重名由业务层校验。"""
 
     name: str = Field(min_length=1, max_length=50)
+
+
+class TemplateEditInput(Model):
+    """打开已保存模板时提供当前资料，以便在编辑副本中自动补齐可用位置。"""
+
+    document: ResumeDocument
+    items: list[ResumeItem] = Field(default_factory=list)
 
 
 class TemplateMappingInput(Model):

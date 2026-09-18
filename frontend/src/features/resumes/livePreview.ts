@@ -1,4 +1,5 @@
 import type { Experience, Resume, Revision } from "../../shared/types/index";
+import { experienceContent } from "../experiences/visibility.ts";
 
 /** 使用正在编辑的工作副本构建预览，不改写组合引用或不可变修订缓存。 */
 export function buildLivePreview(
@@ -20,11 +21,14 @@ export function buildLivePreview(
         : pinned;
     if (!source) continue;
     const content = working[source.id] ?? source.content;
+    const settings =
+      draft.document?.project_visibility?.[item.project_id] ?? {};
     sources[item.project_id] =
       content === source.content ? source : { ...source, content };
     if (
       source.id !== item.revision_id ||
-      JSON.stringify(content) !== JSON.stringify(pinned?.content) ||
+      experienceContent(content, settings) !==
+        experienceContent(pinned?.content, settings) ||
       item.highlight_ids.some(
         /* 新增草稿亮点必须先进入正式版本，才能保存或导出固定引用。 */ (id) =>
           !pinned?.content.highlights.some(

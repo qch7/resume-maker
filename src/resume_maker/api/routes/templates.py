@@ -12,6 +12,7 @@ from resume_maker.api.schemas import (
     AdaptiveTemplateInput,
     TemplateAnalysisInput,
     TemplateCategoryInput,
+    TemplateEditInput,
     TemplateLibraryItemInput,
     TemplatePreviewInput,
     TemplateRepairInput,
@@ -40,6 +41,18 @@ def create_template_category(services: ServicesDep, body: TemplateCategoryInput)
     return services.template_library.create_category(body.name)
 
 
+@router.delete("/template-library/items/{template_id}")
+def delete_library_template(services: ServicesDep, template_id: str, permanent: bool = False):
+    """未引用模板先进入回收站，显式选择永久删除后清理保存数据。"""
+    return services.template_library.delete(template_id, permanent=permanent)
+
+
+@router.post("/template-library/items/{template_id}/restore")
+def restore_library_template(services: ServicesDep, template_id: str):
+    """从项目回收站恢复模板及原分类收藏。"""
+    return services.template_library.restore(template_id)
+
+
 @router.delete("/template-library/categories/{category_id}")
 def delete_template_category(services: ServicesDep, category_id: str):
     """移除分类并将其中模板恢复为未分类。"""
@@ -59,9 +72,11 @@ def analyze_template(services: ServicesDep, body: TemplateAnalysisInput):
 
 
 @router.post("/templates/{template_id}/edit")
-def edit_template(services: ServicesDep, template_id: str):
-    """打开已保存完整模板的编辑副本，保留原模板版本及其所有简历引用。"""
-    return services.templates.open(template_id)
+def edit_template(services: ServicesDep, template_id: str, body: TemplateEditInput | None = None):
+    """按当前资料打开并补齐独立副本，保留原模板版本及其所有简历引用。"""
+    return services.templates.open(
+        template_id, body.document if body else None, body.items if body else None
+    )
 
 
 @router.get("/templates/analyses/{analysis_id}")

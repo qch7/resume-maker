@@ -11,6 +11,7 @@ from resume_maker.integrations.sources import digest
 from resume_maker.integrations.word.full_resume import write_full_resume
 from resume_maker.integrations.word.rendering import render_word
 from resume_maker.integrations.word.template_fill import fill_template
+from resume_maker.services.honor_links import resolve_honor_document
 
 
 class ResumePreviews:
@@ -22,6 +23,7 @@ class ResumePreviews:
         self.lock = threading.Lock()
         self.directory = None
         self.results, self.cache = {}, {}
+        self.templates = {}
         self.stopped = False
 
     def render(self, template_id, document, items):
@@ -29,6 +31,7 @@ class ResumePreviews:
         template = self.catalog.template(template_id) if template_id else None
         if document is None:
             raise Problem("请先填写个人资料和栏目。")
+        document = resolve_honor_document(self.catalog.db, document)
         data = None
         if template:
             source = self.data_dir / "templates" / template_id / "template.docx"
@@ -52,6 +55,8 @@ class ResumePreviews:
         with self.lock:
             if self.stopped:
                 raise Problem("应用正在关闭。", 409)
+            if template_id:
+                self.catalog.template(template_id)
             if key in self.cache:
                 return dict(self.cache[key])
             if self.directory is None:
@@ -77,6 +82,7 @@ class ResumePreviews:
             pages, error = render_word(output, directory / "resume.pdf")
             result = {"id": identifier, "pages": pages, "render_error": error}
             self.results[identifier] = result
+            self.templates[identifier] = template_id
             if pages:
                 self.cache[key] = result
             return dict(result)
@@ -103,5 +109,6 @@ class ResumePreviews:
             self.stopped = True
             self.results.clear()
             self.cache.clear()
+            self.templates.clear()
             if self.directory:
                 self.directory.cleanup()

@@ -10,6 +10,7 @@ from resume_maker.integrations.word.full_resume import write_full_resume
 from resume_maker.integrations.word.rendering import render_word
 from resume_maker.integrations.word.template_fill import fill_template
 from resume_maker.services.catalog import Catalog
+from resume_maker.services.honor_links import resolve_honor_document
 
 
 class Documents:
@@ -32,6 +33,7 @@ class Documents:
         template = self.catalog.template(resume["template_id"]) if resume["template_id"] else None
         if not resume["document"]:
             raise Problem("请先填写个人资料和栏目，再导出完整简历。")
+        resume["document"] = resolve_honor_document(self.db, resume["document"])
         manifest_items = []
         for item in resume["items"]:
             revision = self.catalog.revision(item["revision_id"], item["project_id"])

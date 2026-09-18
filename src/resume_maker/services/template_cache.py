@@ -5,6 +5,7 @@ from pathlib import Path
 
 from resume_maker.domain.templates import TemplatePlan
 from resume_maker.integrations.sources import digest
+from resume_maker.integrations.word.pdf_geometry import SOURCE, recovered_pdf
 from resume_maker.services.template_analysis import INSTRUCTIONS, analysis_context, assess_plan
 
 
@@ -14,7 +15,13 @@ def cache_path(directory, package, document, projects, settings) -> Path:
     context.pop("template")
     context.pop("layout")
     identity = {
-        "contract": 10,
+        "contract": (
+            12
+            if package.parts["word/document.xml"].get(SOURCE) == "image-v1"
+            else 11
+            if recovered_pdf(package.parts["word/document.xml"])
+            else 10
+        ),
         "provider": {
             "executable": settings.executable,
             "profile": settings.profile,

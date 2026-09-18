@@ -2,6 +2,7 @@ import type {
   Resume,
   ResumeDocument,
   ResumeSection,
+  SectionEntry,
 } from "../../shared/types/index.ts";
 import { newDocument } from "./document.ts";
 
@@ -14,6 +15,34 @@ export function findEntry(
   return document?.sections
     .find(/* 定位栏目。 */ (section) => section.id === sectionId)
     ?.entries.find(/* 定位条目。 */ (entry) => entry.id === entryId);
+}
+
+/** 统一编辑窗口提交单条草稿，保留该方案其他尚未保存的资料。 */
+export function replaceEntry(
+  draft: Resume,
+  sectionId: string,
+  entry: SectionEntry,
+): Resume {
+  if (!findEntry(draft.document, sectionId, entry.id))
+    throw new Error("这条资料已不存在，请刷新后重试。");
+  return {
+    ...draft,
+    document: {
+      ...draft.document!,
+      sections: draft.document!.sections.map(
+        /* 稳定标识定位目标栏目和条目。 */ (section) =>
+          section.id !== sectionId
+            ? section
+            : {
+                ...section,
+                entries: section.entries.map(
+                  /* 其他条目的草稿和排列保持原样。 */ (item) =>
+                    item.id === entry.id ? entry : item,
+                ),
+              },
+      ),
+    },
+  };
 }
 
 /** 单条保存只采用该条内容；新栏目仅补入必要层级，其他资料保留服务器版本。 */
@@ -70,6 +99,8 @@ export function entryComposition(
           );
           return {
             ...section,
+            field_definitions:
+              source.field_definitions ?? section.field_definitions,
             entries: exists
               ? section.entries.map(
                   /* 同一条目原位更新。 */ (item) =>

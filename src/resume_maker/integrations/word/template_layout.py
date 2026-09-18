@@ -10,6 +10,8 @@ from resume_maker.domain.templates import TextBinding
 from resume_maker.integrations.word.ooxml import NS, w
 from resume_maker.integrations.word.template_anchors import page_positioned
 from resume_maker.integrations.word.template_flow import (
+    continuous_block,
+    continuous_section,
     effective_section,
     flow_paragraph,
 )
@@ -373,10 +375,7 @@ class TemplateLayout:
             self.parent.remove(finish)
         if self.trailing is not None:
             title, properties = self.trailing
-            kind = properties.find(w("type"))
-            if kind is None:
-                kind = etree.SubElement(properties, w("type"))
-            kind.set(w("val"), "continuous")
+            continuous_section(properties)
             marker = etree.Element(w("p"))
             etree.SubElement(marker, w("pPr")).append(properties)
             groups[title].append(marker)
@@ -386,9 +385,14 @@ class TemplateLayout:
             groups[title].insert(0, heading)
             for text in paragraph_texts(node):
                 text.text = ""
+        placed = []
         for title in self.order:
             if title not in self.visible:
                 continue
             for node in groups[title]:
                 self.parent.insert(position, node)
                 position += 1
+                placed.append(node)
+        # 先放完再查有效节属性，避免栏目重排时误用原位置后面的分节设置。
+        for block in placed:
+            continuous_block(block)

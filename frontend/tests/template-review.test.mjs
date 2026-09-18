@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { targetLabel } from "../src/features/templates/visual.ts";
 import {
   reviewProblems,
   reviewProblemSummary,
@@ -16,6 +17,35 @@ function review(overrides = {}) {
     ...overrides,
   };
 }
+
+test("栏目缺项使用中文字段名称，用户自定义名称保留原样", /* 复现复合字段直接显示内部键名的问题。 */ () => {
+  const problems = reviewProblems(
+    review({
+      missing: [
+        "personal.website",
+        "项目经历 · custom_fields",
+        "荣誉证书 · period",
+        "荣誉证书 · title",
+      ],
+    }),
+  );
+  assert.deepEqual(
+    problems.map(/* 只比较用户看到的提示。 */ (problem) => problem.message),
+    [
+      "“个人主页”尚未安排填写位置",
+      "“项目经历 · 自定义信息”尚未安排填写位置",
+      "“荣誉证书 · 时间”尚未安排填写位置",
+      "“荣誉证书 · 名称”尚未安排填写位置",
+    ],
+  );
+  assert.equal(targetLabel("校级 · 荣誉 · period"), "校级 · 荣誉 · 时间");
+  assert.equal(targetLabel("personal.custom:自定义 · title"), "自定义 · title");
+  assert.equal(
+    targetLabel("section-title:自定义 · title"),
+    "栏目标题 · 自定义 · title",
+  );
+  assert.equal(targetLabel("未知 · new_field"), "未知 · new_field");
+});
 
 test("缺少所在地时直接显示中文原因", /* 复现识别完成却无法试填的实际反馈缺口。 */ () => {
   const problems = reviewProblems(review({ missing: ["personal.location"] }));

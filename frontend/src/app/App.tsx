@@ -1,4 +1,5 @@
 import {
+  FileDown,
   FilePenLine,
   FileScan,
   FolderPlus,
@@ -17,6 +18,7 @@ import {
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -24,13 +26,25 @@ import {
 import Chat from "../features/conversations/Chat";
 import Editor from "../features/experiences/Editor";
 import { clearLocalDrafts } from "../features/experiences/useField";
+import { experienceContent } from "../features/experiences/visibility";
 import ProjectSidebar from "../features/projects/ProjectSidebar";
-import { expandProjectPath } from "../features/projects/sort";
+import {
+  expandProjectPath,
+  restoreSidebarSort,
+  sortSidebar,
+} from "../features/projects/sort";
 import Composer from "../features/resumes/Composer";
+import ResumeLibrary from "../features/resumes/ResumeLibrary";
+import { sameComposition } from "../features/resumes/composition";
 import ProjectOrder from "../features/resumes/ProjectOrder";
 import ProfileEditor from "../features/profile/ProfileEditor";
 import HonorLibrary from "../features/honors/HonorLibrary";
-import { addHonors } from "../features/honors/model";
+import HonorEditor from "../features/honors/HonorEditor";
+import { addHonors, removeHonor, type Honor } from "../features/honors/model";
+import { syncHonorResume } from "../features/honors/sync";
+import { entryWithHonorFields } from "../features/honors/entry";
+import DefaultsDialog from "../features/profile/DefaultsDialog";
+import { applyResumeDefaults } from "../features/profile/defaults";
 import SectionOrganizer from "../features/profile/SectionOrganizer";
 import { newDocument } from "../features/profile/document";
 import {
@@ -55,12 +69,15 @@ import type {
   ProjectDetail,
   Proposal,
   Resume,
+  ResumeDefaults,
   Revision,
   State,
+  SectionEntry,
 } from "../shared/types/index";
 import { useWorkspaceLayout } from "./useWorkspaceLayout";
 
 const EMPTY: State = {
+  honors: [],
   branches: [],
   projects: [],
   conversations: [],
@@ -73,6 +90,9 @@ export default function App() {
   const [area, setArea] = useState<
     "projects" | "personal" | "structure" | "templates" | "honors"
   >("projects");
+  const [defaultsOpen, setDefaultsOpen] = useState(false);
+  const [resumeLibraryOpen, setResumeLibraryOpen] = useState(false);
+  const [structureTarget, setStructureTarget] = useState<string | null>(null);
   const {
     sidebar,
     setSidebar,
@@ -106,7 +126,30 @@ export default function App() {
   }
   const [state, setState] = useState<State>(EMPTY),
     [loaded, setLoaded] = useState(false);
+  const [editingHonor, setEditingHonor] = useState<{
+    honor: Honor | null;
+    resumeId: string;
+    sectionId: string;
+    entry: SectionEntry;
+  } | null>(null);
+  const stateRequests = useRef(0);
   const [activeProject, setActiveProject] = useState("");
+  const [sidebarSort, setSidebarSort] = useState(
+    /* 恢复排序偏好，使首次打开的项目与侧栏首项一致。 */ () =>
+      restoreSidebarSort(loadLocal("rm.sidebarSort", "recent")),
+  );
+  const sortedSidebar = useMemo(
+    /* 侧栏展示和默认项目选择共用同一份排序结果。 */ () =>
+      sortSidebar(state.projects, state.conversations, sidebarSort),
+    [state.projects, state.conversations, sidebarSort],
+  );
+  const firstProject = sortedSidebar.rootProjects[0];
+  useEffect(
+    /* 记住用户选择的排序方式，供下次打开页面使用。 */ () => {
+      localStorage.setItem("rm.sidebarSort", JSON.stringify(sidebarSort));
+    },
+    [sidebarSort],
+  );
   const [selectedRevisions, setSelectedRevisions] = useState<
     Record<string, string>
   >({});
@@ -117,7 +160,6 @@ export default function App() {
   const conversationCreationPending = useRef(false);
   const [mode, setMode] = useState<"edit" | "chat">("edit");
   const [folded, setFolded] = useState<Record<string, boolean>>({});
-  const [edited, setEdited] = useState<Record<string, boolean>>({});
   const [guideTarget, setGuideTarget] = useState<GuideTarget | null>(null);
   const [modal, setModal] = useState<"projects" | "settings" | null>(null);
   const [refresh, setRefresh] = useState(0),
@@ -199,14 +241,19 @@ export default function App() {
     refresh + chatRefresh,
   );
 
-  /** 刷新工作台聚合数据；首次加载时校验本地组合并选择初始项目。 */
+  /** 刷新工作台聚合数据；首次加载时校验并恢复本地组合。 */
   const reload = useCallback(async () => {
+    const request = ++stateRequests.current;
     const value = await api<State>("/state");
+    if (request !== stateRequests.current) return;
     setState(value);
     setLoaded(true);
     if (!initialized.current) {
       initialized.current = true;
-      const cached = loadLocal<Resume>("rm.resume.v2.last", NEW_RESUME);
+      const cached = loadLocal<Resume>("rm.resume.v2.last", {
+        ...NEW_RESUME,
+        document: newDocument(value.resume_defaults),
+      });
       const valid =
         cached.items.every(
           /* 检查条目是否满足当前选择或校验条件。 */ (item) =>
@@ -225,17 +272,72 @@ export default function App() {
           ? cached
           : (value.resumes[0] ?? {
               ...NEW_RESUME,
-              document: newDocument(),
+              document: newDocument(value.resume_defaults),
             });
       setDraft(initial);
-      if (value.projects[0]) {
-        setActiveProject(value.projects[0].id);
-        setSelectedRevisions({
-          [value.projects[0].id]: value.projects[0].head_revision,
-        });
-      }
     }
   }, []);
+
+  /** 从任一入口保存荣誉后立即更新共享内容，使在途旧轮询失效。 */
+  function honorSaved(honor: Honor) {
+    ++stateRequests.current;
+    const source = {
+      id: honor.id,
+      fields: honor.fields,
+      reviewed: honor.reviewed,
+      version: honor.version,
+      updated_at: honor.updated_at,
+    };
+    setState(
+      /* 只更新来源资料，简历中的排序、显隐和其他草稿由原状态保留。 */ (
+        current,
+      ) => {
+        if (
+          (current.honors ?? []).some(
+            /* 迟到保存响应不能覆盖其他窗口已经保存的更高版本。 */ (item) =>
+              item.id === source.id && item.version > source.version,
+          )
+        )
+          return current;
+        return {
+          ...current,
+          honors: [
+            source,
+            ...(current.honors ?? []).filter(
+              /* 替换同一来源的旧版本。 */ (item) => item.id !== honor.id,
+            ),
+          ],
+          resumes: current.resumes.map(
+            /* 当前和其他方案都读取同一份核对内容。 */ (resume) =>
+              syncHonorResume(resume, [source]),
+          ),
+        };
+      },
+    );
+  }
+
+  /** 统一入口打开最新来源与当前简历草稿，取消时两者均不改动。 */
+  async function editLinkedHonor(
+    id: string,
+    sectionId: string,
+    entry: SectionEntry,
+  ) {
+    try {
+      const items = id ? await api<Honor[]>("/honors") : [];
+      const honor =
+        items.find(
+          /* 按来源标识查找，重名条目互不影响。 */ (item) => item.id === id,
+        ) ?? null;
+      setEditingHonor({
+        honor,
+        resumeId: draft.id,
+        sectionId,
+        entry: honor ? entryWithHonorFields(entry, honor.fields) : entry,
+      });
+    } catch (error) {
+      setToast({ text: (error as Error).message, error: true });
+    }
+  }
 
   const {
     draft,
@@ -247,6 +349,7 @@ export default function App() {
     applyVersion,
     toggleProject,
     toggleHighlight,
+    changeProjectVisibility,
     saveComposition,
     savePersonalInfo,
     saveSectionEntry,
@@ -288,18 +391,18 @@ export default function App() {
     [reload],
   );
   useEffect(
-    /* 同步当前依赖对应的外部状态，并在需要时返回清理函数。 */ () => {
-      if (!activeProject && state.projects[0]) {
-        setActiveProject(state.projects[0].id);
+    /* 首次有项目时打开排序后的顶层首项，后续排序或轮询不打断当前编辑。 */ () => {
+      if (!activeProject && firstProject) {
+        setActiveProject(firstProject.id);
         setSelectedRevisions(
           /* 基于最近一次状态计算新值，避免异步闭包覆盖后续修改。 */ (v) => ({
             ...v,
-            [state.projects[0].id]: state.projects[0].head_revision,
+            [firstProject.id]: firstProject.head_revision,
           }),
         );
       }
     },
-    [activeProject, state.projects],
+    [activeProject, firstProject],
   );
   useEffect(
     /* 同步当前依赖对应的外部状态，并在需要时返回清理函数。 */ () => {
@@ -381,14 +484,8 @@ export default function App() {
       })()
     );
   }
-  /** 清除当前编辑标记并刷新项目详情和工作台聚合数据。 */
+  /** 刷新项目详情和工作台数据，由当前内容重新计算编辑状态。 */
   function changed() {
-    setEdited(
-      /* 基于最近一次状态计算新值，避免异步闭包覆盖后续修改。 */ (value) => ({
-        ...value,
-        [`${activeProject}.${revisionId}`]: false,
-      }),
-    );
     setRefresh(
       /* 基于最近一次状态计算新值，避免异步闭包覆盖后续修改。 */ (v) => v + 1,
     );
@@ -546,6 +643,23 @@ export default function App() {
           : `已提交为 r${result.number}。点击“用于当前简历”可更新右侧组合。`,
     });
   }
+  /** 只撤销确认窗口对应版本的未提交改动，保留简历显隐及其他版本草稿。 */
+  async function discardChanges(versions: Record<string, number>) {
+    await api(`/projects/${activeProject}/drafts/discard`, "POST", {
+      base_revision: revisionId,
+      versions,
+    });
+    clearLocalDrafts(activeProject, revisionId);
+    setWorkingPreviews(
+      /* 删除旧预览，刷新后由原版本内容重新生成。 */ (values) => {
+        const next = { ...values };
+        delete next[revisionId];
+        return next;
+      },
+    );
+    changed();
+    setToast({ text: "已撤销当前版本的未提交改动。" });
+  }
   /** 把 AI 建议放入对应版本草稿，并切回经历编辑供用户确认。 */
   async function adopt(proposal: Proposal) {
     await api(`/proposals/${proposal.id}/adopt`, "POST");
@@ -561,18 +675,41 @@ export default function App() {
   }
   /** 根据制作指引切换到目标项目或设置，再定位到对应操作控件。 */
   function followGuide(target: GuideTarget, projectId?: string) {
-    setArea("projects");
-    setPreviewFocused(false);
-    if (target === "projects" || !project) {
-      setModal("projects");
-      return;
-    }
-    if (target === "template-select" && !state.templates.length) {
-      setArea("templates");
-      return;
-    }
     run(
       /* 在草稿刷新成功后执行当前业务操作。 */ async () => {
+        setPreviewFocused(false);
+        setResumeLibraryOpen(false);
+        setGuideTarget(null);
+        if (target === "template-select") {
+          setArea("templates");
+          setGuideTarget(target);
+          return;
+        }
+        if (target.startsWith("personal-")) {
+          setArea("personal");
+          setGuideTarget(target);
+          return;
+        }
+        if (target.startsWith("honor-")) {
+          setArea("honors");
+          setGuideTarget(target);
+          return;
+        }
+        if (target === "structure") {
+          setStructureTarget(null);
+          setArea("structure");
+          return;
+        }
+        if (target === "composition-save" || target === "export") {
+          setResumeLibraryOpen(true);
+          setGuideTarget(target);
+          return;
+        }
+        setArea("projects");
+        if (target === "projects" || (!project && !projectId)) {
+          setModal("projects");
+          return;
+        }
         if (projectId) {
           const next = state.projects.find(
             /* 定位与当前标识或条件匹配的条目。 */ (p) => p.id === projectId,
@@ -610,26 +747,63 @@ export default function App() {
   useEffect(
     /* 同步当前依赖对应的外部状态，并在需要时返回清理函数。 */ () => {
       if (!guideTarget) return;
-      const element = document.querySelector<HTMLElement>(
-        `[data-guide="${guideTarget}"]`,
-      );
+      const element =
+        document.querySelector<HTMLElement>(`[data-guide="${guideTarget}"]`) ??
+        (guideTarget.startsWith("personal-")
+          ? document.querySelector<HTMLElement>(".personal-scroll")
+          : null);
       if (!element) return;
       const target =
         element instanceof HTMLButtonElement && element.disabled
-          ? (element.closest<HTMLElement>("header") ?? element)
+          ? (element.closest<HTMLElement>("header, section") ?? element)
           : element;
-      if (target !== element) target.tabIndex = -1;
-      target.scrollIntoView({ block: "center", inline: "nearest" });
+      if (!target.matches("button, input, select, textarea, a[href]"))
+        target.tabIndex = -1;
+      // 只滚动目标所在面板，避免窄屏下连同页面一起滚动，把制作步骤推到屏幕外。
+      let scrollPanel = target.parentElement;
+      while (scrollPanel && scrollPanel !== document.body) {
+        if (
+          /auto|scroll/.test(getComputedStyle(scrollPanel).overflowY) &&
+          scrollPanel.scrollHeight > scrollPanel.clientHeight
+        ) {
+          scrollPanel.scrollTop +=
+            target.getBoundingClientRect().top -
+            scrollPanel.getBoundingClientRect().top -
+            12;
+          break;
+        }
+        scrollPanel = scrollPanel.parentElement;
+      }
+      if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
       target.focus({ preventScroll: true });
       setGuideTarget(null);
     },
-    [guideTarget, mode, remoteProject.ready, activeProject],
+    [
+      guideTarget,
+      mode,
+      remoteProject.ready,
+      activeProject,
+      resumeLibraryOpen,
+      area,
+      loaded,
+    ],
   );
+  const currentContent =
+    workingPreviews[revisionId] ?? remoteProject.data?.working.content;
+  const currentBase = revisionCache[revisionId]?.content;
+  const currentVisibility =
+    draft.document?.project_visibility?.[activeProject] ?? {};
+  const hasExperienceChanges =
+    !!currentContent &&
+    !!currentBase &&
+    experienceContent(currentContent, currentVisibility) !==
+      experienceContent(currentBase, currentVisibility);
   const workflow = getWorkflow({
+    honors: state.honors,
     projectCount: state.projects.length,
     detail: remoteProject.ready ? remoteProject.data : null,
     revisionId,
-    edited: !!edited[`${activeProject}.${revisionId}`],
+    edited: hasExperienceChanges,
     draft,
     saved: state.resumes.find(
       /* 定位与当前标识或条件匹配的条目。 */ (r) => r.id === draft.id,
@@ -712,9 +886,36 @@ export default function App() {
             ),
           )}
         </nav>
-        <span className="area-resume-name" title={draft.name}>
-          正在制作 · {draft.name}
-        </span>
+        <button
+          className="resume-library-trigger"
+          aria-label={`导出与模板：${draft.name || "未命名方案"}，打开简历库`}
+          aria-haspopup="dialog"
+          aria-expanded={resumeLibraryOpen}
+          title={`导出与模板 · ${draft.name || "未命名方案"}`}
+          onClick={
+            /* 统一打开方案、模板选择及历史成品管理。 */ () =>
+              setResumeLibraryOpen(true)
+          }
+        >
+          <FileDown size={17} />
+          <span className="resume-trigger-copy">
+            <b>{exporting ? "正在导出…" : "导出与模板"}</b>
+            <small>{draft.name || "未命名方案"}</small>
+          </span>
+          {!sameComposition(
+            state.resumes.find(
+              /* 顶部提示当前方案是否仍有未保存的修改。 */ (item) =>
+                item.id === draft.id,
+            ),
+            draft,
+          ) && (
+            <span
+              className="resume-unsaved-dot"
+              aria-label="组合未保存"
+              title="组合未保存"
+            />
+          )}
+        </button>
         <div className="row header-actions">
           {activeJobs.length > 0 && (
             <span className="subtle header-job-status">
@@ -769,6 +970,19 @@ export default function App() {
       >
         <Workflow
           value={workflow}
+          activeStep={
+            resumeLibraryOpen
+              ? 5
+              : area === "templates"
+                ? 0
+                : area === "personal"
+                  ? 1
+                  : area === "honors"
+                    ? 3
+                    : area === "structure"
+                      ? 4
+                      : 2
+          }
           onNavigate={followGuide}
           collapsed={layout.guideCollapsed}
           onToggle={
@@ -798,8 +1012,9 @@ export default function App() {
       <div className="workbench" ref={workbench}>
         <ProjectSidebar
           onCollapse={toggleSidebar}
-          projects={state.projects}
-          conversations={state.conversations}
+          sortedSidebar={sortedSidebar}
+          sidebarSort={sidebarSort}
+          onSortChange={setSidebarSort}
           activeJobs={activeJobs}
           items={draft.items}
           activeProject={activeProject}
@@ -856,8 +1071,10 @@ export default function App() {
             </div>
           ) : area === "personal" ? (
             <ProfileEditor
+              honors={state.honors ?? []}
+              onEditHonor={editLinkedHonor}
               key={draft.id}
-              value={draft.document ?? newDocument()}
+              value={draft.document ?? newDocument(state.resume_defaults)}
               savedPersonal={
                 state.resumes.find(
                   /* 读取正式保存的基本信息以区分待保存草稿。 */ (resume) =>
@@ -895,11 +1112,42 @@ export default function App() {
                 /* 从资料编辑进入栏目编排。 */ () => setArea("structure")
               }
               onProjects={/* 返回项目工作台。 */ () => setArea("projects")}
+              onHonors={
+                /* 添加证书进入荣誉库，保留当前简历草稿。 */ () =>
+                  setArea("honors")
+              }
+              onSortSection={
+                /* 在编排页定位刚才查看的栏目。 */ (sectionId) => {
+                  setStructureTarget(sectionId);
+                  setArea("structure");
+                }
+              }
             />
           ) : area === "structure" ? (
             <SectionOrganizer
+              onDefaults={/* 打开独立设置副本。 */ () => setDefaultsOpen(true)}
+              honors={state.honors ?? []}
+              scrollTarget={structureTarget}
+              onScrolled={
+                /* 消费一次定位请求，普通切换不重复跳动。 */ () =>
+                  setStructureTarget(null)
+              }
               key={draft.id}
-              value={draft.document ?? newDocument()}
+              value={draft.document ?? newDocument(state.resume_defaults)}
+              onEditHonor={
+                /* 关联来源读取最新资料，手动条目只编辑当前简历。 */ (
+                  sectionId,
+                  entry,
+                ) =>
+                  void editLinkedHonor(
+                    entry.id.startsWith("honor:") &&
+                      !entry.id.startsWith("honor:manual:")
+                      ? entry.id.slice("honor:".length)
+                      : "",
+                    sectionId,
+                    entry,
+                  )
+              }
               projects={
                 <ProjectOrder
                   draft={draft}
@@ -1042,12 +1290,16 @@ export default function App() {
                 ) : mode === "edit" ? (
                   remoteProject.ready ? (
                     <Editor
+                      definitions={
+                        draft.document?.sections.find(
+                          /* 当前简历保留独立项目字段结构。 */ (section) =>
+                            section.kind === "projects",
+                        )?.field_definitions
+                      }
                       key={`${activeProject}.${revisionId}.${refresh}`}
                       detail={remoteProject.data}
                       revisionId={revisionId}
-                      hasLocalChanges={
-                        !!edited[`${activeProject}.${revisionId}`]
-                      }
+                      hasLocalChanges={hasExperienceChanges}
                       usedRevision={
                         revisionCache[
                           draft.items.find(
@@ -1062,20 +1314,15 @@ export default function App() {
                             i.project_id === activeProject,
                         )?.highlight_ids ?? []
                       }
+                      visibility={
+                        draft.document?.project_visibility?.[activeProject] ??
+                        {}
+                      }
+                      onVisibility={changeProjectVisibility}
                       run={run}
                       onSave={saveRevision}
+                      onDiscard={discardChanges}
                       onRefresh={changed}
-                      onDirty={
-                        /* 标记尚未发布的本机修改，更新制作指引状态。 */ () =>
-                          setEdited(
-                            /* 基于最近一次状态计算新值，避免异步闭包覆盖后续修改。 */ (
-                              value,
-                            ) => ({
-                              ...value,
-                              [`${activeProject}.${revisionId}`]: true,
-                            }),
-                          )
-                      }
                       onRevision={
                         /* 处理 onRevision 回调，将变化同步到工作台状态。 */ (
                           id,
@@ -1158,25 +1405,32 @@ export default function App() {
           }
         />
         <Composer
-          settingsHeight={layout.settings}
-          onSettingsHeight={
-            /* 处理 onSettingsHeight 回调，将变化同步到工作台状态。 */ (
-              value,
-            ) => resize("settings", value)
-          }
           previewFocused={previewFocused}
           onFocusPreview={
-            /* 处理 onFocusPreview 回调，将变化同步到工作台状态。 */ () =>
+            /* 切换右侧预览的放大状态。 */ () =>
               setPreviewFocused(!previewFocused)
           }
           state={state}
           draft={draft}
           revisions={revisionCache}
           previewSources={previewSources}
+          run={run}
+        />
+      </div>
+      {resumeLibraryOpen && (
+        <ResumeLibrary
+          notice={toast}
+          onDismissNotice={/* 在模态层内清除操作提示。 */ () => setToast(null)}
+          state={state}
+          draft={draft}
           previewChanged={previewChanged}
           result={exported}
           exporting={exporting}
           deleting={deleting}
+          onClose={
+            /* 关闭简历库，保留当前方案和所有本机草稿。 */ () =>
+              setResumeLibraryOpen(false)
+          }
           onChange={setDraft}
           onChoose={
             /* 处理 onChoose 回调，将变化同步到工作台状态。 */ (id) =>
@@ -1213,7 +1467,7 @@ export default function App() {
                     name: "新简历",
                     template_id: null,
                     items: [],
-                    document: newDocument(),
+                    document: newDocument(state.resume_defaults),
                   });
                   await reload();
                   setDraft(value);
@@ -1231,25 +1485,37 @@ export default function App() {
             /* 处理 onTemplates 回调，将变化同步到工作台状态。 */ () =>
               run(
                 /* 保存草稿后打开完整模板工作区。 */ async () => {
+                  setResumeLibraryOpen(false);
                   setArea("templates");
                   setPreviewFocused(false);
                 },
               )
           }
-          run={run}
         />
-      </div>
+      )}
       <HonorLibrary
+        onSaved={honorSaved}
         active={area === "honors"}
         document={draft.document}
         resumeName={draft.name}
+        onRemove={
+          /* 荣誉库移除入口只更新当前草稿，保留来源与其他简历。 */ (id) =>
+            setDraft(
+              /* 使用最新草稿，避免覆盖其他未保存设置。 */ (current) => ({
+                ...current,
+                document: current.document
+                  ? removeHonor(current.document, id)
+                  : current.document,
+              }),
+            )
+        }
         onAdd={
           /* 将已确认的荣誉复制到当前简历草稿，保留其他资料。 */ (
             honors,
             target,
           ) => {
             const document = addHonors(
-              draft.document ?? newDocument(),
+              draft.document ?? newDocument(state.resume_defaults),
               honors,
               target,
             );
@@ -1257,7 +1523,89 @@ export default function App() {
           }
         }
       />
-      <div className="template-workspace" hidden={area !== "templates"}>
+      {defaultsOpen && (
+        <DefaultsDialog
+          document={draft.document}
+          projects={[
+            ...Object.values(revisionCache).map(
+              /* 不改写不可变版本，只用于判断是否需要删除确认。 */ (revision) =>
+                revision.content,
+            ),
+            ...Object.values(workingPreviews),
+            ...(remoteProject.data ? [remoteProject.data.working.content] : []),
+          ]}
+          initial={state.resume_defaults}
+          onClose={/* 关闭设置不修改资料。 */ () => setDefaultsOpen(false)}
+          onSave={
+            /* 先校验应用结果，再保存默认设置并更新当前草稿。 */ async (
+              settings,
+            ) => {
+              const document = applyResumeDefaults(
+                draft.document ?? newDocument(),
+                settings,
+                state.resume_defaults ?? undefined,
+              );
+              const saved = await api<ResumeDefaults>(
+                "/settings/resume-defaults",
+                "PUT",
+                settings,
+              );
+              ++stateRequests.current;
+              setState(
+                /* 使新建简历立即使用新设置。 */ (current) => ({
+                  ...current,
+                  resume_defaults: saved,
+                }),
+              );
+              setDraft(
+                /* 模态期间保留当前简历其他元信息。 */ (current) => ({
+                  ...current,
+                  document,
+                }),
+              );
+            }
+          }
+        />
+      )}
+      {editingHonor && (
+        <HonorEditor
+          key={`${editingHonor.resumeId}:${editingHonor.entry.id}`}
+          honor={editingHonor.honor}
+          resumeEntry={editingHonor.entry}
+          onSaveEntry={
+            /* 只提交当前荣誉条目，不带入个人信息等其他草稿。 */ async (
+              entry,
+            ) => {
+              if (draft.id !== editingHonor.resumeId)
+                throw new Error("当前简历已切换，请关闭后重新编辑。");
+              await saveSectionEntry(editingHonor.sectionId, entry.id, entry);
+            }
+          }
+          onClose={
+            /* 关闭共享荣誉表单后返回当前资料位置。 */ () =>
+              setEditingHonor(null)
+          }
+          onSaved={
+            /* 来源成功而简历保存失败时，表单继续使用已确认的新版本重试。 */ (
+              honor,
+            ) => {
+              honorSaved(honor);
+              setEditingHonor(
+                /* 保留本次简历设置和打开时的取消基线。 */ (current) =>
+                  current?.honor?.id === honor.id
+                    ? { ...current, honor }
+                    : current,
+              );
+            }
+          }
+        />
+      )}
+      <div
+        className="template-workspace"
+        hidden={area !== "templates"}
+        data-guide="template-select"
+        tabIndex={-1}
+      >
         <TemplateAdapter
           active={area === "templates"}
           layout={layout}
@@ -1271,7 +1619,8 @@ export default function App() {
                 /* 采用新模板时保留全部个人资料与项目选择。 */ (current) => ({
                   ...current,
                   template_id: id,
-                  document: current.document ?? newDocument(),
+                  document:
+                    current.document ?? newDocument(state.resume_defaults),
                 }),
               )
           }
@@ -1300,7 +1649,7 @@ export default function App() {
           run={run}
         />
       )}
-      {toast && (
+      {toast && !resumeLibraryOpen && (
         <div
           className={`toast ${toast.error ? "error" : ""}`}
           role={toast.error ? "alert" : "status"}

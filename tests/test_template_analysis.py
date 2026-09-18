@@ -1,5 +1,6 @@
 """模板分析任务、确认、试填、持久导出与接口隔离的集成测试。"""
 
+import base64
 import json
 import threading
 from io import BytesIO
@@ -241,8 +242,8 @@ def test_failure_and_invalid_save_do_not_register_templates(catalog, tmp_path):
     task = service.analyze(source, simple_document())
     plan = TemplatePlan.model_validate(completed(service, task["id"])["plan"])
     document = simple_document()
-    document.personal.email = "needs-position@example.test"
-    with pytest.raises(Problem, match="personal.email"):
+    document.personal.photo = "data:image/png;base64," + base64.b64encode(photo_bytes(80)).decode()
+    with pytest.raises(Problem, match="照片"):
         service.save(task["id"], "测试", plan, document, [])
     plan.fields = []
     with pytest.raises(Problem, match="映射尚未完成"):

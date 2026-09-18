@@ -13,6 +13,43 @@ def effective_section(node):
     return sections[0] if sections else None
 
 
+def continuous_section(properties):
+    """栏目使用连续分节，保留纸张、页边距和列宽，仅取消另起页的默认行为。"""
+    kind = properties.find(w("type"))
+    if kind is None:
+        kind = etree.Element(w("type"))
+        following = properties.find(w("pgSz"))
+        properties.insert(properties.index(following) if following is not None else 0, kind)
+    kind.set(w("val"), "continuous")
+
+
+def continuous_block(block):
+    """栏目顺接前文，覆盖段落样式的段前分页并清除硬分页，保留普通换行和分栏。"""
+    for paragraph in block.iter(w("p")):
+        properties = paragraph.find(w("pPr"))
+        if properties is None:
+            properties = etree.Element(w("pPr"))
+            paragraph.insert(0, properties)
+        before = properties.find(w("pageBreakBefore"))
+        if before is None:
+            before = etree.Element(w("pageBreakBefore"))
+            previous = [w(tag) for tag in ("pStyle", "keepNext", "keepLines")]
+            position = max(
+                (properties.index(node) + 1 for node in properties if node.tag in previous),
+                default=0,
+            )
+            properties.insert(position, before)
+        before.set(w("val"), "0")
+    for node in block.xpath(".//w:br[@w:type='page'] | .//w:lastRenderedPageBreak", namespaces=NS):
+        node.getparent().remove(node)
+    for properties in block.iter(w("sectPr")):
+        continuous_section(properties)
+    # 文档末尾的 sectPr 也定义最后一节如何开始；未指定 type 时 Word 默认另起一页。
+    properties = effective_section(block)
+    if properties is not None:
+        continuous_section(properties)
+
+
 def flow_paragraph(text, donor, align="left"):
     """继承样本字体和文字样式，清除绝对段落定位，允许内容自然换行。"""
     paragraph = etree.Element(w("p"))

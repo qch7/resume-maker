@@ -134,13 +134,15 @@ export function nodeMapping(
 
 /** 将领域字段转为用户可读名称，自定义信息和栏目标题沿用用户自己的名称。 */
 export function targetLabel(target: string) {
-  return (
-    PERSONAL_LABELS[target] ??
-    ENTRY_LABELS[target] ??
-    target
-      .replace(/^personal\.custom:/, "")
-      .replace(/^section-title:/, "栏目标题 · ")
-  );
+  if (target.startsWith("personal.custom:"))
+    return target.slice("personal.custom:".length);
+  if (target.startsWith("section-title:"))
+    return `栏目标题 · ${target.slice("section-title:".length)}`;
+  const separator = target.lastIndexOf(" · ");
+  const entry = target.slice(separator + 3);
+  if (separator >= 0 && ENTRY_LABELS[entry])
+    return `${target.slice(0, separator)} · ${entry === "title" ? "名称" : ENTRY_LABELS[entry]}`;
+  return PERSONAL_LABELS[target] ?? ENTRY_LABELS[target] ?? target;
 }
 
 /** 按精确引文和出现次数分割原文，保留同段多个字段之间的标签与标点。 */

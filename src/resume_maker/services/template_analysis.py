@@ -6,14 +6,16 @@ from resume_maker.core.errors import Problem
 from resume_maker.domain.templates import TemplatePlan
 from resume_maker.infrastructure.database import dump
 from resume_maker.integrations.providers.base import Cancelled
-from resume_maker.integrations.word.template_fill import (
-    fill_template,
+from resume_maker.integrations.word.pdf_geometry import SOURCE
+from resume_maker.integrations.word.template_completion import complete_template
+from resume_maker.integrations.word.template_fill import fill_template
+from resume_maker.integrations.word.template_images import image_sheets
+from resume_maker.integrations.word.template_values import (
     missing_targets,
     personal_values,
+    required_entry_fields,
     section_records,
 )
-from resume_maker.integrations.word.template_images import image_sheets
-from resume_maker.integrations.word.template_supplement import supplement_personal_fields
 from resume_maker.integrations.word.template_visuals import layout_context, source_pages
 
 SKILL_PATH = Path(__file__).resolve().parents[1] / "skills/resume-template-mapping/SKILL.md"
@@ -124,15 +126,10 @@ def analysis_context(package, document, projects):
     requirements = {}
     for section in document.sections:
         records = section_records(document, section.title, projects)
-        allowed = (
-            ("title", "period", "role", "stack", "description", "highlights")
-            if section.kind == "projects"
-            else ("title", "subtitle", "period", "details", "custom_fields")
+        requirements["projects" if section.kind == "projects" else section.title] = (
+            required_entry_fields(records, project=section.kind == "projects")
         )
-        requirements["projects" if section.kind == "projects" else section.title] = [
-            field for field in allowed if any(record.get(field) for record in records)
-        ]
-    return {
+    context = {
         "sections": [{"title": s.title, "kind": s.kind} for s in document.sections],
         "custom_labels": [field.label for field in document.personal.custom_fields],
         "required_personal_fields": [
@@ -144,6 +141,15 @@ def analysis_context(package, document, projects):
         "template": compact_inventory(package.inventory()),
         "layout": layout_context(package),
     }
+    if package.parts["word/document.xml"].get(SOURCE) == "image-v1":
+        context["image_layout_constraints"] = (
+            "这是保留位置证据的图片恢复模板。姓名、联系方式、顶部学历/工作摘要共用的页首"
+            "表格属于个人资料区，不将其中某一个摘要单元格设为教育或工作经历的重复区。"
+            "顶部摘要可完整映射到个人自定义字段（当前无值时自动隐藏）；完整栏目请选独立"
+            "经历样本或补充位置。真正含有栏目标题的侧栏表格保留分栏结构。"
+            "照片与小图标按已提供的图片节点区分，图标保持固定，头像单独映射。"
+        )
+    return context
 
 
 def analyze_plan(
@@ -161,7 +167,7 @@ def analyze_plan(
     """最多分析三轮，把具体校验反馈交回 AI；失败或退步时保留已有最佳建议。"""
     source = workspace / "original.docx"
     if initial is not None and not feedback:
-        package, initial, notices = supplement_personal_fields(
+        package, initial, notices = complete_template(
             package, complete_labels(package, initial), document, projects, source
         )
         if notices:
@@ -299,7 +305,7 @@ def analyze_plan(
             )
             last_raw = TemplatePlan.model_validate(result.model_dump())
             updated = complete_labels(package, last_raw)
-            package, updated, notices = supplement_personal_fields(
+            package, updated, notices = complete_template(
                 package, updated, document, projects, source
             )
             for text in notices:

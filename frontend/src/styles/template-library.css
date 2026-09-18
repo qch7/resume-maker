@@ -261,6 +261,41 @@
 }
 .library-view-controls {
   margin-left: auto;
+  flex-wrap: wrap;
+}
+.library-delete-trigger {
+  font-size: 12px;
+  padding: 5px 8px;
+  color: var(--danger);
+}
+.library-notice {
+  padding: 0 20px 10px;
+  color: var(--subtle);
+  font-size: 12px;
+}
+.library-delete-dialog {
+  width: min(440px, 90vw);
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 20px 70px #0005;
+}
+.library-delete-dialog::backdrop {
+  background: #080e1880;
+}
+.library-delete-dialog p {
+  margin: 16px 0;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.library-delete-dialog .actions {
+  justify-content: flex-end;
+}
+.library-delete-dialog .danger,
+.library-delete-dialog .error {
+  color: var(--danger);
 }
 .library-view-controls select {
   width: 108px;
@@ -509,6 +544,31 @@
   line-height: 1.6;
   overflow-wrap: anywhere;
 }
+.library-detail-name,
+.library-name-editor {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+.library-detail-name h3,
+.library-name-editor input {
+  flex: 1;
+  min-width: 0;
+}
+.library-name-editor input {
+  padding: 5px 7px;
+  font-size: 12px;
+}
+.library-detail-name button,
+.library-name-editor button {
+  flex-shrink: 0;
+  padding: 5px;
+}
+.library-usage {
+  white-space: nowrap;
+}
 .library-details p {
   color: var(--subtle);
   font-size: 11px;
@@ -682,6 +742,11 @@
   .library-details > p,
   .library-details dl {
     display: none;
+  }
+  .library-details > .library-usage,
+  .library-details > .library-expiry {
+    display: block;
+    margin: 0;
   }
   .library-details h3 {
     width: 100%;

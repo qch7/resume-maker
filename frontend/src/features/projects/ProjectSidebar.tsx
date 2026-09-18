@@ -10,20 +10,15 @@ import {
   PanelLeftClose,
   Plus,
 } from "lucide-react";
-import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
-import { loadLocal } from "../../shared/lib/storage";
-import type {
-  Conversation,
-  Job,
-  Project,
-  ResumeItem,
-} from "../../shared/types";
-import { restoreSidebarSort, sortSidebar } from "./sort";
+import type { Dispatch, SetStateAction } from "react";
+import type { Job, Project, ResumeItem } from "../../shared/types";
+import type { SidebarSort, sortSidebar } from "./sort";
 
 interface Props {
   onCollapse: () => void;
-  projects: Project[];
-  conversations: Conversation[];
+  sortedSidebar: ReturnType<typeof sortSidebar>;
+  sidebarSort: SidebarSort;
+  onSortChange: (sort: SidebarSort) => void;
   activeJobs: Job[];
   items: ResumeItem[];
   activeProject: string;
@@ -42,8 +37,9 @@ interface Props {
 /** 展示和排序项目及会话，通过回调把导航与写入交给工作台协调。 */
 export default function ProjectSidebar({
   onCollapse,
-  projects,
-  conversations,
+  sortedSidebar,
+  sidebarSort,
+  onSortChange,
   activeJobs,
   items,
   activeProject,
@@ -58,17 +54,6 @@ export default function ProjectSidebar({
   onArchive,
   onImport,
 }: Props) {
-  const [sidebarSort, setSidebarSort] = useState(
-    /* 仅在首次挂载时读取缓存或计算初始状态。 */ () =>
-      restoreSidebarSort(loadLocal("rm.sidebarSort", "recent")),
-  );
-  const sortedSidebar = sortSidebar(projects, conversations, sidebarSort);
-  useEffect(
-    /* 同步当前依赖对应的外部状态，并在需要时返回清理函数。 */ () => {
-      localStorage.setItem("rm.sidebarSort", JSON.stringify(sidebarSort));
-    },
-    [sidebarSort],
-  );
   /** 按来源分组递归显示项目；整体与子项目分别持有选择状态和会话。 */
   function renderProject(p: Project) {
     const children = sortedSidebar.projects.filter(
@@ -216,7 +201,7 @@ export default function ProjectSidebar({
       <div className="sidebar-heading">
         <span>
           项目库
-          <span className="count-badge">{projects.length}</span>
+          <span className="count-badge">{sortedSidebar.projects.length}</span>
         </span>
         <button
           id="sidebar-collapse"
@@ -245,7 +230,7 @@ export default function ProjectSidebar({
           title="最近修改的项目与会话在最上面"
           onClick={
             /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-              setSidebarSort("recent")
+              onSortChange("recent")
           }
         >
           <Bell size={16} />
@@ -265,7 +250,7 @@ export default function ProjectSidebar({
           }
           onClick={
             /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-              setSidebarSort(sidebarSort === "asc" ? "desc" : "asc")
+              onSortChange(sidebarSort === "asc" ? "desc" : "asc")
           }
         >
           {sidebarSort === "desc" ? (
@@ -276,16 +261,7 @@ export default function ProjectSidebar({
         </button>
       </div>
       <nav className="project-navigation" aria-label="项目与会话">
-        {sortedSidebar.projects
-          .filter(
-            /* 顶层仅展示整体项目和独立项目，子项目由所属分组呈现。 */ (p) =>
-              !p.parent_id ||
-              !projects.some(
-                /* 缺失父项时保留可访问入口。 */ (parent) =>
-                  parent.id === p.parent_id,
-              ),
-          )
-          .map(renderProject)}
+        {sortedSidebar.rootProjects.map(renderProject)}
       </nav>
       <button className="sidebar-footer" onClick={onImport}>
         <FolderPlus size={17} />

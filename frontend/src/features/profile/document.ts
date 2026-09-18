@@ -4,11 +4,14 @@ import type {
   ResumeDocument,
   ResumeSection,
   SectionEntry,
+  DefaultField,
+  ResumeDefaults,
 } from "../../shared/types/index.ts";
+import { applyInfoDefaults, applyResumeDefaults } from "./defaults.ts";
 
 /** 为新方案生成独立资料；主修课程默认归入教育背景，项目经历保持大栏目。 */
-export function newDocument(): ResumeDocument {
-  return {
+export function newDocument(defaults?: ResumeDefaults | null): ResumeDocument {
+  const document: ResumeDocument = {
     personal: {
       name: "",
       job_title: "",
@@ -66,11 +69,12 @@ export function newDocument(): ResumeDocument {
       },
     ],
   };
+  return defaults ? applyResumeDefaults(document, defaults) : document;
 }
 
 /** 创建独立的空条目，输入内容后自动参与预览与导出。 */
-export function newEntry(): SectionEntry {
-  return {
+export function newEntry(definitions?: DefaultField[] | null): SectionEntry {
+  const entry: SectionEntry = {
     id: crypto.randomUUID(),
     title: "",
     subtitle: "",
@@ -80,6 +84,7 @@ export function newEntry(): SectionEntry {
     hidden_fields: [],
     custom_fields: [],
   };
+  return definitions ? applyInfoDefaults(entry, definitions, true) : entry;
 }
 
 /** 按父栏目提取同级条目，数组顺序就是排版顺序。 */

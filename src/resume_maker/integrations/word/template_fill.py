@@ -2,6 +2,8 @@
 
 import base64
 import posixpath
+import re
+from collections import Counter
 from copy import deepcopy
 from pathlib import Path
 
@@ -10,11 +12,16 @@ from lxml import etree
 from resume_maker.core.errors import Problem
 from resume_maker.domain.resume import ResumeDocument
 from resume_maker.domain.templates import TemplatePlan, TextBinding
-from resume_maker.integrations.word.full_resume import displayed_entries, visible_custom_fields
 from resume_maker.integrations.word.ooxml import w
+from resume_maker.integrations.word.pdf_geometry import clear_pdf_metadata
+from resume_maker.integrations.word.pdf_header_layout import PDFHeaderLayout
+from resume_maker.integrations.word.pdf_titles import fit_pdf_titles
+from resume_maker.integrations.word.template_completion import complete_template
+from resume_maker.integrations.word.template_entry_layout import ParagraphStyles, align_record
 from resume_maker.integrations.word.template_flow import effective_section
 from resume_maker.integrations.word.template_layout import TemplateLayout
 from resume_maker.integrations.word.template_map import (
+    ENTRY_TARGETS,
     IMAGE_TAGS,
     NS,
     TemplatePackage,
@@ -25,149 +32,20 @@ from resume_maker.integrations.word.template_map import (
     relationship_part,
     relationship_target,
 )
+from resume_maker.integrations.word.template_personal import PersonalLayout, hidden_personal_range
+from resume_maker.integrations.word.template_project_order import (
+    arrange_project_body,
+    empty_project_range,
+)
 from resume_maker.integrations.word.template_project_slots import prepare_project_slots
+from resume_maker.integrations.word.template_record_columns import prepare_record_columns
+from resume_maker.integrations.word.template_values import (
+    missing_targets,
+    personal_values,
+    section_records,
+)
 
 CONTENT_TYPES = "http://schemas.openxmlformats.org/package/2006/content-types"
-
-
-def custom_text(fields) -> str:
-    """按用户顺序输出可见自定义信息，不输出空名称或空值。"""
-    return "\n".join(f"{field.label}：{field.value}" for field in visible_custom_fields(fields))
-
-
-def section_records(document: ResumeDocument, title: str, projects: list[dict]) -> list[dict]:
-    """按栏目名称取可见记录，项目区始终使用用户选定的固定经历版本。"""
-    candidates = [
-        section
-        for section in document.sections
-        if section.title == title or (title == "projects" and section.kind == "projects")
-    ]
-    if len(candidates) > 1:
-        raise Problem(f"存在重名栏目“{title}”，请先为栏目设置独立名称。")
-    if not candidates:
-        return []
-    section = candidates[0]
-    parent = next((s for s in document.sections if s.id == section.parent_id), None)
-    if not section.visible or (parent is not None and not parent.visible):
-        return []
-    if section.kind == "projects":
-        records = []
-        for project in projects:
-            value = project["content"]
-            points = {point["id"]: point for point in value["highlights"]}
-            highlight_items = [
-                f"{points[identifier]['title']}：{points[identifier]['text']}"
-                for identifier in project["highlight_ids"]
-            ]
-            highlights = "\n".join(highlight_items)
-            stack = "、".join(value["stack"])
-            details = "\n".join(
-                filter(
-                    None,
-                    [
-                        f"技术栈：{stack}" if stack else "",
-                        f"担任角色：{value['role']}" if value["role"] else "",
-                        value["description"],
-                        highlights,
-                    ],
-                )
-            )
-            records.append(
-                {
-                    **value,
-                    "stack": stack,
-                    "highlights": highlights,
-                    "_highlight_items": highlight_items,
-                    "details": details,
-                    "subtitle": value["role"],
-                    "custom_fields": "",
-                }
-            )
-        return records
-    return [
-        {**entry.model_dump(), "custom_fields": custom_text(entry.custom_fields)}
-        for entry in displayed_entries(section)
-    ]
-
-
-def personal_values(document: ResumeDocument) -> dict[str, str]:
-    """将资料字段转为替换值；隐藏字段清空，照片由独立图片映射处理。"""
-    personal = document.personal
-    values = {
-        f"personal.{key}": "" if key in personal.hidden_fields else value
-        for key, value in personal.model_dump().items()
-        if isinstance(value, str)
-    }
-    values["personal.custom_fields"] = custom_text(personal.custom_fields)
-    values.update(
-        {
-            f"personal.custom:{field.label}": field.value
-            for field in visible_custom_fields(personal.custom_fields)
-        }
-    )
-    values.update(
-        {
-            f"section-title:{section.title}": section.title
-            if section.visible
-            and not any(
-                parent.id == section.parent_id and not parent.visible
-                for parent in document.sections
-            )
-            else ""
-            for section in document.sections
-        }
-    )
-    return values
-
-
-def missing_targets(
-    document: ResumeDocument, plan: TemplatePlan, projects: list[dict]
-) -> list[str]:
-    """列出当前非空资料缺少的位置，防止导出时静默丢失姓名、栏目或照片。"""
-    targets = {field.target for field in plan.fields}
-    values = personal_values(document)
-    missing = []
-    labels = [field.label for field in visible_custom_fields(document.personal.custom_fields)]
-    if len(labels) != len(set(labels)) and "personal.custom_fields" not in targets:
-        missing.append("重名自定义信息请使用“全部自定义信息”映射或修改名称")
-    for target, value in values.items():
-        if not value or not target.startswith("personal."):
-            continue
-        if target == "personal.photo":
-            if not plan.photos:
-                missing.append("照片")
-        elif target == "personal.custom_fields":
-            continue
-        elif target.startswith("personal.custom:") and "personal.custom_fields" in targets:
-            continue
-        elif target not in targets:
-            missing.append(target)
-    for section in document.sections:
-        records = section_records(document, section.title, projects)
-        if not records:
-            continue
-        regions = [
-            region
-            for region in plan.repeats
-            if region.section == section.title
-            or (region.section == "projects" and section.kind == "projects")
-        ]
-        if not regions:
-            missing.append(f"栏目：{section.title}")
-            continue
-        for region in regions:
-            bound = {field.target for field in region.fields}
-            required = (
-                {"title", "period", "role", "stack", "description", "highlights"}
-                if section.kind == "projects"
-                else {"title", "subtitle", "period", "details", "custom_fields"}
-            )
-            if section.kind == "projects" and "details" in bound:
-                required -= {"role", "stack", "description", "highlights"}
-            for field in required - bound:
-                if any(record.get(field) for record in records):
-                    missing.append(f"{section.title} · {field}")
-    return list(dict.fromkeys(missing))
 
 
 def set_text(node, value: str):
@@ -185,10 +63,38 @@ def set_text(node, value: str):
         index += 1
 
 
+def empty_entry_range(text, start, end):
+    """字段独占段落时同时移除其标签或手输列表符号，不吞掉同段其他字段和固定说明。"""
+    prefix, suffix = text[:start].strip(), text[end:].strip()
+    marker = r"(?:[•●○▪▫◆◇·\-–—*]|\d+[.)、])?\s*"
+    if not suffix and re.fullmatch(marker + r"(?:[^:：\n]{1,50}[:：]\s*)?", prefix):
+        return 0, len(text)
+    return start, end
+
+
+def empty_field_paragraph(paragraph):
+    """空字段可删除自己的列表段落；图片、文本框、域、引用及固定说明必须保留。"""
+    if paragraph_text(paragraph).strip():
+        return False
+    protected = {
+        w(tag)
+        for tag in (
+            "drawing",
+            "pict",
+            "object",
+            "fldChar",
+            "footnoteReference",
+            "endnoteReference",
+            "sym",
+        )
+    }
+    return not any(node.tag in protected for node in paragraph.iter())
+
+
 def fill_fields(nodes: dict, fields: list[TextBinding], values: dict):
-    """保留样式替换引文；按原文顺序分配亮点，返回可移除的多余亮点空段落。"""
+    """保留样式替换引文并按顺序分配亮点，返回所有失去内容且可安全收起的字段段落。"""
     grouped = {}
-    blank_highlights = []
+    field_counts = Counter(field.node for field in fields)
     order = {identifier: index for index, identifier in enumerate(nodes)}
     highlight_fields = sorted(
         [field for field in fields if field.target == "highlights"],
@@ -206,12 +112,12 @@ def fill_fields(nodes: dict, fields: list[TextBinding], values: dict):
             # 位置不足时将余下亮点合并到最后一处，位置过多时不重复填充整组内容。
             stop = position + 1 if position < len(highlight_fields) - 1 else None
             value = "\n".join(values["_highlight_items"][position:stop])
-            if (
-                not value
-                and binding.quote == paragraph_text(node)
-                and not any(child.tag in IMAGE_TAGS for child in node.iter())
-            ):
-                blank_highlights.append(node)
+        if not value.strip():
+            start, end = hidden_personal_range(paragraph_text(node), binding.target, start, end)
+            if values.get("_body_ordered"):
+                start, end = empty_project_range(paragraph_text(node), fields, binding, start, end)
+            if binding.target in ENTRY_TARGETS and field_counts[binding.node] == 1:
+                start, end = empty_entry_range(paragraph_text(node), start, end)
         if value and not binding.quote and binding.target.startswith("personal.custom:"):
             value = binding.target.partition(":")[2] + "：" + value
         colon = binding.quote.find("：")
@@ -276,7 +182,7 @@ def fill_fields(nodes: dict, fields: list[TextBinding], values: dict):
             for child in list(link):
                 parent.insert(parent.index(link), child)
             parent.remove(link)
-    return blank_highlights
+    return [nodes[key] for key in grouped if empty_field_paragraph(nodes[key])]
 
 
 def region_values(record, fields):
@@ -288,6 +194,7 @@ def region_values(record, fields):
         "stack": f"技术栈：{record['stack']}" if record["stack"] else "",
         "role": f"担任角色：{record['role']}" if record["role"] else "",
         "description": record["description"],
+        "custom_fields": record["custom_fields"],
         "highlights": record["highlights"],
     }
     if "subtitle" in targets:
@@ -412,15 +319,25 @@ def section_marker(properties):
     return paragraph
 
 
-def remove_preserving_sections(node):
-    """删除旧示例时保留其分节边界，避免相邻正文继承错误的分栏或页边距。"""
+def remove_preserving_sections(node, compact_table=False):
+    """保留被删除内容的分栏和分节边界；空字段所在表格行完全腾空时同时收起。"""
     parent = node.getparent()
+    row = parent.getparent() if parent is not None and parent.tag == w("tc") else None
     if parent is not None:
         position = parent.index(node)
+        for boundary in node.iter(w("br")):
+            if boundary.get(w("type")) == "column":
+                marker = etree.Element(w("p"))
+                etree.SubElement(marker, w("r")).append(deepcopy(boundary))
+                parent.insert(position, marker)
+                position += 1
         for properties in node.iter(w("sectPr")):
             parent.insert(position, section_marker(properties))
             position += 1
     remove_node(node)
+    if compact_table and row is not None and row.tag == w("tr"):
+        if not any(child.tag != w("tcPr") for cell in row.findall(w("tc")) for child in cell):
+            remove_node(row)
 
 
 def close_empty_tail(package):
@@ -450,7 +367,7 @@ def close_empty_tail(package):
 def fill_template(
     source: Path, output: Path, plan: TemplatePlan, content: dict, projects: list[dict]
 ) -> list[str]:
-    """从源模板执行通过校验的映射，返回保留容器等需要向用户说明的版式约束。"""
+    """按已核对模板填充，自动扩展个人资料及普通栏目，预览与导出共用排版规则。"""
     package = TemplatePackage(source)
     review = package.review(plan)
     if not review["ready"]:
@@ -458,6 +375,7 @@ def fill_template(
             "模板映射尚未完成：" + "；".join(review["errors"] or ["还有未处理的原文或图片"])
         )
     document = ResumeDocument.model_validate(content)
+    package, plan, notices = complete_template(package, plan, document, projects)
     missing = missing_targets(document, plan, projects)
     if missing:
         raise Problem("模板未覆盖这些已填写资料，请补充映射或在资料中隐藏：" + "、".join(missing))
@@ -467,7 +385,12 @@ def fill_template(
         for section in document.sections
     }
     layout = TemplateLayout(package, plan, document, records_by_section, values)
+    personal = PersonalLayout(package, layout.fields, values)
+    pdf_header = PDFHeaderLayout(package, plan, values)
+    styles = ParagraphStyles(package)
     fill_fields(package.nodes, layout.fields, {**values, **layout.values})
+    fill_fields(personal.nodes, personal.fields, values)
+    fill_fields(pdf_header.nodes, pdf_header.fields, values)
     for region in plan.repeats:
         original = package.region(region.start, region.end)
         sample = package.region(region.sample_start, region.sample_end)
@@ -504,9 +427,12 @@ def fill_template(
                 parent.insert(position, clone)
                 position += 1
             fields, blank_slots = prepare_project_slots(nodes, region.fields, record, plan.keep)
-            blank_highlights = fill_fields(nodes, fields, record)
-            for blank in [*blank_slots, *blank_highlights]:
-                remove_preserving_sections(blank)
+            align_record(styles, nodes, fields)
+            fields = prepare_record_columns(styles, nodes, fields, records, package.nodes)
+            record, blank_labels = arrange_project_body(nodes, fields, record, styles)
+            blank_fields = fill_fields(nodes, fields, record)
+            for blank in dict.fromkeys([*blank_slots, *blank_labels, *blank_fields]):
+                remove_preserving_sections(blank, compact_table=True)
             position = parent.index(original[0])
             if trailing is not None:
                 marker = section_marker(trailing)
@@ -532,16 +458,20 @@ def fill_template(
     for identifier in plan.remove:
         remove_preserving_sections(package.node(identifier))
     layout.apply()
+    personal.apply()
+    pdf_header.apply()
+    fit_pdf_titles(package, layout.fields)
     close_empty_tail(package)
     drawing_id = 0
     control_id = 0
     for root in package.parts.values():
+        clear_pdf_metadata(root)
         for table in list(root.iter(w("tbl"))):
             if not any(
                 next(row.iterancestors(w("tbl")), None) is table for row in table.iter(w("tr"))
             ):
                 remove_node(table)
-        for cell in root.iter(w("tc")):
+        for cell in root.iter(w("tc"), w("txbxContent")):
             if not len(cell) or cell[-1].tag != w("p"):
                 etree.SubElement(cell, w("p"))
         # 组合子图形与外层绘图共享编号空间，单独重编号外层会碰撞并导致 Word 无法打开。
@@ -553,4 +483,4 @@ def fill_template(
             control.set(w("val"), str(control_id))
     clean_resources(package)
     package.write(output)
-    return layout.notices
+    return [*notices, *layout.notices, *pdf_header.notices]

@@ -88,6 +88,7 @@ export default function TemplateProgress({
         )}
         {recorded || running ? (
           <span className="template-live-time">
+            {data.from_library && "上次识别："}
             {data.round > 0 && `${data.round} 轮 · `}
             {duration(data.elapsed_ms)}
           </span>

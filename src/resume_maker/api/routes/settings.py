@@ -2,14 +2,39 @@
 
 import threading
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from resume_maker.api.dependencies import ServicesDep
 from resume_maker.domain.models import ProviderSettings
-from resume_maker.infrastructure.database import uid
+from resume_maker.domain.resume_defaults import ResumeDefaults
+from resume_maker.infrastructure.database import dump, uid, unpack
 from resume_maker.integrations.providers.codex import CodexProvider
 
 router = APIRouter(prefix="/api", tags=["settings"])
+
+
+@router.get("/settings/resume-defaults")
+def resume_defaults(services: ServicesDep):
+    """读取本机保存的默认栏目，未设置时由界面提供内置初始配置。"""
+    return services.db.setting("resume_defaults")
+
+
+@router.put("/settings/resume-defaults")
+def save_resume_defaults(services: ServicesDep, body: ResumeDefaults):
+    """原子校验配置版本，保存后供新简历使用且随数据库备份。"""
+    with services.db.transaction() as conn:
+        row = unpack(
+            conn.execute("SELECT value_json FROM settings WHERE key='resume_defaults'").fetchone()
+        )
+        version = row["value"]["version"] if row else 0
+        if body.version != version:
+            raise HTTPException(409, "默认栏目已在其他窗口修改，请重新打开设置后再试。")
+        saved = body.model_copy(update={"version": version + 1})
+        conn.execute(
+            "INSERT OR REPLACE INTO settings VALUES (?,?)",
+            ("resume_defaults", dump(saved.model_dump())),
+        )
+    return saved
 
 
 @router.get("/settings")

@@ -1,14 +1,23 @@
-import type { Experience, ProjectDetail, Revision } from "../../shared/types";
+import type {
+  Experience,
+  DefaultField,
+  ProjectDetail,
+  ProjectVisibility,
+  Revision,
+} from "../../shared/types";
 export interface EditorProps {
   detail: ProjectDetail;
+  definitions?: DefaultField[] | null;
   revisionId: string;
   included: string[];
+  visibility: ProjectVisibility;
+  onVisibility: (value: ProjectVisibility, migrating?: boolean) => void;
   usedRevision?: Revision;
   hasLocalChanges: boolean;
   run: (work: () => Promise<void>) => void;
   onSave: () => Promise<void>;
+  onDiscard: (versions: Record<string, number>) => Promise<void>;
   onRefresh: () => void;
-  onDirty: () => void;
   onRevision: (id: string) => void;
   onUseVersion: () => void;
   onAsk: (scope: string) => Promise<void>;

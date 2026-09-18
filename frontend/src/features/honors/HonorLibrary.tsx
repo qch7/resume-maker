@@ -14,6 +14,8 @@ import { api, ApiError, request } from "../../shared/lib/api";
 import type { ResumeDocument } from "../../shared/types";
 import HonorEditor from "./HonorEditor";
 import HonorImage from "./HonorImage";
+import HonorSortControls from "./HonorSortControls";
+import { DEFAULT_HONOR_SORT, sortHonors } from "./sort";
 import {
   ACCEPT,
   CATEGORIES,
@@ -30,11 +32,15 @@ export default function HonorLibrary({
   document,
   resumeName,
   onAdd,
+  onRemove,
+  onSaved,
 }: {
   active: boolean;
   document: ResumeDocument | null;
   resumeName: string;
   onAdd: (honors: Honor[], section: string) => void;
+  onRemove: (id: string) => void;
+  onSaved: (honor: Honor) => void;
 }) {
   const [items, setItems] = useState<Honor[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -44,7 +50,7 @@ export default function HonorLibrary({
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
   const [status, setStatus] = useState("");
-  const [sort, setSort] = useState("recent");
+  const [sort, setSort] = useState(DEFAULT_HONOR_SORT);
   const [selected, setSelected] = useState<string[]>([]);
   const [editing, setEditing] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<Honor | null>(null);
@@ -110,7 +116,8 @@ export default function HonorLibrary({
         ...current.filter(/* 移除旧版本。 */ (item) => item.id !== honor.id),
       ],
     );
-    setNotice("已保存");
+    onSaved(honor);
+    setNotice("已保存，关联简历的信息已同步");
   }
   /** 逐个上传，每个文件独立报告结果；失败文件不阻断其他证书。 */
   async function upload(files: File[]) {
@@ -206,8 +213,14 @@ export default function HonorLibrary({
       setError((reason as Error).message);
     }
   }
-  const filtered = items
-    .filter(
+  /** 解除当前简历引用后保留库卡片，允许随时重新加入。 */
+  function remove(id: string) {
+    onRemove(id);
+    setError("");
+    setNotice(`已从「${resumeName}」草稿移除，荣誉资料仍保留在库中`);
+  }
+  const filtered = sortHonors(
+    items.filter(
       /* 综合分类、核对状态和搜索词。 */ (item) =>
         (!category || item.fields.category === category) &&
         (!status ||
@@ -215,15 +228,9 @@ export default function HonorLibrary({
             ? item.status === "ready"
             : item.status !== "ready")) &&
         matchesHonor(item, query),
-    )
-    .sort(
-      /* 根据用户选择稳定排序，不修改服务端数组。 */ (left, right) =>
-        sort === "date"
-          ? right.fields.date.localeCompare(left.fields.date)
-          : sort === "name"
-            ? left.fields.name.localeCompare(right.fields.name, "zh-CN")
-            : right.updated_at.localeCompare(left.updated_at),
-    );
+    ),
+    sort,
+  );
   const ready = items.filter(
     /* 统计已核对条目。 */ (item) => item.status === "ready",
   ).length;
@@ -298,6 +305,8 @@ export default function HonorLibrary({
         <div className="honor-main">
           <div
             className={`honor-upload ${dragging ? "dragging" : ""}`}
+            data-guide="honor-recognize"
+            tabIndex={-1}
             onDragOver={
               /* 文件进入投放区时显示可投放反馈。 */ (event) => {
                 event.preventDefault();
@@ -405,7 +414,11 @@ export default function HonorLibrary({
               </button>
             </div>
           )}
-          <div className="honor-toolbar">
+          <div
+            className="honor-toolbar"
+            data-guide="honor-select"
+            tabIndex={-1}
+          >
             <label className="honor-search">
               <Search size={16} />
               <input
@@ -429,17 +442,7 @@ export default function HonorLibrary({
               <option value="ready">已核对</option>
               <option value="pending">待处理</option>
             </select>
-            <select
-              aria-label="荣誉排序"
-              value={sort}
-              onChange={
-                /* 切换本地列表排序。 */ (event) => setSort(event.target.value)
-              }
-            >
-              <option value="recent">最近更新</option>
-              <option value="date">获得日期</option>
-              <option value="name">名称排序</option>
-            </select>
+            <HonorSortControls value={sort} onChange={setSort} />
             <select
               className="honor-target"
               aria-label="加入简历的目标栏目"
@@ -581,18 +584,21 @@ export default function HonorLibrary({
                           {item.status === "review" ? "核对信息" : "查看与编辑"}
                         </button>
                         <button
-                          disabled={item.status !== "ready" || included}
+                          disabled={!included && item.status !== "ready"}
                           title={
-                            item.status !== "ready"
-                              ? "请先核对并保存荣誉信息"
-                              : "复制到当前简历"
+                            included
+                              ? "仅从当前简历移除，保留荣誉资料和原件"
+                              : item.status !== "ready"
+                                ? "请先核对并保存荣誉信息"
+                                : "关联到当前简历，资料随荣誉库同步"
                           }
                           onClick={
-                            /* 单条加入与批量采用相同逻辑。 */ () => add([item])
+                            /* 根据当前简历引用状态切换加入和移除。 */ () =>
+                              included ? remove(item.id) : add([item])
                           }
                         >
-                          <Plus size={14} />
-                          加入简历
+                          {included ? <X size={14} /> : <Plus size={14} />}
+                          {included ? "从简历中移除" : "加入简历"}
                         </button>
                       </div>
                       <div className="honor-card-secondary">

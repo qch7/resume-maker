@@ -17,9 +17,9 @@ export function useWorkspaceLayout() {
   const workbench = useRef<HTMLDivElement>(null);
   const workbenchSize = useElementSize(workbench);
   const columns = columnSizes(workbenchSize.width, sidebar, layout);
-  const guideMin =
-    workbenchSize.width <= 600 ? 160 : workbenchSize.width <= 760 ? 110 : 60;
-  const guideMax = Math.max(guideMin, Math.min(240, innerHeight - 360));
+  // 内容随实际高度逐级精简，各个工作区都允许缩到单行步骤导航。
+  const guideMin = 40;
+  const guideMax = Math.max(guideMin, Math.min(280, innerHeight - 360));
   /** 更新单项布局偏好，尺寸边界由显示布局和分隔条统一约束。 */
   function resize(key: keyof Layout, value: number | boolean) {
     setLayout(

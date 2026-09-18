@@ -3,6 +3,7 @@ import type {
   Revision,
   UncommittedRevision,
 } from "../../shared/types/index";
+import { projectBodyOrder } from "./bodyOrder.ts";
 
 export type HistoryRevision = Revision & { uncommitted?: boolean };
 
@@ -122,6 +123,19 @@ export function revisionChanges(revision: Revision, parent?: Revision) {
     description: "项目描述",
   } as const;
   const changes: string[] = [];
+  if (
+    JSON.stringify(
+      revision.content.body_order == null
+        ? null
+        : projectBodyOrder(revision.content, {}),
+    ) !==
+    JSON.stringify(
+      parent.content.body_order == null
+        ? null
+        : projectBodyOrder(parent.content, {}),
+    )
+  )
+    changes.push("基本信息顺序");
   for (const key of Object.keys(labels) as (keyof typeof labels)[]) {
     if (
       JSON.stringify(revision.content[key]) !==
@@ -129,6 +143,16 @@ export function revisionChanges(revision: Revision, parent?: Revision) {
     )
       changes.push(labels[key]);
   }
+  if (
+    JSON.stringify([...(revision.content.hidden_fields ?? [])].sort()) !==
+    JSON.stringify([...(parent.content.hidden_fields ?? [])].sort())
+  )
+    changes.push("信息显隐");
+  if (
+    JSON.stringify(revision.content.custom_fields ?? []) !==
+    JSON.stringify(parent.content.custom_fields ?? [])
+  )
+    changes.push("自定义信息");
   const before = new Map(
     parent.content.highlights.map(
       /* 按稳定亮点标识比较。 */ (point) => [point.id, point],

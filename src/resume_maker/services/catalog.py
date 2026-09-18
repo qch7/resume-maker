@@ -3,11 +3,13 @@
 from pathlib import Path, PurePosixPath
 
 from resume_maker.core.errors import Problem, need
-from resume_maker.domain.experience import field_value, replace_field
+from resume_maker.domain.experience import field_value, replace_field, same_experience
 from resume_maker.domain.models import Experience, ProjectProfile, ResumeItem
 from resume_maker.domain.resume import ResumeDocument
+from resume_maker.domain.templates import TEMPLATE_LIBRARY_KEY
 from resume_maker.infrastructure.database import Database, dump, now, uid, unpack
 from resume_maker.services.history import History
+from resume_maker.services.honor_links import resolve_honor_document
 
 
 class Catalog:
@@ -43,15 +45,19 @@ class Catalog:
             raise Problem("经历版本不属于该项目。", 409)
         return row
 
-    def template(self, template_id: str) -> dict:
+    def template(self, template_id: str, include_trashed: bool = False) -> dict:
         """只允许引用具有完整映射的模板，失效引用由用户重新选择或识别。"""
-        return need(
+        template = need(
             self.db.one(
                 "SELECT * FROM templates WHERE id=? AND json_type(mapping_json,'$.plan')='object'",
                 (template_id,),
             ),
             "完整简历模板不可用，请重新选择模板或导入 Word 进行 AI 识别。",
         )
+        library = self.db.setting(TEMPLATE_LIBRARY_KEY, {"items": {}})
+        if not include_trashed and library["items"].get(template_id, {}).get("deleted_at"):
+            raise Problem("该模板已移入回收站，请先恢复。", 409)
+        return template
 
     def create_project(self, name: str, roots: list[str]) -> dict:
         """规范化来源并去重登记项目，同时建立初始经历和独立会话。"""
@@ -226,6 +232,21 @@ class Catalog:
                 (project_id, revision_id, field),
             )
 
+    def discard_drafts(self, project_id: str, revision_id: str, versions: dict[str, int]):
+        """原子核对完整草稿集合后撤销，只作用于当前项目与基线，不产生经历版本。"""
+        self.revision(revision_id, project_id)
+        with self.db.transaction() as conn:
+            rows = conn.execute(
+                "SELECT field,version FROM drafts WHERE project_id=? AND base_revision=?",
+                (project_id, revision_id),
+            ).fetchall()
+            if dict(rows) != versions:
+                raise Problem("草稿已在其他窗口修改，请取消后重新确认；改动尚未撤销。", 409)
+            conn.execute(
+                "DELETE FROM drafts WHERE project_id=? AND base_revision=?",
+                (project_id, revision_id),
+            )
+
     def save_revision(self, project_id: str, revision_id: str, expected_head: str) -> dict:
         """校验分支头与草稿版本后发布整个工作副本，原子清理已提交草稿。"""
         base = self.revision(revision_id, project_id)
@@ -262,7 +283,7 @@ class Catalog:
             expected = [(d["field"], d["version"], dump(d["value"])) for d in working["drafts"]]
             if sorted(tuple(row) for row in actual) != sorted(expected):
                 raise Problem("保存时草稿发生变化，请重试。", 409)
-            if content == base["content"]:
+            if same_experience(content, base["content"]):
                 # 内容改回原值也需通过并发校验，再清理这次确认的全部草稿。
                 conn.execute(
                     "DELETE FROM drafts WHERE project_id=? AND base_revision=?",
@@ -421,6 +442,24 @@ class Catalog:
             )
             if version != (existing["version"] if existing else 0):
                 raise Problem("简历组合已在其他窗口修改，请刷新。", 409)
+            library = unpack(
+                conn.execute(
+                    "SELECT value_json FROM settings WHERE key=?", (TEMPLATE_LIBRARY_KEY,)
+                ).fetchone()
+            )
+            deleted = library and library["value"]["items"].get(template_id, {}).get("deleted_at")
+            if deleted:
+                raise Problem("该模板已移入回收站，请先恢复模板或选择其他模板。", 409)
+            if (
+                template_id
+                and not conn.execute(
+                    "SELECT 1 FROM templates WHERE id=?", (template_id,)
+                ).fetchone()
+            ):
+                raise Problem("该模板已永久删除，请选择其他模板。", 409)
+            resolved_document = resolve_honor_document(
+                self.db, document.model_dump() if document is not None else None, conn
+            )
             conn.execute(
                 "INSERT OR REPLACE INTO resumes "
                 "(id,name,template_id,items_json,version,created_at,updated_at,document_json) "
@@ -433,7 +472,7 @@ class Catalog:
                     version + 1,
                     existing["created_at"] if existing else now(),
                     now(),
-                    dump(document.model_dump()) if document is not None else None,
+                    dump(resolved_document) if resolved_document is not None else None,
                 ),
             )
         return self.db.one("SELECT * FROM resumes WHERE id=?", (resume_id,))

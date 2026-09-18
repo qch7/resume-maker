@@ -12,25 +12,61 @@ import {
   SortableItem,
   SortableList,
 } from "../../shared/components/SortableList";
-import type { ResumeDocument, ResumeSection } from "../../shared/types";
+import type {
+  ResumeDocument,
+  ResumeSection,
+  SectionEntry,
+} from "../../shared/types";
 import { moveSection, removeSection, siblings } from "./document";
+import EntryOrder from "./EntryOrder";
+import type { HonorSource } from "../../shared/types/honors";
+import { isHonorEntry, isHonorSection } from "../honors/entry";
+import HonorSortControls from "../honors/HonorSortControls";
+import { sortHonorEntries, type HonorSort } from "../honors/sort";
 
 /** 提供大栏目与子栏目的层级选择、显隐、增删和同级排序。 */
 export default function SectionOrganizer({
   value,
   onChange,
   onInfo,
+  onDefaults,
+  onEditHonor,
   projects,
+  honors,
+  scrollTarget,
+  onScrolled,
 }: {
   value: ResumeDocument;
   onChange: (value: ResumeDocument) => void;
   onInfo: () => void;
+  onDefaults: () => void;
+  onEditHonor: (sectionId: string, entry: SectionEntry) => void;
   projects: ReactNode;
+  honors: HonorSource[];
+  scrollTarget?: string | null;
+  onScrolled?: () => void;
 }) {
   const [title, setTitle] = useState("");
   const [kind, setKind] = useState<"education" | "text">("text");
   const [deleted, setDeleted] = useState<ResumeSection | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
+  const [honorSorts, setHonorSorts] = useState<
+    Record<string, HonorSort | undefined>
+  >({});
+  useEffect(
+    /* 从资料页进入排序时定位所属栏目，不修改名称或其他草稿。 */ () => {
+      if (!scrollTarget) return;
+      const input = document.getElementById(`section-title-${scrollTarget}`);
+      const card = input?.closest(".organizer-card");
+      card?.scrollIntoView({ block: "start" });
+      const handle = card?.querySelector<HTMLElement>(
+        ".entry-order .sort-handle:not(:disabled)",
+      );
+      (handle ?? input)?.focus({ preventScroll: true });
+      onScrolled?.();
+    },
+    [scrollTarget, onScrolled],
+  );
   useEffect(
     /* 新子栏目出现后选中名称，方便直接输入而不打断其他栏目编辑。 */ () => {
       if (!focusId) return;
@@ -268,13 +304,70 @@ export default function SectionOrganizer({
                             )}
                         </select>
                       </label>
-                      <span className="subtle">
-                        {section.kind === "projects"
-                          ? "引用项目工作台"
-                          : `${section.entries.length} 条资料`}
-                      </span>
+                      <div className="organizer-entry-tools">
+                        {(isHonorSection(section) ||
+                          section.entries.some(
+                            /* 荣誉被移入自定义栏目后仍可使用排序按钮。 */ (
+                              entry,
+                            ) => isHonorEntry(entry, section),
+                          )) && (
+                          <HonorSortControls
+                            label={`${section.title}资料排序`}
+                            value={honorSorts[section.id] ?? null}
+                            disabled={
+                              section.entries.filter(
+                                /* 只有两条以上荣誉时才需要排序。 */ (entry) =>
+                                  isHonorEntry(entry, section),
+                              ).length < 2
+                            }
+                            onChange={
+                              /* 将排序写入当前简历草稿，预览和导出读取同一顺序。 */ (
+                                sort,
+                              ) => {
+                                setHonorSorts(
+                                  /* 各栏目分别记住最近使用的排序方向。 */ (
+                                    current,
+                                  ) => ({ ...current, [section.id]: sort }),
+                                );
+                                update({
+                                  ...section,
+                                  entries: sortHonorEntries(
+                                    section,
+                                    honors,
+                                    sort,
+                                  ),
+                                });
+                              }
+                            }
+                          />
+                        )}
+                        <span className="subtle">
+                          {section.kind === "projects"
+                            ? "引用项目工作台"
+                            : `${section.entries.length} 条资料`}
+                        </span>
+                      </div>
                     </div>
-                    {section.kind === "projects" && projects}
+                    {section.kind === "projects" ? (
+                      projects
+                    ) : (
+                      <EntryOrder
+                        section={section}
+                        onChange={
+                          /* 手动移动或移除后恢复自定义顺序状态。 */ (
+                            changed,
+                          ) => {
+                            setHonorSorts(
+                              /* 只清除当前栏目的快捷排序高亮。 */ (
+                                current,
+                              ) => ({ ...current, [section.id]: undefined }),
+                            );
+                            update(changed);
+                          }
+                        }
+                        onEditHonor={onEditHonor}
+                      />
+                    )}
                     {!parent && renderGroup(section.id)}
                   </>
                 )
@@ -291,34 +384,12 @@ export default function SectionOrganizer({
         <div>
           <h1>栏目编排</h1>
         </div>
-        <button onClick={onInfo}>填写资料</button>
+        <div className="actions">
+          <button onClick={onDefaults}>默认栏目设置</button>
+          <button onClick={onInfo}>填写资料</button>
+        </div>
       </header>
       <div className="workspace-scroll profile-scroll">
-        <div className="organizer-pinned">
-          <LockKeyhole size={18} />
-          <strong>基本信息</strong>
-          <button className="text-button" onClick={onInfo}>
-            编辑
-          </button>
-        </div>
-        {renderGroup()}
-        {deleted && (
-          <div className="organizer-undo" role="status">
-            已删除“{deleted.title}”，子栏目已保留。
-            <button
-              className="text-button"
-              disabled={value.sections.length >= 40}
-              onClick={
-                /* 恢复被删除栏目正文，不覆盖删除后的其他编排。 */ () => {
-                  change([...value.sections, { ...deleted, parent_id: null }]);
-                  setDeleted(null);
-                }
-              }
-            >
-              撤销删除
-            </button>
-          </div>
-        )}
         <form
           className="profile-card add-section"
           onSubmit={
@@ -366,6 +437,31 @@ export default function SectionOrganizer({
             添加栏目
           </button>
         </form>
+        <div className="organizer-pinned">
+          <LockKeyhole size={18} />
+          <strong>基本信息</strong>
+          <button className="text-button" onClick={onInfo}>
+            编辑
+          </button>
+        </div>
+        {renderGroup()}
+        {deleted && (
+          <div className="organizer-undo" role="status">
+            已删除“{deleted.title}”，子栏目已保留。
+            <button
+              className="text-button"
+              disabled={value.sections.length >= 40}
+              onClick={
+                /* 恢复被删除栏目正文，不覆盖删除后的其他编排。 */ () => {
+                  change([...value.sections, { ...deleted, parent_id: null }]);
+                  setDeleted(null);
+                }
+              }
+            >
+              撤销删除
+            </button>
+          </div>
+        )}
       </div>
     </>
   );

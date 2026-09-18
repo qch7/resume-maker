@@ -2,7 +2,7 @@ export const DEFAULT_LAYOUT = {
   sidebar: 224,
   composer: 460,
   settings: 280,
-  guide: 86,
+  guide: 144,
   editor: 520,
   chatInput: 180,
   guideCollapsed: false,

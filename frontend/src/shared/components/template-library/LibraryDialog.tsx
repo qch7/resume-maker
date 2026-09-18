@@ -7,6 +7,7 @@ import {
   LayoutGrid,
   List,
   Search,
+  RotateCcw,
   Trash2,
   X,
 } from "lucide-react";
@@ -15,11 +16,14 @@ import { createPortal } from "react-dom";
 import { api } from "../../lib/api";
 import type { Template } from "../../types";
 import TemplateEntries from "./TemplateEntries";
+import DeleteTemplateDialog from "./DeleteTemplateDialog";
 import Thumbnail from "./Thumbnail";
+import TemplateName from "./TemplateName";
 import {
   filterTemplates,
   libraryTemplates,
   templateDate,
+  templateExpiry,
   type LibraryState,
   type LibraryTemplate,
 } from "./library";
@@ -65,7 +69,12 @@ export default function LibraryDialog({
   const [selectedId, setSelectedId] = useState(value || "builtin");
   const [adding, setAdding] = useState(false);
   const [categoryDraft, setCategoryDraft] = useState("");
+  const [deleting, setDeleting] = useState<LibraryTemplate | null>(null);
+  const [notice, setNotice] = useState("");
   const items = libraryTemplates(templates, library);
+  const activeItems = items.filter(
+    /* 回收站独立计数，不出现在正常分类中。 */ (item) => !item.deleted_at,
+  );
   const visible = filterTemplates(items, folder, query, sort);
   const selected = visible.find(
     /* 仅可确认当前结果中可见的模板。 */ (item) => item.id === selectedId,
@@ -116,7 +125,7 @@ export default function LibraryDialog({
     [reload],
   );
 
-  /** 统一保存状态与错误提示，等待成功后更新分类和 Like。 */
+  /** 统一保存状态与错误提示，等待成功后更新名称、分类和 Like。 */
   async function save(path: string, method: string, body?: unknown) {
     setPending(true);
     setError("");
@@ -145,6 +154,15 @@ export default function LibraryDialog({
   }
   /** 确认当前有效模板，取消或单击浏览不会触发此回调。 */
   function confirm(id: string) {
+    if (
+      pending ||
+      !loaded ||
+      !items.some(
+        /* 回收站模板恢复前不能被选用。 */ (item) =>
+          item.id === id && !item.deleted_at,
+      )
+    )
+      return;
     onChange(id === "builtin" ? "" : id);
     onClose();
   }
@@ -178,24 +196,32 @@ export default function LibraryDialog({
     });
   }
   const folderName =
-    folder === "all"
-      ? "全部模板"
-      : folder === "liked"
-        ? "我的喜欢"
-        : categoryName(folder);
+    folder === "trash"
+      ? "回收站"
+      : folder === "all"
+        ? "全部模板"
+        : folder === "liked"
+          ? "我的喜欢"
+          : categoryName(folder);
   const folders = [
-    { id: "all", name: "全部模板", count: items.length, icon: FolderOpen },
+    {
+      id: "all",
+      name: "全部模板",
+      count: activeItems.length,
+      icon: FolderOpen,
+    },
     {
       id: "liked",
       name: "我的喜欢",
-      count: items.filter(/* 统计跨分类的收藏总数。 */ (item) => item.liked)
-        .length,
+      count: activeItems.filter(
+        /* 统计跨分类的收藏总数。 */ (item) => item.liked,
+      ).length,
       icon: Heart,
     },
     {
       id: "",
       name: "未分类",
-      count: items.filter(
+      count: activeItems.filter(
         /* 尚未分类的模板独立计数。 */ (item) => !item.category_id,
       ).length,
       icon: Folder,
@@ -203,12 +229,18 @@ export default function LibraryDialog({
     ...library.categories.map(
       /* 自定义分类显示各自模板数。 */ (entry) => ({
         ...entry,
-        count: items.filter(
+        count: activeItems.filter(
           /* 按分类标识统计模板。 */ (item) => item.category_id === entry.id,
         ).length,
         icon: Folder,
       }),
     ),
+    {
+      id: "trash",
+      name: "回收站",
+      count: items.length - activeItems.length,
+      icon: Trash2,
+    },
   ];
 
   return createPortal(
@@ -340,6 +372,24 @@ export default function LibraryDialog({
               <span>{visible.length} 个模板</span>
             </div>
             <div className="library-view-controls">
+              {selected && selected.id !== "builtin" && (
+                <button
+                  className="library-delete-trigger danger"
+                  disabled={pending || !loaded || selected.usage_count > 0}
+                  title={
+                    selected.usage_count
+                      ? `被 ${selected.usage_count} 份简历引用，不能删除`
+                      : undefined
+                  }
+                  onClick={
+                    /* 固定当前模板，确认前不改变列表或现有简历。 */ () =>
+                      setDeleting(selected)
+                  }
+                >
+                  <Trash2 size={16} />
+                  {folder === "trash" ? "永久删除" : "删除模板"}
+                </button>
+              )}
               {category && (
                 <button
                   className="icon-button"
@@ -403,6 +453,17 @@ export default function LibraryDialog({
               )}
             </div>
           )}
+          {notice && (
+            <p className="library-notice" role="status">
+              {notice}
+            </p>
+          )}
+          {folder === "trash" && (
+            <p className="library-notice">
+              回收站保留 30
+              天，可恢复或立即永久删除。到期后自动清理；程序未运行时，下次启动清理。
+            </p>
+          )}
           <div className="library-scroll" aria-busy={pending || !loaded}>
             {!loaded ? (
               <div className="library-empty">
@@ -431,16 +492,20 @@ export default function LibraryDialog({
                 <h3>
                   {query
                     ? "没有找到匹配的模板"
-                    : folder === "liked"
-                      ? "还没有喜欢的模板"
-                      : "这个分类还没有模板"}
+                    : folder === "trash"
+                      ? "回收站是空的"
+                      : folder === "liked"
+                        ? "还没有喜欢的模板"
+                        : "这个分类还没有模板"}
                 </h3>
                 <p>
                   {query
                     ? "试试其他名称，或清除搜索。"
-                    : folder === "liked"
-                      ? "点击模板旁的爱心，就能在这里快速找到它。"
-                      : "在全部模板中选中模板，再修改右侧的所属分类。"}
+                    : folder === "trash"
+                      ? "删除的模板将在这里保留 30 天。"
+                      : folder === "liked"
+                        ? "点击模板旁的爱心，就能在这里快速找到它。"
+                        : "在全部模板中选中模板，再修改右侧的所属分类。"}
                 </p>
                 <button
                   onClick={
@@ -464,21 +529,51 @@ export default function LibraryDialog({
                   name={selected.name}
                 />
               </div>
-              <h3>{selected.name}</h3>
-              <p>
-                {selected.id === "builtin"
-                  ? "内置版式 · 示例内容"
-                  : "Word 模板 · 原文首页"}
-              </p>
+              <TemplateName
+                key={selected.id}
+                name={selected.name}
+                editable={selected.id !== "builtin" && !selected.deleted_at}
+                pending={pending}
+                onSave={
+                  /* 改名后同步各视图；名称不再匹配搜索时清空筛选以保留选择。 */ async (
+                    name,
+                  ) => {
+                    const state = await save(
+                      `/items/${encodeURIComponent(selected.id)}`,
+                      "PATCH",
+                      { name },
+                    );
+                    if (!state || !alive.current) return false;
+                    if (
+                      !name
+                        .toLocaleLowerCase()
+                        .includes(query.trim().toLocaleLowerCase())
+                    )
+                      setQuery("");
+                    return true;
+                  }
+                }
+              />
+              {selected.id === "builtin" && <p>内置版式 · 示例内容</p>}
               <dl>
                 <dt>保存日期</dt>
                 <dd>{templateDate(selected.created_at)}</dd>
               </dl>
+              {!!selected.usage_count && (
+                <p className="library-usage">
+                  {selected.usage_count} 份简历使用中
+                </p>
+              )}
+              {selected.deleted_at && (
+                <p className="library-expiry">
+                  自动永久删除时间：{templateExpiry(selected.deleted_at)}
+                </p>
+              )}
               <label>
                 所属分类
                 <select
                   aria-label="所选模板分类"
-                  disabled={pending}
+                  disabled={pending || !!selected.deleted_at}
                   value={selected.category_id}
                   onChange={
                     /* 分类修改立即持久化，不改变当前简历。 */ (event) =>
@@ -502,7 +597,7 @@ export default function LibraryDialog({
               <button
                 className={`library-detail-like ${selected.liked ? "is-liked" : ""}`}
                 aria-pressed={selected.liked}
-                disabled={pending}
+                disabled={pending || !!selected.deleted_at}
                 onClick={
                   /* 详情面板与卡片共用同一个 Like 状态。 */ () =>
                     like(selected)
@@ -514,9 +609,11 @@ export default function LibraryDialog({
                 />
                 {selected.liked ? "已喜欢 · Like" : "喜欢这个模板 · Like"}
               </button>
-              <p className="library-detail-hint">
-                选择模板后，可继续用当前资料试填和调整。
-              </p>
+              {folder === "trash" && (
+                <p className="library-detail-hint">
+                  恢复后将回到原分类和收藏；原分类已删除时回到未分类。
+                </p>
+              )}
             </>
           ) : (
             <div className="library-detail-empty">
@@ -539,14 +636,54 @@ export default function LibraryDialog({
             className="primary"
             disabled={!selected || !loaded || pending}
             onClick={
-              /* 确认后返回发起选择的工作区。 */ () =>
-                selected && confirm(selected.id)
+              /* 回收站恢复不应用模板；正常列表选择返回工作区。 */ async () => {
+                if (!selected) return;
+                if (selected.deleted_at) {
+                  if (
+                    await save(
+                      `/items/${encodeURIComponent(selected.id)}/restore`,
+                      "POST",
+                    )
+                  ) {
+                    setNotice(`已恢复“${selected.name}”。`);
+                    openFolder("all");
+                  }
+                } else confirm(selected.id);
+              }
             }
           >
-            选择模板
+            {folder === "trash" ? (
+              <>
+                <RotateCcw size={16} />
+                恢复模板
+              </>
+            ) : (
+              "选择模板"
+            )}
           </button>
         </div>
       </footer>
+      {deleting && (
+        <DeleteTemplateDialog
+          template={deleting}
+          permanent={folder === "trash"}
+          onClose={
+            /* 取消只关闭确认框，保留当前选择。 */ () => setDeleting(null)
+          }
+          onDeleted={
+            /* 成功后同步所有分类计数，保留现有简历的模板引用。 */ (state) => {
+              setLibrary(state);
+              setSelectedId("");
+              setNotice(
+                folder === "trash"
+                  ? `已永久删除“${deleting.name}”。`
+                  : `已将“${deleting.name}”移入回收站，30 天内可恢复。`,
+              );
+              setDeleting(null);
+            }
+          }
+        />
+      )}
     </dialog>,
     document.body,
   );

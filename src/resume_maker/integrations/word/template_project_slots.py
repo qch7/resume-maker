@@ -13,7 +13,16 @@ METADATA = {"period": "参与时间", "role": "担任角色", "stack": "技术�
 ORDER = {
     target: index
     for index, target in enumerate(
-        ("title", "period", "role", "stack", "description", "details", "highlights")
+        (
+            "title",
+            "period",
+            "role",
+            "stack",
+            "description",
+            "custom_fields",
+            "details",
+            "highlights",
+        )
     )
 }
 PLACEHOLDER = "〔待填写〕"

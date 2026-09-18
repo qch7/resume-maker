@@ -13,13 +13,14 @@ from resume_maker.infrastructure.database import dump, now, uid, unpack
 from resume_maker.integrations.certificates import prepare_certificate
 from resume_maker.integrations.providers.base import Cancelled
 from resume_maker.integrations.sources import redact
+from resume_maker.services.honor_links import preserve_deleted_honor
 
 PREFIX = "honor:"
 ACTIVE = {"queued", "running"}
 
 
 class Honors:
-    """使用独立配置记录保存荣誉，事务内校验版本，与简历内容快照分离。"""
+    """集中保存荣誉资料并校验版本，简历按来源标识读取同一份已核对内容。"""
 
     def __init__(self, db, data_dir, provider):
         """绑定实例资源；构造阶段不启动后台线程。"""
@@ -166,13 +167,14 @@ class Honors:
             return self.get(identifier)
 
     def delete(self, identifier, version):
-        """删除库条目并取消识别；已复制到简历的文字保持独立。"""
+        """删除库条目并取消识别，关联简历保留删除前最后核对的资料。"""
         with self.lock, self.db.transaction() as conn:
             item = self.get(identifier, conn)
             if item["version"] != version:
                 raise Problem("此荣誉已更新，请刷新后再删除。", 409)
             if identifier in self.flags:
                 self.flags[identifier].set()
+            preserve_deleted_honor(conn, item)
             conn.execute("DELETE FROM settings WHERE key=?", (PREFIX + identifier,))
             if identifier not in self.flags:
                 shutil.rmtree(self.root / identifier, ignore_errors=True)

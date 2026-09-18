@@ -1,5 +1,4 @@
 .honor-area .workbench,
-.honor-area .guide-container,
 .honor-library[hidden],
 .honor-library input[hidden] {
   display: none;
@@ -137,6 +136,22 @@
 }
 .honor-toolbar > .honor-target {
   width: 160px;
+}
+.honor-sort-controls {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 2px;
+}
+.honor-sort-controls > button {
+  min-height: 30px;
+  padding: 6px;
+  gap: 2px;
+  color: var(--subtle);
+}
+.honor-sort-controls > button[aria-pressed="true"] {
+  color: var(--accent);
+  background: var(--selected);
 }
 .honor-grid {
   display: grid;
@@ -342,20 +357,36 @@
 .honor-dialog::backdrop {
   background: #0007;
 }
+.honor-entry-dialog {
+  width: min(960px, calc(100vw - 48px));
+  height: fit-content;
+  max-height: calc(100dvh - 48px);
+}
+.honor-entry-dialog .honor-dialog-footer {
+  justify-content: flex-end;
+}
 .honor-dialog-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
   padding: 18px 24px;
   border-bottom: 1px solid var(--line);
 }
 .honor-dialog-header h2 {
   font-size: 18px;
-  margin: 0 0 5px;
-}
-.honor-dialog-header p {
   margin: 0;
-  font-size: 12px;
+}
+.honor-dialog-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 10px;
+}
+.honor-dialog-error {
+  margin: 0;
+  padding: 10px 24px;
+  overflow-wrap: anywhere;
 }
 .honor-dialog-body {
   display: grid;
@@ -437,14 +468,6 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 10px;
-}
-.honor-dialog-footer > span {
-  flex: 1;
-  font-size: 12px;
-}
-.honor-dialog-footer > p {
-  width: 100%;
-  margin: 0;
 }
 .honor-delete-banner {
   position: fixed;

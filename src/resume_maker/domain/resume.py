@@ -6,27 +6,19 @@ from typing import Literal
 
 from pydantic import Field, model_validator
 
-from resume_maker.domain.models import Model
+from resume_maker.domain.honor_entries import HONOR_CUSTOM_IDS
+from resume_maker.domain.models import (
+    CustomInfoField,
+    DefaultField,
+    Model,
+    ProjectVisibility,
+    validate_custom_field_ids,
+)
 
 PersonalField = Literal[
     "name", "job_title", "gender", "age", "phone", "email", "gpa", "location", "website", "photo"
 ]
 EntryField = Literal["title", "subtitle", "period", "details"]
-
-
-class CustomInfoField(Model):
-    """用户自行命名的信息项；可隐藏，空项保留为草稿但不参与排版。"""
-
-    id: str = Field(min_length=1, max_length=100)
-    label: str = Field(default="", max_length=50)
-    value: str = Field(default="", max_length=1000)
-    visible: bool = True
-
-
-def validate_custom_field_ids(fields: list[CustomInfoField]):
-    """同一资料内使用独立标识，避免修改或删除时误操作其他自定义项。"""
-    if len({field.id for field in fields}) != len(fields):
-        raise ValueError("同一资料中的自定义信息标识不能重复。")
 
 
 class PersonalInfo(Model):
@@ -44,6 +36,7 @@ class PersonalInfo(Model):
     photo: str = Field(default="", max_length=2_000_000)
     hidden_fields: list[PersonalField] = Field(default_factory=list, max_length=10)
     custom_fields: list[CustomInfoField] = Field(default_factory=list, max_length=20)
+    field_definitions: list[DefaultField] | None = Field(default=None, max_length=30)
 
     @model_validator(mode="after")
     def validate_photo(self):
@@ -73,12 +66,15 @@ class SectionEntry(Model):
     details: str = Field(default="", max_length=10000)
     visible: bool = True
     hidden_fields: list[EntryField] = Field(default_factory=list, max_length=4)
-    custom_fields: list[CustomInfoField] = Field(default_factory=list, max_length=20)
+    custom_fields: list[CustomInfoField] = Field(default_factory=list, max_length=25)
+    field_definitions: list[DefaultField] | None = Field(default=None, max_length=30)
 
     @model_validator(mode="after")
     def validate_custom_fields(self):
         """校验本条经历的自定义信息标识，允许各条经历独立使用字段名称。"""
         validate_custom_field_ids(self.custom_fields)
+        if sum(field.id not in HONOR_CUSTOM_IDS for field in self.custom_fields) > 20:
+            raise ValueError("每条资料最多保留 20 项自定义信息。")
         return self
 
 
@@ -91,6 +87,7 @@ class ResumeSection(Model):
     parent_id: str | None = None
     visible: bool = True
     entries: list[SectionEntry] = Field(default_factory=list, max_length=100)
+    field_definitions: list[DefaultField] | None = Field(default=None, max_length=30)
 
 
 class ResumeDocument(Model):
@@ -98,6 +95,7 @@ class ResumeDocument(Model):
 
     personal: PersonalInfo = Field(default_factory=PersonalInfo)
     sections: list[ResumeSection] = Field(max_length=40)
+    project_visibility: dict[str, ProjectVisibility] = Field(default_factory=dict, max_length=1000)
 
     @model_validator(mode="after")
     def validate_hierarchy(self):

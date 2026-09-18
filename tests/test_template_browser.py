@@ -21,6 +21,7 @@ def test_library_persists_and_category_deletion_keeps_likes(tmp_path):
         assert client.get("/api/template-library", headers=headers).json() == {
             "categories": [],
             "items": {},
+            "templates": [],
         }
         register_template(client.app.state.services.catalog, config.data_dir)
         result = client.post(
@@ -48,7 +49,7 @@ def test_library_validation_and_independent_updates(catalog, tmp_path):
     """新分类校验空白与重名，并发修改分类和收藏互不覆盖。"""
     service = TemplateLibrary(catalog, tmp_path / "data")
     category = service.create_category(" 技术 ")["categories"][0]["id"]
-    for name in (" ", "技术", "未分类", "全部模板", "我的喜欢"):
+    for name in (" ", "技术", "未分类", "全部模板", "我的喜欢", "回收站"):
         with pytest.raises(Problem):
             service.create_category(name)
     with pytest.raises(Problem):
@@ -63,6 +64,82 @@ def test_library_validation_and_independent_updates(catalog, tmp_path):
         for operation in operations:
             operation.result()
     assert service.state()["items"]["builtin"] == {"category_id": category, "liked": True}
+
+
+def test_template_rename_persists_without_changing_references(tmp_path):
+    """已使用模板可改名，名称跨重启保留，模板文件、映射与所有简历数据不变。"""
+    config = Config(data_dir=tmp_path / "data", token="test")
+    headers = {"x-resume-token": "test"}
+    with TestClient(create_app(config)) as client:
+        services = client.app.state.services
+        source = register_template(services.catalog, config.data_dir)
+        original = source.read_bytes()
+        record = services.catalog.template("mapped")
+        category = services.template_library.create_category("技术")["categories"][0]["id"]
+        services.template_library.update("mapped", {"category_id": category, "liked": True})
+        for name in ("第一份简历", "第二份简历"):
+            assert (
+                client.post(
+                    "/api/resumes",
+                    headers=headers,
+                    json={"name": name, "template_id": "mapped", "items": []},
+                ).status_code
+                == 200
+            )
+        resumes = services.db.all("SELECT * FROM resumes")
+        assert (
+            client.patch(
+                "/api/template-library/items/mapped", json={"name": "未授权修改"}
+            ).status_code
+            == 401
+        )
+        response = client.patch(
+            "/api/template-library/items/mapped", headers=headers, json={"name": "  新名称  "}
+        )
+        assert response.status_code == 200
+        state = response.json()
+        assert state["templates"][0]["name"] == "新名称"
+        assert state["templates"][0]["usage_count"] == 2
+        assert state["items"]["mapped"] == {"category_id": category, "liked": True}
+        assert services.catalog.template("mapped") == {**record, "name": "新名称"}
+        assert source.read_bytes() == original
+        assert services.db.all("SELECT * FROM resumes") == resumes
+        assert (
+            client.delete("/api/template-library/items/mapped", headers=headers).status_code == 409
+        )
+    with TestClient(create_app(config)) as client:
+        assert client.get("/api/template-library", headers=headers).json() == state
+        assert client.get("/api/state", headers=headers).json()["templates"][0]["name"] == "新名称"
+
+
+def test_template_rename_validation_is_atomic(tmp_path):
+    """非法名称、内置模板及回收站拒绝改名；联合修改失败时不部分保存。"""
+    config = Config(data_dir=tmp_path / "data", token="test")
+    headers = {"x-resume-token": "test"}
+    with TestClient(create_app(config)) as client:
+        services = client.app.state.services
+        register_template(services.catalog, config.data_dir)
+        before = services.template_library.state()
+        for identifier, changes, status in (
+            ("mapped", {"name": ""}, 422),
+            ("mapped", {"name": None}, 422),
+            ("mapped", {"name": " "}, 400),
+            ("mapped", {"name": "字" * 201}, 422),
+            ("builtin", {"name": "新内置名称"}, 409),
+            ("missing", {"name": "不存在"}, 404),
+            ("mapped", {"name": "不应保存", "category_id": "missing", "liked": True}, 409),
+        ):
+            result = client.patch(
+                f"/api/template-library/items/{identifier}", headers=headers, json=changes
+            )
+            assert result.status_code == status, result.text
+            assert services.template_library.state() == before
+        recycled = services.template_library.delete("mapped")
+        result = client.patch(
+            "/api/template-library/items/mapped", headers=headers, json={"name": "不应保存"}
+        )
+        assert result.status_code == 409
+        assert services.template_library.state() == recycled
 
 
 def test_thumbnail_cache_and_original_are_isolated(catalog, tmp_path, monkeypatch):

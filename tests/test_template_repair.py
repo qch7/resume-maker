@@ -107,7 +107,8 @@ def test_user_feedback_repair_preserves_original_and_validates_current_profile(t
         review = client.post(
             f"/api/templates/analyses/{original['id']}/review", json=body, headers=headers
         )
-        assert not review.json()["ready"] and "personal.phone" in review.json()["missing"]
+        assert review.json()["ready"] and not review.json()["missing"]
+        assert any("电话" in notice for notice in review.json()["notices"])
         endpoint = f"/api/templates/analyses/{original['id']}/repair"
         body["feedback"] = "保留姓名位置，再次检查"
         assert client.post(endpoint, json=body).status_code == 401

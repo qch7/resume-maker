@@ -3,13 +3,12 @@ import { arrayMove } from "@dnd-kit/sortable";
 import {
   ArrowDown,
   ArrowUp,
-  BriefcaseBusiness,
-  CalendarDays,
   CircleCheck,
   CircleDashed,
   Plus,
+  Undo2,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   SortableItem,
   SortableList,
@@ -18,17 +17,120 @@ import { api } from "../../shared/lib/api";
 import { loadLocal } from "../../shared/lib/storage";
 import type {
   Highlight,
+  Experience,
   Meta,
   Profile,
   Revision,
 } from "../../shared/types/index";
 import HighlightEditor from "./HighlightEditor";
+import MetaEditor from "./MetaEditor";
+import DiscardChangesDialog from "./DiscardChangesDialog";
 import VersionControl from "./VersionControl";
 import type { EditorProps } from "./types";
 import { useField } from "./useField";
+import { experienceContent, separateMetaVisibility } from "./visibility";
+import { restoreBodyOrder } from "./bodyOrder";
+import { fieldChanged } from "./changes";
 
-/** 编辑经历元信息、来源和亮点，明确区分草稿、已保存版本与简历引用。 */
+/** 将旧版元信息草稿中的显隐转到当前简历，再挂载正常编辑器以避免并发写入。 */
 export default function Editor(props: EditorProps) {
+  const [migration] = useState(
+    /* 优先保留尚未同步的本机输入，整段 AI 草稿作为元信息的实际基线。 */ () => {
+      const { detail, revisionId } = props;
+      const key = `rm.field.${detail.project.id}.${revisionId}.meta`;
+      const cached = loadLocal<{ value: Meta; version: number } | null>(
+        key,
+        null,
+      );
+      const draft = detail.working.drafts.find(
+        /* 查找旧元信息草稿。 */ (item) => item.field === "meta",
+      );
+      if (!cached && !draft) return null;
+      const base =
+        (detail.working.drafts.find(
+          /* 整段草稿先于元信息覆盖。 */ (item) => item.field === "experience",
+        )?.value as Experience | undefined) ??
+        detail.revisions.find(
+          /* 读取当前不可变版本。 */ (item) => item.id === revisionId,
+        )!.content;
+      const meta = cached?.value ?? detail.working.content;
+      const separated = separateMetaVisibility(base, meta, props.visibility);
+      return separated.migrated ||
+        separated.normalizedOrder ||
+        !separated.contentChanged
+        ? {
+            ...separated,
+            key,
+            cached,
+            draft,
+            version: cached?.version ?? draft?.version ?? 0,
+          }
+        : null;
+    },
+  );
+  const pending = useRef<Promise<void> | null>(null);
+  const [error, setError] = useState("");
+  useEffect(
+    /* 本次挂载只执行一次转换；旧值先保留到恢复副本，失败不会丢失输入。 */ () => {
+      if (!migration) return;
+      let active = true;
+      if (!pending.current)
+        pending.current =
+          /* 先保留到简历草稿，再以原版本号清理项目草稿。 */ (async () => {
+            if (migration.migrated)
+              props.onVisibility(migration.visibility, true);
+            const original = localStorage.getItem(migration.key);
+            if (original)
+              localStorage.setItem(`${migration.key}.recovery`, original);
+            const path = `/projects/${props.detail.project.id}/draft`;
+            if (migration.contentChanged) {
+              await api(path, "PUT", {
+                base_revision: props.revisionId,
+                field: "meta",
+                value: migration.meta,
+                version: migration.version,
+              });
+            } else if (migration.draft) {
+              await api(`${path}/discard`, "POST", {
+                base_revision: props.revisionId,
+                field: "meta",
+                version: migration.version,
+              });
+            }
+            localStorage.removeItem(migration.key);
+          })();
+      void pending.current.then(
+        /* 刷新后挂载已分离显隐的工作副本，纯显隐修改不再提示提交版本。 */ () => {
+          if (active) props.onRefresh();
+        },
+        /* 保留原草稿，明确显示并发或网络错误。 */ (failure: Error) => {
+          if (active) setError(failure.message);
+        },
+      );
+      return /* 离开项目后不让迟到结果刷新其他项目。 */ () => {
+        active = false;
+      };
+      // 转换只属于本次挂载的项目与版本，重新读取详情时由外层 key 重新创建。
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    },
+    [migration],
+  );
+  if (migration)
+    return error ? (
+      <div className="error-panel" role="alert">
+        {error}
+        <button onClick={props.onRefresh}>刷新后重试</button>
+      </div>
+    ) : (
+      <p className="subtle" role="status">
+        正在更新显示设置…
+      </p>
+    );
+  return <ExperienceEditor {...props} />;
+}
+
+/** 编辑经历元信息、来源和亮点，内容草稿与简历展示设置独立保存。 */
+function ExperienceEditor(props: EditorProps) {
   const { detail, revisionId, run } = props;
   const current = detail.revisions.find(
     /* 定位与当前标识或条件匹配的条目。 */ (r) => r.id === revisionId,
@@ -37,12 +139,16 @@ export default function Editor(props: EditorProps) {
   const [roots, setRoots] = useState(detail.project.roots.join("\n"));
   const content = detail.working.content;
   const [ordering, setOrdering] = useState(false);
+  const [discardOpen, setDiscardOpen] = useState(false);
   const meta: Meta = {
     title: content.title,
     period: content.period,
     role: content.role,
     stack: content.stack,
     description: content.description,
+    hidden_fields: content.hidden_fields ?? [],
+    custom_fields: content.custom_fields ?? [],
+    body_order: content.body_order ?? null,
   };
   const editor = useField(
     detail.project.id,
@@ -52,7 +158,8 @@ export default function Editor(props: EditorProps) {
     detail.working.drafts.find(
       /* 定位与当前标识或条件匹配的条目。 */ (d) => d.field === "meta",
     )?.version ?? 0,
-    props.onDirty,
+    /* 基本信息与正式版本比较，排序改回原位后立即清除待提交提示。 */ (value) =>
+      fieldChanged(value, current.content, "meta", props.visibility),
   );
   const order = useField(
     detail.project.id,
@@ -64,7 +171,8 @@ export default function Editor(props: EditorProps) {
     detail.working.drafts.find(
       /* 沿用排序草稿的并发版本。 */ (draft) => draft.field === "order",
     )?.version ?? 0,
-    props.onDirty,
+    /* 亮点顺序使用正式版本作为基线。 */ (value) =>
+      fieldChanged(value, current.content, "order"),
   );
   const [highlightValues, setHighlightValues] = useState<
     Record<string, Highlight>
@@ -102,13 +210,14 @@ export default function Editor(props: EditorProps) {
     [editor.value, orderedHighlights, highlightValues],
   );
   const onPreview = props.onPreview;
+  const pendingChanges =
+    experienceContent(previewContent, props.visibility) !==
+    experienceContent(current.content, props.visibility);
   useEffect(
     /* 按修订标识上报工作副本，切换项目或分支时不会串用内容。 */ () =>
       onPreview(revisionId, previewContent),
     [onPreview, revisionId, previewContent],
   );
-  const [metaOpen, setMetaOpen] = useState(!content.description);
-  const [stackText, setStackText] = useState(editor.value.stack.join("、"));
   const profileKey = `rm.profile.${detail.project.id}`;
   const [profile, setProfile] = useState<Profile>(
     /* 仅在首次挂载时读取缓存或计算初始状态。 */ () =>
@@ -136,7 +245,7 @@ export default function Editor(props: EditorProps) {
   }
   return (
     <div className="editor">
-      <VersionControl props={props} />
+      <VersionControl props={{ ...props, hasLocalChanges: pendingChanges }} />
       <div className="meta-line">
         <span>正在编辑 r{current.number}</span>
         <span
@@ -151,19 +260,27 @@ export default function Editor(props: EditorProps) {
             : "尚未加入当前简历"}
         </span>
         <span
-          className={`content-status ${props.hasLocalChanges || detail.working.drafts.length ? "pending" : "saved"}`}
+          className={`content-status ${pendingChanges ? "pending" : "saved"}`}
         >
-          {props.hasLocalChanges || detail.working.drafts.length ? (
+          {pendingChanges ? (
             <CircleDashed size={12} aria-hidden="true" />
           ) : (
             <CircleCheck size={12} aria-hidden="true" />
           )}
-          {props.hasLocalChanges
-            ? "未提交的改动"
-            : detail.working.drafts.length
-              ? "未提交的改动"
-              : "内容已提交"}
+          {pendingChanges ? "未提交的改动" : "内容已提交"}
         </span>
+        {pendingChanges && (
+          <button
+            className="text-button"
+            onClick={
+              /* 确认前保留全部改动，先打开撤销确认。 */ () =>
+                setDiscardOpen(true)
+            }
+          >
+            <Undo2 size={13} />
+            撤销改动
+          </button>
+        )}
         {revisionId !== detail.branch.head_revision && (
           <button
             className="text-button"
@@ -189,163 +306,38 @@ export default function Editor(props: EditorProps) {
           </button>
         )}
       </div>
-      {(props.hasLocalChanges || detail.working.drafts.length > 0) && (
-        <div className="notice">
-          <span>
-            修改会自动保留为草稿。确认后点击“提交为新版本”，将本次编辑和排序合并为一个版本。
-          </span>
-        </div>
+      {discardOpen && (
+        <DiscardChangesDialog
+          projectId={detail.project.id}
+          revisionId={revisionId}
+          number={current.number}
+          onClose={
+            /* 取消只关闭确认，草稿保持原状。 */ () => setDiscardOpen(false)
+          }
+          onConfirm={props.onDiscard}
+        />
       )}
-      <section className="project-meta">
-        <div className="section-heading">
-          <h2>{editor.value.title}</h2>
-          <button
-            className="text-button"
-            onClick={
-              /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-                setMetaOpen(!metaOpen)
-            }
-          >
-            {metaOpen ? "收起信息" : "编辑基本信息"}
-          </button>
-        </div>
-        {metaOpen ? (
-          <>
-            <label>
-              项目标题
-              <input
-                value={editor.value.title}
-                onChange={
-                  /* 把控件的新值同步到对应编辑状态。 */ (e) =>
-                    editor.update({ ...editor.value, title: e.target.value })
-                }
-              />
-            </label>
-            <div className="form-grid">
-              <label>
-                参与时间
-                <input
-                  placeholder="例如 2026.2 - 2026.4"
-                  value={editor.value.period}
-                  onChange={
-                    /* 把控件的新值同步到对应编辑状态。 */ (e) =>
-                      editor.update({ ...editor.value, period: e.target.value })
-                  }
-                />
-              </label>
-              <label>
-                担任角色
-                <input
-                  placeholder="由本人填写"
-                  value={editor.value.role}
-                  onChange={
-                    /* 把控件的新值同步到对应编辑状态。 */ (e) =>
-                      editor.update({ ...editor.value, role: e.target.value })
-                  }
-                />
-              </label>
-            </div>
-            <label>
-              技术栈（用顿号或逗号分隔）
-              <input
-                value={stackText}
-                onChange={
-                  /* 把控件的新值同步到对应编辑状态。 */ (e) => {
-                    setStackText(e.target.value);
-                    editor.update({
-                      ...editor.value,
-                      stack: e.target.value
-                        .split(/[、,，]/)
-                        .map(
-                          /* 逐项转换数据，保留当前业务需要的字段。 */ (v) =>
-                            v.trim(),
-                        )
-                        .filter(Boolean),
-                    });
-                  }
-                }
-              />
-            </label>
-            <label>
-              项目描述
-              <textarea
-                rows={3}
-                value={editor.value.description}
-                onChange={
-                  /* 把控件的新值同步到对应编辑状态。 */ (e) =>
-                    editor.update({
-                      ...editor.value,
-                      description: e.target.value,
-                    })
-                }
-              />
-            </label>
-            <div className="actions">
-              <button
-                onClick={
-                  /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-                    run(
-                      /* 在草稿刷新成功后执行当前业务操作。 */ async () => {
-                        await editor.flush();
-                        setMetaOpen(false);
-                        props.onRefresh();
-                      },
-                    )
-                }
-              >
-                完成编辑
-              </button>
-              <span className="subtle">{editor.status}</span>
-              {editor.conflict && (
-                <button
-                  onClick={
-                    /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-                      void editor.reloadRemote().then(
-                        /* 在异步操作成功后同步结果及相关状态。 */ (value) => {
-                          if (value) setStackText(value.stack.join("、"));
-                        },
-                      )
-                  }
-                >
-                  载入服务器草稿
-                </button>
-              )}
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="project-facts">
-              {editor.value.period && (
-                <span>
-                  <CalendarDays size={13} aria-hidden="true" />
-                  {editor.value.period}
-                </span>
-              )}
-              {editor.value.role && (
-                <span>
-                  <BriefcaseBusiness size={13} aria-hidden="true" />
-                  {editor.value.role}
-                </span>
-              )}
-            </div>
-            <div className="tech-stack" aria-label="项目技术栈">
-              {editor.value.stack.map(
-                /* 将技术栈拆成便于扫描的标签，保留原有顺序。 */ (
-                  tech,
-                  index,
-                ) => (
-                  <span className="tech-tag" key={`${tech}.${index}`}>
-                    {tech}
-                  </span>
-                ),
-              )}
-            </div>
-            <p className="project-description">
-              {editor.value.description || "先分析项目，或手工补充描述。"}
-            </p>
-          </>
-        )}
-      </section>
+      <MetaEditor
+        definitions={props.definitions}
+        value={editor.value}
+        visibility={props.visibility}
+        onVisibility={props.onVisibility}
+        onChange={
+          /* 排回原位还原基线表示，避免旧版缺省顺序变成虚假改动。 */ (value) =>
+            editor.update(
+              restoreBodyOrder(value, current.content, props.visibility),
+            )
+        }
+        status={editor.status}
+        conflict={editor.conflict}
+        onReload={editor.reloadRemote}
+        onFinish={
+          /* 完成编辑只落盘草稿，正式版本仍由统一提交按钮生成。 */ async () => {
+            await editor.flush();
+            props.onRefresh();
+          }
+        }
+      />
       <div className="section-heading highlights-heading">
         <h3>
           项目亮点{" "}

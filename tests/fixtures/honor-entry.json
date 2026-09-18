@@ -1,0 +1,44 @@
+{
+  "id": "honor:sample",
+  "title": "示例竞赛",
+  "subtitle": "示例组委会",
+  "period": "2026-06",
+  "details": "示例获奖项目\n第二行补充说明",
+  "visible": true,
+  "hidden_fields": [
+    "subtitle",
+    "details"
+  ],
+  "custom_fields": [
+    {
+      "id": "honor-field:award",
+      "label": "奖项",
+      "value": "一等奖",
+      "visible": false
+    },
+    {
+      "id": "honor-field:level",
+      "label": "荣誉级别",
+      "value": "省级",
+      "visible": false
+    },
+    {
+      "id": "honor-field:recipient",
+      "label": "获奖人",
+      "value": "示例团队",
+      "visible": false
+    },
+    {
+      "id": "honor-field:certificate_number",
+      "label": "证书编号",
+      "value": "DEMO-001",
+      "visible": false
+    },
+    {
+      "id": "honor-field:category",
+      "label": "分类",
+      "value": "竞赛获奖",
+      "visible": false
+    }
+  ]
+}

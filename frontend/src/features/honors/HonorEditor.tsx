@@ -6,79 +6,61 @@ import {
   CATEGORIES,
   emptyHonor,
   isRecognizing,
-  STATUS,
   type Honor,
   type HonorFields,
 } from "./model";
 
-const FIELDS: {
-  key: Exclude<keyof HonorFields, "category" | "description">;
-  label: string;
-  placeholder: string;
-  max: number;
-}[] = [
-  {
-    key: "name",
-    label: "荣誉 / 证书名称",
-    placeholder: "例如：全国大学生数学建模竞赛",
-    max: 300,
-  },
-  {
-    key: "award",
-    label: "奖项 / 等次",
-    placeholder: "例如：一等奖、金奖",
-    max: 200,
-  },
-  {
-    key: "level",
-    label: "荣誉级别",
-    placeholder: "例如：国家级、省级、校级",
-    max: 100,
-  },
-  {
-    key: "issuer",
-    label: "颁发单位",
-    placeholder: "证书上标注的主办或认证机构",
-    max: 500,
-  },
-  {
-    key: "date",
-    label: "获得日期",
-    placeholder: "例如：2026-06 或 2026",
-    max: 100,
-  },
-  {
-    key: "recipient",
-    label: "获奖人 / 团队",
-    placeholder: "证书上标注的姓名或团队",
-    max: 300,
-  },
-  {
-    key: "certificate_number",
-    label: "证书编号",
-    placeholder: "没有编号可留空",
-    max: 300,
-  },
-];
+import { HONOR_FIELDS } from "./fields";
+import type { SectionEntry } from "../../shared/types";
+import HonorEntryFields from "./HonorEntryFields";
+import { entryWithHonorFields, honorFieldsFromEntry } from "./entry";
+import { newCustomField } from "../profile/document";
+import { VisibilityButton } from "../profile/VisibilityField";
+
+const FIELDS = HONOR_FIELDS.filter(
+  /* 分类和多行说明使用各自的专用控件。 */ (field) =>
+    field.key !== "category" && field.key !== "description",
+);
+const CATEGORY = HONOR_FIELDS.find(
+  /* 分类与个人信息使用同一份字段标签。 */ (field) => field.key === "category",
+)!;
+const DESCRIPTION = HONOR_FIELDS.find(
+  /* 多行说明的限制和提示保持一致。 */ (field) => field.key === "description",
+)!;
 
 /** 对照原件核对识别结果；保留未保存表单，并用版本号防止并发覆盖。 */
 export default function HonorEditor({
   honor,
   onClose,
   onSaved,
+  resumeEntry,
+  onSaveEntry,
 }: {
   honor: Honor | null;
   onClose: () => void;
   onSaved: (honor: Honor) => void;
+  resumeEntry?: SectionEntry;
+  onSaveEntry?: (entry: SectionEntry) => Promise<void>;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
-  const [fields, setFields] = useState(honor?.fields ?? emptyHonor());
-  const [baseline, setBaseline] = useState(honor?.fields ?? emptyHonor());
+  const initialFields =
+    honor?.fields ??
+    (resumeEntry ? honorFieldsFromEntry(resumeEntry) : emptyHonor());
+  const [fields, setFields] = useState(initialFields);
+  const [baseline, setBaseline] = useState(initialFields);
   const [version, setVersion] = useState(honor?.version ?? 0);
   const [page, setPage] = useState(1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const dirty = JSON.stringify(fields) !== JSON.stringify(baseline);
+  const [entry, setEntry] = useState(resumeEntry);
+  const [expanded, setExpanded] = useState(true);
+  const [sourceSaved, setSourceSaved] = useState(false);
+  const [appliedRecognitionVersion, setAppliedRecognitionVersion] = useState<
+    number | null
+  >(null);
+  const contentDirty = JSON.stringify(fields) !== JSON.stringify(baseline);
+  const dirty =
+    contentDirty || JSON.stringify(entry) !== JSON.stringify(resumeEntry);
   const recognizing = honor ? isRecognizing(honor) : false;
   useEffect(
     /* 原生模态框提供焦点约束和 Escape 关闭。 */ () => {
@@ -106,29 +88,58 @@ export default function HonorEditor({
     )
       onClose();
   }
+  /** 显隐和自定义字段只留在本次简历表单，正文沿用荣誉库字段。 */
+  function changeEntry(value: SectionEntry) {
+    setEntry(value);
+    setFields(honorFieldsFromEntry(value));
+  }
   /** 保存当前表单，服务端成功前保留用户输入。 */
   async function save() {
-    if (busy || recognizing) return;
+    if (busy || recognizing || !fields.name.trim()) return;
     setBusy(true);
     setError("");
+    let savedSource = sourceSaved;
     try {
-      const saved = await api<Honor>(
-        honor ? `/honors/${honor.id}` : "/honors",
-        honor ? "PUT" : "POST",
-        { fields, version },
-      );
-      onSaved(saved);
+      // 本地条目与单独的显示设置不写来源；保存失败后重试使用已确认的新版本。
+      if (!resumeEntry || (honor && contentDirty)) {
+        const saved = await api<Honor>(
+          honor ? `/honors/${honor.id}` : "/honors",
+          honor ? "PUT" : "POST",
+          { fields, version },
+        );
+        setFields(saved.fields);
+        setBaseline(saved.fields);
+        setVersion(saved.version);
+        setSourceSaved(true);
+        savedSource = true;
+        onSaved(saved);
+      }
+      if (entry && onSaveEntry)
+        await onSaveEntry(entryWithHonorFields(entry, fields));
       onClose();
     } catch (reason) {
-      setError((reason as Error).message);
+      setError(
+        `${savedSource && resumeEntry ? "荣誉内容已同步；当前简历尚未保存，请重试。" : ""}${(reason as Error).message}`,
+      );
     } finally {
       setBusy(false);
     }
   }
+  const saveButton = (
+    <button
+      form="honor-form"
+      type="submit"
+      className="primary"
+      disabled={busy || recognizing || !fields.name.trim()}
+    >
+      <Save size={16} />
+      {busy ? "保存中…" : "确认并保存"}
+    </button>
+  );
   return (
     <dialog
       ref={dialog}
-      className="honor-dialog"
+      className={`honor-dialog ${resumeEntry && !honor?.attachment ? "honor-entry-dialog" : ""}`}
       aria-labelledby="honor-editor-title"
       onCancel={
         /* 拦截默认关闭以保护未保存内容。 */ (event) => {
@@ -140,24 +151,31 @@ export default function HonorEditor({
       <header className="honor-dialog-header">
         <div>
           <h2 id="honor-editor-title">
-            {honor ? "核对荣誉信息" : "手动添加荣誉"}
+            {resumeEntry
+              ? "编辑荣誉条目"
+              : honor
+                ? "核对荣誉信息"
+                : "手动添加荣誉"}
           </h2>
-          <p className="subtle">
-            {honor
-              ? `${STATUS[honor.status]} · 信息以证书原件为准`
-              : "没有电子证书，也可以先整理荣誉资料。"}
-          </p>
         </div>
-        <button
-          type="button"
-          className="icon-button"
-          aria-label="关闭荣誉信息"
-          onClick={close}
-          disabled={busy}
-        >
-          <X size={20} />
-        </button>
+        <div className="honor-dialog-actions">
+          {!resumeEntry && saveButton}
+          <button
+            type="button"
+            className="icon-button"
+            aria-label="关闭荣誉信息"
+            onClick={close}
+            disabled={busy}
+          >
+            <X size={20} />
+          </button>
+        </div>
       </header>
+      {error && (
+        <p role="alert" className="honor-dialog-error error">
+          {error}
+        </p>
+      )}
       <div
         className={`honor-dialog-body ${honor?.attachment ? "" : "without-certificate"}`}
       >
@@ -221,100 +239,153 @@ export default function HonorEditor({
           }
         >
           {honor?.error && <p className="honor-notice">{honor.error}</p>}
-          {honor?.recognition && (
-            <div className="honor-notice">
-              <p>
-                {honor.reviewed
-                  ? "下方保留已确认的资料，可以选择填入本次识别结果后再保存。"
-                  : "识别信息已填入下方，请对照原件核对。空白字段可补充或留空。"}
-              </p>
-              {honor.recognition.warnings.map(
-                /* 展示模型标出的不确定信息。 */ (warning, index) => (
-                  <p key={index}>{warning}</p>
-                ),
-              )}
-              {honor.reviewed && (
-                <button
-                  type="button"
-                  disabled={recognizing || busy}
-                  onClick={
-                    /* 重识别结果先进入表单，保存后才替换人工版本。 */ () =>
-                      setFields(honor.recognition!.fields)
-                  }
-                >
-                  将本次识别结果填入表单
-                </button>
-              )}
-            </div>
-          )}
+          {!resumeEntry &&
+            honor?.status === "review" &&
+            honor.recognition &&
+            appliedRecognitionVersion !== honor.version && (
+              <div className="honor-notice">
+                <p>
+                  {honor.reviewed
+                    ? "下方保留已确认的资料，可以选择填入本次识别结果后再保存。"
+                    : "识别信息已填入下方，请对照原件核对。空白字段可补充或留空。"}
+                </p>
+                {honor.recognition.warnings.map(
+                  /* 展示模型标出的不确定信息。 */ (warning, index) => (
+                    <p key={index}>{warning}</p>
+                  ),
+                )}
+                {honor.reviewed && (
+                  <button
+                    type="button"
+                    disabled={recognizing || busy}
+                    onClick={
+                      /* 填入后收起本次提示，下一次新识别仍可独立核对。 */ () => {
+                        setFields(honor.recognition!.fields);
+                        setAppliedRecognitionVersion(honor.version);
+                      }
+                    }
+                  >
+                    将本次识别结果填入表单
+                  </button>
+                )}
+              </div>
+            )}
           {recognizing && (
             <p role="status" className="honor-notice">
               正在识别，完成后会自动填入信息。也可以关闭窗口，在列表中取消识别后手动填写。
             </p>
           )}
           <fieldset disabled={busy || recognizing}>
-            <div className="honor-fields">
-              {FIELDS.map(
-                /* 每个字段都有固定标签和明确的长度限制。 */ (field) => (
-                  <label
-                    key={field.key}
-                    className={
-                      field.key === "name" || field.key === "issuer"
-                        ? "honor-field-wide"
-                        : ""
-                    }
-                  >
-                    {field.label}
-                    {field.key === "name" ? " *" : ""}
-                    <input
-                      required={field.key === "name"}
-                      maxLength={field.max}
-                      value={fields[field.key]}
-                      placeholder={field.placeholder}
-                      onChange={
-                        /* 只更新当前输入字段。 */ (event) =>
-                          setFields({
-                            ...fields,
-                            [field.key]: event.target.value,
+            {entry ? (
+              <>
+                <div className="section-heading">
+                  <h3>荣誉信息</h3>
+                  <div className="row">
+                    <VisibilityButton
+                      label="整条荣誉"
+                      hidden={entry.visible === false}
+                      disabled={busy || recognizing}
+                      onToggle={
+                        /* 整条隐藏与各个字段的显示选择互不覆盖。 */ () =>
+                          setEntry({
+                            ...entry,
+                            visible: entry.visible === false,
                           })
                       }
                     />
-                  </label>
-                ),
-              )}
-              <label>
-                分类
-                <select
-                  value={fields.category}
-                  onChange={
-                    /* 分类与原件内容分开维护。 */ (event) =>
-                      setFields({
-                        ...fields,
-                        category: event.target.value as HonorFields["category"],
-                      })
-                  }
-                >
-                  {CATEGORIES.map(
-                    /* 列出统一的荣誉分类。 */ (category) => (
-                      <option key={category}>{category}</option>
-                    ),
-                  )}
-                </select>
-              </label>
-              <label className="honor-field-wide">
-                说明 / 获奖项目
-                <textarea
-                  rows={4}
-                  maxLength={5000}
-                  value={fields.description}
-                  placeholder="补充获奖项目、证书用途或其他备注"
-                  onChange={
-                    /* 保留说明中的换行。 */ (event) =>
-                      setFields({ ...fields, description: event.target.value })
+                  </div>
+                </div>
+                <HonorEntryFields
+                  entry={entryWithHonorFields(entry, fields)}
+                  idPrefix="honor-edit"
+                  scope="荣誉条目"
+                  editing={true}
+                  saving={busy || recognizing}
+                  expanded={expanded}
+                  onExpanded={setExpanded}
+                  onChange={changeEntry}
+                  onAddInfo={
+                    /* 在其他荣誉信息中添加仅属于当前简历的自定义资料。 */ () => {
+                      setExpanded(true);
+                      setEntry({
+                        ...entry,
+                        custom_fields: [
+                          ...entry.custom_fields,
+                          newCustomField(),
+                        ],
+                      });
+                    }
                   }
                 />
-              </label>
-            </div>
+              </>
+            ) : (
+              <div className="honor-fields">
+                {FIELDS.map(
+                  /* 每个字段都有固定标签和明确的长度限制。 */ (field) => (
+                    <label
+                      key={field.key}
+                      className={
+                        field.key === "name" || field.key === "issuer"
+                          ? "honor-field-wide"
+                          : ""
+                      }
+                    >
+                      {field.label}
+                      {field.key === "name" ? " *" : ""}
+                      <input
+                        required={field.key === "name"}
+                        maxLength={field.max}
+                        value={fields[field.key]}
+                        placeholder={field.placeholder}
+                        onChange={
+                          /* 只更新当前输入字段。 */ (event) =>
+                            setFields({
+                              ...fields,
+                              [field.key]: event.target.value,
+                            })
+                        }
+                      />
+                    </label>
+                  ),
+                )}
+                <label>
+                  {CATEGORY.label}
+                  <select
+                    value={fields.category}
+                    onChange={
+                      /* 分类与原件内容分开维护。 */ (event) =>
+                        setFields({
+                          ...fields,
+                          category: event.target
+                            .value as HonorFields["category"],
+                        })
+                    }
+                  >
+                    {CATEGORIES.map(
+                      /* 列出统一的荣誉分类。 */ (category) => (
+                        <option key={category}>{category}</option>
+                      ),
+                    )}
+                  </select>
+                </label>
+                <label className="honor-field-wide">
+                  {DESCRIPTION.label}
+                  <textarea
+                    rows={4}
+                    maxLength={DESCRIPTION.max}
+                    value={fields.description}
+                    placeholder={DESCRIPTION.placeholder}
+                    onChange={
+                      /* 保留说明中的换行。 */ (event) =>
+                        setFields({
+                          ...fields,
+                          description: event.target.value,
+                        })
+                    }
+                  />
+                </label>
+              </div>
+            )}
           </fieldset>
           {(honor?.recognition?.text || honor?.attachment?.text) && (
             <details className="honor-extracted">
@@ -324,26 +395,14 @@ export default function HonorEditor({
           )}
         </form>
       </div>
-      <footer className="honor-dialog-footer">
-        {error && (
-          <p role="alert" className="error">
-            {error}
-          </p>
-        )}
-        <span className="subtle">保存至荣誉库，可在不同简历中重复使用。</span>
-        <button type="button" onClick={close} disabled={busy}>
-          关闭
-        </button>
-        <button
-          form="honor-form"
-          type="submit"
-          className="primary"
-          disabled={busy || recognizing || !fields.name.trim()}
-        >
-          <Save size={16} />
-          {busy ? "保存中…" : "确认并保存"}
-        </button>
-      </footer>
+      {resumeEntry && (
+        <footer className="honor-dialog-footer">
+          <button type="button" onClick={close} disabled={busy}>
+            取消
+          </button>
+          {saveButton}
+        </footer>
+      )}
     </dialog>
   );
 }

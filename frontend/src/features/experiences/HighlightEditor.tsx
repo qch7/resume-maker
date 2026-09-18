@@ -5,6 +5,8 @@ import type { Highlight, ProjectDetail } from "../../shared/types";
 import type { EditorProps } from "./types";
 import { useField } from "./useField";
 import EvidenceDialog from "./EvidenceDialog";
+import { editHighlightText, fieldChanged } from "./changes";
+import { VisibilityButton } from "../profile/VisibilityField";
 /** 编辑亮点及证据，增删改只写草稿，统一由版本工具栏提交。 */
 export default function HighlightEditor({
   item,
@@ -19,13 +21,17 @@ export default function HighlightEditor({
 }) {
   const { detail, revisionId, run } = props;
   const field = `highlight:${item.id}`;
+  const base = detail.revisions.find(
+    /* 读取当前不可变基线。 */ (revision) => revision.id === revisionId,
+  )!.content;
   const editor = useField(
     detail.project.id,
     revisionId,
     field,
     item,
     draftVersion,
-    props.onDirty,
+    /* 亮点正文改回原文后不再显示待提交。 */ (value) =>
+      fieldChanged(value, base, field),
   );
   const [editing, setEditing] = useState(!item.title || !item.text);
   const [showEvidence, setShowEvidence] = useState(false);
@@ -36,18 +42,22 @@ export default function HighlightEditor({
     [value, onPreview],
   );
   return (
-    <article className="highlight" data-highlight-id={item.id}>
+    <article
+      className="highlight"
+      data-highlight-id={item.id}
+      data-hidden={!props.included.includes(item.id) || undefined}
+    >
       <div className="highlight-heading">
-        <input
-          type="checkbox"
-          aria-label={`选中亮点 ${value.title || "新亮点"}`}
-          checked={props.included.includes(item.id)}
-          onChange={
-            /* 把控件的新值同步到对应编辑状态。 */ () => props.onToggle(item.id)
-          }
-        />
         <strong className="grow">{value.title || "新亮点"}</strong>
         <div className="highlight-tools">
+          <VisibilityButton
+            label={`亮点 ${value.title || "新亮点"}`}
+            hidden={!props.included.includes(item.id)}
+            onToggle={
+              /* 仅切换当前简历中的亮点显示，原文及项目版本不变。 */ () =>
+                props.onToggle(item.id)
+            }
+          />
           <button
             className="text-button"
             title="让 AI 修改"
@@ -137,16 +147,16 @@ export default function HighlightEditor({
               value={value.text}
               onChange={
                 /* 把控件的新值同步到对应编辑状态。 */ (e) =>
-                  editor.update({
-                    ...value,
-                    text: e.target.value,
-                    evidence: value.evidence.map(
-                      /* 逐项转换数据，保留当前业务需要的字段。 */ (v) => ({
-                        ...v,
-                        status: "unverified",
-                      }),
+                  editor.update(
+                    editHighlightText(
+                      value,
+                      e.target.value,
+                      base.highlights.find(
+                        /* 同时恢复原文对应的证据核实状态。 */ (point) =>
+                          point.id === item.id,
+                      ),
                     ),
-                  })
+                  )
               }
             />
           </label>

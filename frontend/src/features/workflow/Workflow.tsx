@@ -1,30 +1,36 @@
 import { ArrowRight, Check, ChevronDown, ChevronUp } from "lucide-react";
+import { useState } from "react";
 import { getWorkflow, type GuideTarget } from "./state";
-
-const steps: { title: string; detail: string; target: GuideTarget }[] = [
-  { title: "导入项目", detail: "关联本机源码", target: "projects" },
-  {
-    title: "整理经历",
-    detail: "AI 建议 · 编辑保存",
-    target: "experience-save",
-  },
-  { title: "组合简历", detail: "选择项目与亮点", target: "composition-save" },
-  { title: "导出 Word", detail: "模板 · 预览 · 下载", target: "export" },
-];
+import { WORKFLOW_STEPS as steps } from "./steps";
 
 /** 展示当前制作步骤和下一步操作，支持折叠与目标定位。 */
 export default function Workflow({
   value,
+  activeStep,
   onNavigate,
   collapsed,
   onToggle,
 }: {
   value: ReturnType<typeof getWorkflow>;
+  activeStep: number;
   onNavigate: (target: GuideTarget, projectId?: string) => void;
   collapsed: boolean;
   onToggle: () => void;
 }) {
   const completed = value.done.filter(Boolean).length;
+  const [selection, setSelection] = useState<{
+    step: number;
+    target: GuideTarget;
+  } | null>(null);
+  const current = steps[activeStep];
+  const next = collapsed ? value : value.guides[activeStep];
+  const activeTarget =
+    selection?.step === activeStep
+      ? selection.target
+      : current.substeps.find(
+          /* 默认提示当前大步骤中尚未完成的第一项。 */ (_, index) =>
+            !value.substeps[activeStep][index],
+        )?.target;
   return (
     <section
       className={`workflow ${collapsed ? "collapsed" : ""}`}
@@ -32,8 +38,14 @@ export default function Workflow({
     >
       <div className="workflow-overview">
         <strong>制作指引</strong>
-        <span>{completed} / 4 项已就绪</span>
-        <progress value={completed} max={4} aria-label="简历制作完成进度" />
+        <span>
+          {completed} / {steps.length} 步已就绪
+        </span>
+        <progress
+          value={completed}
+          max={steps.length}
+          aria-label="简历制作完成进度"
+        />
       </div>
       <div className="workflow-main">
         <ol className="workflow-steps" hidden={collapsed}>
@@ -41,13 +53,16 @@ export default function Workflow({
             /* 按稳定标识生成对应的列表条目。 */ (step, index) => (
               <li
                 key={step.title}
-                className={`${value.done[index] ? "complete" : ""} ${index === value.step ? "current" : ""}`}
+                className={`${value.done[index] ? "complete" : ""} ${index === activeStep ? "current" : ""}`}
               >
                 <button
-                  aria-current={index === value.step ? "step" : undefined}
+                  aria-current={index === activeStep ? "step" : undefined}
+                  aria-label={`第 ${index + 1} 步：${step.title}${value.done[index] ? "，已就绪" : ""}`}
                   onClick={
-                    /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-                      onNavigate(step.target)
+                    /* 大步骤直接导航到工作区，并重置子步骤选择。 */ () => {
+                      setSelection(null);
+                      onNavigate(step.target);
+                    }
                   }
                 >
                   <span className="step-number">
@@ -62,16 +77,58 @@ export default function Workflow({
             ),
           )}
         </ol>
+        {!collapsed && current.substeps.length > 0 && (
+          <ol
+            className="workflow-substeps"
+            aria-label={`${current.title}子步骤`}
+          >
+            {current.substeps.map(
+              /* 子步骤可直接定位表单，跨步骤入口明确显示目的地。 */ (
+                item,
+                index,
+              ) => (
+                <li key={item.target}>
+                  <button
+                    className={`${value.substeps[activeStep][index] ? "complete" : ""} ${activeTarget === item.target ? "current" : ""}`}
+                    aria-current={
+                      activeTarget === item.target ? "step" : undefined
+                    }
+                    onClick={
+                      /* 保留当前子步骤选择，实际导航由工作台统一保存草稿后执行。 */ () => {
+                        setSelection({ step: activeStep, target: item.target });
+                        onNavigate(item.target);
+                      }
+                    }
+                  >
+                    <span className="substep-number">
+                      {value.substeps[activeStep][index] ? (
+                        <Check size={12} />
+                      ) : (
+                        index + 1
+                      )}
+                    </span>
+                    {item.title}
+                    {item.jump && (
+                      <span className="substep-jump">
+                        第 {item.jump} 步 <ArrowRight size={12} />
+                      </span>
+                    )}
+                  </button>
+                </li>
+              ),
+            )}
+          </ol>
+        )}
         <div className="workflow-next">
-          <p role="status">{value.text}</p>
+          <p role="status">{next.text}</p>
           <button
             className="text-button"
             onClick={
               /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-                onNavigate(value.target, value.projectId)
+                onNavigate(next.target, next.projectId)
             }
           >
-            {value.action}
+            {next.action}
             <ArrowRight size={14} />
           </button>
         </div>

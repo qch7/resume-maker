@@ -40,6 +40,8 @@ def create_app(config: Config | None = None, provider: Provider | None = None) -
     db = Database(config.data_dir / "resume.db")
     catalog = Catalog(db)
     queue = Jobs(db, catalog, config.data_dir, provider)
+    template_service = Templates(catalog, config.data_dir, queue.provider)
+    preview_service = ResumePreviews(catalog, config.data_dir)
     services = Services(
         config=config,
         db=db,
@@ -47,9 +49,11 @@ def create_app(config: Config | None = None, provider: Provider | None = None) -
         jobs=queue,
         honors=Honors(db, config.data_dir, queue.provider),
         documents=Documents(catalog, config.data_dir),
-        resume_previews=ResumePreviews(catalog, config.data_dir),
-        templates=Templates(catalog, config.data_dir, queue.provider),
-        template_library=TemplateLibrary(catalog, config.data_dir),
+        resume_previews=preview_service,
+        templates=template_service,
+        template_library=TemplateLibrary(
+            catalog, config.data_dir, template_service, preview_service
+        ),
         projects=Projects(catalog),
         conversations=Conversations(catalog),
         workspace=Workspace(catalog),
@@ -60,9 +64,11 @@ def create_app(config: Config | None = None, provider: Provider | None = None) -
         """随服务器启动队列，并在正常关闭或异常退出时回收任务进程。"""
         queue.start()
         services.honors.start()
+        services.template_library.start()
         try:
             yield
         finally:
+            services.template_library.stop()
             services.honors.stop()
             services.templates.stop()
             services.resume_previews.stop()

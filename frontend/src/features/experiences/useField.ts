@@ -19,7 +19,7 @@ export function useField<T>(
   field: string,
   initial: T,
   initialVersion: number,
-  onDirty?: () => void,
+  isChanged: (value: T) => boolean,
 ) {
   const key = `rm.field.${project}.${revision}.${field}`;
   const [cached] = useState(
@@ -31,6 +31,7 @@ export function useField<T>(
   );
   const [status, setStatus] = useState("");
   const [conflict, setConflict] = useState(false);
+  const [failed, setFailed] = useState(false);
   const current = useRef(value),
     saved = useRef(JSON.stringify(initial)),
     version = useRef(cached?.version ?? initialVersion);
@@ -74,7 +75,10 @@ export function useField<T>(
                   version: version.current,
                 }),
               );
-            if (mounted.current) setStatus("草稿已保存，待提交");
+            if (mounted.current) {
+              setFailed(false);
+              setStatus("草稿已保存，待提交");
+            }
           } catch (error) {
             if (
               error instanceof ApiError &&
@@ -82,7 +86,10 @@ export function useField<T>(
               mounted.current
             )
               setConflict(true);
-            if (mounted.current) setStatus((error as Error).message);
+            if (mounted.current) {
+              setFailed(true);
+              setStatus((error as Error).message);
+            }
             throw error;
           }
         },
@@ -93,8 +100,6 @@ export function useField<T>(
   useEffect(
     /* 同步当前依赖对应的外部状态，并在需要时返回清理函数。 */ () => {
       mounted.current = true;
-      if (cached && JSON.stringify(cached.value) !== JSON.stringify(initial))
-        onDirty?.();
       const unregister = registerDraft(key, flush);
       return /* 在组件卸载或依赖变化时释放本次注册的资源。 */ () => {
         mounted.current = false;
@@ -125,7 +130,6 @@ export function useField<T>(
   );
   /** 立即更新编辑值和本地恢复副本，再由防抖逻辑提交服务器草稿。 */
   function update(next: T) {
-    onDirty?.();
     current.current = next;
     setValue(next);
     setStatus("已保留到本机，正在同步草稿");
@@ -167,6 +171,7 @@ export function useField<T>(
         )?.version ?? 0;
       setValue(current.current);
       setConflict(false);
+      setFailed(false);
       setStatus("已载入服务器草稿");
       localStorage.removeItem(key);
       return current.current;
@@ -174,5 +179,13 @@ export function useField<T>(
       setStatus((e as Error).message);
     }
   }
-  return { value, update, flush, status, version, conflict, reloadRemote };
+  return {
+    value,
+    update,
+    flush,
+    status: failed || conflict || isChanged(value) ? status : "",
+    version,
+    conflict,
+    reloadRemote,
+  };
 }

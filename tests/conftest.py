@@ -52,6 +52,7 @@ def experience(title="Example"):
         "role": "",
         "stack": ["Python"],
         "description": "Document processing",
+        "body_order": None,
         "highlights": [
             {"id": "one", "title": "Parser", "text": "Parse documents", "evidence": []},
             {"id": "two", "title": "Export", "text": "Export Word", "evidence": []},

@@ -5,9 +5,12 @@ import type {
   PersonalField,
   ResumeDocument,
   ResumeSection,
+  SectionEntry,
 } from "../../shared/types";
 import { newCustomField, siblings, toggleHiddenField } from "./document";
+import { hasDefault, defaultLabel } from "./defaults";
 import SectionEditor from "./SectionEditor";
+import type { HonorSource } from "../../shared/types/honors";
 import CustomFields from "./CustomFields";
 import VisibilityField, { VisibilityButton } from "./VisibilityField";
 import { samePersonalInfo } from "./comparison";
@@ -78,21 +81,29 @@ export default function ProfileEditor({
   onChange,
   onStructure,
   onProjects,
+  onHonors,
+  onSortSection,
   savedPersonal,
   savedVersion,
   savedSections,
   onSaveEntry,
   onSave,
+  honors,
+  onEditHonor,
 }: {
   value: ResumeDocument;
   onChange: (value: ResumeDocument) => void;
   onStructure: () => void;
   onProjects: () => void;
+  onHonors: () => void;
+  onSortSection: (sectionId: string) => void;
   savedPersonal?: PersonalInfo;
   savedVersion?: number;
   savedSections?: ResumeSection[];
   onSaveEntry: (sectionId: string, entryId: string) => Promise<void>;
   onSave: () => Promise<void>;
+  honors: HonorSource[];
+  onEditHonor: (id: string, sectionId: string, entry: SectionEntry) => void;
 }) {
   const [editRequest, setEditRequest] = useState<{ version?: number } | null>(
     null,
@@ -185,81 +196,89 @@ export default function ProfileEditor({
         <button onClick={onStructure}>编排栏目</button>
       </header>
       <div className="workspace-scroll profile-scroll personal-scroll">
-        <section className="profile-card" aria-labelledby="basic-info-title">
+        <section
+          className="profile-card"
+          aria-labelledby="basic-info-title"
+          data-guide="personal-basic"
+          tabIndex={-1}
+        >
           <div className="section-heading">
             <h2 id="basic-info-title">基本信息</h2>
             <span className="tag">固定在简历顶部</span>
           </div>
           <div className="photo-editor">
-            {value.personal.photo ? (
-              <img
-                src={value.personal.photo}
-                alt="简历证件照"
-                data-hidden={
-                  value.personal.hidden_fields.includes("photo") || undefined
-                }
-              />
-            ) : (
-              <div className="photo-placeholder">
-                <UserRound size={28} />
-                <span>证件照</span>
-              </div>
-            )}
-            <div className="photo-controls">
-              <div className="photo-buttons">
-                <label
-                  className="photo-upload"
-                  aria-disabled={!editing || photoBusy || saving}
-                >
-                  {photoBusy ? "正在处理照片…" : "上传照片"}
-                  <input
-                    aria-label="上传照片"
-                    type="file"
-                    accept="image/png,image/jpeg"
-                    disabled={!editing || photoBusy || saving}
-                    onChange={
-                      /* 读取本次选择，不保留原始文件对象。 */ (event) => {
-                        const file = event.target.files?.[0];
-                        event.target.value = "";
-                        if (file) void uploadPhoto(file);
-                      }
-                    }
-                  />
-                </label>
-                {value.personal.photo && (
-                  <button
-                    className="text-button"
-                    disabled={!editing || saving}
-                    onClick={
-                      /* 移除照片并使待处理上传失效。 */ () => {
-                        photoRequest.current++;
-                        setPhotoBusy(false);
-                        onChange({
-                          ...value,
-                          personal: { ...value.personal, photo: "" },
-                        });
-                      }
-                    }
-                  >
-                    移除照片
-                  </button>
-                )}
-                <VisibilityButton
-                  label="照片"
-                  hidden={value.personal.hidden_fields.includes("photo")}
-                  disabled={!editing || saving || photoBusy}
-                  onToggle={
-                    /* 照片显隐与移除照片分开，便于恢复。 */ () =>
-                      togglePersonalField("photo")
+            {hasDefault(value.personal.field_definitions, "photo") &&
+              (value.personal.photo ? (
+                <img
+                  src={value.personal.photo}
+                  alt="简历证件照"
+                  data-hidden={
+                    value.personal.hidden_fields.includes("photo") || undefined
                   }
                 />
+              ) : (
+                <div className="photo-placeholder">
+                  <UserRound size={28} />
+                  <span>证件照</span>
+                </div>
+              ))}
+            {hasDefault(value.personal.field_definitions, "photo") && (
+              <div className="photo-controls">
+                <div className="photo-buttons">
+                  <label
+                    className="photo-upload"
+                    aria-disabled={!editing || photoBusy || saving}
+                  >
+                    {photoBusy ? "正在处理照片…" : "上传照片"}
+                    <input
+                      aria-label="上传照片"
+                      type="file"
+                      accept="image/png,image/jpeg"
+                      disabled={!editing || photoBusy || saving}
+                      onChange={
+                        /* 读取本次选择，不保留原始文件对象。 */ (event) => {
+                          const file = event.target.files?.[0];
+                          event.target.value = "";
+                          if (file) void uploadPhoto(file);
+                        }
+                      }
+                    />
+                  </label>
+                  {value.personal.photo && (
+                    <button
+                      className="text-button"
+                      disabled={!editing || saving}
+                      onClick={
+                        /* 移除照片并使待处理上传失效。 */ () => {
+                          photoRequest.current++;
+                          setPhotoBusy(false);
+                          onChange({
+                            ...value,
+                            personal: { ...value.personal, photo: "" },
+                          });
+                        }
+                      }
+                    >
+                      移除照片
+                    </button>
+                  )}
+                  <VisibilityButton
+                    label="照片"
+                    hidden={value.personal.hidden_fields.includes("photo")}
+                    disabled={!editing || saving || photoBusy}
+                    onToggle={
+                      /* 照片显隐与移除照片分开，便于恢复。 */ () =>
+                        togglePersonalField("photo")
+                    }
+                  />
+                </div>
+                {photoError && (
+                  <p className="warning" role="alert">
+                    {photoError}
+                  </p>
+                )}
               </div>
-              {photoError && (
-                <p className="warning" role="alert">
-                  {photoError}
-                </p>
-              )}
-            </div>
+            )}
             <div className="personal-actions">
               <button
                 disabled={editing || saving}
@@ -318,12 +337,19 @@ export default function ProfileEditor({
             </p>
           )}
           <div className="profile-fields personal-fields">
-            {FIELDS.map(
+            {FIELDS.filter(
+              /* 删除的内置项不再出现在填写表单。 */ (field) =>
+                hasDefault(value.personal.field_definitions, field.key),
+            ).map(
               /* 将基本信息字段映射到对应输入。 */ (field) => (
                 <VisibilityField
                   key={field.key}
                   id={`personal-${field.key}`}
-                  label={field.label}
+                  label={defaultLabel(
+                    value.personal.field_definitions,
+                    field.key,
+                    field.label,
+                  )}
                   hidden={value.personal.hidden_fields.includes(field.key)}
                   disabled={!editing || saving}
                   onToggle={
@@ -359,6 +385,7 @@ export default function ProfileEditor({
             )}
             <CustomFields
               fields={value.personal.custom_fields}
+              definitions={value.personal.field_definitions}
               scope="基本信息"
               editing={editing}
               disabled={saving}
@@ -398,6 +425,10 @@ export default function ProfileEditor({
               </section>
             ) : (
               <SectionEditor
+                onHonors={onHonors}
+                onSort={onSortSection}
+                honors={honors}
+                onEditHonor={onEditHonor}
                 key={section.id}
                 section={section}
                 savedSection={savedSections?.find(

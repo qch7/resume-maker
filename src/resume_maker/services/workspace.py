@@ -1,6 +1,9 @@
 """工作台轮询所需的项目活动时间和资源聚合查询。"""
 
+from resume_maker.domain.honor_entries import sync_honor_document
+from resume_maker.infrastructure.database import unpack
 from resume_maker.services.catalog import Catalog
+from resume_maker.services.honor_links import honor_sources
 
 
 class Workspace:
@@ -12,7 +15,22 @@ class Workspace:
 
     def state(self):
         """聚合项目活动时间、会话、简历、模板及最近任务，供工作台轮询。"""
+        with self.db.connect() as conn:
+            # 同一读取快照保证已保存资料与前端草稿使用相同的荣誉版本。
+            conn.execute("BEGIN")
+            honors = honor_sources(conn)
+            resumes = [
+                unpack(row)
+                for row in conn.execute(
+                    "SELECT * FROM resumes WHERE id NOT IN "
+                    "(SELECT resume_id FROM resume_deletions) ORDER BY updated_at DESC"
+                )
+            ]
+            for resume in resumes:
+                resume["document"] = sync_honor_document(resume["document"], honors)
         return {
+            "resume_defaults": self.db.setting("resume_defaults"),
+            "honors": honors,
             "projects": self.db.all(
                 "SELECT p.*, h.parent_id, b.head_revision, MAX(p.updated_at, "
                 "COALESCE((SELECT MAX(updated_at) FROM drafts "
@@ -27,10 +45,7 @@ class Workspace:
                 "SELECT * FROM conversations WHERE archived=0 ORDER BY updated_at DESC"
             ),
             "branches": self.db.all("SELECT * FROM experience_branches ORDER BY created_at,id"),
-            "resumes": self.db.all(
-                "SELECT * FROM resumes WHERE id NOT IN "
-                "(SELECT resume_id FROM resume_deletions) ORDER BY updated_at DESC"
-            ),
+            "resumes": resumes,
             "templates": self.db.all(
                 "SELECT id,name,created_at FROM templates "
                 "WHERE json_type(mapping_json,'$.plan')='object' ORDER BY created_at DESC"

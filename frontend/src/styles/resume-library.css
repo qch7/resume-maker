@@ -1,0 +1,407 @@
+/* 顶部唯一入口与资源库式成品管理，工作台为预览保留完整高度。 */
+.resume-library-trigger {
+  justify-self: end;
+  min-width: 0;
+  max-width: 240px;
+  padding: 5px 12px;
+  gap: 9px;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.resume-library-trigger > svg {
+  flex-shrink: 0;
+}
+.resume-trigger-copy {
+  display: grid;
+  text-align: left;
+  min-width: 0;
+  line-height: 1.4;
+}
+.resume-trigger-copy b {
+  font-size: 12px;
+  white-space: nowrap;
+}
+.resume-trigger-copy small {
+  font-size: 10px;
+  color: var(--subtle);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.resume-unsaved-dot {
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--warning);
+}
+.resume-library-dialog {
+  width: min(1240px, 94vw);
+  height: min(820px, 88dvh);
+  max-width: 96vw;
+  max-height: 94dvh;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 28px 100px #0005;
+  overflow: hidden;
+}
+.resume-library-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+.resume-library-dialog::backdrop {
+  background: #080e1880;
+  backdrop-filter: blur(3px);
+}
+.resume-library-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 20px;
+  border-bottom: 1px solid var(--line);
+  background: var(--accent-soft);
+  font-size: 12px;
+}
+.resume-library-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+}
+.resume-library-sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 16px 12px;
+  border-right: 1px solid var(--line);
+  background: var(--sidebar);
+}
+.resume-library-sidebar > .section-heading {
+  padding-left: 8px;
+}
+.resume-library-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--surface);
+}
+.resume-library-search input {
+  border: 0;
+  background: transparent;
+  padding: 8px 0;
+  font-size: 12px;
+}
+.resume-library-search > svg {
+  flex-shrink: 0;
+}
+.resume-library-list {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+.resume-library-item {
+  position: relative;
+  width: 100%;
+  margin-bottom: 5px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+}
+.resume-library-item.selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.resume-library-select {
+  width: 100%;
+  justify-content: flex-start;
+  text-align: left;
+  gap: 10px;
+  padding: 12px 30px 12px 10px;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+}
+.resume-library-select > svg {
+  flex-shrink: 0;
+}
+.resume-library-select > span {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.resume-library-item strong {
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.resume-library-item-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 8px;
+  color: var(--subtle);
+  font-size: 11px;
+}
+.resume-library-item-summary > span {
+  white-space: nowrap;
+}
+.resume-library-select .tag {
+  justify-self: start;
+}
+.resume-library-delete {
+  position: absolute;
+  top: 8px;
+  right: 5px;
+  width: 26px;
+  height: 26px;
+  padding: 5px;
+  border: 0;
+  background: transparent;
+}
+.resume-library-content {
+  min-width: 0;
+  overflow-y: auto;
+  background: var(--panel);
+}
+.resume-library-settings {
+  padding: 12px 20px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.resume-library-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 14px;
+}
+.resume-library-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  align-items: center;
+  gap: 14px;
+}
+.resume-library-fields > label {
+  margin: 0;
+  gap: 4px;
+}
+.resume-library-fields input {
+  padding: 6px 9px;
+}
+.resume-library-template {
+  display: flex;
+  align-items: end;
+  gap: 6px;
+  min-width: 0;
+}
+.resume-library-template .template-library-picker {
+  flex: 1;
+  gap: 4px;
+}
+.resume-library-template > button {
+  min-height: 35px;
+  white-space: nowrap;
+}
+.resume-library-template .template-library-trigger {
+  min-height: 35px;
+  padding: 6px 9px;
+}
+.resume-library-actions {
+  justify-content: flex-end;
+  gap: 8px;
+}
+.resume-library-actions > button {
+  min-height: 35px;
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+.resume-library-controls + .warning {
+  margin: 12px 0 0;
+}
+.resume-export-history {
+  padding: 20px 24px;
+}
+.resume-export-history > .section-heading {
+  margin-bottom: 16px;
+}
+.resume-export-grid {
+  display: grid;
+  gap: 14px;
+}
+.resume-export-card {
+  display: grid;
+  grid-template-columns: 108px minmax(0, 1fr);
+  gap: 20px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.resume-export-thumbnail {
+  aspect-ratio: 210 / 297;
+  align-self: start;
+  overflow: hidden;
+  background: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+}
+.resume-export-thumbnail .printed-page {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  box-shadow: none;
+}
+.resume-export-thumbnail > div {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  color: var(--subtle);
+  font-size: 11px;
+}
+.resume-export-thumbnail > p {
+  padding: 10px;
+  overflow-wrap: anywhere;
+}
+.resume-export-details {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  min-width: 0;
+}
+.resume-export-details .section-heading {
+  flex-wrap: wrap;
+}
+.resume-export-details strong {
+  overflow-wrap: anywhere;
+  font-size: 14px;
+}
+.resume-export-details .actions {
+  margin-top: auto;
+}
+.resume-export-details p {
+  margin: 0;
+}
+.resume-library-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--subtle);
+}
+.resume-library-empty > svg {
+  color: var(--accent);
+}
+.resume-library-empty p {
+  margin: 0;
+  font-size: 12px;
+}
+@media (min-width: 1001px) and (max-width: 1380px) {
+  .app-header {
+    grid-template-columns: max-content minmax(0, 1fr) max-content max-content;
+    gap: 8px;
+    padding: 0 14px;
+  }
+  .area-navigation > button {
+    padding: 7px;
+    gap: 5px;
+  }
+  .theme-switch button {
+    padding: 5px;
+  }
+  .theme-switch button span {
+    display: none;
+  }
+}
+@media (max-width: 1000px) {
+  .app-header {
+    grid-template-columns: max-content minmax(0, 1fr) max-content;
+  }
+  .header-actions {
+    grid-column: 3;
+  }
+  .resume-library-trigger {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .resume-library-body {
+    grid-template-columns: 200px minmax(0, 1fr);
+  }
+  .resume-library-controls {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+}
+@media (max-width: 760px) {
+  .resume-library-fields {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+}
+@media (max-width: 600px) {
+  .resume-library-trigger {
+    padding: 5px 7px;
+    gap: 5px;
+  }
+  .resume-trigger-copy b {
+    font-size: 11px;
+  }
+  .resume-library-trigger > svg,
+  .resume-unsaved-dot {
+    display: none;
+  }
+  .resume-library-dialog {
+    width: 96vw;
+    height: 92dvh;
+  }
+  .resume-library-body {
+    display: flex;
+    flex-direction: column;
+  }
+  .resume-library-sidebar {
+    flex-shrink: 0;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    padding: 8px 12px;
+  }
+  .resume-library-search {
+    margin: 6px 0;
+  }
+  .resume-library-list {
+    display: flex;
+    flex: none;
+    gap: 8px;
+    overflow-x: auto;
+  }
+  .resume-library-item {
+    width: 200px;
+    flex-shrink: 0;
+    margin: 0;
+  }
+  .resume-library-content {
+    flex: 1;
+    min-height: 0;
+  }
+  .resume-library-settings,
+  .resume-export-history {
+    padding: 16px;
+  }
+  .resume-export-card {
+    grid-template-columns: 66px minmax(0, 1fr);
+    gap: 12px;
+    padding: 12px;
+  }
+}

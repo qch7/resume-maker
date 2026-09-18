@@ -1,183 +1,128 @@
-import type {
-  Experience,
-  Export,
-  ProjectDetail,
-  Resume,
-  Revision,
-} from "../../shared/types/index";
-import { isCurrentExport, sameComposition } from "../resumes/composition.ts";
+import type { HonorSource } from "../../shared/types/honors";
+import { getProjectWorkflow } from "./projectState.ts";
+import { getProfileProgress } from "./profile.ts";
+import { WORKFLOW_STEPS, type GuideAction } from "./steps.ts";
+export type { GuideTarget } from "./steps";
 
-export type GuideTarget =
-  | "projects"
-  | "analysis"
-  | "experience-save"
-  | "experience-use"
-  | "composition-save"
-  | "template-select"
-  | "export";
-
-/** 判断经历是否包含可使用的描述或完整亮点。 */
-function hasContent(value?: Experience) {
-  return (
-    !!value &&
-    (!!value.description.trim() ||
-      value.highlights.some(
-        /* 检查条目是否满足当前选择或校验条件。 */ (h) =>
-          h.title.trim() && h.text.trim(),
-      ))
-  );
-}
-
-/** 根据草稿、固定引用、模板和导出状态推导可操作的制作步骤。 */
-export function getWorkflow(input: {
-  projectCount: number;
-  detail: ProjectDetail | null;
-  revisionId: string;
-  edited: boolean;
-  draft: Resume;
-  saved?: Resume;
-  revisions: Record<string, Revision>;
-  result: Export | null;
-  exporting: boolean;
-  analyzing: boolean;
-}) {
-  const { detail, draft, revisions, result } = input;
-  const revision = revisions[input.revisionId];
-  const unsaved = input.edited || !!detail?.working.drafts.length;
-  const prepared = hasContent(revision?.content) && !unsaved;
-  const included = draft.items.find(
-    /* 定位与当前标识或条件匹配的条目。 */ (i) =>
-      i.project_id === detail?.project.id,
-  );
-  const incomplete = draft.items.find(
-    /* 定位与当前标识或条件匹配的条目。 */ (i) =>
-      revisions[i.revision_id] && !hasContent(revisions[i.revision_id].content),
-  );
-  const compositionReady =
-    draft.items.length > 0 &&
-    draft.items.every(
-      /* 检查条目是否满足当前选择或校验条件。 */ (i) =>
-        hasContent(revisions[i.revision_id]?.content),
+/** 汇总模板、个人资料、项目、荣誉、编排及导出的独立准备进度。 */
+export function getWorkflow(
+  input: Parameters<typeof getProjectWorkflow>[0] & {
+    honors?: HonorSource[];
+  },
+) {
+  const project = getProjectWorkflow(input);
+  const profile = getProfileProgress(input.draft.document);
+  // 完整资料默认使用内置版式，空模板 ID 不代表缺少可用模板。
+  const templateReady = !!input.draft.template_id || !!input.draft.document;
+  const personalReady = profile.basic && profile.education && profile.skills;
+  const honorRecognized =
+    profile.selectedHonor ||
+    !!input.honors?.some(
+      /* 已核对的来源可直接进入筛选，不把上传或排队当作识别完成。 */ (honor) =>
+        honor.reviewed && !!honor.fields.name.trim(),
     );
-  const compositionSaved =
-    compositionReady && sameComposition(input.saved, draft);
-  const exported = isCurrentExport(result, draft);
   const done = [
-    input.projectCount > 0,
-    prepared,
-    prepared && compositionSaved,
-    prepared && compositionSaved && exported,
+    templateReady,
+    personalReady,
+    project.done[1] && project.step !== 1,
+    profile.honors,
+    project.done[2],
+    templateReady && project.done[3],
   ];
-
-  /** 构建一个带状态、说明和定位目标的制作指引步骤。 */
-  function guide(
-    step: number,
-    text: string,
-    action: string,
-    target: GuideTarget,
-    projectId?: string,
-  ) {
-    return { done, step, text, action, target, projectId };
-  }
-  if (!input.projectCount)
-    return guide(
-      0,
-      "导入项目目录，从源码整理可复用的项目经历。",
-      "导入项目",
-      "projects",
-    );
-  if (!detail || !revision)
-    return guide(1, "正在读取项目经历与版本…", "查看经历", "experience-save");
-  if (unsaved)
-    return guide(
-      1,
-      "当前项目有未提交的改动。确认后点击“提交为新版本”，再用于当前简历。",
-      "去提交修改",
-      "experience-save",
-    );
-  if (!prepared)
-    return guide(
-      1,
-      input.analyzing
-        ? "AI 正在整理项目，可在项目会话中查看进展；完成后采用建议并保存。"
-        : "先分析项目并采用建议，或手工编辑经历，再保存为版本。",
-      "整理项目经历",
-      "analysis",
-    );
-  if (!included)
-    return guide(
-      2,
-      "当前项目经历已保存。点击“用于当前简历”加入组合，再勾选需要的亮点。",
-      "去加入简历",
-      "experience-use",
-    );
-  if (included.revision_id !== input.revisionId) {
-    const pinned = revisions[included.revision_id];
-    return guide(
-      2,
-      `正在编辑 r${revision.number}，简历仍引用${pinned ? ` r${pinned.number}` : "其他版本"}。如需采用当前内容，点击“用于当前简历”；也可保留原版本。`,
-      "查看引用版本",
-      "experience-use",
-    );
-  }
-  if (incomplete)
-    return guide(
-      1,
-      "组合中还有空白项目经历，先整理内容，或从右侧移除该项目。",
-      "整理空白经历",
-      "experience-save",
-      incomplete.project_id,
-    );
-  if (!compositionReady)
-    return guide(
-      2,
-      "正在读取组合中的经历版本…",
-      "查看组合",
-      "composition-save",
-    );
-  if (!draft.name.trim())
-    return guide(
-      2,
-      "给这份简历方案填写名称，方便以后继续使用。",
-      "完善简历方案",
-      "composition-save",
-    );
-  if (!compositionSaved)
-    return guide(
-      2,
-      "项目和亮点已加入组合。确认顺序后保存组合，固定这份简历使用的版本。",
-      "去保存组合",
-      "composition-save",
-    );
-  if (!draft.template_id && !draft.document)
-    return guide(
-      3,
-      "选择 Word 模板，导出时保留模板中的个人信息和其他栏目。",
-      "选择模板",
-      "template-select",
-    );
-  if (input.exporting)
-    return guide(
-      3,
-      "正在生成 Word 并计算实际页数，请稍候。",
-      "查看导出进展",
-      "export",
-    );
-  if (exported)
-    return guide(
-      3,
-      result?.pages
-        ? `当前组合已导出，共 ${result.pages} 页。可下载 Word，或继续调整下一份简历。`
-        : "当前组合的 Word 已生成，可在右侧下载；排版预览状态见导出结果。",
-      "查看导出结果",
-      "export",
-    );
-  return guide(
-    3,
-    result
-      ? "组合已更新，上次导出仍是旧内容。重新导出即可生成当前版本的 Word。"
-      : "组合与模板已就绪。导出 Word 后可查看实际页数并下载文件。",
-    "去导出 Word",
-    "export",
+  const personalTarget = !profile.basic
+    ? "personal-basic"
+    : !profile.education
+      ? "personal-education"
+      : "personal-skills";
+  const guides: GuideAction[] = [
+    templateReady
+      ? {
+          text: input.draft.template_id
+            ? "模板已用于当前简历，接下来填写个人资料。"
+            : "当前使用内置完整简历，可直接填写资料，也可导入模板并识别版式。",
+          action: "填写资料",
+          target: "personal-basic",
+        }
+      : {
+          text: "导入模板并核对识别结果，或从模板库选择内置版式，再用于当前简历。",
+          action: "识别模板",
+          target: "template-select",
+        },
+    personalReady
+      ? {
+          text: "基本信息、教育经历与专业技能已填写，项目和荣誉可通过后续步骤补充。",
+          action: "整理项目",
+          target: "experience-save",
+        }
+      : {
+          text: !profile.basic
+            ? "填写姓名和至少一种联系方式，再补充教育经历与专业技能；项目和荣誉可跳转到对应步骤。"
+            : !profile.education
+              ? "补充学校、专业和在校时间；项目经历与荣誉证书可在对应步骤整理。"
+              : "补充专业技能，突出与求职岗位相关的能力。",
+          action: "完善资料",
+          target: personalTarget,
+        },
+    project.step < 2
+      ? project
+      : {
+          text: "项目经历已整理并保存，可继续选择荣誉，或在组合编排时调整引用版本与亮点。",
+          action: "选择荣誉",
+          target: "honor-select",
+        },
+    profile.honors
+      ? {
+          text: profile.selectedHonor
+            ? "荣誉已加入当前简历，可继续调整栏目顺序与展示内容。"
+            : "当前未展示荣誉栏目，可直接进入组合编排；需要时仍可识别和添加荣誉。",
+          action: "编排简历",
+          target: "structure",
+        }
+      : {
+          text: honorRecognized
+            ? "从已核对的荣誉中选择适合本次求职的条目，加入当前简历。"
+            : "上传证书图片或 PDF，识别并核对荣誉资料，再选择加入当前简历；也可手动录入。",
+          action: honorRecognized ? "选择荣誉" : "识别荣誉",
+          target: honorRecognized ? "honor-select" : "honor-recognize",
+        },
+    project.step === 2
+      ? project
+      : {
+          text: "调整栏目顺序、项目亮点与内容显隐，确认预览后保存这份简历组合。",
+          action: "保存组合",
+          target: "composition-save",
+        },
+    project.step === 3 && templateReady
+      ? project
+      : {
+          text: "在导出面板确认模板和当前内容，生成 Word 后预览排版并下载文件。",
+          action: "简历导出",
+          target: "export",
+        },
+  ];
+  const substeps = [
+    [],
+    [profile.basic, profile.education, done[2], done[3], profile.skills],
+    [project.done[0], done[2]],
+    [honorRecognized, profile.selectedHonor],
+    [],
+    [],
+  ];
+  const pending = done.findIndex(
+    /* 下一步按整份简历流程推荐，用户仍可自由跳转。 */ (ready) => !ready,
   );
+  const step = pending < 0 ? WORKFLOW_STEPS.length - 1 : pending;
+  // 引用旧版本和未加入组合属于编排提醒，不能被已保存的组合状态掩盖。
+  const recommendation =
+    step === 5 && project.step === 2 ? project : guides[step];
+  return {
+    done,
+    step: step === 5 && project.step === 2 ? 4 : step,
+    guides,
+    substeps,
+    text: recommendation.text,
+    action: recommendation.action,
+    target: recommendation.target,
+    projectId: recommendation.projectId,
+  };
 }

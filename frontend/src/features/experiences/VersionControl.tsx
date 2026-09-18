@@ -1,4 +1,4 @@
-import { ArrowUpRight, GitBranch, History, Plus, Save } from "lucide-react";
+import { ArrowUpRight, History, Plus, Save } from "lucide-react";
 import { useRef, useState } from "react";
 import HistoryDialog from "./HistoryDialog";
 import type { EditorProps } from "./types";
@@ -13,38 +13,34 @@ export default function VersionControl({ props }: { props: EditorProps }) {
     /* 显示当前编辑的具体版本。 */ (revision) => revision.id === revisionId,
   )!;
   const historical = detail.branch.head_revision !== revisionId;
-  const pending = props.hasLocalChanges || detail.working.drafts.length > 0;
+  const pending = props.hasLocalChanges;
   return (
     <>
       <div className="version-control">
         <div className="version-navigation">
-          <label className="branch-picker">
-            <span>
-              <GitBranch size={14} /> 当前分支
-            </span>
-            <select
-              aria-label="当前经历分支"
-              value={detail.branch.id}
-              onChange={
-                /* 切到指定分支最新版本，原分支草稿先落盘。 */ (event) => {
-                  const branch = detail.branches.find(
-                    /* 查找用户选定的分支指针。 */ (item) =>
-                      item.id === event.target.value,
-                  );
-                  if (branch) props.onRevision(branch.head_revision);
-                }
+          <select
+            className="branch-picker"
+            aria-label="当前经历分支"
+            value={detail.branch.id}
+            onChange={
+              /* 切到指定分支最新版本，原分支草稿先落盘。 */ (event) => {
+                const branch = detail.branches.find(
+                  /* 查找用户选定的分支指针。 */ (item) =>
+                    item.id === event.target.value,
+                );
+                if (branch) props.onRevision(branch.head_revision);
               }
-            >
-              {detail.branches.map(
-                /* 为每个命名分支生成可选项。 */ (branch) => (
-                  <option key={branch.id} value={branch.id}>
-                    {branch.name}
-                    {branch.is_default ? " · 主分支" : ""}
-                  </option>
-                ),
-              )}
-            </select>
-          </label>
+            }
+          >
+            {detail.branches.map(
+              /* 为每个命名分支生成可选项。 */ (branch) => (
+                <option key={branch.id} value={branch.id}>
+                  {branch.name}
+                  {branch.is_default ? " · 主分支" : ""}
+                </option>
+              ),
+            )}
+          </select>
           <button
             className="history-trigger"
             aria-label="查看经历历史树"

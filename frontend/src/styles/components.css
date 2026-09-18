@@ -388,24 +388,25 @@
 .highlight:focus-within {
   border-color: var(--accent);
 }
-.highlight:has(.highlight-heading > input:checked) {
+.highlight:not([data-hidden]) {
   background: var(--accent-soft);
   box-shadow: inset 2px 0 0 var(--accent);
+}
+.highlight[data-hidden] .highlight-text,
+.highlight[data-hidden] .highlight-heading > strong {
+  opacity: 0.55;
 }
 .highlight-heading {
   display: flex;
   align-items: center;
   gap: 8px;
 }
-.highlight-heading > input {
-  margin: 0;
-}
 .highlight-heading strong {
   font-size: 13px;
   overflow-wrap: anywhere;
 }
 .highlight-text {
-  margin: 10px 0 0 23px;
+  margin: 10px 0 0;
   font-size: 13px;
   line-height: 1.75;
   overflow-wrap: anywhere;
@@ -795,8 +796,7 @@
 }
 .composition-pane {
   display: grid;
-  /* 默认按内容收拢，用户拖动后沿用指定高度。 */
-  grid-template-rows: var(--settings-row-height) 8px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   min-height: 0;
   min-width: 0;
   overflow: hidden;

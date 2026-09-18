@@ -1,3 +1,5 @@
+import type { HonorSource } from "./honors";
+
 export interface Evidence {
   source: string;
   path: string;
@@ -18,8 +20,17 @@ export interface Experience {
   role: string;
   stack: string[];
   description: string;
+  hidden_fields?: ExperienceField[];
+  custom_fields?: CustomInfoField[];
+  body_order?: ProjectBodyKey[] | null;
   highlights: Highlight[];
 }
+export type ExperienceField =
+  | "title"
+  | "period"
+  | "role"
+  | "stack"
+  | "description";
 export type Meta = Omit<Experience, "highlights">;
 export interface Profile {
   role: string;
@@ -166,6 +177,7 @@ export interface CustomInfoField {
   visible: boolean;
 }
 export interface PersonalInfo {
+  field_definitions?: DefaultField[] | null;
   name: string;
   job_title: string;
   gender: string;
@@ -181,10 +193,11 @@ export interface PersonalInfo {
 }
 export type PersonalField = keyof Omit<
   PersonalInfo,
-  "hidden_fields" | "custom_fields"
+  "hidden_fields" | "custom_fields" | "field_definitions"
 >;
 export type SectionEntryField = "title" | "subtitle" | "period" | "details";
 export interface SectionEntry {
+  field_definitions?: DefaultField[] | null;
   id: string;
   title: string;
   subtitle: string;
@@ -195,6 +208,7 @@ export interface SectionEntry {
   custom_fields: CustomInfoField[];
 }
 export interface ResumeSection {
+  field_definitions?: DefaultField[] | null;
   id: string;
   title: string;
   kind: "education" | "projects" | "text";
@@ -205,19 +219,49 @@ export interface ResumeSection {
 export interface ResumeDocument {
   personal: PersonalInfo;
   sections: ResumeSection[];
+  project_visibility?: Record<string, ProjectVisibility>;
 }
+export interface ProjectVisibility {
+  fields?: Partial<Record<ExperienceField, boolean>>;
+  custom_fields?: Record<string, boolean>;
+  order?: ProjectBodyKey[];
+}
+export type ProjectBodyKey =
+  | "role"
+  | "stack"
+  | "description"
+  | "highlights"
+  | `custom:${string}`;
 export interface Template {
   id: string;
   name: string;
   created_at: string;
 }
 export interface State {
+  resume_defaults?: ResumeDefaults | null;
+  honors: HonorSource[];
   branches: Branch[];
   projects: Project[];
   conversations: Conversation[];
   resumes: Resume[];
   templates: Template[];
   jobs: Job[];
+}
+export interface DefaultField {
+  id: string;
+  label: string;
+  visible: boolean;
+}
+export interface DefaultSection extends Omit<
+  ResumeSection,
+  "entries" | "field_definitions"
+> {
+  fields: DefaultField[];
+}
+export interface ResumeDefaults {
+  version: number;
+  personal_fields: DefaultField[];
+  sections: DefaultSection[];
 }
 export interface Export {
   id: string;

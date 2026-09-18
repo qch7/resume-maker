@@ -1,24 +1,11 @@
+import { applyInfoDefaults } from "../profile/defaults.ts";
 import type { ResumeDocument, SectionEntry } from "../../shared/types/index.ts";
 
-export const CATEGORIES = [
-  "竞赛获奖",
-  "资格证书",
-  "奖学金",
-  "荣誉称号",
-  "其他",
-] as const;
-export type HonorCategory = (typeof CATEGORIES)[number];
-export interface HonorFields {
-  name: string;
-  category: HonorCategory;
-  level: string;
-  award: string;
-  issuer: string;
-  date: string;
-  recipient: string;
-  certificate_number: string;
-  description: string;
-}
+import type { HonorFields } from "./fields.ts";
+import { isHonorSection, newHonorEntry } from "./entry.ts";
+export { CATEGORIES, emptyHonor } from "./fields.ts";
+export type { HonorCategory, HonorFields } from "./fields.ts";
+
 export interface Honor {
   id: string;
   fields: HonorFields;
@@ -47,21 +34,6 @@ export const STATUS = {
 };
 export const ACCEPT = ".pdf,.png,.jpg,.jpeg,.webp,.bmp,.tif,.tiff";
 
-/** 创建独立的空白荣誉资料。 */
-export function emptyHonor(): HonorFields {
-  return {
-    name: "",
-    category: "其他",
-    level: "",
-    award: "",
-    issuer: "",
-    date: "",
-    recipient: "",
-    certificate_number: "",
-    description: "",
-  };
-}
-
 /** 识别状态决定能否人工编辑，避免在途结果覆盖未保存内容。 */
 export function isRecognizing(honor: Honor) {
   return honor.status === "queued" || honor.status === "running";
@@ -87,7 +59,29 @@ export function hasHonor(document: ResumeDocument | null, id: string) {
   );
 }
 
-/** 将已核对荣誉复制为普通简历条目，后续修改库资料不会改动既有简历。 */
+/** 仅移除当前简历中的荣誉引用，保留栏目、其他资料及库中原件。 */
+export function removeHonor(
+  document: ResumeDocument,
+  id: string,
+): ResumeDocument {
+  if (!hasHonor(document, id)) return document;
+  return {
+    ...document,
+    sections: document.sections.map(
+      /* 来源可能位于自定义栏目，按稳定标识移除而不依赖名称。 */ (section) => {
+        const entries = section.entries.filter(
+          /* 同名手动条目与其他来源均保留。 */ (entry) =>
+            entry.id !== `honor:${id}`,
+        );
+        return entries.length === section.entries.length
+          ? section
+          : { ...section, entries };
+      },
+    ),
+  };
+}
+
+/** 将已核对荣誉关联到简历，初始内容完整复制，后续按来源同步。 */
 export function addHonors(
   document: ResumeDocument,
   honors: Honor[],
@@ -102,29 +96,8 @@ export function addHonors(
         !hasHonor(document, honor.id),
     )
     .map(
-      /* 将证书资料映射到现有简历字段。 */ (honor) => {
-        const fields = honor.fields;
-        const titledAward = fields.award && !fields.name.includes(fields.award);
-        const combined = titledAward
-          ? `${fields.name} · ${fields.award}`
-          : fields.name;
-        return {
-          id: `honor:${honor.id}`,
-          title: combined.length <= 300 ? combined : fields.name,
-          subtitle: fields.issuer,
-          period: fields.date,
-          details: [
-            combined.length > 300 ? fields.award : "",
-            fields.level,
-            fields.description,
-          ]
-            .filter(Boolean)
-            .join("\n"),
-          visible: true,
-          hidden_fields: [],
-          custom_fields: [],
-        };
-      },
+      /* 完整保留各项荣誉资料，默认只显示名称与日期。 */ (honor) =>
+        newHonorEntry(honor.fields, `honor:${honor.id}`),
     );
   if (!additions.length) return document;
   const section = target
@@ -132,11 +105,7 @@ export function addHonors(
         /* 显式目标必须仍然存在。 */ (item) =>
           item.id === target && item.kind === "text",
       )
-    : document.sections.find(
-        /* 优先使用既有荣誉栏目。 */ (item) =>
-          item.kind === "text" &&
-          (item.id === "honors" || /荣誉|获奖|证书/.test(item.title)),
-      );
+    : document.sections.find(isHonorSection);
   if (target && !section) throw new Error("目标栏目已不存在，请重新选择。");
   if (section && section.entries.length + additions.length > 100)
     throw new Error("此栏目最多容纳 100 条，请选择其他栏目。");
@@ -148,7 +117,22 @@ export function addHonors(
       ? document.sections.map(
           /* 保留其他栏目和当前顺序。 */ (item) =>
             item.id === section.id
-              ? { ...item, entries: [...item.entries, ...additions] }
+              ? {
+                  ...item,
+                  entries: [
+                    ...item.entries,
+                    ...additions.map(
+                      /* 新加入荣誉沿用目标栏目的默认字段。 */ (entry) =>
+                        item.field_definitions
+                          ? applyInfoDefaults(
+                              entry,
+                              item.field_definitions,
+                              true,
+                            )
+                          : entry,
+                    ),
+                  ],
+                }
               : item,
         )
       : [

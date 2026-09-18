@@ -7,8 +7,9 @@ import type {
 /** 按字段内容比较资料；显隐按集合处理，自定义信息保持用户排序。 */
 function infoSnapshot(info?: PersonalInfo | SectionEntry) {
   if (!info) return null;
-  const { hidden_fields, custom_fields, ...fields } = info;
+  const { hidden_fields, custom_fields, field_definitions, ...fields } = info;
   return [
+    field_definitions ?? null,
     Object.entries(fields).sort(
       /* JSON 属性顺序不代表用户修改。 */ ([a], [b]) => a.localeCompare(b),
     ),
@@ -39,6 +40,23 @@ function documentSnapshot(document?: ResumeDocument | null) {
   if (!document) return null;
   return [
     infoSnapshot(document.personal),
+    Object.entries(document.project_visibility ?? {})
+      .sort(
+        /* 项目标识与设置键的排列不代表实际修改。 */ ([a], [b]) =>
+          a.localeCompare(b),
+      )
+      .map(
+        /* 对每个项目的显隐覆盖做稳定比较。 */ ([id, value]) => [
+          id,
+          Object.entries(value.fields ?? {}).sort(
+            /* 固定字段按键比较。 */ ([a], [b]) => a.localeCompare(b),
+          ),
+          Object.entries(value.custom_fields ?? {}).sort(
+            /* 自定义字段按稳定标识比较。 */ ([a], [b]) => a.localeCompare(b),
+          ),
+          value.order ?? [],
+        ],
+      ),
     document.sections.map(
       /* 栏目顺序和归属属于真实修改，不能在比较时重新排序。 */ (section) => [
         section.id,
@@ -46,6 +64,7 @@ function documentSnapshot(document?: ResumeDocument | null) {
         section.kind,
         section.parent_id,
         section.visible,
+        section.field_definitions ?? null,
         section.entries.map(infoSnapshot),
       ],
     ),

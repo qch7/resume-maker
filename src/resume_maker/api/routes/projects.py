@@ -7,6 +7,7 @@ from fastapi import APIRouter
 from resume_maker.api.dependencies import ServicesDep
 from resume_maker.api.schemas import (
     BranchInput,
+    DiscardDraftsInput,
     DraftInput,
     PathInput,
     ProjectInput,
@@ -82,6 +83,13 @@ def put_draft(services: ServicesDep, project_id: str, body: DraftInput):
 def discard_draft(services: ServicesDep, project_id: str, body: DraftInput):
     """确认草稿版本仍匹配后删除指定字段的未发布修改。"""
     services.catalog.discard_draft(project_id, body.base_revision, body.field, body.version)
+    return services.catalog.working(project_id, body.base_revision)
+
+
+@router.post("/projects/{project_id}/drafts/discard")
+def discard_drafts(services: ServicesDep, project_id: str, body: DiscardDraftsInput):
+    """一次撤销已确认的整份工作副本，发生并发修改则完整保留草稿。"""
+    services.catalog.discard_drafts(project_id, body.base_revision, body.versions)
     return services.catalog.working(project_id, body.base_revision)
 
 

@@ -12,6 +12,8 @@ from docx.oxml.ns import qn
 from docx.shared import Cm, Pt, RGBColor
 
 from resume_maker.core.errors import Problem
+from resume_maker.domain.experience import displayed_experience
+from resume_maker.domain.project_layout import project_body_entries
 from resume_maker.domain.resume import CustomInfoField, ResumeDocument, ResumeSection
 
 BLUE = "718DB5"
@@ -174,19 +176,19 @@ def write_full_resume(output: Path, content: dict, projects: list[dict]):
         heading(document, section.title)
         if section.kind == "projects":
             for item in projects:
-                value = item["content"]
-                paragraph = document.add_paragraph()
-                paragraph.paragraph_format.keep_with_next = True
-                paragraph.paragraph_format.tab_stops.add_tab_stop(Cm(17.3), WD_TAB_ALIGNMENT.RIGHT)
-                add_text(paragraph, value["title"], bold=True, size=11)
-                add_text(paragraph, "\t" + value["period"], bold=True, size=11)
-                labeled(document, "技术栈", "、".join(value["stack"]))
-                labeled(document, "担任角色", value["role"])
-                labeled(document, "项目描述", value["description"])
-                points = {point["id"]: point for point in value["highlights"]}
-                for point_id in item["highlight_ids"]:
-                    point = points[point_id]
-                    labeled(document, point["title"], point["text"])
+                settings = resume.project_visibility.get(item.get("project_id", ""))
+                value = displayed_experience(item["content"], settings, section.field_definitions)
+                if value["title"] or value["period"]:
+                    paragraph = document.add_paragraph()
+                    paragraph.paragraph_format.keep_with_next = True
+                    paragraph.paragraph_format.tab_stops.add_tab_stop(
+                        Cm(17.3), WD_TAB_ALIGNMENT.RIGHT
+                    )
+                    add_text(paragraph, value["title"], bold=True, size=11)
+                    if value["period"]:
+                        add_text(paragraph, "\t" + value["period"], bold=True, size=11)
+                for entry in project_body_entries(value, item["highlight_ids"], settings):
+                    labeled(document, entry["label"], entry["text"])
         for member in group:
             entries = displayed_entries(member)
             if member.parent_id and entries:

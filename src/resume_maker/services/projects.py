@@ -3,6 +3,7 @@
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
 from resume_maker.core.errors import Problem, need
+from resume_maker.domain.experience import same_experience
 from resume_maker.domain.models import ProjectProfile
 from resume_maker.infrastructure.database import dump, now
 from resume_maker.integrations.desktop import reveal_file
@@ -53,7 +54,7 @@ class Projects:
         ):
             base = self.catalog.revision(row["base_revision"], project_id)
             content = self.catalog.working(project_id, base["id"])["content"]
-            if content != base["content"]:
+            if not same_experience(content, base["content"]):
                 result.append({**row, "content": content})
         return result
 

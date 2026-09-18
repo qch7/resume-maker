@@ -14,11 +14,15 @@ import type {
   Resume,
   Revision,
   State,
+  SectionEntry,
+  ProjectVisibility,
 } from "../../shared/types";
 import { buildLivePreview } from "./livePreview";
 import { newDocument } from "../profile/document";
-import { entryComposition } from "../profile/entry";
+import { repairDefaultResume } from "../profile/defaultSections";
+import { entryComposition, replaceEntry } from "../profile/entry";
 import { personalComposition } from "../profile/personal";
+import { syncHonorResume } from "../honors/sync";
 import {
   orderCompositionHighlights,
   orderedHighlightIds,
@@ -65,8 +69,47 @@ export function useResumeComposition({
   );
   const draft = useMemo(
     /* 固定组合与编辑区分别维护顺序，保证取消草稿后预览和导出一致。 */ () =>
-      orderCompositionHighlights(storedDraft, revisionCache),
-    [storedDraft, revisionCache],
+      orderCompositionHighlights(
+        syncHonorResume(
+          repairDefaultResume(
+            storedDraft,
+            state.resume_defaults,
+            state.resumes.find(
+              /* 原方案只用于恢复误提升的栏目父级，不覆盖任何填写内容。 */ (
+                resume,
+              ) => resume.id === storedDraft.id,
+            ),
+          ),
+          state.honors ?? [],
+        ),
+        revisionCache,
+      ),
+    [
+      storedDraft,
+      revisionCache,
+      state.honors,
+      state.resume_defaults,
+      state.resumes,
+    ],
+  );
+  useEffect(
+    /* 将最新核对资料保留到草稿，来源删除后仍保留最后看到的内容。 */ () => {
+      setDraft(
+        /* 只替换荣誉内容，保留期间输入的姓名、编排和显隐。 */ (current) =>
+          syncHonorResume(
+            repairDefaultResume(
+              current,
+              state.resume_defaults,
+              state.resumes.find(
+                /* 对照当前方案的已保存层级。 */ (resume) =>
+                  resume.id === current.id,
+              ),
+            ),
+            state.honors ?? [],
+          ),
+      );
+    },
+    [state.honors, state.resume_defaults, state.resumes],
   );
   const currentDraft = useRef(draft);
   currentDraft.current = draft;
@@ -140,6 +183,41 @@ export function useResumeComposition({
     },
     [draft, notify],
   );
+  /** 独立修改当前简历的项目显隐，迁移旧草稿时优先保留用户已有覆盖。 */
+  function changeProjectVisibility(
+    visibility: ProjectVisibility,
+    migrating = false,
+  ) {
+    setDraft(
+      /* 显隐只进入当前简历草稿，保留所有版本引用及其他资料输入。 */ (
+        current,
+      ) => {
+        const document = current.document ?? newDocument(state.resume_defaults);
+        const previous = document.project_visibility?.[activeProject] ?? {};
+        return {
+          ...current,
+          document: {
+            ...document,
+            project_visibility: {
+              ...document.project_visibility,
+              [activeProject]: {
+                ...previous,
+                ...(!migrating && visibility.order
+                  ? { order: visibility.order }
+                  : {}),
+                fields: migrating
+                  ? { ...visibility.fields, ...previous.fields }
+                  : { ...previous.fields, ...visibility.fields },
+                custom_fields: migrating
+                  ? { ...visibility.custom_fields, ...previous.custom_fields }
+                  : { ...previous.custom_fields, ...visibility.custom_fields },
+              },
+            },
+          },
+        };
+      },
+    );
+  }
   /** 显式更新当前项目的引用版本，并保留仍属于该版本的亮点选择。 */
   function applyVersion() {
     const revision = revisionCache[revisionId];
@@ -347,14 +425,18 @@ export function useResumeComposition({
     }
   }
   /** 单独保存栏目中的一条经历，不提交其他资料草稿，所有保存共用并发保护。 */
-  async function saveSectionEntry(sectionId: string, entryId: string) {
+  async function saveSectionEntry(
+    sectionId: string,
+    entryId: string,
+    replacement?: SectionEntry,
+  ) {
     if (savingResume.current) throw new Error("简历资料正在保存，请稍候。");
     if (exporting || deleting)
       throw new Error("请等待当前简历操作完成后再保存。");
     savingResume.current = true;
     try {
       const submitted = entryComposition(
-        draft,
+        replacement ? replaceEntry(draft, sectionId, replacement) : draft,
         state.resumes.find(
           /* 从已保存方案中读取其他资料。 */ (resume) => resume.id === draft.id,
         ),
@@ -373,8 +455,16 @@ export function useResumeComposition({
         },
       );
       setDraft(
-        /* 推进保存版本，保留其他草稿及后续输入。 */ (current) =>
-          acceptSavedComposition(current, submitted, saved),
+        /* 模态表单保存成功才应用本条；其他资料和后续输入继续保留。 */ (
+          current,
+        ) =>
+          acceptSavedComposition(
+            replacement && current.id === draft.id
+              ? replaceEntry(current, sectionId, replacement)
+              : current,
+            submitted,
+            saved,
+          ),
       );
       await reload();
     } finally {
@@ -394,7 +484,7 @@ export function useResumeComposition({
       );
       const next = remaining
         ? loadLocal(`rm.resume.v2.${remaining.id}`, remaining)
-        : { ...NEW_RESUME, document: newDocument() };
+        : { ...NEW_RESUME, document: newDocument(state.resume_defaults) };
       setDraft(
         /* 删除期间若已经切换方案，保留用户当前选择。 */ (current) =>
           current.id === resume.id ? next : current,
@@ -419,7 +509,7 @@ export function useResumeComposition({
       notify({
         text: result.pages
           ? `Word 已生成，共 ${result.pages} 页。`
-          : "Word 已生成，可下载；渲染结果见右侧。",
+          : "Word 已生成，可在顶部“导出与模板”的简历库中下载。",
       });
     } finally {
       setExporting(false);
@@ -436,6 +526,7 @@ export function useResumeComposition({
     applyVersion,
     toggleProject,
     toggleHighlight,
+    changeProjectVisibility,
     saveComposition,
     savePersonalInfo,
     saveSectionEntry,

@@ -14,12 +14,11 @@ from resume_maker.infrastructure.database import dump, now, uid
 from resume_maker.integrations.providers.base import Cancelled, Provider
 from resume_maker.integrations.sources import digest, redact
 from resume_maker.integrations.word.rendering import render_word
-from resume_maker.integrations.word.template_fill import (
-    fill_template,
-    missing_targets,
-)
+from resume_maker.integrations.word.template_completion import complete_template
+from resume_maker.integrations.word.template_fill import fill_template
 from resume_maker.integrations.word.template_map import TemplatePackage
 from resume_maker.integrations.word.template_recovery import prepare_template
+from resume_maker.integrations.word.template_values import missing_targets
 from resume_maker.services.catalog import Catalog
 from resume_maker.services.template_analysis import analyze_plan, assess_plan, check_trial
 from resume_maker.services.template_cache import cache_path, cached_plan, remember_plan
@@ -38,7 +37,9 @@ class Templates:
         )
         self.tasks, self.flags, self.threads = {}, {}, []
         self.started = {}
-        self.lock = threading.Lock()
+        self.artifacts = {}
+        self.origins = {}
+        self.lock = threading.RLock()
         self.stopped = False
 
     def analyze(
@@ -50,14 +51,17 @@ class Templates:
 
     def repair(self, identifier, plan, document, items, feedback=""):
         """基于当前人工方案另开修正任务，原建议仍保留且不会被失败覆盖。"""
-        return self._start(
-            TemplatePackage(self.source(identifier)),
-            self.get(identifier)["file_name"],
-            document,
-            items,
-            plan,
-            feedback,
-        )
+        with self.lock:
+            task = self._start(
+                TemplatePackage(self.source(identifier)),
+                self.get(identifier)["file_name"],
+                document,
+                items,
+                plan,
+                feedback,
+            )
+            self.origins[task["id"]] = self.origins.get(identifier)
+            return task
 
     def _start(self, package, file_name, document, items, initial=None, feedback="", raw=None):
         """统一准备分析副本与异步任务，校验项目引用后才调用模型。"""
@@ -92,6 +96,7 @@ class Templates:
             }
             self.started[identifier] = time.monotonic()
             self.tasks[identifier] = task
+            self.artifacts[identifier] = [directory.relative_to(self.data_dir).as_posix()]
             flag = self.flags[identifier] = threading.Event()
             settings = ProviderSettings.model_validate(
                 self.db.setting("provider", {})
@@ -164,6 +169,8 @@ class Templates:
                     self.tasks[identifier]["inventory"] = inventory
             cache_source = source.read_bytes()
             path = cache_path(self.data_dir, package, document, projects, settings)
+            with self.lock:
+                self.artifacts[identifier].append(path.relative_to(self.data_dir).as_posix())
             hit = (
                 cached_plan(path, package, document, projects)
                 if initial is None and not feedback
@@ -278,8 +285,13 @@ class Templates:
             value["events"] = [deepcopy(event) for event in task["events"] if event["id"] > after]
             return value
 
-    def open(self, template_id: str) -> dict:
-        """从已保存模板建立独立编辑快照，不调用 AI，也不修改原版本及简历引用。"""
+    def open(self, template_id: str, document=None, items=None) -> dict:
+        """按当前资料补齐独立编辑快照，不调用 AI，也不修改原版本及简历引用。"""
+        with self.lock:
+            return self._open(template_id, document, items)
+
+    def _open(self, template_id, document, items):
+        """持有产物锁时打开模板，避免永久清理与编辑副本创建交错。"""
         template = self.catalog.template(template_id)
         mapping = template["mapping"]
         source = self.data_dir / "templates" / template["id"] / "template.docx"
@@ -288,6 +300,16 @@ class Templates:
             raise Problem("模板文件已在程序外变化，请重新导入。")
         plan = TemplatePlan.model_validate(mapping["plan"])
         package = TemplatePackage(BytesIO(data))
+        if document is not None:
+            projects = self.projects(items or [])
+            package, plan, notices = complete_template(package, plan, document, projects)
+            review = assess_plan(package, plan, document, projects)
+            review["notices"].extend(notices)
+            buffer = BytesIO()
+            package.write(buffer)
+            data = buffer.getvalue()
+        else:
+            review = package.review(plan)
         inventory = package.inventory()
         with self.lock:
             if self.stopped:
@@ -305,13 +327,19 @@ class Templates:
                 "status": "completed",
                 "activity": "已打开保存的映射，修改后将保存为新版本。",
                 "plan": plan.model_dump(),
-                "review": package.review(plan),
+                "review": review,
                 "inventory": inventory,
                 "error": None,
                 "from_library": True,
             }
             self.started[identifier] = time.monotonic()
             self.tasks[identifier] = task
+            self.artifacts[identifier] = list(
+                dict.fromkeys(
+                    [*mapping.get("artifacts", []), directory.relative_to(self.data_dir).as_posix()]
+                )
+            )
+            self.origins[identifier] = template_id
             return deepcopy(task)
 
     def cancel(self, identifier: str) -> dict:
@@ -337,13 +365,15 @@ class Templates:
         document: ResumeDocument | None = None,
         items: list[ResumeItem] | None = None,
     ) -> dict:
-        """对用户修改后的映射重新做完整校验。"""
+        """在内存副本按导出规则补位后校验，不改任务源文件或用户正在编辑的映射。"""
         package = TemplatePackage(self.source(identifier))
-        return (
-            assess_plan(package, plan, document, self.projects(items or []))
-            if document
-            else package.review(plan)
-        )
+        if document is None:
+            return package.review(plan)
+        projects = self.projects(items or [])
+        package, plan, notices = complete_template(package, plan, document, projects)
+        review = assess_plan(package, plan, document, projects)
+        review["notices"].extend(notices)
+        return review
 
     def save(
         self,
@@ -354,17 +384,26 @@ class Templates:
         items: list[ResumeItem],
     ) -> dict:
         """登记核对过的完整模板，原文件和映射一并保留供重复导出与备份。"""
+        with self.lock:
+            return self._save(identifier, name, plan, document, items)
+
+    def _save(self, identifier, name, plan, document, items):
+        """保存期间持有产物锁，并登记识别缓存与工作目录供回收站精确清理。"""
         source = self.source(identifier)
-        review = TemplatePackage(source).review(plan)
+        projects = self.projects(items)
+        package, plan, _ = complete_template(TemplatePackage(source), plan, document, projects)
+        review = package.review(plan)
         if not review["ready"]:
             raise Problem("映射尚未完成，请处理校验问题和未识别内容。")
-        missing = missing_targets(document, plan, self.projects(items))
+        missing = missing_targets(document, plan, projects)
         if missing:
             raise Problem("模板未覆盖这些已填写资料，请补充映射或隐藏：" + "、".join(missing))
         template_id = uid()
         directory = self.data_dir / "templates" / template_id
         directory.mkdir(parents=True)
-        data = source.read_bytes()
+        buffer = BytesIO()
+        package.write(buffer)
+        data = buffer.getvalue()
         (directory / "original.docx").write_bytes(data)
         (directory / "template.docx").write_bytes(data)
         task = self.get(identifier)
@@ -375,7 +414,13 @@ class Templates:
                     template_id,
                     name.strip() or task["file_name"],
                     digest(data),
-                    dump({"plan": plan.model_dump(), "analysis": analysis_record(task)}),
+                    dump(
+                        {
+                            "plan": plan.model_dump(),
+                            "analysis": analysis_record(task),
+                            "artifacts": self.artifacts.get(identifier, []),
+                        }
+                    ),
                     now(),
                 ),
             )
@@ -385,6 +430,11 @@ class Templates:
         self, identifier: str, plan: TemplatePlan, document: ResumeDocument, items: list[ResumeItem]
     ) -> dict:
         """使用当前资料试填，校验固定引用与选择后生成 Word 和可用的分页预览。"""
+        with self.lock:
+            return self._preview(identifier, plan, document, items)
+
+    def _preview(self, identifier, plan, document, items):
+        """试填与永久清理串行，防止删除后迟到的预览重新创建产物。"""
         source = self.source(identifier)
         projects = self.projects(items)
         # 预览文件使用独立标识，迟到响应或新预览不会覆盖正在查看的文件。

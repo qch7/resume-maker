@@ -90,17 +90,22 @@ export function sortSidebar(
       a.id.localeCompare(b.id)
     );
   }
+  const sortedProjects = [...projects].sort(
+    /* 使用稳定比较规则排列条目，避免修改输入列表。 */ (a, b) =>
+      compare(
+        a,
+        b,
+        a.name,
+        b.name,
+        activity.get(a.id) ?? 0,
+        activity.get(b.id) ?? 0,
+      ),
+  );
   return {
-    projects: [...projects].sort(
-      /* 使用稳定比较规则排列条目，避免修改输入列表。 */ (a, b) =>
-        compare(
-          a,
-          b,
-          a.name,
-          b.name,
-          activity.get(a.id) ?? 0,
-          activity.get(b.id) ?? 0,
-        ),
+    projects: sortedProjects,
+    rootProjects: sortedProjects.filter(
+      /* 缺失父项的项目也保留顶层入口，导航与默认选择共用此顺序。 */ (p) =>
+        !p.parent_id || !byId.has(p.parent_id),
     ),
     conversations: [...conversations].sort(
       /* 使用稳定比较规则排列条目，避免修改输入列表。 */ (a, b) =>

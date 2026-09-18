@@ -6,6 +6,8 @@ from pydantic import Field, field_validator
 
 from resume_maker.domain.models import Model
 
+TEMPLATE_LIBRARY_KEY = "template-library"
+
 
 class TextBinding(Model):
     """以精确引文定位段落中的值，可跨多个 Word 文本片段。"""

@@ -1,14 +1,37 @@
 """经历、来源证据、AI 建议与固定版本简历的数据契约。"""
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class Model(BaseModel):
     """拒绝未知字段的基础模型，约束客户端与 AI 输入。"""
 
     model_config = ConfigDict(extra="forbid")
+
+
+class DefaultField(Model):
+    """默认表单字段的稳定标识、名称和初始显隐。"""
+
+    id: str = Field(min_length=1, max_length=100)
+    label: str = Field(min_length=1, max_length=50)
+    visible: bool = True
+
+
+class CustomInfoField(Model):
+    """用户自行命名的信息项；可隐藏，空项保留为草稿但不参与排版。"""
+
+    id: str = Field(min_length=1, max_length=100)
+    label: str = Field(default="", max_length=50)
+    value: str = Field(default="", max_length=1000)
+    visible: bool = True
+
+
+def validate_custom_field_ids(fields: list[CustomInfoField]):
+    """同一资料内使用独立标识，避免修改或删除时误操作其他自定义项。"""
+    if len({field.id for field in fields}) != len(fields):
+        raise ValueError("同一资料中的自定义信息标识不能重复。")
 
 
 class Evidence(Model):
@@ -31,6 +54,28 @@ class Highlight(Model):
     evidence: list[Evidence] = Field(default_factory=list, max_length=30)
 
 
+ExperienceField = Literal["title", "period", "role", "stack", "description"]
+ProjectBodyKey = Annotated[
+    str, Field(pattern=r"^(role|stack|description|highlights|custom:.{1,100})$")
+]
+
+
+class ProjectVisibility(Model):
+    """一份简历独立保存的项目显隐覆盖，不改变项目原文或生成经历版本。"""
+
+    fields: dict[ExperienceField, bool] = Field(default_factory=dict, max_length=5)
+    custom_fields: dict[str, bool] = Field(default_factory=dict, max_length=200)
+    order: list[ProjectBodyKey] = Field(default_factory=list, max_length=204)
+
+    @field_validator("order")
+    @classmethod
+    def unique_order(cls, value):
+        """标题和时间不参与正文排序，重复位置会导致内容重复，必须拒绝。"""
+        if len(value) != len(set(value)):
+            raise ValueError("项目内容顺序不能包含重复条目。")
+        return value
+
+
 class Experience(Model):
     """可发布的完整项目经历数据，修订后保持不可变。"""
 
@@ -39,7 +84,24 @@ class Experience(Model):
     role: str = Field(default="", max_length=300)
     stack: list[str] = Field(default_factory=list, max_length=60)
     description: str = Field(default="", max_length=10000)
+    hidden_fields: list[ExperienceField] = Field(default_factory=list, max_length=5)
+    custom_fields: list[CustomInfoField] = Field(default_factory=list, max_length=20)
     highlights: list[Highlight] = Field(default_factory=list, max_length=60)
+    body_order: list[ProjectBodyKey] | None = Field(default=None, max_length=204)
+
+    @field_validator("body_order")
+    @classmethod
+    def unique_body_order(cls, value):
+        """正文排序随经历版本保存，旧版缺省值沿用原有简历设置。"""
+        if value is not None and len(value) != len(set(value)):
+            raise ValueError("项目内容顺序不能包含重复条目。")
+        return value
+
+    @model_validator(mode="after")
+    def validate_custom_fields(self):
+        """校验项目自定义信息的稳定标识，兼容没有扩展字段的历史版本。"""
+        validate_custom_field_ids(self.custom_fields)
+        return self
 
 
 class ProjectProfile(Model):

@@ -47,13 +47,20 @@ def test_macro_enabled_package_becomes_standard_editable_docx(tmp_path):
     assert macro.read_bytes() == original
 
 
-def page_pdf(output, count=1):
+def page_pdf(output, count=1, *, scan=False):
     """生成含真实文字的脱敏分页作为排版器输出，测试不依赖本机 Word。"""
     with pymupdf.open() as pdf:
         for number in range(count):
             page = pdf.new_page(width=595, height=842)
             page.insert_text((40, 50), "原姓名" if not number else "固定说明", fontname="china-s")
-        pdf.save(output)
+        if scan:
+            with pymupdf.open() as scanned:
+                for page in pdf:
+                    target = scanned.new_page(width=page.rect.width, height=page.rect.height)
+                    target.insert_image(target.rect, stream=page.get_pixmap().tobytes("png"))
+                scanned.save(output)
+        else:
+            pdf.save(output)
 
 
 class RecoveryProvider(TemplateProvider):
@@ -66,6 +73,13 @@ class RecoveryProvider(TemplateProvider):
 
     def run_structured(self, **kwargs):
         """恢复页包含独立原文段落，映射只使用恢复后重新分配的节点。"""
+        from resume_maker.domain.image_layout import ImagePage, ImageText
+
+        if kwargs["result_model"] is ImagePage:
+            self.pages.append(kwargs)
+            return ImagePage(
+                texts=[ImageText(text="原姓名", box=[0.1, 0.1, 0.16, 0.114], bold=True)]
+            )
         if kwargs["result_model"] is RecoveredPage:
             self.pages.append(kwargs)
             assert len(kwargs["images"]) == 1 and kwargs["images"][0].is_file()
@@ -169,8 +183,8 @@ def test_pdf_and_scanned_image_sources_enter_same_mapping_workflow(catalog, tmp_
     service = Templates(catalog, tmp_path / "data", provider)
     task = completed(service, service.analyze(source, simple_document())["id"])
     assert task["review"]["ready"] and task["status"] == "completed"
-    assert len(provider.pages) == (2 if kind == "pdf" else 1)
-    texts = [paragraph.text for paragraph in Document(service.source(task["id"])).paragraphs]
+    assert len(provider.pages) == (0 if kind == "pdf" else 1)
+    texts = [p.text for p in Document(service.source(task["id"])).paragraphs if p.text]
     assert texts == (["原姓名", "固定说明"] if kind == "pdf" else ["原姓名"])
     service.stop()
 
@@ -202,7 +216,7 @@ def test_legacy_word_is_converted_in_background(catalog, tmp_path, monkeypatch):
 def test_cancelling_page_recovery_does_not_publish_late_plan(catalog, tmp_path):
     """恢复过程取消后既不启动映射，也不把迟到的恢复结果发布为可用模板。"""
     source = tmp_path / "source.pdf"
-    page_pdf(source)
+    page_pdf(source, scan=True)
     provider = RecoveryProvider(cancel=True)
     service = Templates(catalog, tmp_path / "data", provider)
     task = completed(service, service.analyze(source, simple_document())["id"])
@@ -253,7 +267,9 @@ def test_empty_source_builds_editable_framework(catalog, tmp_path, kind):
     if kind == "docx":
         Document().save(source)
     else:
-        page_pdf(source)
+        with pymupdf.open() as pdf:
+            pdf.new_page()
+            pdf.save(source)
 
     class EmptyProvider(RecoveryProvider):
         """模拟空白页返回空结构，后续映射仍使用真实生成的段落。"""
@@ -307,7 +323,7 @@ def test_editable_source_never_uses_lossy_recovery_when_word_is_unavailable(tmp_
 def test_recovery_retries_invalid_photo_coordinates(catalog, tmp_path):
     """错误裁剪坐标自动重试，成功后保留有效照片，不静默跳过照片或整页。"""
     source = tmp_path / "source.pdf"
-    page_pdf(source)
+    page_pdf(source, scan=True)
 
     class RetryProvider(RecoveryProvider):
         """第一次提供越界坐标，第二次提供完整可编辑内容。"""

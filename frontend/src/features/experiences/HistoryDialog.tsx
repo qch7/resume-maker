@@ -402,6 +402,17 @@ export default function HistoryDialog({
               </p>
               <p>{current.content.stack.join(" · ")}</p>
               <p>{current.content.description || "尚未填写项目描述"}</p>
+              {(current.content.custom_fields ?? []).map(
+                /* 历史详情展示保存的自定义原文，隐藏项仍可核对和恢复。 */ (
+                  field,
+                ) => (
+                  <p key={field.id}>
+                    <b>{field.label || "未命名条目"}：</b>
+                    {field.value || "未填写"}
+                    {!field.visible && <span className="tag">已隐藏</span>}
+                  </p>
+                ),
+              )}
               {current.content.highlights.map(
                 /* 只展示保存内容，切换浏览不会改变原始版本。 */ (point) => (
                   <div className="history-highlight" key={point.id}>
