@@ -1,4 +1,4 @@
-"""陌生 Word 模板的声明式映射；模型只选择节点和字段，不生成执行代码。"""
+"""陌生 Word 模板的声明式映射；模型只选择节点和字段且不生成执行代码"""
 
 from typing import Literal
 
@@ -10,7 +10,7 @@ TEMPLATE_LIBRARY_KEY = "template-library"
 
 
 class TextBinding(Model):
-    """以精确引文定位段落中的值，可跨多个 Word 文本片段。"""
+    """以精确引文定位段落中的值；可跨多个 Word 文本片段"""
 
     node: str
     quote: str = Field(max_length=10000)
@@ -19,7 +19,7 @@ class TextBinding(Model):
 
 
 class RepeatBinding(Model):
-    """以一个条目为样式样本，替换同级节点范围内的全部示例条目。"""
+    """以一个条目为样式样本；替换同级节点范围内的全部示例条目"""
 
     section: str
     start: str
@@ -30,7 +30,7 @@ class RepeatBinding(Model):
 
 
 class TemplatePlan(Model):
-    """待用户核对的字段、重复区、照片、固定文字和删除项。"""
+    """待用户核对的字段、重复区、照片、固定文字和删除项"""
 
     summary: str = Field(max_length=2000)
     fields: list[TextBinding] = Field(max_length=150)
@@ -42,7 +42,7 @@ class TemplatePlan(Model):
 
 
 class RecoveredBlock(Model):
-    """从页面识别的可编辑文字或无文字照片裁剪，只包含声明式内容。"""
+    """从页面识别的可编辑文字或无文字照片裁剪且只包含声明式内容"""
 
     text: str = Field(default="", max_length=20000)
     font_name: str = Field(default="等线", max_length=100)
@@ -54,14 +54,14 @@ class RecoveredBlock(Model):
     @field_validator("image_box")
     @classmethod
     def valid_image_box(cls, box):
-        """照片坐标必须完整且位于页面内，错误结果交回恢复流程自动重试。"""
+        """照片坐标必须完整且位于页面内；错误结果交回恢复流程自动重试"""
         if box and (len(box) != 4 or not (0 <= box[0] < box[2] <= 1 and 0 <= box[1] < box[3] <= 1)):
             raise ValueError("照片裁剪必须是页面内的 [左,上,右,下] 比例坐标。")
         return box
 
 
 class RecoveredPage(Model):
-    """一页按阅读顺序恢复的原文与照片，不根据当前简历编造源文档内容。"""
+    """一页按阅读顺序恢复的原文与照片且不根据当前简历编造源文档内容"""
 
     blocks: list[RecoveredBlock] = Field(max_length=1000)
     notes: list[str] = Field(default_factory=list, max_length=30)

@@ -1,4 +1,4 @@
-"""独立会话查询、归档维护与模型上下文重建。"""
+"""独立会话查询、归档维护与模型上下文重建"""
 
 from resume_maker.core.errors import Problem
 from resume_maker.infrastructure.database import now, uid
@@ -6,18 +6,18 @@ from resume_maker.services.catalog import Catalog
 
 
 class Conversations:
-    """会话详情、归档状态与模型上下文重建服务。"""
+    """会话详情、归档状态与模型上下文重建服务"""
 
     def __init__(self, catalog: Catalog):
-        """保存当前模块所需依赖，供后续业务操作共享使用。"""
+        """保存当前模块所需依赖；供后续业务操作共享使用"""
         self.catalog, self.db = catalog, catalog.db
 
     def archived_conversations(self):
-        """按最近更新时间列出归档会话，供设置界面恢复使用。"""
+        """按最近更新时间列出归档会话；供设置界面恢复使用"""
         return self.db.all("SELECT * FROM conversations WHERE archived=1 ORDER BY updated_at DESC")
 
     def get_conversation(self, conversation_id: str):
-        """聚合单个会话的消息、建议和任务，保持不同会话上下文隔离。"""
+        """聚合单个会话的消息、建议和任务；保持不同会话上下文隔离"""
         return {
             "conversation": self.catalog.conversation(conversation_id),
             "messages": self.db.all(
@@ -34,7 +34,7 @@ class Conversations:
         }
 
     def patch_conversation(self, conversation_id: str, values: dict):
-        """更新允许编辑的会话字段，仅在值变化时刷新活动时间。"""
+        """更新允许编辑的会话字段且仅在值变化时刷新活动时间"""
         self.catalog.conversation(conversation_id)
         values = dict(values)
         if set(values) - {"title", "input_draft", "scope", "archived"}:
@@ -55,7 +55,7 @@ class Conversations:
         return self.catalog.conversation(conversation_id)
 
     def rebuild_conversation(self, conversation_id: str):
-        """确认没有活动任务后清除模型会话标识，下轮使用保存的历史重建。"""
+        """确认没有活动任务后清除模型会话标识；下轮使用保存的历史重建"""
         self.catalog.conversation(conversation_id)
         with self.db.transaction() as conn:
             active = conn.execute(

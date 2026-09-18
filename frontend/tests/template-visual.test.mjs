@@ -9,9 +9,9 @@ import {
   repeatNodes,
 } from "../src/features/templates/visual.ts";
 
-/** 构造包含多个单元格、图片和页眉的脱敏模板结构。 */
+/** 构造包含多个单元格、图片和页眉的脱敏模板结构 */
 function fixture() {
-  /** 为每个位置明确记录其直接容器与可见祖先。 */
+  /** 为每个位置明确记录其直接容器与可见祖先 */
   function node(
     id,
     kind,
@@ -44,7 +44,7 @@ function fixture() {
   ];
 }
 
-/** 生成包含一条教育样本和两行原文的模板映射。 */
+/** 生成包含一条教育样本和两行原文的模板映射 */
 function plan() {
   return {
     summary: "测试",
@@ -70,7 +70,7 @@ function plan() {
   };
 }
 
-test("同级范围按原文排序，跨单元格、跨部件和图片范围不能拼接", /* 用户反向点击仍选取完整闭区间。 */ () => {
+test("同级范围按原文排序，跨单元格、跨部件和图片范围不能拼接", /* 用户反向点击仍选取完整闭区间 */ () => {
   const nodes = fixture();
   assert.deepEqual(siblingRange(nodes, "row2", "row1"), ["row1", "row2"]);
   assert.deepEqual(siblingRange(nodes, "name", "picture"), [
@@ -87,7 +87,7 @@ test("同级范围按原文排序，跨单元格、跨部件和图片范围不�
     assert.deepEqual(siblingRange(nodes, start, end), []);
 });
 
-test("选择表格行或图片容器时包含全部后代，单条样本不包含第二条示例", /* 层级选择不能漏掉单元格或内嵌图片。 */ () => {
+test("选择表格行或图片容器时包含全部后代，单条样本不包含第二条示例", /* 层级选择不能漏掉单元格或内嵌图片 */ () => {
   const nodes = fixture();
   assert.deepEqual(descendants(nodes, ["row1"]), ["row1", "school", "degree"]);
   assert.deepEqual(descendants(nodes, ["picture"]), ["picture", "photo"]);
@@ -105,7 +105,7 @@ test("选择表格行或图片容器时包含全部后代，单条样本不包�
   ]);
 });
 
-test("字段、重复示例、照片和删除容器呈现不同用途", /* 删除优先级必须覆盖内部字段与照片，容器不误报待处理。 */ () => {
+test("字段、重复示例、照片和删除容器呈现不同用途", /* 删除优先级必须覆盖内部字段与照片；容器不误报待处理 */ () => {
   const nodes = fixture(),
     value = plan();
   const index = mappingIndex(nodes, value);
@@ -121,7 +121,7 @@ test("字段、重复示例、照片和删除容器呈现不同用途", /* 删�
   );
 });
 
-test("精确引文高亮尊重出现次数和标签，错误引文不制造虚假字段", /* 同段相同值只高亮指定的一次。 */ () => {
+test("精确引文高亮尊重出现次数和标签，错误引文不制造虚假字段", /* 同段相同值只高亮指定的一次 */ () => {
   const fields = [
     { node: "n", quote: "示例", target: "personal.name", occurrence: 2 },
   ];
@@ -138,7 +138,7 @@ test("精确引文高亮尊重出现次数和标签，错误引文不制造虚�
   );
 });
 
-test("重新分类撤销覆盖当前节点的删除标记，保留其他区域和重复方案", /* 手工调整照片不误删姓名、页眉或教育映射。 */ () => {
+test("重新分类撤销覆盖当前节点的删除标记，保留其他区域和重复方案", /* 手工调整照片不误删姓名、页眉或教育映射 */ () => {
   const value = { ...plan(), remove: ["picture", "other"] };
   const cleared = clearNodes(value, fixture(), ["photo"]);
   assert.deepEqual(cleared.photos, []);

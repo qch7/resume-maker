@@ -1,4 +1,4 @@
-"""验证未提交工作副本的恢复、分支隔离和一次性提交语义。"""
+"""验证未提交工作副本的恢复、分支隔离和一次性提交语义"""
 
 import pytest
 
@@ -12,7 +12,7 @@ from resume_maker.services.projects import Projects
 def test_edits_and_repeated_ordering_survive_restart_as_one_pending_change(
     catalog, project, populated
 ):
-    """多次排序、文字修改和删除重启后仍为草稿，确认后只生成一个版本。"""
+    """多次排序、文字修改和删除重启后仍为草稿；确认后只生成一个版本"""
     p, base = project["id"], populated["id"]
     one, two = populated["content"]["highlights"]
     resume = catalog.save_resume(
@@ -55,7 +55,7 @@ def test_edits_and_repeated_ordering_survive_restart_as_one_pending_change(
 def test_pending_changes_are_visible_across_branches_and_noop_orders_are_hidden(
     catalog, project, populated
 ):
-    """历史树查询展示其他分支的草稿，恢复原顺序不会产生虚假改动节点。"""
+    """历史树查询展示其他分支的草稿；恢复原顺序不会产生虚假改动节点"""
     p, base = project["id"], populated["id"]
     branch = catalog.history.create(p, base, "alternate", False)
     alternate = branch["head_revision"]
@@ -76,7 +76,7 @@ def test_pending_changes_are_visible_across_branches_and_noop_orders_are_hidden(
 
 
 def test_failed_commit_keeps_working_tree_and_version_count(catalog, project, populated):
-    """内容校验失败时草稿与历史均保留，修正后可以合并提交。"""
+    """内容校验失败时草稿与历史均保留；修正后可以合并提交"""
     p, base = project["id"], populated["id"]
     catalog.put_draft(p, base, "highlight:new", {"title": "", "text": "", "evidence": []}, 0)
     before = Projects(catalog).get_project(p)

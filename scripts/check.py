@@ -1,4 +1,4 @@
-"""从任意工作目录运行项目完整检查，首个失败立即返回对应退出码。"""
+"""从任意工作目录运行项目完整检查；首个失败立即返回对应退出码"""
 
 import shutil
 import subprocess
@@ -9,8 +9,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def main() -> None:
-    """依次校验注释、架构、格式、测试及前端构建，避免失败被后续命令掩盖。"""
-    # 路径和检查报告可能包含中文，固定编码以支持英文 Windows 终端。
+    """依次校验注释、架构、格式、测试及前端构建以免失败被后续命令掩盖"""
+    # 路径和检查报告可能包含中文；固定编码以支持英文 Windows 终端
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
     npm = shutil.which("npm")

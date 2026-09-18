@@ -1,10 +1,10 @@
-"""版本内的项目正文顺序；兼容旧版简历设置，标题与时间独立保留在顶部。"""
+"""版本内的项目正文顺序；兼容旧版简历设置；标题与时间独立保留在顶部"""
 
 from resume_maker.domain.models import ProjectVisibility
 
 
 def project_body_order(content: dict, settings: ProjectVisibility | None = None) -> list[str]:
-    """按保存位置排列可用字段，新增项追加，删除项不挤占剩余条目的相对顺序。"""
+    """按保存位置排列可用字段；新增项追加；删除项不挤占剩余条目的相对顺序"""
     defaults = ["role", "stack", "description", "highlights"]
     defaults.extend(f"custom:{field['id']}" for field in content.get("custom_fields", []))
     order = content.get("body_order")
@@ -14,7 +14,7 @@ def project_body_order(content: dict, settings: ProjectVisibility | None = None)
 
 
 def project_body_entries(content: dict, selected: list[str], settings=None) -> list[dict]:
-    """输出已应用显隐的有内容条目，亮点作为一组移动，组内顺序仍由亮点编排控制。"""
+    """输出已应用显隐的有内容条目；亮点作为一组移动；组内顺序仍由亮点编排控制"""
     custom = {f"custom:{field['id']}": field for field in content.get("custom_fields", [])}
     points = {point["id"]: point for point in content["highlights"]}
     entries = []

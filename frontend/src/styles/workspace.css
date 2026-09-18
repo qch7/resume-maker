@@ -1,4 +1,4 @@
-/* 工作台分栏、制作指引和拖拽布局。 */
+/* 工作台分栏、制作指引和拖拽布局 */
 .app-shell {
   display: flex;
   flex-direction: column;

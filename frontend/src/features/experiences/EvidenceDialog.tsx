@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { api } from "../../shared/lib/api";
 import type { Evidence, ProjectDetail } from "../../shared/types";
 
-/** 在独立弹窗中查看引文和校验状态，并定位本机来源文件。 */
+/** 在独立弹窗中查看引文和校验状态并定位本机来源文件 */
 export default function EvidenceDialog({
   title,
   evidence,
@@ -22,20 +22,20 @@ export default function EvidenceDialog({
   const [opening, setOpening] = useState<number | null>(null);
   const snapshots = [detail.revision_snapshot, ...detail.snapshots];
   const verified = evidence.filter(
-    /* 统计已经与源码或文档原文匹配的引用。 */ (entry) =>
+    /* 统计已经与源码或文档原文匹配的引用 */ (entry) =>
       entry.status === "code" || entry.status === "document",
   ).length;
 
   useEffect(
-    /* 挂载时进入模态层，卸载时恢复原控件焦点。 */ () => {
+    /* 挂载时进入模态层；卸载时恢复原控件焦点 */ () => {
       const element = dialog.current;
       element?.showModal();
-      return /* 清理原生模态状态及焦点约束。 */ () => element?.close();
+      return /* 清理原生模态状态及焦点约束 */ () => element?.close();
     },
     [],
   );
 
-  /** 将快照标识和相对路径交给后端验证，错误留在当前弹窗内展示。 */
+  /** 将快照标识和相对路径交给后端验证；错误留在当前弹窗内展示 */
   async function reveal(entry: Evidence, snapshotId: string, index: number) {
     setOpening(index);
     setNotice("");
@@ -59,7 +59,7 @@ export default function EvidenceDialog({
       aria-labelledby={titleId}
       onCancel={onClose}
       onClick={
-        /* 点击弹窗外的遮罩时关闭，内容留白不触发。 */ (event) => {
+        /* 点击弹窗外的遮罩时关闭；内容留白不触发 */ (event) => {
           if (event.target !== event.currentTarget) return;
           const bounds = event.currentTarget.getBoundingClientRect();
           if (
@@ -96,16 +96,13 @@ export default function EvidenceDialog({
       )}
       <div className="evidence-list">
         {evidence.map(
-          /* 呈现每条引文，并匹配其所属快照以定位原始来源。 */ (
-            entry,
-            index,
-          ) => {
+          /* 呈现每条引文并匹配其所属快照以定位原始来源 */ (entry, index) => {
             const snapshot = snapshots.find(
-              /* 已发布经历优先使用版本快照，尚未发布的 AI 建议使用最近快照。 */ (
+              /* 已发布经历优先使用版本快照；尚未发布的 AI 建议使用最近快照 */ (
                 candidate,
               ) =>
                 candidate?.manifest.files.some(
-                  /* 仅允许打开快照实际登记的来源文件。 */ (file) =>
+                  /* 仅允许打开快照实际登记的来源文件 */ (file) =>
                     file.source === entry.source && file.path === entry.path,
                 ),
             );
@@ -127,7 +124,7 @@ export default function EvidenceDialog({
                     aria-label={`在资源管理器中打开 ${entry.path || "来源文件"}`}
                     disabled={!snapshot || opening !== null}
                     onClick={
-                      /* 请求在文件管理器中选中当前引用文件。 */ () => {
+                      /* 请求在文件管理器中选中当前引用文件 */ () => {
                         if (snapshot) void reveal(entry, snapshot.id, index);
                       }
                     }

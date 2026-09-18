@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ImageOff } from "lucide-react";
 import { request } from "../../shared/lib/api";
 
-/** 按可见区域延迟读取受保护的证书分页，切换页面后回收图片地址。 */
+/** 按可见区域延迟读取受保护的证书分页；切换页面后回收图片地址 */
 export default function HonorImage({
   id,
   page = 1,
@@ -16,12 +16,12 @@ export default function HonorImage({
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
   useEffect(
-    /* 当前证书进入视口时下载缩略图，避免一次读取整个荣誉库。 */ () => {
+    /* 当前证书进入视口时下载缩略图以免一次读取整个荣誉库 */ () => {
       const controller = new AbortController();
       let objectUrl = "";
       setUrl("");
       setError("");
-      /** 只发布属于本次证书和页码的响应。 */
+      /** 只发布属于本次证书和页码的响应 */
       async function read() {
         try {
           const response = await request(`/honors/${id}/pages/${page}`, {
@@ -36,10 +36,10 @@ export default function HonorImage({
         }
       }
       const observer = new IntersectionObserver(
-        /* 可见后只读取一次，后续交给浏览器展示。 */ (entries) => {
+        /* 可见后只读取一次；后续交给浏览器展示 */ (entries) => {
           if (
             entries.some(
-              /* 检查图片容器是否可见。 */ (entry) => entry.isIntersecting,
+              /* 检查图片容器是否可见 */ (entry) => entry.isIntersecting,
             )
           ) {
             observer.disconnect();
@@ -48,7 +48,7 @@ export default function HonorImage({
         },
       );
       if (container.current) observer.observe(container.current);
-      return /* 释放观察器、请求及当前对象地址。 */ () => {
+      return /* 释放观察器、请求及当前对象地址 */ () => {
         observer.disconnect();
         controller.abort();
         if (objectUrl) URL.revokeObjectURL(objectUrl);

@@ -1,4 +1,4 @@
-"""运行目录、实例令牌和前端资源位置配置。"""
+"""运行目录、实例令牌和前端资源位置配置"""
 
 import os
 import secrets
@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 def data_directory() -> Path:
-    """源码运行默认使用项目 data 目录，安装包回退到用户目录，允许环境变量覆盖。"""
+    """源码运行默认使用项目 data 目录；安装包回退到用户目录；允许环境变量覆盖"""
     if override := os.environ.get("RESUME_MAKER_DATA_DIR"):
         return Path(override).expanduser().resolve()
     source = Path(__file__).resolve().parents[2]
@@ -18,7 +18,7 @@ def data_directory() -> Path:
 
 
 def frontend_directory() -> Path:
-    """优先使用显式资源目录，其次使用 wheel 内资源，开发时回退到仓库构建目录。"""
+    """优先使用显式资源目录；其次使用 wheel 内资源；开发时回退到仓库构建目录"""
     if override := os.environ.get("RESUME_MAKER_FRONTEND_DIR"):
         return Path(override).expanduser().resolve()
     package = Path(__file__).resolve().parents[1] / "web"
@@ -29,7 +29,7 @@ def frontend_directory() -> Path:
 
 @dataclass
 class Config:
-    """运行配置：目录与令牌按实例生成，个人数据目录不纳入 Git。"""
+    """运行配置：目录与令牌按实例生成；个人数据目录不纳入 Git"""
 
     data_dir: Path = field(default_factory=data_directory)
     token: str = field(default_factory=lambda: secrets.token_urlsafe(32))
@@ -38,7 +38,7 @@ class Config:
     frontend: Path = field(default_factory=frontend_directory)
 
     def prepare(self) -> None:
-        """规范化数据目录并创建快照、模板、导出等运行资源目录。"""
+        """规范化数据目录并创建快照、模板、导出等运行资源目录"""
         self.data_dir = self.data_dir.resolve()
         for name in ("snapshots", "workspaces", "templates", "exports", "backups"):
             (self.data_dir / name).mkdir(parents=True, exist_ok=True)

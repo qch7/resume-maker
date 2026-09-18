@@ -3,14 +3,14 @@ import { useRef, useState } from "react";
 import HistoryDialog from "./HistoryDialog";
 import type { EditorProps } from "./types";
 
-/** 将分支切换、历史树入口与版本发布放在紧凑工具栏中。 */
+/** 将分支切换、历史树入口与版本发布放在紧凑工具栏中 */
 export default function VersionControl({ props }: { props: EditorProps }) {
   const { detail, revisionId, run } = props;
   const [dialog, setDialog] = useState<"history" | "create" | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const submission = useRef(false);
   const current = detail.revisions.find(
-    /* 显示当前编辑的具体版本。 */ (revision) => revision.id === revisionId,
+    /* 显示当前编辑的具体版本 */ (revision) => revision.id === revisionId,
   )!;
   const historical = detail.branch.head_revision !== revisionId;
   const pending = props.hasLocalChanges;
@@ -23,9 +23,9 @@ export default function VersionControl({ props }: { props: EditorProps }) {
             aria-label="当前经历分支"
             value={detail.branch.id}
             onChange={
-              /* 切到指定分支最新版本，原分支草稿先落盘。 */ (event) => {
+              /* 切到指定分支最新版本；原分支草稿先落盘 */ (event) => {
                 const branch = detail.branches.find(
-                  /* 查找用户选定的分支指针。 */ (item) =>
+                  /* 查找用户选定的分支指针 */ (item) =>
                     item.id === event.target.value,
                 );
                 if (branch) props.onRevision(branch.head_revision);
@@ -33,7 +33,7 @@ export default function VersionControl({ props }: { props: EditorProps }) {
             }
           >
             {detail.branches.map(
-              /* 为每个命名分支生成可选项。 */ (branch) => (
+              /* 为每个命名分支生成可选项 */ (branch) => (
                 <option key={branch.id} value={branch.id}>
                   {branch.name}
                   {branch.is_default ? " · 主分支" : ""}
@@ -44,9 +44,7 @@ export default function VersionControl({ props }: { props: EditorProps }) {
           <button
             className="history-trigger"
             aria-label="查看经历历史树"
-            onClick={
-              /* 展开包含全部分支的历史树。 */ () => setDialog("history")
-            }
+            onClick={/* 展开包含全部分支的历史树 */ () => setDialog("history")}
           >
             <History size={16} />
             <span>
@@ -59,7 +57,7 @@ export default function VersionControl({ props }: { props: EditorProps }) {
             title="从当前版本创建分支"
             aria-label="新建经历分支"
             onClick={
-              /* 直接打开从当前节点创建分支的表单。 */ () => setDialog("create")
+              /* 直接打开从当前节点创建分支的表单 */ () => setDialog("create")
             }
           >
             <Plus size={18} />
@@ -74,9 +72,9 @@ export default function VersionControl({ props }: { props: EditorProps }) {
               historical ? "先创建分支或回到该分支最新版本再保存" : undefined
             }
             onClick={
-              /* 用户明确确认后才把所有草稿合并提交一次。 */ () =>
+              /* 用户明确确认后才把所有草稿合并提交一次 */ () =>
                 run(
-                  /* 阻止重复点击产生并行提交，失败时仍保留草稿。 */ async () => {
+                  /* 阻止重复点击产生并行提交；失败时仍保留草稿 */ async () => {
                     if (submission.current) return;
                     submission.current = true;
                     setSubmitting(true);
@@ -96,10 +94,8 @@ export default function VersionControl({ props }: { props: EditorProps }) {
           <button
             data-guide="experience-use"
             onClick={
-              /* 将该保存版本用于当前简历，不移动其他分支。 */ () =>
-                run(
-                  /* 保留固定版本引用语义。 */ async () => props.onUseVersion(),
-                )
+              /* 将该保存版本用于当前简历且不移动其他分支 */ () =>
+                run(/* 保留固定版本引用语义 */ async () => props.onUseVersion())
             }
           >
             用于当前简历
@@ -116,7 +112,7 @@ export default function VersionControl({ props }: { props: EditorProps }) {
           <button
             className="text-button"
             onClick={
-              /* 回到当前分支最新版本，草稿保持各自独立。 */ () =>
+              /* 回到当前分支最新版本；草稿保持各自独立 */ () =>
                 props.onRevision(detail.branch.head_revision)
             }
           >
@@ -125,7 +121,7 @@ export default function VersionControl({ props }: { props: EditorProps }) {
           <button
             className="text-button"
             onClick={
-              /* 从历史节点继续发展独立版本线。 */ () => setDialog("create")
+              /* 从历史节点继续发展独立版本线 */ () => setDialog("create")
             }
           >
             从此版本创建分支
@@ -136,7 +132,7 @@ export default function VersionControl({ props }: { props: EditorProps }) {
         <HistoryDialog
           props={props}
           createInitially={dialog === "create"}
-          onClose={/* 关闭历史窗口并恢复编辑区焦点。 */ () => setDialog(null)}
+          onClose={/* 关闭历史窗口并恢复编辑区焦点 */ () => setDialog(null)}
         />
       )}
     </>

@@ -7,7 +7,7 @@ import { useField } from "./useField";
 import EvidenceDialog from "./EvidenceDialog";
 import { editHighlightText, fieldChanged } from "./changes";
 import { VisibilityButton } from "../profile/VisibilityField";
-/** 编辑亮点及证据，增删改只写草稿，统一由版本工具栏提交。 */
+/** 编辑亮点及证据；增删改只写草稿；统一由版本工具栏提交 */
 export default function HighlightEditor({
   item,
   draftVersion,
@@ -22,7 +22,7 @@ export default function HighlightEditor({
   const { detail, revisionId, run } = props;
   const field = `highlight:${item.id}`;
   const base = detail.revisions.find(
-    /* 读取当前不可变基线。 */ (revision) => revision.id === revisionId,
+    /* 读取当前不可变基线 */ (revision) => revision.id === revisionId,
   )!.content;
   const editor = useField(
     detail.project.id,
@@ -30,14 +30,14 @@ export default function HighlightEditor({
     field,
     item,
     draftVersion,
-    /* 亮点正文改回原文后不再显示待提交。 */ (value) =>
+    /* 亮点正文改回原文后不再显示待提交 */ (value) =>
       fieldChanged(value, base, field),
   );
   const [editing, setEditing] = useState(!item.title || !item.text);
   const [showEvidence, setShowEvidence] = useState(false);
   const { value } = editor;
   useEffect(
-    /* 输入和本机草稿恢复立即进入实时预览，无需等待网络防抖保存。 */ () =>
+    /* 输入和本机草稿恢复立即进入实时预览；无需等待网络防抖保存 */ () =>
       onPreview(value),
     [value, onPreview],
   );
@@ -54,7 +54,7 @@ export default function HighlightEditor({
             label={`亮点 ${value.title || "新亮点"}`}
             hidden={!props.included.includes(item.id)}
             onToggle={
-              /* 仅切换当前简历中的亮点显示，原文及项目版本不变。 */ () =>
+              /* 仅切换当前简历中的亮点显示；原文及项目版本不变 */ () =>
                 props.onToggle(item.id)
             }
           />
@@ -63,8 +63,8 @@ export default function HighlightEditor({
             title="让 AI 修改"
             aria-label={`让 AI 修改亮点 ${value.title}`}
             onClick={
-              /* 切换到当前亮点的 AI 讨论范围。 */ () =>
-                run(/* 刷新草稿后进入会话。 */ () => props.onAsk(field))
+              /* 切换到当前亮点的 AI 讨论范围 */ () =>
+                run(/* 刷新草稿后进入会话 */ () => props.onAsk(field))
             }
           >
             <Sparkles size={14} />
@@ -75,7 +75,7 @@ export default function HighlightEditor({
             title={`来源引用（${value.evidence.length} 条）`}
             aria-label={`来源引用（${value.evidence.length} 条）`}
             aria-haspopup="dialog"
-            onClick={/* 展示当前亮点的来源引用。 */ () => setShowEvidence(true)}
+            onClick={/* 展示当前亮点的来源引用 */ () => setShowEvidence(true)}
           >
             <FileText size={14} />
             <span className="highlight-tool-label">来源引用</span>
@@ -83,13 +83,7 @@ export default function HighlightEditor({
               {value.evidence.length}
             </span>
           </button>
-          <button
-            className="text-button"
-            onClick={
-              /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-                setEditing(!editing)
-            }
-          >
+          <button className="text-button" onClick={() => setEditing(!editing)}>
             {editing ? "收起" : "编辑"}
           </button>
           <button
@@ -97,16 +91,16 @@ export default function HighlightEditor({
             title="删除亮点"
             aria-label={`删除亮点 ${value.title}`}
             onClick={
-              /* 保存删除操作前刷新草稿并读取最新版本，避免覆盖并发编辑。 */ () =>
+              /* 保存删除操作前刷新草稿并读取最新版本以免覆盖并发编辑 */ () =>
                 run(
-                  /* 将删除保留在工作副本中，不创建正式版本。 */ async () => {
+                  /* 将删除保留在工作副本中且不创建正式版本 */ async () => {
                     await editor.flush();
                     const fresh = await api<ProjectDetail>(
                       `/projects/${detail.project.id}?revision_id=${revisionId}`,
                     );
                     const version =
                       fresh.working.drafts.find(
-                        /* 查找当前亮点的草稿版本。 */ (d) => d.field === field,
+                        /* 查找当前亮点的草稿版本 */ (d) => d.field === field,
                       )?.version ?? 0;
                     await api(`/projects/${detail.project.id}/draft`, "PUT", {
                       base_revision: revisionId,
@@ -134,9 +128,8 @@ export default function HighlightEditor({
             亮点标题
             <input
               value={value.title}
-              onChange={
-                /* 把控件的新值同步到对应编辑状态。 */ (e) =>
-                  editor.update({ ...value, title: e.target.value })
+              onChange={(e) =>
+                editor.update({ ...value, title: e.target.value })
               }
             />
           </label>
@@ -145,18 +138,17 @@ export default function HighlightEditor({
             <textarea
               rows={4}
               value={value.text}
-              onChange={
-                /* 把控件的新值同步到对应编辑状态。 */ (e) =>
-                  editor.update(
-                    editHighlightText(
-                      value,
-                      e.target.value,
-                      base.highlights.find(
-                        /* 同时恢复原文对应的证据核实状态。 */ (point) =>
-                          point.id === item.id,
-                      ),
+              onChange={(e) =>
+                editor.update(
+                  editHighlightText(
+                    value,
+                    e.target.value,
+                    base.highlights.find(
+                      /* 同时恢复原文对应的证据核实状态 */ (point) =>
+                        point.id === item.id,
                     ),
-                  )
+                  ),
+                )
               }
             />
           </label>
@@ -164,41 +156,35 @@ export default function HighlightEditor({
             <button
               className="primary"
               disabled={!value.title.trim() || !value.text.trim()}
-              onClick={
-                /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-                  run(
-                    /* 在草稿刷新成功后执行当前业务操作。 */ async () => {
-                      await editor.flush();
-                      setEditing(false);
-                      props.onRefresh();
-                    },
-                  )
+              onClick={() =>
+                run(async () => {
+                  await editor.flush();
+                  setEditing(false);
+                  props.onRefresh();
+                })
               }
             >
               <Check size={15} />
               完成编辑
             </button>
             <button
-              onClick={
-                /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-                  run(
-                    /* 在草稿刷新成功后执行当前业务操作。 */ async () => {
-                      await editor.flush();
-                      await api(
-                        `/projects/${detail.project.id}/draft/discard`,
-                        "POST",
-                        {
-                          base_revision: revisionId,
-                          field,
-                          version: editor.version.current,
-                        },
-                      );
-                      localStorage.removeItem(
-                        `rm.field.${detail.project.id}.${revisionId}.${field}`,
-                      );
-                      props.onRefresh();
+              onClick={() =>
+                run(async () => {
+                  await editor.flush();
+                  await api(
+                    `/projects/${detail.project.id}/draft/discard`,
+                    "POST",
+                    {
+                      base_revision: revisionId,
+                      field,
+                      version: editor.version.current,
                     },
-                  )
+                  );
+                  localStorage.removeItem(
+                    `rm.field.${detail.project.id}.${revisionId}.${field}`,
+                  );
+                  props.onRefresh();
+                })
               }
             >
               取消编辑
@@ -207,12 +193,7 @@ export default function HighlightEditor({
               {editor.status}
             </span>
             {editor.conflict && (
-              <button
-                onClick={
-                  /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-                    void editor.reloadRemote()
-                }
-              >
+              <button onClick={() => void editor.reloadRemote()}>
                 载入服务器草稿
               </button>
             )}
@@ -225,7 +206,7 @@ export default function HighlightEditor({
           evidence={value.evidence}
           detail={detail}
           onClose={
-            /* 关闭弹窗并恢复触发按钮焦点。 */ () => setShowEvidence(false)
+            /* 关闭弹窗并恢复触发按钮焦点 */ () => setShowEvidence(false)
           }
         />
       )}

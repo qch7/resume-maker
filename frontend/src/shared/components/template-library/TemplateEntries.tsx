@@ -2,7 +2,7 @@ import { Check, FileText, Heart } from "lucide-react";
 import Thumbnail from "./Thumbnail";
 import { templateDate, type LibraryTemplate } from "./library";
 
-/** 列表和卡片统一使用独立选择与 Like 按钮，键盘也可完成全部操作。 */
+/** 列表和卡片统一使用独立选择与 Like 按钮；键盘也可完成全部操作 */
 export default function TemplateEntries({
   items,
   view,
@@ -35,7 +35,7 @@ export default function TemplateEntries({
         </div>
       )}
       {items.map(
-        /* 每个模板均可选择、双击确认或单独收藏。 */ (item) => (
+        /* 每个模板均可选择、双击确认或单独收藏 */ (item) => (
           <div
             key={item.id}
             className={`library-entry ${selected === item.id ? "is-selected" : ""}`}
@@ -47,9 +47,9 @@ export default function TemplateEntries({
                   className="library-preview-select"
                   aria-label={`选择 ${item.name}`}
                   aria-pressed={selected === item.id}
-                  onClick={/* 单击只改变弹窗内选择。 */ () => onSelect(item.id)}
+                  onClick={/* 单击只改变弹窗内选择 */ () => onSelect(item.id)}
                   onDoubleClick={
-                    /* 双击直接确认模板。 */ () => onConfirm(item.id)
+                    /* 双击直接确认模板 */ () => onConfirm(item.id)
                   }
                 />
                 {current === item.id && (
@@ -64,9 +64,9 @@ export default function TemplateEntries({
               className="library-entry-name"
               title={item.name}
               aria-pressed={selected === item.id}
-              onClick={/* 列表名称支持键盘选择。 */ () => onSelect(item.id)}
+              onClick={/* 列表名称支持键盘选择 */ () => onSelect(item.id)}
               onDoubleClick={
-                /* 与资源管理器的双击打开行为保持一致。 */ () =>
+                /* 与资源管理器的双击打开行为保持一致 */ () =>
                   onConfirm(item.id)
               }
             >
@@ -89,7 +89,7 @@ export default function TemplateEntries({
               aria-pressed={item.liked}
               disabled={pending || !!item.deleted_at}
               onClick={
-                /* 收藏不改变当前选择，也不关闭弹窗。 */ () => onLike(item)
+                /* 收藏不改变当前选择；也不关闭弹窗 */ () => onLike(item)
               }
             >
               <Heart size={17} fill={item.liked ? "currentColor" : "none"} />

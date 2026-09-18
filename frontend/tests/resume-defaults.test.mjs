@@ -10,13 +10,13 @@ import {
   builtinDefaults,
   defaultHasContent,
   hasDefault,
-} from "../src/features/profile/defaults.ts";
-import { projectDefaultView } from "../src/features/profile/projectDefaults.ts";
+} from "../src/features/profile/defaults/model.ts";
+import { projectDefaultView } from "../src/features/profile/defaults/projects.ts";
 import { addHonors } from "../src/features/honors/model.ts";
 import { emptyHonor } from "../src/features/honors/fields.ts";
 import { syncHonorDocument } from "../src/features/honors/sync.ts";
 import { sameResumeDocument } from "../src/features/profile/comparison.ts";
-import { repairDefaultDuplicates } from "../src/features/profile/defaultSections.ts";
+import { repairDefaultDuplicates } from "../src/features/profile/defaults/sections.ts";
 
 test("旧简历同名栏目沿用原标识和全部内容，重复应用不会再添空栏目", () => {
   const settings = builtinDefaults();

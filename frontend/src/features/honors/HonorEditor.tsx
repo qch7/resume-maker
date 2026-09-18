@@ -18,17 +18,17 @@ import { newCustomField } from "../profile/document";
 import { VisibilityButton } from "../profile/VisibilityField";
 
 const FIELDS = HONOR_FIELDS.filter(
-  /* 分类和多行说明使用各自的专用控件。 */ (field) =>
+  /* 分类和多行说明使用各自的专用控件 */ (field) =>
     field.key !== "category" && field.key !== "description",
 );
 const CATEGORY = HONOR_FIELDS.find(
-  /* 分类与个人信息使用同一份字段标签。 */ (field) => field.key === "category",
+  /* 分类与个人信息使用同一份字段标签 */ (field) => field.key === "category",
 )!;
 const DESCRIPTION = HONOR_FIELDS.find(
-  /* 多行说明的限制和提示保持一致。 */ (field) => field.key === "description",
+  /* 多行说明的限制和提示保持一致 */ (field) => field.key === "description",
 )!;
 
-/** 对照原件核对识别结果；保留未保存表单，并用版本号防止并发覆盖。 */
+/** 对照原件核对识别结果；保留未保存表单并用版本号防止并发覆盖 */
 export default function HonorEditor({
   honor,
   onClose,
@@ -63,15 +63,15 @@ export default function HonorEditor({
     contentDirty || JSON.stringify(entry) !== JSON.stringify(resumeEntry);
   const recognizing = honor ? isRecognizing(honor) : false;
   useEffect(
-    /* 原生模态框提供焦点约束和 Escape 关闭。 */ () => {
+    /* 原生模态框提供焦点约束和 Escape 关闭 */ () => {
       const element = dialog.current;
       element?.showModal();
-      return /* 卸载时退出顶层模态状态。 */ () => element?.close();
+      return /* 卸载时退出顶层模态状态 */ () => element?.close();
     },
     [],
   );
   useEffect(
-    /* 未编辑时跟随识别完成状态，有草稿时保留原版本以检查冲突。 */ () => {
+    /* 未编辑时跟随识别完成状态；有草稿时保留原版本以检查冲突 */ () => {
       if (honor && !dirty) {
         setFields(honor.fields);
         setBaseline(honor.fields);
@@ -80,7 +80,7 @@ export default function HonorEditor({
     },
     [honor, dirty],
   );
-  /** 关闭前保护尚未保存的人工核对内容。 */
+  /** 关闭前保护尚未保存的人工核对内容 */
   function close() {
     if (
       !busy &&
@@ -88,19 +88,19 @@ export default function HonorEditor({
     )
       onClose();
   }
-  /** 显隐和自定义字段只留在本次简历表单，正文沿用荣誉库字段。 */
+  /** 显隐和自定义字段只留在本次简历表单；正文沿用荣誉库字段 */
   function changeEntry(value: SectionEntry) {
     setEntry(value);
     setFields(honorFieldsFromEntry(value));
   }
-  /** 保存当前表单，服务端成功前保留用户输入。 */
+  /** 保存当前表单；服务端成功前保留用户输入 */
   async function save() {
     if (busy || recognizing || !fields.name.trim()) return;
     setBusy(true);
     setError("");
     let savedSource = sourceSaved;
     try {
-      // 本地条目与单独的显示设置不写来源；保存失败后重试使用已确认的新版本。
+      // 本地条目与单独的显示设置不写来源；保存失败后重试使用已确认的新版本
       if (!resumeEntry || (honor && contentDirty)) {
         const saved = await api<Honor>(
           honor ? `/honors/${honor.id}` : "/honors",
@@ -142,7 +142,7 @@ export default function HonorEditor({
       className={`honor-dialog ${resumeEntry && !honor?.attachment ? "honor-entry-dialog" : ""}`}
       aria-labelledby="honor-editor-title"
       onCancel={
-        /* 拦截默认关闭以保护未保存内容。 */ (event) => {
+        /* 拦截默认关闭以保护未保存内容 */ (event) => {
           event.preventDefault();
           close();
         }
@@ -185,12 +185,12 @@ export default function HonorEditor({
               <span title={honor.attachment.name}>{honor.attachment.name}</span>
               <button
                 onClick={
-                  /* 下载经过鉴权的原始附件。 */ () => {
+                  /* 下载经过鉴权的原始附件 */ () => {
                     void download(
                       `/honors/${honor.id}/original`,
                       honor.attachment!.name,
                     ).catch(
-                      /* 下载失败在当前窗口提示。 */ (reason: Error) =>
+                      /* 下载失败在当前窗口提示 */ (reason: Error) =>
                         setError(reason.message),
                     );
                   }
@@ -210,7 +210,7 @@ export default function HonorEditor({
                 <button
                   aria-label="上一页证书"
                   disabled={page <= 1}
-                  onClick={/* 切换到上一张分页图。 */ () => setPage(page - 1)}
+                  onClick={/* 切换到上一张分页图 */ () => setPage(page - 1)}
                 >
                   <ChevronLeft size={16} />
                 </button>
@@ -220,7 +220,7 @@ export default function HonorEditor({
                 <button
                   aria-label="下一页证书"
                   disabled={page >= honor.attachment.pages}
-                  onClick={/* 切换到下一张分页图。 */ () => setPage(page + 1)}
+                  onClick={/* 切换到下一张分页图 */ () => setPage(page + 1)}
                 >
                   <ChevronRight size={16} />
                 </button>
@@ -232,7 +232,7 @@ export default function HonorEditor({
           id="honor-form"
           className="honor-form"
           onSubmit={
-            /* 表单通过浏览器必填校验后执行保存。 */ (event) => {
+            /* 表单通过浏览器必填校验后执行保存 */ (event) => {
               event.preventDefault();
               void save();
             }
@@ -250,7 +250,7 @@ export default function HonorEditor({
                     : "识别信息已填入下方，请对照原件核对。空白字段可补充或留空。"}
                 </p>
                 {honor.recognition.warnings.map(
-                  /* 展示模型标出的不确定信息。 */ (warning, index) => (
+                  /* 展示模型标出的不确定信息 */ (warning, index) => (
                     <p key={index}>{warning}</p>
                   ),
                 )}
@@ -259,7 +259,7 @@ export default function HonorEditor({
                     type="button"
                     disabled={recognizing || busy}
                     onClick={
-                      /* 填入后收起本次提示，下一次新识别仍可独立核对。 */ () => {
+                      /* 填入后收起本次提示；下一次新识别仍可独立核对 */ () => {
                         setFields(honor.recognition!.fields);
                         setAppliedRecognitionVersion(honor.version);
                       }
@@ -286,7 +286,7 @@ export default function HonorEditor({
                       hidden={entry.visible === false}
                       disabled={busy || recognizing}
                       onToggle={
-                        /* 整条隐藏与各个字段的显示选择互不覆盖。 */ () =>
+                        /* 整条隐藏与各个字段的显示选择互不覆盖 */ () =>
                           setEntry({
                             ...entry,
                             visible: entry.visible === false,
@@ -305,7 +305,7 @@ export default function HonorEditor({
                   onExpanded={setExpanded}
                   onChange={changeEntry}
                   onAddInfo={
-                    /* 在其他荣誉信息中添加仅属于当前简历的自定义资料。 */ () => {
+                    /* 在其他荣誉信息中添加仅属于当前简历的自定义资料 */ () => {
                       setExpanded(true);
                       setEntry({
                         ...entry,
@@ -321,7 +321,7 @@ export default function HonorEditor({
             ) : (
               <div className="honor-fields">
                 {FIELDS.map(
-                  /* 每个字段都有固定标签和明确的长度限制。 */ (field) => (
+                  /* 每个字段都有固定标签和明确的长度限制 */ (field) => (
                     <label
                       key={field.key}
                       className={
@@ -338,7 +338,7 @@ export default function HonorEditor({
                         value={fields[field.key]}
                         placeholder={field.placeholder}
                         onChange={
-                          /* 只更新当前输入字段。 */ (event) =>
+                          /* 只更新当前输入字段 */ (event) =>
                             setFields({
                               ...fields,
                               [field.key]: event.target.value,
@@ -353,7 +353,7 @@ export default function HonorEditor({
                   <select
                     value={fields.category}
                     onChange={
-                      /* 分类与原件内容分开维护。 */ (event) =>
+                      /* 分类与原件内容分开维护 */ (event) =>
                         setFields({
                           ...fields,
                           category: event.target
@@ -362,7 +362,7 @@ export default function HonorEditor({
                     }
                   >
                     {CATEGORIES.map(
-                      /* 列出统一的荣誉分类。 */ (category) => (
+                      /* 列出统一的荣誉分类 */ (category) => (
                         <option key={category}>{category}</option>
                       ),
                     )}
@@ -376,7 +376,7 @@ export default function HonorEditor({
                     value={fields.description}
                     placeholder={DESCRIPTION.placeholder}
                     onChange={
-                      /* 保留说明中的换行。 */ (event) =>
+                      /* 保留说明中的换行 */ (event) =>
                         setFields({
                           ...fields,
                           description: event.target.value,

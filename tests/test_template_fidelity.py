@@ -1,4 +1,4 @@
-"""原生模板的组合图形、浮动坐标、照片和横向分栏不能因识别或填充丢失。"""
+"""原生模板的组合图形、浮动坐标、照片和横向分栏不能因识别或填充丢失"""
 
 import base64
 from io import BytesIO
@@ -11,8 +11,8 @@ from test_template_mapping import photo_bytes
 from resume_maker.domain.resume import ResumeDocument
 from resume_maker.domain.templates import RepeatBinding, TemplatePlan, TextBinding
 from resume_maker.integrations.word.ooxml import NS, w
-from resume_maker.integrations.word.template_fill import fill_fields, fill_template
-from resume_maker.integrations.word.template_map import TemplatePackage, paragraph_text
+from resume_maker.integrations.word.templates.fill import fill_fields, fill_template
+from resume_maker.integrations.word.templates.mapping import TemplatePackage, paragraph_text
 
 A = "http://schemas.openxmlformats.org/drawingml/2006/main"
 WP = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
@@ -21,7 +21,7 @@ WPS = "http://schemas.microsoft.com/office/word/2010/wordprocessingShape"
 
 
 def grouped_header(path):
-    """构造照片、蓝色背景和白色姓名共用组合图形，锚点借用课程正文的模板。"""
+    """构造照片、蓝色背景和白色姓名共用组合图形；锚点借用课程正文的模板"""
     document = Document()
     document.add_paragraph("固定说明")
     document.add_paragraph("教育背景")
@@ -97,7 +97,7 @@ def grouped_header(path):
 @pytest.mark.parametrize("photo", [True, False])
 @pytest.mark.parametrize("education", [True, False])
 def test_grouped_photo_changes_leave_background_text_and_page_anchor(tmp_path, photo, education):
-    """更换或隐藏照片、隐藏其原锚点栏目时，页首背景、姓名、坐标和其他图形仍保留。"""
+    """更换或隐藏照片、隐藏其原锚点栏目时；页首背景、姓名、坐标和其他图形仍保留"""
     source, output = tmp_path / "source.docx", tmp_path / "filled.docx"
     package, plan = grouped_header(source)
     before = source.read_bytes()
@@ -148,7 +148,7 @@ def test_grouped_photo_changes_leave_background_text_and_page_anchor(tmp_path, p
 
 
 def test_native_normalization_is_idempotent_and_keeps_separate_drawing_geometry(tmp_path):
-    """共用锚点分离后再读取编号稳定，绘图 XML 完整保留且不混入文字重复区。"""
+    """共用锚点分离后再读取编号稳定；绘图 XML 完整保留且不混入文字重复区"""
     source, output = tmp_path / "source.docx", tmp_path / "normalized.docx"
     package, plan = grouped_header(source)
     package.write(output)
@@ -161,7 +161,7 @@ def test_native_normalization_is_idempotent_and_keeps_separate_drawing_geometry(
 
 
 def test_repeated_education_preserves_three_column_layout_and_fonts(tmp_path):
-    """多条教育记录仍复制原三栏节属性、字体和横向段落，不改建通用表格。"""
+    """多条教育记录仍复制原三栏节属性、字体和横向段落且不改建通用表格"""
     source, output = tmp_path / "source.docx", tmp_path / "filled.docx"
     document = Document()
     for text in ("旧日期", "旧学校", "旧专业"):
@@ -232,7 +232,7 @@ def test_repeated_education_preserves_three_column_layout_and_fonts(tmp_path):
 
 
 def test_highlight_keeps_bold_title_and_regular_body_across_styled_spaces():
-    """替换整条亮点仍区分标题和正文，不把旧标题末尾的粗体空格样式扩散到全文。"""
+    """替换整条亮点仍区分标题和正文且不把旧标题末尾的粗体空格样式扩散到全文"""
     document = Document()
     paragraph = document.add_paragraph()
     paragraph.add_run("旧标题： ").bold = True

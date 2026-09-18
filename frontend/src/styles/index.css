@@ -1,4 +1,4 @@
-/* 导入顺序决定层叠规则，新增样式应归入对应职责文件。 */
+/* 导入顺序决定层叠规则；新增样式应归入对应职责文件 */
 @import "./base.css";
 @import "./workspace.css";
 @import "./components.css";

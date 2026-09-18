@@ -25,10 +25,10 @@ const honors = [
     updated_at: "2026-09-02T00:00:00Z",
   },
 ];
-/** 只提取身份以核对排序，不把完整资料复制进预期值。 */
-const ids = (rows) => rows.map(/* 保留稳定引用身份。 */ (item) => item.id);
+/** 只提取身份以核对排序且不把完整资料复制进预期值 */
+const ids = (rows) => rows.map(/* 保留稳定引用身份 */ (item) => item.id);
 
-test("all three honor sort buttons reverse their own order", /* 三种维度各有独立的正倒序，切换维度使用适合字段的初始方向。 */ () => {
+test("all three honor sort buttons reverse their own order", /* 三种维度各有独立的正倒序；切换维度使用适合字段的初始方向 */ () => {
   for (const key of ["recent", "date", "name"]) {
     const initial = nextHonorSort(null, key);
     assert.equal(initial.direction, key === "name" ? "asc" : "desc");
@@ -57,7 +57,7 @@ test("all three honor sort buttons reverse their own order", /* 三种维度各�
   assert.deepEqual(honors, before);
 });
 
-test("missing and invalid dates stay last while equal dates retain manual order", /* 中文日期与不同精度日期按日历比较，空值不随倒序跑到最前面。 */ () => {
+test("missing and invalid dates stay last while equal dates retain manual order", /* 中文日期与不同精度日期按日历比较；空值不随倒序跑到最前面 */ () => {
   const rows = [
     { ...honors[0], id: "blank", fields: { ...honors[0].fields, date: "" } },
     {
@@ -93,9 +93,9 @@ test("missing and invalid dates stay last while equal dates retain manual order"
   ]);
 });
 
-test("organizer sorting preserves complete entries and unrelated positions", /* 调整实际简历顺序时保留来源引用、隐藏资料、自定义字段及混合栏目中的普通条目。 */ () => {
+test("organizer sorting preserves complete entries and unrelated positions", /* 调整实际简历顺序时保留来源引用、隐藏资料、自定义字段及混合栏目中的普通条目 */ () => {
   const entries = honors.map(
-    /* 与库来源关联，日期与名称由当前简历提供。 */ (honor) =>
+    /* 与库来源关联；日期与名称由当前简历提供 */ (honor) =>
       newHonorEntry(honor.fields, `honor:${honor.id}`),
   );
   entries[0].visible = false;

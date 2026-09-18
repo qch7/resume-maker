@@ -18,11 +18,11 @@ interface Props {
   showBlanks?: boolean;
 }
 
-/** 以可点击的文档结构展示识别结果，字段高亮和表格层级均来自当前映射。 */
+/** 以可点击的文档结构展示识别结果；字段高亮和表格层级均来自当前映射 */
 export default function TemplateCanvas(props: Props) {
   const root = useRef<HTMLDivElement>(null);
   const tree = useMemo(
-    /* 将节点接到最近可见祖先，保留文本框和表格内部层级。 */ () => {
+    /* 将节点接到最近可见祖先；保留文本框和表格内部层级 */ () => {
       const children = new Map<string, TemplateNode[]>();
       for (const node of props.nodes) {
         const parent = node.ancestors[0] ?? node.part;
@@ -33,20 +33,18 @@ export default function TemplateCanvas(props: Props) {
     [props.nodes],
   );
   const mappings = useMemo(
-    /* 一次计算当前映射的显示状态，避免递归时重复遍历。 */ () =>
+    /* 一次计算当前映射的显示状态以免递归时重复遍历 */ () =>
       mappingIndex(props.nodes, props.plan),
     [props.nodes, props.plan],
   );
   const parts = [
-    ...new Set(
-      props.nodes.map(/* 提取各 Word 文字部件。 */ (node) => node.part),
-    ),
+    ...new Set(props.nodes.map(/* 提取各 Word 文字部件 */ (node) => node.part)),
   ].sort(
-    /* 页眉在正文前，页脚在正文后。 */ (left, right) =>
+    /* 页眉在正文前；页脚在正文后 */ (left, right) =>
       orderPart(left) - orderPart(right),
   );
   useEffect(
-    /* 从右侧定位映射时，只滚动文档画布。 */ () => {
+    /* 从右侧定位映射时且只滚动文档画布 */ () => {
       const element = root.current?.querySelector<HTMLElement>(
         `[data-template-node="${props.selected[0]}"]`,
       );
@@ -62,7 +60,7 @@ export default function TemplateCanvas(props: Props) {
     },
     [props.selected],
   );
-  /** 递归呈现表格行、单元格内文字、图片与普通段落。 */
+  /** 递归呈现表格行、单元格内文字、图片与普通段落 */
   function renderNode(node: TemplateNode, index: number) {
     const children = tree.get(node.id) ?? [];
     const mapping = mappings.get(node.id)!;
@@ -97,7 +95,7 @@ export default function TemplateCanvas(props: Props) {
         aria-pressed={active}
         aria-label={`选择${label.slice(0, 70)}`}
         onClick={
-          /* 点击选中，Shift 点击扩展同级范围。 */ (event) =>
+          /* 点击选中；Shift 点击扩展同级范围 */ (event) =>
             props.onSelect(node.id, event.shiftKey)
         }
       >
@@ -106,7 +104,7 @@ export default function TemplateCanvas(props: Props) {
             <TemplateImage taskId={props.taskId} nodeId={node.id} />
           ) : node.kind === "p" && node.text ? (
             highlightedText(node.text, mapping.bindings).map(
-              /* 精确高亮字段引文，同时保留未替换标签。 */ (chunk, at) =>
+              /* 精确高亮字段引文；同时保留未替换标签 */ (chunk, at) =>
                 chunk.target ? (
                   <mark key={at} title={targetLabel(chunk.target)}>
                     {chunk.text}
@@ -122,7 +120,7 @@ export default function TemplateCanvas(props: Props) {
         <span className="template-node-tags">
           {mapping.bindings.length ? (
             mapping.bindings.map(
-              /* 让原文与资料名称直接对应。 */ (field, at) => (
+              /* 让原文与资料名称直接对应 */ (field, at) => (
                 <span key={at}>{targetLabel(field.target)}</span>
               ),
             )
@@ -142,7 +140,7 @@ export default function TemplateCanvas(props: Props) {
       const cells = [
         ...new Set(
           children.map(
-            /* 用真实单元格父节点保持列分组。 */ (child) => child.parent,
+            /* 用真实单元格父节点保持列分组 */ (child) => child.parent,
           ),
         ),
       ];
@@ -156,11 +154,11 @@ export default function TemplateCanvas(props: Props) {
             }}
           >
             {cells.map(
-              /* 同一单元格可以包含多段文字或文本框。 */ (cell) => (
+              /* 同一单元格可以包含多段文字或文本框 */ (cell) => (
                 <div className="template-table-cell" key={cell}>
                   {children
                     .filter(
-                      /* 筛出当前单元格的直接内容。 */ (child) =>
+                      /* 筛出当前单元格的直接内容 */ (child) =>
                         child.parent === cell,
                     )
                     .map(renderNode)}
@@ -191,7 +189,7 @@ export default function TemplateCanvas(props: Props) {
     >
       <div className="template-paper">
         {parts.map(
-          /* 分开展示页眉、正文和页脚，不伪造真实分页。 */ (part, index) => (
+          /* 分开展示页眉、正文和页脚且不伪造真实分页 */ (part, index) => (
             <section className="template-part" key={part}>
               <div className="template-part-label">
                 {part.includes("header")
@@ -214,7 +212,7 @@ export default function TemplateCanvas(props: Props) {
   );
 }
 
-/** 确定结构视图的阅读顺序，真实页面位置由 Word 试填展示。 */
+/** 确定结构视图的阅读顺序；真实页面位置由 Word 试填展示 */
 function orderPart(part: string) {
   return part.includes("header") ? 0 : part.includes("footer") ? 2 : 1;
 }

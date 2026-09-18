@@ -34,7 +34,7 @@ interface Props {
   onImport: () => void;
 }
 
-/** 展示和排序项目及会话，通过回调把导航与写入交给工作台协调。 */
+/** 展示和排序项目及会话；通过回调把导航与写入交给工作台协调 */
 export default function ProjectSidebar({
   onCollapse,
   sortedSidebar,
@@ -54,10 +54,10 @@ export default function ProjectSidebar({
   onArchive,
   onImport,
 }: Props) {
-  /** 按来源分组递归显示项目；整体与子项目分别持有选择状态和会话。 */
+  /** 按来源分组递归显示项目；整体与子项目分别持有选择状态和会话 */
   function renderProject(p: Project) {
     const children = sortedSidebar.projects.filter(
-      /* 子项目始终留在所属整体项目下，组内沿用当前排序。 */ (child) =>
+      /* 子项目始终留在所属整体项目下；组内沿用当前排序 */ (child) =>
         child.parent_id === p.id,
     );
     const collapsed = folded[p.id] ?? !!p.parent_id;
@@ -77,20 +77,13 @@ export default function ProjectSidebar({
                 ? "勾选整体经历；子项目可分别勾选"
                 : "将该项目单独加入简历"
             }
-            checked={items.some(
-              /* 检查条目是否满足当前选择或校验条件。 */ (i) =>
-                i.project_id === p.id,
-            )}
-            onChange={
-              /* 把控件的新值同步到对应编辑状态。 */ () => onToggleProject(p.id)
-            }
+            checked={items.some((i) => i.project_id === p.id)}
+            onChange={() => onToggleProject(p.id)}
           />
           <button
             className="project-name"
             title={p.parent_id ? `${p.name}\n${p.roots.join("\n")}` : p.name}
-            onClick={
-              /* 响应当前操作按钮，执行对应业务动作。 */ () => onNavigate(p.id)
-            }
+            onClick={() => onNavigate(p.id)}
           >
             {p.name}
           </button>
@@ -100,10 +93,7 @@ export default function ProjectSidebar({
             title={`为 ${p.name} 新建会话`}
             disabled={!!creatingConversation}
             aria-busy={creatingConversation === p.id}
-            onClick={
-              /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-                onNewConversation(p.id)
-            }
+            onClick={() => onNewConversation(p.id)}
           >
             {creatingConversation === p.id ? (
               <LoaderCircle size={15} className="spin" />
@@ -115,14 +105,7 @@ export default function ProjectSidebar({
             className="icon-button"
             aria-label={`${collapsed ? "展开" : "收起"} ${p.name} ${children.length ? "子项目与会话" : "会话"}`}
             aria-expanded={!collapsed}
-            onClick={
-              /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-                setFolded(
-                  /* 基于最近一次状态计算新值，避免异步闭包覆盖后续修改。 */ (
-                    v,
-                  ) => ({ ...v, [p.id]: !collapsed }),
-                )
-            }
+            onClick={() => setFolded((v) => ({ ...v, [p.id]: !collapsed }))}
           >
             {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
           </button>
@@ -134,54 +117,40 @@ export default function ProjectSidebar({
             )}
             <div className="session-list">
               {sortedSidebar.conversations
-                .filter(
-                  /* 保留满足当前范围或有效性条件的条目。 */ (c) =>
-                    c.project_id === p.id,
-                )
-                .map(
-                  /* 按稳定标识生成对应的列表条目。 */ (c) => (
-                    <div
-                      className={`session-row ${c.id === conversationId && activeProject === p.id && mode === "chat" ? "selected" : ""}`}
-                      key={c.id}
+                .filter((c) => c.project_id === p.id)
+                .map((c) => (
+                  <div
+                    className={`session-row ${c.id === conversationId && activeProject === p.id && mode === "chat" ? "selected" : ""}`}
+                    key={c.id}
+                  >
+                    <button
+                      className="session-button"
+                      aria-current={
+                        c.id === conversationId &&
+                        activeProject === p.id &&
+                        mode === "chat"
+                          ? "page"
+                          : undefined
+                      }
+                      onClick={() => onNavigate(p.id, c.id)}
                     >
-                      <button
-                        className="session-button"
-                        aria-current={
-                          c.id === conversationId &&
-                          activeProject === p.id &&
-                          mode === "chat"
-                            ? "page"
-                            : undefined
-                        }
-                        onClick={
-                          /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-                            onNavigate(p.id, c.id)
-                        }
-                      >
-                        {c.title}
-                        {activeJobs.some(
-                          /* 检查条目是否满足当前选择或校验条件。 */ (j) =>
-                            j.conversation_id === c.id,
-                        ) && <span className="activity-dot" />}
-                      </button>
-                      <details className="session-menu">
-                        <summary aria-label={`管理会话 ${c.title}`}>
-                          <MoreHorizontal size={15} />
-                        </summary>
-                        <div>
-                          <button
-                            onClick={
-                              /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-                                onArchive(p.id, c.id)
-                            }
-                          >
-                            归档会话
-                          </button>
-                        </div>
-                      </details>
-                    </div>
-                  ),
-                )}
+                      {c.title}
+                      {activeJobs.some((j) => j.conversation_id === c.id) && (
+                        <span className="activity-dot" />
+                      )}
+                    </button>
+                    <details className="session-menu">
+                      <summary aria-label={`管理会话 ${c.title}`}>
+                        <MoreHorizontal size={15} />
+                      </summary>
+                      <div>
+                        <button onClick={() => onArchive(p.id, c.id)}>
+                          归档会话
+                        </button>
+                      </div>
+                    </details>
+                  </div>
+                ))}
             </div>
             {children.length > 0 && (
               <div className="subproject-list">
@@ -228,10 +197,7 @@ export default function ProjectSidebar({
           aria-label="按最近修改排序"
           aria-pressed={sidebarSort === "recent"}
           title="最近修改的项目与会话在最上面"
-          onClick={
-            /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-              onSortChange("recent")
-          }
+          onClick={() => onSortChange("recent")}
         >
           <Bell size={16} />
         </button>
@@ -248,10 +214,7 @@ export default function ProjectSidebar({
                 ? "当前 Z → A，点击切换 A → Z"
                 : "按字母 A → Z 排序，再次点击倒序"
           }
-          onClick={
-            /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-              onSortChange(sidebarSort === "asc" ? "desc" : "asc")
-          }
+          onClick={() => onSortChange(sidebarSort === "asc" ? "desc" : "asc")}
         >
           {sidebarSort === "desc" ? (
             <ArrowUpAZ size={17} />

@@ -1,4 +1,4 @@
-/* 顶部唯一入口与资源库式成品管理，工作台为预览保留完整高度。 */
+/* 顶部唯一入口与资源库式成品管理；工作台为预览保留完整高度 */
 .resume-library-trigger {
   justify-self: end;
   min-width: 0;

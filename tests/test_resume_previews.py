@@ -1,4 +1,4 @@
-"""当前模板预览的草稿隔离、缓存、重试和文件访问边界。"""
+"""当前模板预览的草稿隔离、缓存、重试和文件访问边界"""
 
 from copy import deepcopy
 from pathlib import Path
@@ -21,7 +21,7 @@ from resume_maker.services.resume_previews import ResumePreviews
 
 
 def register_template(catalog, data_dir):
-    """登记脱敏的真实完整映射，不经过 AI 或用户数据目录。"""
+    """登记脱敏的真实完整映射且不经过 AI 或用户数据目录"""
     path = data_dir / "templates" / "mapped" / "template.docx"
     path.parent.mkdir(parents=True)
     _, plan = make_template(path)
@@ -41,11 +41,11 @@ def register_template(catalog, data_dir):
 
 @pytest.fixture
 def preview(catalog, tmp_path, monkeypatch):
-    """模拟排版软件的文件输出，仍使用真实 DOCX 填充器。"""
+    """模拟排版软件的文件输出；仍使用真实 DOCX 填充器"""
     calls = []
 
     def render(source, output):
-        """记录排版次数并建立可下载文件，避免单元测试启动 Word。"""
+        """记录排版次数并建立可下载文件以免单元测试启动 Word"""
         calls.append(source)
         output.write_bytes(b"pdf")
         (output.parent / "page-1.png").write_bytes(b"png")
@@ -62,7 +62,7 @@ def preview(catalog, tmp_path, monkeypatch):
 def test_current_template_uses_unsaved_content_without_publishing(
     preview, catalog, project, populated, tmp_path
 ):
-    """未保存的个人资料和经历进入模板，正式版本、草稿、方案与导出记录均不被改写。"""
+    """未保存的个人资料和经历进入模板；正式版本、草稿、方案与导出记录均不被改写"""
     service, calls = preview
     document = resume_content().model_dump()
     document["personal"]["name"] = "尚未保存的姓名"
@@ -121,11 +121,11 @@ def test_current_template_uses_unsaved_content_without_publishing(
 def test_complete_template_preview_matches_formal_export(
     preview, catalog, project, populated, tmp_path, monkeypatch, template_id
 ):
-    """完整模板的预览与正式导出具有相同内容和版式，关闭只回收临时预览。"""
+    """完整模板的预览与正式导出具有相同内容和版式；关闭只回收临时预览"""
     service, _ = preview
     documents = Documents(catalog, tmp_path / "data")
     document = resume_content()
-    # 已保存模板中没有这些字段，预览和正式导出均须自动补行，不能要求再次识别。
+    # 已保存模板中没有这些字段；预览和正式导出均须自动补行且不能要求再次识别
     document.personal.website = "https://example.test/new-profile"
     document.personal.age = "23"
     document.personal.hidden_fields = ["phone"]
@@ -185,7 +185,7 @@ def test_complete_template_preview_matches_formal_export(
 
 
 def test_failed_render_can_download_word_and_retry(preview, monkeypatch):
-    """Word 不可用时仍提供试填文件，但失败不能缓存成永久结果。"""
+    """Word 不可用时仍提供试填文件；但失败不能缓存成永久结果"""
     service, _ = preview
     renderer = resume_previews.render_word
     monkeypatch.setattr(
@@ -202,7 +202,7 @@ def test_failed_render_can_download_word_and_retry(preview, monkeypatch):
 
 
 def test_rejects_invalid_references_and_changed_template(preview, project, populated):
-    """缓存不能绕过模板哈希、项目归属和选中亮点的核验。"""
+    """缓存不能绕过模板哈希、项目归属和选中亮点的核验"""
     service, calls = preview
     doc = resume_content().model_dump()
     item = {"project_id": project["id"], "revision_id": populated["id"], "highlight_ids": ["one"]}
@@ -226,7 +226,7 @@ def test_rejects_invalid_references_and_changed_template(preview, project, popul
 
 
 def test_preview_routes_enforce_auth_instance_and_file_scope(tmp_path, monkeypatch):
-    """预览接口要求令牌和正确来源，只能读取本实例公布的预览文件。"""
+    """预览接口要求令牌和正确来源且只能读取本实例公布的预览文件"""
     app = create_app(Config(data_dir=tmp_path / "left", token="left"))
     other = create_app(Config(data_dir=tmp_path / "right", token="right"))
     register_template(app.state.services.catalog, tmp_path / "left")

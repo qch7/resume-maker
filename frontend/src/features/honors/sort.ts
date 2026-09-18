@@ -17,7 +17,7 @@ const names = new Intl.Collator("zh-CN", {
   sensitivity: "base",
 });
 
-/** 再次点击当前维度时反转，切换维度时日期默认从新到旧、名称默认正序。 */
+/** 再次点击当前维度时反转；切换维度时日期默认从新到旧、名称默认正序 */
 export function nextHonorSort(
   current: HonorSort | null,
   key: HonorSortKey,
@@ -35,7 +35,7 @@ export function nextHonorSort(
   };
 }
 
-/** 将年月日、中文日期及斜杠日期按日历解析，空白与无效值保持未知。 */
+/** 将年月日、中文日期及斜杠日期按日历解析；空白与无效值保持未知 */
 function awardDate(value: string): number | null {
   const parts = value
     .replace(/\s/g, "")
@@ -58,13 +58,13 @@ interface SortValues {
   updatedAt?: string;
 }
 
-/** 比较实际日期和自然名称；缺失值始终置后，同值条目保留原有顺序。 */
+/** 比较实际日期和自然名称；缺失值始终置后；同值条目保留原有顺序 */
 function sortItems<T>(
   items: T[],
   sort: HonorSort,
   values: (item: T) => SortValues,
 ): T[] {
-  /** 每项只解析一次排序键，避免比较过程中重复处理日期。 */
+  /** 每项只解析一次排序键以免比较过程中重复处理日期 */
   function key(item: T) {
     const fields = values(item);
     if (sort.key === "name") return fields.name.trim() || null;
@@ -74,13 +74,13 @@ function sortItems<T>(
   }
   return items
     .map(
-      /* 将排序键和原条目绑定，不修改资料内容。 */ (item) => ({
+      /* 将排序键和原条目绑定且不修改资料内容 */ (item) => ({
         item,
         key: key(item),
       }),
     )
     .sort(
-      /* 正倒序只影响有效值，未知值以及同值的相对顺序保持稳定。 */ (a, b) => {
+      /* 正倒序只影响有效值；未知值以及同值的相对顺序保持稳定 */ (a, b) => {
         if (a.key === null || b.key === null)
           return a.key === b.key ? 0 : a.key === null ? 1 : -1;
         const order =
@@ -90,15 +90,15 @@ function sortItems<T>(
         return sort.direction === "asc" ? order : -order;
       },
     )
-    .map(/* 排序只重排引用，完整资料和勾选身份保持不变。 */ ({ item }) => item);
+    .map(/* 排序只重排引用；完整资料和勾选身份保持不变 */ ({ item }) => item);
 }
 
-/** 荣誉库筛选后的卡片使用与栏目编排一致的比较规则。 */
+/** 荣誉库筛选后的卡片使用与栏目编排一致的比较规则 */
 export function sortHonors(items: Honor[], sort: HonorSort): Honor[] {
   return sortItems(
     items,
     sort,
-    /* 从库记录读取三种排序字段。 */ (item) => ({
+    /* 从库记录读取三种排序字段 */ (item) => ({
       name: item.fields.name,
       date: item.fields.date,
       updatedAt: item.updated_at,
@@ -106,7 +106,7 @@ export function sortHonors(items: Honor[], sort: HonorSort): Honor[] {
   );
 }
 
-/** 只重排本栏目的荣誉位置，混合栏目的其他资料、显隐及来源引用原样保留。 */
+/** 只重排本栏目的荣誉位置；混合栏目的其他资料、显隐及来源引用原样保留 */
 export function sortHonorEntries(
   section: ResumeSection,
   honors: HonorSource[],
@@ -114,7 +114,7 @@ export function sortHonorEntries(
 ) {
   const sources = new Map(
     honors.map(
-      /* 用来源标识关联更新时间，避免同名荣誉串联。 */ (honor) => [
+      /* 用来源标识关联更新时间以免同名荣誉串联 */ (honor) => [
         `honor:${honor.id}`,
         honor,
       ],
@@ -122,11 +122,10 @@ export function sortHonorEntries(
   );
   const entries = sortItems(
     section.entries.filter(
-      /* 自定义栏目只排序其中的荣誉。 */ (entry) =>
-        isHonorEntry(entry, section),
+      /* 自定义栏目只排序其中的荣誉 */ (entry) => isHonorEntry(entry, section),
     ),
     sort,
-    /* 日期和名称读取当前简历资料，更新时间来自关联荣誉库。 */ (entry) => ({
+    /* 日期和名称读取当前简历资料；更新时间来自关联荣誉库 */ (entry) => ({
       name: entry.title,
       date: entry.period,
       updatedAt: sources.get(entry.id)?.updated_at,
@@ -134,7 +133,7 @@ export function sortHonorEntries(
   );
   let index = 0;
   return section.entries.map(
-    /* 保留非荣誉资料原来的位置。 */ (entry) =>
+    /* 保留非荣誉资料原来的位置 */ (entry) =>
       isHonorEntry(entry, section) ? entries[index++] : entry,
   );
 }

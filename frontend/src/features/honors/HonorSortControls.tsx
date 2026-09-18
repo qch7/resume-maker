@@ -13,7 +13,7 @@ const OPTIONS = [
   { key: "name", label: "名称", icon: CaseSensitive },
 ] as const;
 
-/** 三个紧凑图标各自切换正倒序，通过箭头、高亮及提示说明当前排序。 */
+/** 三个紧凑图标各自切换正倒序；通过箭头、高亮及提示说明当前排序 */
 export default function HonorSortControls({
   value,
   onChange,
@@ -25,7 +25,7 @@ export default function HonorSortControls({
   label?: string;
   disabled?: boolean;
 }) {
-  /** 名称用字母方向，日期用新旧方向，使提示不依赖用户理解升降序。 */
+  /** 名称用字母方向；日期用新旧方向；使提示不依赖用户理解升降序 */
   function directionLabel(
     key: HonorSortKey,
     direction: HonorSort["direction"],
@@ -41,7 +41,7 @@ export default function HonorSortControls({
   return (
     <div className="honor-sort-controls" role="group" aria-label={label}>
       {OPTIONS.map(
-        /* 每个维度只有一个按钮，重复点击即可反向排列。 */ ({
+        /* 每个维度只有一个按钮；重复点击即可反向排列 */ ({
           key,
           label: name,
           icon: Icon,
@@ -63,7 +63,7 @@ export default function HonorSortControls({
               aria-pressed={active}
               disabled={disabled}
               onClick={
-                /* 只有明确点击才调整排序，轮询不改变简历顺序。 */ () =>
+                /* 只有明确点击才调整排序；轮询不改变简历顺序 */ () =>
                   onChange(next)
               }
             >

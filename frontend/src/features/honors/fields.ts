@@ -9,7 +9,7 @@ export interface HonorField {
   max: number;
 }
 
-// 荣誉库和个人信息共用字段说明，名称与奖项保持独立。
+// 荣誉库和个人信息共用字段说明；名称与奖项保持独立
 export const HONOR_FIELDS: HonorField[] = [
   {
     key: "name",
@@ -62,7 +62,7 @@ export const HONOR_FIELDS: HonorField[] = [
   },
 ];
 
-/** 创建独立的空白荣誉资料。 */
+/** 创建独立的空白荣誉资料 */
 export function emptyHonor(): HonorFields {
   return {
     name: "",

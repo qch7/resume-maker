@@ -1,4 +1,4 @@
-"""已核对荣誉在既有简历、草稿预览和导出之间的共享内容回归。"""
+"""已核对荣誉在既有简历、草稿预览和导出之间的共享内容回归"""
 
 from copy import deepcopy
 from zipfile import ZipFile
@@ -19,7 +19,7 @@ from resume_maker.services.resume_previews import ResumePreviews
 
 
 def fields(name="同步后的证书"):
-    """生成九个字段均完整的合成荣誉资料。"""
+    """生成九个字段均完整的合成荣誉资料"""
     return HonorFields(
         name=name,
         date="2026-09",
@@ -34,7 +34,7 @@ def fields(name="同步后的证书"):
 
 
 def legacy_document(identifier):
-    """模拟旧的四字段快照以及填满的自定义资料，不使用真实简历。"""
+    """模拟旧的四字段快照以及填满的自定义资料且不使用真实简历"""
     return ResumeDocument.model_validate(
         {
             "personal": {"name": "姓名草稿"},
@@ -70,14 +70,14 @@ def legacy_document(identifier):
 
 
 def test_existing_linked_honors_sync_on_read_save_and_delete(tmp_path):
-    """已有缺字段条目自动补全，过时简历保存不能倒写来源，删除保留最后核对内容。"""
+    """已有缺字段条目自动补全；过时简历保存不能倒写来源；删除保留最后核对内容"""
     app = create_app(Config(data_dir=tmp_path, token="test"))
     with TestClient(app, headers={"x-resume-token": "test"}) as client:
         source = client.post("/api/honors", json={"fields": fields()}).json()
         document = legacy_document(source["id"])
         payload = {"name": "合成简历", "items": [], "document": document}
         saved = client.post("/api/resumes", json=payload).json()
-        # 用临时数据库模拟先前版本保存的条目，读取不写入或迁移用户数据库。
+        # 用临时数据库模拟先前版本保存的条目；读取不写入或迁移用户数据库
         with app.state.services.db.transaction() as conn:
             conn.execute(
                 "UPDATE resumes SET document_json=? WHERE id=?", (dump(document), saved["id"])
@@ -143,7 +143,7 @@ def test_existing_linked_honors_sync_on_read_save_and_delete(tmp_path):
 
 
 def test_only_confirmed_matching_sources_update_entries():
-    """未核对建议、同名不同来源、手工条目不参与同步；输入对象保持不变。"""
+    """未核对建议、同名不同来源、手工条目不参与同步；输入对象保持不变"""
     document = legacy_document("linked")
     before = deepcopy(document)
     source = {"id": "linked", "fields": fields(), "reviewed": False}
@@ -161,10 +161,10 @@ def test_only_confirmed_matching_sources_update_entries():
 def test_preview_and_export_resolve_current_honors_and_invalidate_cache(
     catalog, tmp_path, monkeypatch, template_id
 ):
-    """旧草稿也生成当前荣誉，新核对内容使预览缓存失效且旧导出清单保持原样。"""
+    """旧草稿也生成当前荣誉；新核对内容使预览缓存失效且旧导出清单保持原样"""
 
     def render(source, output):
-        """只代替分页软件，真实 DOCX 填充和内容检查仍完整执行。"""
+        """只代替分页软件；真实 DOCX 填充和内容检查仍完整执行"""
         output.write_bytes(b"pdf")
         (output.parent / "page-1.png").write_bytes(b"png")
         return 1, None

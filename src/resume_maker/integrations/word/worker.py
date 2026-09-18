@@ -1,4 +1,4 @@
-"""在独立子进程中驱动 Word，使渲染可超时回收且不阻塞 API 工作线程。"""
+"""在独立子进程中驱动 Word；使渲染可超时回收且不阻塞 API 工作线程"""
 
 import json
 import sys
@@ -8,7 +8,7 @@ import psutil
 
 
 def main():
-    """创建独立 Word COM 实例，登记进程身份并导出 PDF，最后释放文档与 COM。"""
+    """创建独立 Word COM 实例；登记进程身份并导出 PDF；最后释放文档与 COM"""
     import pythoncom
     import win32com.client
     import win32process
@@ -28,7 +28,7 @@ def main():
         application.AutomationSecurity = 3
         update_links = application.Options.UpdateLinksAtOpen
         application.Options.UpdateLinksAtOpen = False
-        # 通过文档窗口取得 HWND，再核验独立 Word 实例的进程身份。
+        # 通过文档窗口取得 HWND；再核验独立 Word 实例的进程身份
         document = application.Documents.Add()
         _, pid = win32process.GetWindowThreadProcessId(document.Windows(1).Hwnd)
         if pid in existing:

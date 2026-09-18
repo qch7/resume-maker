@@ -1,4 +1,4 @@
-"""项目显隐属于简历方案，保存、预览和导出都不创建项目版本。"""
+"""项目显隐属于简历方案；保存、预览和导出都不创建项目版本"""
 
 import pytest
 from test_project_info import body_text, project_info
@@ -16,7 +16,7 @@ from resume_maker.services.resume_previews import ResumePreviews
 def test_resume_visibility_isolated_persistent_and_matches_export(
     catalog, project, tmp_path, monkeypatch, mapped
 ):
-    """两份简历可用同一项目版本独立显隐，恢复旧版隐藏项，且预览与正式导出一致。"""
+    """两份简历可用同一项目版本独立显隐；恢复旧版隐藏项；且预览与正式导出一致"""
     identifier, base = project["id"], project["head_revision"]
     catalog.put_draft(identifier, base, "experience", project_info(), 0)
     revision = catalog.save_revision(identifier, base, base)

@@ -3,16 +3,16 @@ import TemplatePicker from "../../shared/components/TemplatePicker";
 import { newDocument } from "../profile/document";
 import type { ResumeLibraryProps } from "./ResumeLibrary";
 
-/** 将名称、模板、保存和导出收拢在当前方案设置中，保留原有版本保护。 */
+/** 将名称、模板、保存和导出收拢在当前方案设置中；保留原有版本保护 */
 export default function ResumeSettings(props: ResumeLibraryProps) {
   const { draft, state } = props;
   const saved = state.resumes.find(
-    /* 查找当前方案对应的持久化版本。 */ (item) => item.id === draft.id,
+    /* 查找当前方案对应的持久化版本 */ (item) => item.id === draft.id,
   );
   const templateUnavailable =
     !!draft.template_id &&
     !state.templates.some(
-      /* 模板已删除时要求重新选择，避免导出失败。 */ (item) =>
+      /* 模板已删除时要求重新选择以免导出失败 */ (item) =>
         item.id === draft.template_id,
     );
   const busy = props.exporting || props.deleting;
@@ -29,7 +29,7 @@ export default function ResumeSettings(props: ResumeLibraryProps) {
               disabled={busy}
               placeholder="为这份简历起个名字"
               onChange={
-                /* 名称先进入本机草稿，保存或导出时持久化。 */ (event) =>
+                /* 名称先进入本机草稿；保存或导出时持久化 */ (event) =>
                   props.onChange({ ...draft, name: event.target.value })
               }
             />
@@ -42,7 +42,7 @@ export default function ResumeSettings(props: ResumeLibraryProps) {
               value={draft.template_id ?? ""}
               disabled={busy}
               onChange={
-                /* 应用确认后的模板并补齐完整简历结构。 */ (id) =>
+                /* 应用确认后的模板并补齐完整简历结构 */ (id) =>
                   props.onChange({
                     ...draft,
                     template_id: id || null,
@@ -64,7 +64,7 @@ export default function ResumeSettings(props: ResumeLibraryProps) {
             <button
               disabled={busy}
               onClick={
-                /* 显式接受服务器保存的完整组合。 */ () => props.onChange(saved)
+                /* 显式接受服务器保存的完整组合 */ () => props.onChange(saved)
               }
             >
               载入服务器组合

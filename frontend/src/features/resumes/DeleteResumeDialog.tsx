@@ -3,7 +3,7 @@ import { useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import type { Resume } from "../../shared/types";
 
-/** 删除前展示方案名称和影响范围，避免误删同名或带未保存修改的方案。 */
+/** 删除前展示方案名称和影响范围以免误删同名或带未保存修改的方案 */
 export default function DeleteResumeDialog({
   resume,
   onClose,
@@ -17,11 +17,11 @@ export default function DeleteResumeDialog({
   const titleId = useId();
   const descriptionId = useId();
   useEffect(
-    /* 打开原生模态窗口并在关闭后归还焦点。 */ () => {
+    /* 打开原生模态窗口并在关闭后归还焦点 */ () => {
       const element = dialog.current;
       const trigger = document.activeElement;
       element?.showModal();
-      return /* 清理模态状态并恢复键盘操作位置。 */ () => {
+      return /* 清理模态状态并恢复键盘操作位置 */ () => {
         element?.close();
         if (trigger instanceof HTMLElement)
           trigger.focus({ preventScroll: true });

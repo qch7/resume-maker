@@ -14,13 +14,13 @@ interface Props {
   run: (work: () => Promise<void>) => void;
 }
 
-/** 工作台右侧专用于实时预览，方案管理和导出统一收拢到顶部成品库。 */
+/** 工作台右侧专用于实时预览；方案管理和导出统一收拢到顶部成品库 */
 export default function Composer(props: Props) {
   const { draft, state, revisions } = props;
   const templateUnavailable =
     !!draft.template_id &&
     !state.templates.some(
-      /* 检查当前模板是否仍可用于排版。 */ (item) =>
+      /* 检查当前模板是否仍可用于排版 */ (item) =>
         item.id === draft.template_id,
     );
   const [zoom, setZoom] = useState(0);
@@ -38,7 +38,7 @@ export default function Composer(props: Props) {
             aria-label="预览缩放"
             value={zoom}
             onChange={
-              /* 缩放矢量页面，零值表示适应可用宽度。 */ (event) =>
+              /* 缩放矢量页面；零值表示适应可用宽度 */ (event) =>
                 setZoom(Number(event.target.value))
             }
           >

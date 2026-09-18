@@ -1,4 +1,4 @@
-"""验证聚合项目的子项目登记、历史保留、独立引用及 AI 上下文隔离。"""
+"""验证聚合项目的子项目登记、历史保留、独立引用及 AI 上下文隔离"""
 
 from pathlib import Path
 
@@ -17,7 +17,7 @@ from resume_maker.services.workspace import Workspace
 
 
 def make_sources(tmp_path):
-    """创建含不同源码文件的两个独立子项目，避免读取真实源码。"""
+    """创建含不同源码文件的两个独立子项目以免读取真实源码"""
     roots = [tmp_path / "agent", tmp_path / "rag"]
     for root in roots:
         root.mkdir()
@@ -26,7 +26,7 @@ def make_sources(tmp_path):
 
 
 def children(catalog, parent_id):
-    """通过工作台公开数据按来源定位子项目。"""
+    """通过工作台公开数据按来源定位子项目"""
     return {
         p["roots"][0]: p
         for p in Workspace(catalog).state()["projects"]
@@ -35,7 +35,7 @@ def children(catalog, parent_id):
 
 
 def test_import_exposes_independently_selectable_subprojects(tmp_path):
-    """导入多来源项目后可分别引用整体或任一子项目，重复导入不会重复创建。"""
+    """导入多来源项目后可分别引用整体或任一子项目；重复导入不会重复创建"""
     app = create_app(Config(data_dir=tmp_path / "data", token="test-token"))
     roots = make_sources(tmp_path)
     headers = {"x-resume-token": "test-token"}
@@ -81,7 +81,7 @@ def test_import_exposes_independently_selectable_subprojects(tmp_path):
 
 
 def test_source_changes_keep_subproject_identity_and_existing_history(catalog, tmp_path):
-    """复用已有单项目，来源重排保留子项目 ID，移除来源仅解除分组。"""
+    """复用已有单项目；来源重排保留子项目 ID；移除来源仅解除分组"""
     roots = make_sources(tmp_path)
     standalone = catalog.create_project("已有 agent", [roots[0]])
     conversation = catalog.db.one(
@@ -113,7 +113,7 @@ def test_source_changes_keep_subproject_identity_and_existing_history(catalog, t
 
 
 def test_parent_and_subproject_jobs_use_separate_sources_histories_and_threads(catalog, tmp_path):
-    """整体读取全部来源，子项目仅读取自身来源，三者不共享模型会话和消息。"""
+    """整体读取全部来源；子项目仅读取自身来源；三者不共享模型会话和消息"""
     roots = make_sources(tmp_path)
     parent = catalog.create_project("TrustGuard", roots)
     subs = children(catalog, parent["id"])

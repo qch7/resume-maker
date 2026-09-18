@@ -1,4 +1,4 @@
-"""工作台轮询所需的项目活动时间和资源聚合查询。"""
+"""工作台轮询所需的项目活动时间和资源聚合查询"""
 
 from resume_maker.domain.honor_entries import sync_honor_document
 from resume_maker.infrastructure.database import unpack
@@ -7,16 +7,16 @@ from resume_maker.services.honor_links import honor_sources
 
 
 class Workspace:
-    """工作台首屏和轮询需要的聚合查询。"""
+    """工作台首屏和轮询需要的聚合查询"""
 
     def __init__(self, catalog: Catalog):
-        """保存当前模块所需依赖，供后续业务操作共享使用。"""
+        """保存当前模块所需依赖；供后续业务操作共享使用"""
         self.catalog, self.db = catalog, catalog.db
 
     def state(self):
-        """聚合项目活动时间、会话、简历、模板及最近任务，供工作台轮询。"""
+        """聚合项目活动时间、会话、简历、模板及最近任务；供工作台轮询"""
         with self.db.connect() as conn:
-            # 同一读取快照保证已保存资料与前端草稿使用相同的荣誉版本。
+            # 同一读取快照保证已保存资料与前端草稿使用相同的荣誉版本
             conn.execute("BEGIN")
             honors = honor_sources(conn)
             resumes = [

@@ -1,4 +1,4 @@
-"""离线恢复与应用服务器共用实例锁，避免数据目录被并发覆盖。"""
+"""离线恢复与应用服务器共用实例锁以免数据目录被并发覆盖"""
 
 import json
 import os
@@ -18,10 +18,10 @@ FOLDERS = ("templates", "snapshots", "exports", "honors")
 
 @contextmanager
 def instance_lock(directory: Path):
-    """持有数据目录的跨进程排他锁，防止运行实例与离线恢复互相覆盖。"""
+    """持有数据目录的跨进程排他锁以防运行实例与离线恢复互相覆盖"""
     directory = directory.resolve()
     directory.parent.mkdir(parents=True, exist_ok=True)
-    # 锁文件位于数据目录同级，恢复交换目录时排他锁仍然有效。
+    # 锁文件位于数据目录同级；恢复交换目录时排他锁仍然有效
     with (directory.parent / f".{directory.name}.instance.lock").open("a+b") as lock:
         if os.name == "nt":
             import msvcrt
@@ -45,7 +45,7 @@ def instance_lock(directory: Path):
 
 
 def create_backup(db: Database, directory: Path) -> Path:
-    """使用 SQLite 在线备份获得一致数据库，并打包已登记的资源目录。"""
+    """使用 SQLite 在线备份获得一致数据库并打包已登记的资源目录"""
     folder = directory / "backups"
     folder.mkdir(parents=True, exist_ok=True)
     snapshot = folder / f"{uid()}.db"
@@ -66,7 +66,7 @@ def create_backup(db: Database, directory: Path) -> Path:
 
 
 def validate_database(path: Path):
-    """只读检查备份数据库版本、完整性、外键及模板快照资源。"""
+    """只读检查备份数据库版本、完整性、外键及模板快照资源"""
     with closing(sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True)) as conn:
         if conn.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
             raise Problem("备份数据库完整性检查失败。")
@@ -105,7 +105,7 @@ def validate_database(path: Path):
 
 
 def restore_backup(archive_path: Path, directory: Path) -> Path | None:
-    """在隔离目录校验备份，保留旧数据后切换，失败时回退原目录。"""
+    """在隔离目录校验备份；保留旧数据后切换；失败时回退原目录"""
     directory = directory.resolve()
     if directory == Path(directory.anchor) or directory.is_symlink() or directory.is_junction():
         raise Problem("恢复目标必须是独立的普通数据目录。")
@@ -158,7 +158,7 @@ def restore_backup(archive_path: Path, directory: Path) -> Path | None:
             if metadata.get("version") != 1:
                 raise Problem("备份格式版本不受支持。")
             validate_database(staging / "resume.db")
-            # CLI 会话文件不在备份内，恢复后根据已保存消息重新建立上下文。
+            # CLI 会话文件不在备份内；恢复后根据已保存消息重新建立上下文
             with closing(sqlite3.connect(staging / "resume.db")) as conn, conn:
                 conn.execute("UPDATE conversations SET provider_thread_id=NULL")
                 conn.execute(
@@ -176,7 +176,7 @@ def restore_backup(archive_path: Path, directory: Path) -> Path | None:
                 raise
             return previous
         finally:
-            # 只清理已核验的临时解压目录，不能递归删除原数据目录。
+            # 只清理已核验的临时解压目录且不能递归删除原数据目录
             if (
                 staging.exists()
                 and staging.parent == directory.parent

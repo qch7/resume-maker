@@ -1,7 +1,7 @@
 import { api } from "../../shared/lib/api";
 import type { Experience, Highlight, Proposal } from "../../shared/types/index";
 
-/** 以只读形式展示 AI 提议的完整经历，供采用前核对。 */
+/** 以只读形式展示 AI 提议的完整经历；供采用前核对 */
 export function ExperiencePreview({ value }: { value: Experience }) {
   return (
     <div className="experience-preview">
@@ -14,19 +14,17 @@ export function ExperiencePreview({ value }: { value: Experience }) {
         {value.stack.join("、")}
       </p>
       <p>{value.description}</p>
-      {value.highlights.map(
-        /* 按稳定标识生成对应的列表条目。 */ (h) => (
-          <p key={h.id}>
-            <b>{h.title}：</b>
-            {h.text}
-          </p>
-        ),
-      )}
+      {value.highlights.map((h) => (
+        <p key={h.id}>
+          <b>{h.title}：</b>
+          {h.text}
+        </p>
+      ))}
     </div>
   );
 }
 
-/** 展示修改前后内容与建议原因，提供采用或拒绝入口。 */
+/** 展示修改前后内容与建议原因；提供采用或拒绝入口 */
 export default function ProposalCard({
   value,
   run,
@@ -83,24 +81,15 @@ export default function ProposalCard({
       )}
       {value.status === "pending" && (
         <div className="actions">
-          <button
-            className="primary"
-            onClick={
-              /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-                run(/* 在草稿刷新成功后执行当前业务操作。 */ () => adopt(value))
-            }
-          >
+          <button className="primary" onClick={() => run(() => adopt(value))}>
             采用到草稿
           </button>
           <button
-            onClick={
-              /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-                run(
-                  /* 在草稿刷新成功后执行当前业务操作。 */ async () => {
-                    await api(`/proposals/${value.id}/reject`, "POST");
-                    refresh();
-                  },
-                )
+            onClick={() =>
+              run(async () => {
+                await api(`/proposals/${value.id}/reject`, "POST");
+                refresh();
+              })
             }
           >
             拒绝

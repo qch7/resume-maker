@@ -10,19 +10,16 @@ import { experienceContent } from "../experiences/visibility.ts";
 
 import type { GuideTarget } from "./steps";
 
-/** 判断经历是否包含可使用的描述或完整亮点。 */
+/** 判断经历是否包含可使用的描述或完整亮点 */
 function hasContent(value?: Experience) {
   return (
     !!value &&
     (!!value.description.trim() ||
-      value.highlights.some(
-        /* 检查条目是否满足当前选择或校验条件。 */ (h) =>
-          h.title.trim() && h.text.trim(),
-      ))
+      value.highlights.some((h) => h.title.trim() && h.text.trim()))
   );
 }
 
-/** 根据草稿、固定引用、模板和导出状态推导可操作的制作步骤。 */
+/** 根据草稿、固定引用、模板和导出状态推导可操作的制作步骤 */
 export function getProjectWorkflow(input: {
   projectCount: number;
   detail: ProjectDetail | null;
@@ -45,20 +42,14 @@ export function getProjectWorkflow(input: {
       experienceContent(detail.working.content, settings) !==
         experienceContent(revision?.content, settings));
   const prepared = hasContent(revision?.content) && !unsaved;
-  const included = draft.items.find(
-    /* 定位与当前标识或条件匹配的条目。 */ (i) =>
-      i.project_id === detail?.project.id,
-  );
+  const included = draft.items.find((i) => i.project_id === detail?.project.id);
   const incomplete = draft.items.find(
-    /* 定位与当前标识或条件匹配的条目。 */ (i) =>
+    (i) =>
       revisions[i.revision_id] && !hasContent(revisions[i.revision_id].content),
   );
   const compositionReady =
     draft.items.length > 0 &&
-    draft.items.every(
-      /* 检查条目是否满足当前选择或校验条件。 */ (i) =>
-        hasContent(revisions[i.revision_id]?.content),
-    );
+    draft.items.every((i) => hasContent(revisions[i.revision_id]?.content));
   const compositionSaved =
     compositionReady && sameComposition(input.saved, draft);
   const exported = isCurrentExport(result, draft);
@@ -69,7 +60,7 @@ export function getProjectWorkflow(input: {
     prepared && compositionSaved && exported,
   ];
 
-  /** 构建一个带状态、说明和定位目标的制作指引步骤。 */
+  /** 构建一个带状态、说明和定位目标的制作指引步骤 */
   function guide(
     step: number,
     text: string,

@@ -1,4 +1,4 @@
-"""用不同陌生模板验证条目对齐和隐藏字段收起，不依赖个人资料或固定坐标。"""
+"""用不同陌生模板验证条目对齐和隐藏字段收起且不依赖个人资料或固定坐标"""
 
 from copy import deepcopy
 from io import BytesIO
@@ -14,13 +14,13 @@ from test_template_mapping import photo_bytes
 from resume_maker.domain.resume import ResumeDocument
 from resume_maker.domain.templates import RepeatBinding, TemplatePlan, TextBinding
 from resume_maker.integrations.word.ooxml import NS, w
-from resume_maker.integrations.word.template_entry_layout import ParagraphStyles
-from resume_maker.integrations.word.template_fill import fill_template
-from resume_maker.integrations.word.template_map import TemplatePackage, paragraph_text
+from resume_maker.integrations.word.templates.entry_layout import ParagraphStyles
+from resume_maker.integrations.word.templates.fill import fill_template
+from resume_maker.integrations.word.templates.mapping import TemplatePackage, paragraph_text
 
 
 def record_plan(path, targets, table=False):
-    """按当前原文建立单条重复范围，任意空段落和样式变化都不会依赖节点编号。"""
+    """按当前原文建立单条重复范围；任意空段落和样式变化都不会依赖节点编号"""
     package = TemplatePackage(path)
     nodes = {
         paragraph_text(node): key
@@ -55,7 +55,7 @@ def record_plan(path, targets, table=False):
 
 
 def record_content(entries):
-    """构造任意普通栏目和必需的项目区，隐藏规则与实际个人信息界面相同。"""
+    """构造任意普通栏目和必需的项目区；隐藏规则与实际个人信息界面相同"""
     return ResumeDocument.model_validate(
         {
             "sections": [
@@ -69,7 +69,7 @@ def record_content(entries):
 @pytest.mark.parametrize("indent", [11, 37])
 @pytest.mark.parametrize("table", [False, True])
 def test_repeat_titles_align_to_effective_body_indent_and_keep_right_tabs(tmp_path, indent, table):
-    """不同继承样式及容器中的多条记录沿用本列正文起点，日期右制表位和字体保留。"""
+    """不同继承样式及容器中的多条记录沿用本列正文起点；日期右制表位和字体保留"""
     source, output = tmp_path / "source.docx", tmp_path / "result.docx"
     doc = Document()
     base = doc.styles.add_style("Base body", WD_STYLE_TYPE.PARAGRAPH)
@@ -125,7 +125,7 @@ def test_repeat_titles_align_to_effective_body_indent_and_keep_right_tabs(tmp_pa
 @pytest.mark.parametrize("kind", ["direct", "inherited", "literal", "label"])
 @pytest.mark.parametrize("table", [False, True])
 def test_hidden_details_remove_list_labels_and_empty_rows(tmp_path, kind, table):
-    """直接编号、继承列表、手输圆点和中英标签随空字段整体移除，恢复后可再次显示。"""
+    """直接编号、继承列表、手输圆点和中英标签随空字段整体移除；恢复后可再次显示"""
     source, output = tmp_path / "source.docx", tmp_path / "result.docx"
     doc = Document()
     if table:
@@ -175,7 +175,7 @@ def test_hidden_details_remove_list_labels_and_empty_rows(tmp_path, kind, table)
 
 
 def test_added_metadata_share_one_indent_without_inheriting_list_numbering(tmp_path):
-    """只有列表正文的陌生栏目补出三种元信息时，使用同一左边界并显式禁用继承编号。"""
+    """只有列表正文的陌生栏目补出三种元信息时；使用同一左边界并显式禁用继承编号"""
     source, output = tmp_path / "source.docx", tmp_path / "result.docx"
     doc = Document()
     style = doc.styles.add_style("Body bullet", WD_STYLE_TYPE.PARAGRAPH)
@@ -209,7 +209,7 @@ def test_added_metadata_share_one_indent_without_inheriting_list_numbering(tmp_p
 
 
 def test_empty_field_cleanup_keeps_other_text_and_right_aligned_metadata(tmp_path):
-    """同段有其他内容时不能整段删除，右对齐日期也不能被左侧正文布局覆盖。"""
+    """同段有其他内容时不能整段删除；右对齐日期也不能被左侧正文布局覆盖"""
     source, output = tmp_path / "source.docx", tmp_path / "result.docx"
     doc = Document()
     doc.add_paragraph("Old title: Old body")
@@ -245,7 +245,7 @@ def test_empty_field_cleanup_keeps_other_text_and_right_aligned_metadata(tmp_pat
 
 @pytest.mark.parametrize("layout", ["columns", "cells", "frame", "rtl"])
 def test_independent_columns_and_positioned_titles_keep_their_geometry(tmp_path, layout):
-    """独立单元格、多栏、固定框及从右向左的标题不能被另一列正文拉到同一坐标。"""
+    """独立单元格、多栏、固定框及从右向左的标题不能被另一列正文拉到同一坐标"""
     source, output = tmp_path / "source.docx", tmp_path / "result.docx"
     doc = Document()
     if layout == "cells":
@@ -276,7 +276,7 @@ def test_independent_columns_and_positioned_titles_keep_their_geometry(tmp_path,
 
 
 def test_hiding_a_field_keeps_its_attached_decoration(tmp_path):
-    """空字段段落还有内嵌装饰时只清空文字，不能删除有其他用途的图形。"""
+    """空字段段落还有内嵌装饰时只清空文字且不能删除有其他用途的图形"""
     source, output = tmp_path / "source.docx", tmp_path / "result.docx"
     doc = Document()
     doc.add_paragraph("Old title")
@@ -303,7 +303,7 @@ def test_hiding_a_field_keeps_its_attached_decoration(tmp_path):
 
 
 def test_inherited_character_indent_isolated_without_changing_source_styles(tmp_path):
-    """字符单位缩进通过独立样式展开后不再覆盖距离缩进，原样式、字体和多个制表位完整保留。"""
+    """字符单位缩进通过独立样式展开后不再覆盖距离缩进；原样式、字体和多个制表位完整保留"""
     source, output = tmp_path / "source.docx", tmp_path / "result.docx"
     doc = Document()
     base = doc.styles.add_style("Character base", WD_STYLE_TYPE.PARAGRAPH)
@@ -346,7 +346,7 @@ def test_inherited_character_indent_isolated_without_changing_source_styles(tmp_
 
 
 def test_hidden_field_keeps_column_boundary_without_its_list_marker(tmp_path):
-    """隐藏带分栏符的编号字段时保留列边界，下一列不能错位，也不能留下空编号。"""
+    """隐藏带分栏符的编号字段时保留列边界；下一列不能错位；也不能留下空编号"""
     source, output = tmp_path / "source.docx", tmp_path / "result.docx"
     doc = Document()
     doc.sections[-1]._sectPr.find(w("cols")).set(w("num"), "2")

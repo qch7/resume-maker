@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { api } from "../../lib/api";
 import type { LibraryState, LibraryTemplate } from "./library";
 
-/** 确认具体模板后再移除，失败时保留确认框与原列表，避免误报成功。 */
+/** 确认具体模板后再移除；失败时保留确认框与原列表以免误报成功 */
 export default function DeleteTemplateDialog({
   template,
   permanent,
@@ -24,12 +24,12 @@ export default function DeleteTemplateDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   useEffect(
-    /* 嵌套原生模态层阻止背后选择变化，关闭后恢复触发按钮的键盘焦点。 */ () => {
+    /* 嵌套原生模态层阻止背后选择变化；关闭后恢复触发按钮的键盘焦点 */ () => {
       alive.current = true;
       const element = dialog.current!;
       const trigger = document.activeElement;
       element.showModal();
-      return /* 请求结束前父组件卸载也不能发布迟到结果。 */ () => {
+      return /* 请求结束前父组件卸载也不能发布迟到结果 */ () => {
         alive.current = false;
         element.close();
         if (trigger instanceof HTMLElement && trigger.isConnected)
@@ -38,7 +38,7 @@ export default function DeleteTemplateDialog({
     },
     [],
   );
-  /** 固定删除目标并阻止重复提交，只在服务确认后刷新模板与数量。 */
+  /** 固定删除目标并阻止重复提交且只在服务确认后刷新模板与数量 */
   async function remove() {
     if (submitting.current) return;
     submitting.current = true;
@@ -64,7 +64,7 @@ export default function DeleteTemplateDialog({
       aria-labelledby={titleId}
       aria-describedby={descriptionId}
       onCancel={
-        /* Escape 只关闭本层确认，提交期间等待服务返回。 */ (event) => {
+        /* Escape 只关闭本层确认；提交期间等待服务返回 */ (event) => {
           event.preventDefault();
           event.stopPropagation();
           if (!submitting.current) onClose();

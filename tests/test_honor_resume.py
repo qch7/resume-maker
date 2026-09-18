@@ -1,4 +1,4 @@
-"""荣誉资料复制后的保存及两种简历生成路径保持相同的字段显隐。"""
+"""荣誉资料复制后的保存及两种简历生成路径保持相同的字段显隐"""
 
 import json
 from pathlib import Path
@@ -9,11 +9,11 @@ from lxml import etree
 from resume_maker.domain.resume import ResumeDocument
 from resume_maker.integrations.word.full_resume import write_full_resume
 from resume_maker.integrations.word.ooxml import NS
-from resume_maker.integrations.word.template_values import section_records
+from resume_maker.integrations.word.templates.values import section_records
 
 
 def test_honor_snapshot_roundtrip_and_rendering(catalog, tmp_path):
-    """前端生成的完整字段副本保存无损，内置和模板填充默认仅使用名称及日期。"""
+    """前端生成的完整字段副本保存无损；内置和模板填充默认仅使用名称及日期"""
     fixture = Path(__file__).parent / "fixtures" / "honor-entry.json"
     entry = json.loads(fixture.read_text(encoding="utf-8"))
     document = ResumeDocument.model_validate(
@@ -61,7 +61,7 @@ def test_honor_snapshot_roundtrip_and_rendering(catalog, tmp_path):
 
 
 def word_text(path):
-    """读取真实生成 DOCX 的可见文本以检查排版采用的资料。"""
+    """读取真实生成 DOCX 的可见文本以检查排版采用的资料"""
     with ZipFile(path) as archive:
         root = etree.fromstring(archive.read("word/document.xml"))
     return "".join(root.xpath("//w:t/text()", namespaces=NS))

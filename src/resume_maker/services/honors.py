@@ -1,4 +1,4 @@
-"""独立荣誉库：持久条目、证书附件和可取消的串行视觉识别。"""
+"""独立荣誉库：持久条目、证书附件和可取消的串行视觉识别"""
 
 import queue
 import shutil
@@ -20,10 +20,10 @@ ACTIVE = {"queued", "running"}
 
 
 class Honors:
-    """集中保存荣誉资料并校验版本，简历按来源标识读取同一份已核对内容。"""
+    """集中保存荣誉资料并校验版本；简历按来源标识读取同一份已核对内容"""
 
     def __init__(self, db, data_dir, provider):
-        """绑定实例资源；构造阶段不启动后台线程。"""
+        """绑定实例资源；构造阶段不启动后台线程"""
         self.db, self.root, self.provider = db, data_dir / "honors", provider
         self.workspaces = data_dir / "workspaces"
         self.lock = threading.RLock()
@@ -33,7 +33,7 @@ class Honors:
         self.worker = None
 
     def start(self):
-        """启动单个识别线程，上次退出中断的任务保留原件并允许手动重试。"""
+        """启动单个识别线程；上次退出中断的任务保留原件并允许手动重试"""
         with self.lock, self.db.transaction() as conn:
             for item in self.list():
                 if item["status"] in ACTIVE:
@@ -43,7 +43,7 @@ class Honors:
         self.worker.start()
 
     def stop(self):
-        """关闭时取消所有在途任务，并等待 Provider 回收子进程。"""
+        """关闭时取消所有在途任务并等待 Provider 回收子进程"""
         with self.lock:
             self.stopped.set()
             for identifier, flag in self.flags.items():
@@ -54,7 +54,7 @@ class Honors:
             self.worker.join(timeout=10)
 
     def list(self):
-        """返回独立荣誉条目，按最近更新排列。"""
+        """返回独立荣誉条目；按最近更新排列"""
         with self.db.connect() as conn:
             rows = conn.execute("SELECT value_json FROM settings WHERE key LIKE 'honor:%'")
             return sorted(
@@ -64,7 +64,7 @@ class Honors:
             )
 
     def get(self, identifier, conn=None):
-        """只读取合法荣誉标识，避免附件路径被任意输入控制。"""
+        """只读取合法荣誉标识以免附件路径被任意输入控制"""
         try:
             if str(UUID(identifier)) != identifier:
                 raise ValueError
@@ -81,7 +81,7 @@ class Honors:
         return need(row, "荣誉条目不存在。")["value"]
 
     def _write(self, conn, item):
-        """写入单个条目并递增版本，避免多个窗口静默覆盖。"""
+        """写入单个条目并递增版本以免多个窗口静默覆盖"""
         item["version"] += 1
         item["updated_at"] = now()
         conn.execute(
@@ -89,7 +89,7 @@ class Honors:
         )
 
     def _new(self, fields, attachment=None):
-        """创建全局荣誉记录，不修改任何已有简历。"""
+        """创建全局荣誉记录且不修改任何已有简历"""
         return {
             "id": uid(),
             "fields": fields.model_dump(),
@@ -104,7 +104,7 @@ class Honors:
         }
 
     def save(self, body: HonorSave, identifier=None):
-        """保存人工填写和核对后的完整字段，识别中和版本过期时拒绝覆盖。"""
+        """保存人工填写和核对后的完整字段；识别中和版本过期时拒绝覆盖"""
         if not body.fields.name:
             raise Problem("请填写荣誉或证书名称。")
         with self.lock, self.db.transaction() as conn:
@@ -118,7 +118,7 @@ class Honors:
             return item
 
     def upload(self, raw, filename):
-        """完整校验并保存原件后创建待识别条目，失败上传不留下半条记录。"""
+        """完整校验并保存原件后创建待识别条目；失败上传不留下半条记录"""
         filename = Path(filename.replace("\\", "/")).name[:240]
         item = self._new(HonorFields())
         directory = self.root / item["id"]
@@ -140,7 +140,7 @@ class Honors:
         return self.recognize(item["id"])
 
     def recognize(self, identifier):
-        """固化当前识别配置并入队；重复操作或尚未回收的旧任务被拒绝。"""
+        """固化当前识别配置并入队；重复操作或尚未回收的旧任务被拒绝"""
         settings = ProviderSettings.model_validate(self.db.setting("provider", {})).for_function(
             "honor_recognition"
         )
@@ -157,7 +157,7 @@ class Honors:
             return item
 
     def cancel(self, identifier):
-        """立即标记取消，后台迟到结果不能覆盖人工编辑。"""
+        """立即标记取消；后台迟到结果不能覆盖人工编辑"""
         with self.lock:
             item = self.get(identifier)
             if identifier in self.flags:
@@ -167,7 +167,7 @@ class Honors:
             return self.get(identifier)
 
     def delete(self, identifier, version):
-        """删除库条目并取消识别，关联简历保留删除前最后核对的资料。"""
+        """删除库条目并取消识别；关联简历保留删除前最后核对的资料"""
         with self.lock, self.db.transaction() as conn:
             item = self.get(identifier, conn)
             if item["version"] != version:
@@ -181,7 +181,7 @@ class Honors:
         return {"deleted": identifier}
 
     def file(self, identifier, page=None):
-        """仅返回登记过的原件或指定分页图片。"""
+        """仅返回登记过的原件或指定分页图片"""
         item = self.get(identifier)
         attachment = item["attachment"]
         if not attachment:
@@ -195,7 +195,7 @@ class Honors:
         return path, attachment["name"]
 
     def _status(self, identifier, status, error="", result=None):
-        """在实例锁内合并任务状态；取消和删除后不发布任何识别结果。"""
+        """在实例锁内合并任务状态；取消和删除后不发布任何识别结果"""
         with self.db.transaction() as conn:
             try:
                 item = self.get(identifier, conn)
@@ -211,7 +211,7 @@ class Honors:
             self._write(conn, item)
 
     def _work(self):
-        """逐个处理证书，保证批量上传不会同时启动大量模型进程。"""
+        """逐个处理证书以保证批量上传不会同时启动大量模型进程"""
         while not self.stopped.is_set():
             task = self.pending.get()
             if task is None:
@@ -278,5 +278,5 @@ class Honors:
                         shutil.rmtree(self.root / identifier, ignore_errors=True)
 
     def _emit(self, kind, data):
-        """识别界面只显示任务状态，不持久化模型内部事件或原始日志。"""
+        """识别界面只显示任务状态且不持久化模型内部事件或原始日志"""
         pass

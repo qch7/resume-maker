@@ -1,4 +1,4 @@
-"""test_jobs.py：可控 AI 替身，避免自动测试调用真实 CLI 或消耗模型额度。"""
+"""test_jobs.py：可控 AI 替身以免自动测试调用真实 CLI 或消耗模型额度"""
 
 import json
 import time
@@ -13,14 +13,14 @@ from resume_maker.services.jobs import Jobs
 
 
 class FakeProvider:
-    """可控 AI 替身，避免自动测试调用真实 CLI 或消耗模型额度。"""
+    """可控 AI 替身以免自动测试调用真实 CLI 或消耗模型额度"""
 
     def __init__(self, block=False):
-        """配置测试替身是否等待取消，用于覆盖成功与取消两条任务路径。"""
+        """配置测试替身是否等待取消；用于覆盖成功与取消两条任务路径"""
         self.calls, self.block = [], block
 
     def run(self, **kw):
-        """返回可预测的结构化建议，并模拟独立会话标识与取消信号。"""
+        """返回可预测的结构化建议并模拟独立会话标识与取消信号"""
         context = json.loads(kw["prompt"].split("本轮上下文数据：\n")[1])
         self.calls.append(
             {"context": context, "thread": kw["thread_id"], "settings": kw["settings"]}
@@ -41,7 +41,7 @@ class FakeProvider:
 
 
 def wait_job(catalog, job_id):
-    """在有界时间内等待后台任务结束，超时则报告测试失败。"""
+    """在有界时间内等待后台任务结束；超时则报告测试失败"""
     until = time.monotonic() + 5
     while time.monotonic() < until:
         job = catalog.db.one("SELECT * FROM jobs WHERE id=?", (job_id,))
@@ -52,7 +52,7 @@ def wait_job(catalog, job_id):
 
 
 def test_independent_sessions_and_stale_proposal(catalog, project, tmp_path):
-    """验证不同会话上下文隔离，并拒绝采用基于过期原文的建议。"""
+    """验证不同会话上下文隔离并拒绝采用基于过期原文的建议"""
     provider = FakeProvider()
     jobs = Jobs(catalog.db, catalog, tmp_path / "data", provider)
     first = catalog.db.all("SELECT * FROM conversations")[0]
@@ -83,7 +83,7 @@ def test_independent_sessions_and_stale_proposal(catalog, project, tmp_path):
 
 
 def test_cancel_does_not_publish_reply(catalog, project, tmp_path):
-    """验证任务取消后不会发布迟到的模型回复或建议。"""
+    """验证任务取消后不会发布迟到的模型回复或建议"""
     jobs = Jobs(catalog.db, catalog, tmp_path / "data", FakeProvider(block=True))
     conv = catalog.db.all("SELECT * FROM conversations")[0]
     jobs.start()

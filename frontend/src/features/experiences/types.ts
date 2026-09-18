@@ -11,7 +11,7 @@ export interface EditorProps {
   revisionId: string;
   included: string[];
   visibility: ProjectVisibility;
-  onVisibility: (value: ProjectVisibility, migrating?: boolean) => void;
+  onVisibility: (value: ProjectVisibility) => void;
   usedRevision?: Revision;
   hasLocalChanges: boolean;
   run: (work: () => Promise<void>) => void;

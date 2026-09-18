@@ -1,4 +1,4 @@
-"""应用组装入口：配置、服务生命周期、路由和静态资源。"""
+"""应用组装入口：配置、服务生命周期、路由和静态资源"""
 
 from contextlib import asynccontextmanager
 
@@ -28,13 +28,13 @@ from resume_maker.services.honors import Honors
 from resume_maker.services.jobs import Jobs
 from resume_maker.services.projects import Projects
 from resume_maker.services.resume_previews import ResumePreviews
-from resume_maker.services.template_library import TemplateLibrary
-from resume_maker.services.templates import Templates
+from resume_maker.services.templates.library import TemplateLibrary
+from resume_maker.services.templates.tasks import Templates
 from resume_maker.services.workspace import Workspace
 
 
 def create_app(config: Config | None = None, provider: Provider | None = None) -> FastAPI:
-    """创建独立应用；可注入配置和 Provider，不在模块导入时启动后台任务。"""
+    """按配置组装独立应用；后台任务由应用生命周期启动"""
     config = config or Config()
     config.prepare()
     db = Database(config.data_dir / "resume.db")
@@ -61,7 +61,7 @@ def create_app(config: Config | None = None, provider: Provider | None = None) -
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
-        """随服务器启动队列，并在正常关闭或异常退出时回收任务进程。"""
+        """随服务器启动队列并在正常关闭或异常退出时回收任务进程"""
         queue.start()
         services.honors.start()
         services.template_library.start()

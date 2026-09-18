@@ -3,7 +3,7 @@ import { useState } from "react";
 import { getWorkflow, type GuideTarget } from "./state";
 import { WORKFLOW_STEPS as steps } from "./steps";
 
-/** 展示当前制作步骤和下一步操作，支持折叠与目标定位。 */
+/** 展示当前制作步骤和下一步操作；支持折叠与目标定位 */
 export default function Workflow({
   value,
   activeStep,
@@ -28,7 +28,7 @@ export default function Workflow({
     selection?.step === activeStep
       ? selection.target
       : current.substeps.find(
-          /* 默认提示当前大步骤中尚未完成的第一项。 */ (_, index) =>
+          /* 默认提示当前大步骤中尚未完成的第一项 */ (_, index) =>
             !value.substeps[activeStep][index],
         )?.target;
   return (
@@ -49,33 +49,31 @@ export default function Workflow({
       </div>
       <div className="workflow-main">
         <ol className="workflow-steps" hidden={collapsed}>
-          {steps.map(
-            /* 按稳定标识生成对应的列表条目。 */ (step, index) => (
-              <li
-                key={step.title}
-                className={`${value.done[index] ? "complete" : ""} ${index === activeStep ? "current" : ""}`}
-              >
-                <button
-                  aria-current={index === activeStep ? "step" : undefined}
-                  aria-label={`第 ${index + 1} 步：${step.title}${value.done[index] ? "，已就绪" : ""}`}
-                  onClick={
-                    /* 大步骤直接导航到工作区，并重置子步骤选择。 */ () => {
-                      setSelection(null);
-                      onNavigate(step.target);
-                    }
+          {steps.map((step, index) => (
+            <li
+              key={step.title}
+              className={`${value.done[index] ? "complete" : ""} ${index === activeStep ? "current" : ""}`}
+            >
+              <button
+                aria-current={index === activeStep ? "step" : undefined}
+                aria-label={`第 ${index + 1} 步：${step.title}${value.done[index] ? "，已就绪" : ""}`}
+                onClick={
+                  /* 大步骤直接导航到工作区并重置子步骤选择 */ () => {
+                    setSelection(null);
+                    onNavigate(step.target);
                   }
-                >
-                  <span className="step-number">
-                    {value.done[index] ? <Check size={15} /> : index + 1}
-                  </span>
-                  <span>
-                    <strong>{step.title}</strong>
-                    <small>{step.detail}</small>
-                  </span>
-                </button>
-              </li>
-            ),
-          )}
+                }
+              >
+                <span className="step-number">
+                  {value.done[index] ? <Check size={15} /> : index + 1}
+                </span>
+                <span>
+                  <strong>{step.title}</strong>
+                  <small>{step.detail}</small>
+                </span>
+              </button>
+            </li>
+          ))}
         </ol>
         {!collapsed && current.substeps.length > 0 && (
           <ol
@@ -83,7 +81,7 @@ export default function Workflow({
             aria-label={`${current.title}子步骤`}
           >
             {current.substeps.map(
-              /* 子步骤可直接定位表单，跨步骤入口明确显示目的地。 */ (
+              /* 子步骤可直接定位表单；跨步骤入口明确显示目的地 */ (
                 item,
                 index,
               ) => (
@@ -94,7 +92,7 @@ export default function Workflow({
                       activeTarget === item.target ? "step" : undefined
                     }
                     onClick={
-                      /* 保留当前子步骤选择，实际导航由工作台统一保存草稿后执行。 */ () => {
+                      /* 保留当前子步骤选择；实际导航由工作台统一保存草稿后执行 */ () => {
                         setSelection({ step: activeStep, target: item.target });
                         onNavigate(item.target);
                       }
@@ -123,10 +121,7 @@ export default function Workflow({
           <p role="status">{next.text}</p>
           <button
             className="text-button"
-            onClick={
-              /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-                onNavigate(next.target, next.projectId)
-            }
+            onClick={() => onNavigate(next.target, next.projectId)}
           >
             {next.action}
             <ArrowRight size={14} />

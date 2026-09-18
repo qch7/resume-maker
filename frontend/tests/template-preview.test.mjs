@@ -3,25 +3,25 @@ import assert from "node:assert/strict";
 import { createPreviewQueue } from "../src/features/resumes/templatePreviewQueue.ts";
 import { templatePreviewInput } from "../src/features/resumes/templatePreviewInput.ts";
 
-/** 由测试控制异步渲染完成时机，模拟 Word 比输入更慢的情况。 */
+/** 由测试控制异步渲染完成时机；模拟 Word 比输入更慢的情况 */
 function harness(t) {
   t.mock.timers.enable({ apis: ["setTimeout"] });
   const calls = [];
   const events = [];
   const queue = createPreviewQueue(
-    /* 保存请求的完成入口，不启动真实 Word。 */ (key, signal) =>
+    /* 保存请求的完成入口且不启动真实 Word */ (key, signal) =>
       new Promise(
-        /* 将任务加入模拟请求列表。 */ (resolve, reject) =>
+        /* 将任务加入模拟请求列表 */ (resolve, reject) =>
           calls.push({ key, signal, resolve, reject }),
       ),
-    /* 记录用户能观察到的状态。 */ (state) => events.push(state),
+    /* 记录用户能观察到的状态 */ (state) => events.push(state),
     1000,
   );
-  t.after(/* 测试完成时回收队列。 */ () => queue.dispose());
+  t.after(/* 测试完成时回收队列 */ () => queue.dispose());
   return { queue, calls, events };
 }
 
-test("continuous typing is debounced and identical inputs are reused", /* 连续输入停顿后只启动一次排版。 */ async (t) => {
+test("continuous typing is debounced and identical inputs are reused", /* 连续输入停顿后只启动一次排版 */ async (t) => {
   const { queue, calls, events } = harness(t);
   queue.submit("first");
   t.mock.timers.tick(800);
@@ -30,7 +30,7 @@ test("continuous typing is debounced and identical inputs are reused", /* 连续
   assert.equal(calls.length, 0);
   t.mock.timers.tick(200);
   assert.deepEqual(
-    calls.map(/* 读取实际排版输入。 */ (call) => call.key),
+    calls.map(/* 读取实际排版输入 */ (call) => call.key),
     ["second"],
   );
   calls[0].resolve("page");
@@ -41,7 +41,7 @@ test("continuous typing is debounced and identical inputs are reused", /* 连续
   assert.equal(events.at(-1).status, "ready");
 });
 
-test("an in-flight render is followed only by the latest input", /* Word 请求不能因按键取消，过时返回值不能覆盖新模板。 */ async (t) => {
+test("an in-flight render is followed only by the latest input", /* Word 请求不能因按键取消；过时返回值不能覆盖新模板 */ async (t) => {
   const { queue, calls, events } = harness(t);
   queue.submit("template-a");
   t.mock.timers.tick(1000);
@@ -54,11 +54,11 @@ test("an in-flight render is followed only by the latest input", /* Word 请求�
   calls[0].resolve("old page");
   await Promise.resolve();
   assert.deepEqual(
-    calls.map(/* 检查已启动的请求序列。 */ (call) => call.key),
+    calls.map(/* 检查已启动的请求序列 */ (call) => call.key),
     ["template-a", "template-b"],
   );
   assert.equal(
-    events.some(/* 旧页不得发布为最新结果。 */ (event) => event.result),
+    events.some(/* 旧页不得发布为最新结果 */ (event) => event.result),
     false,
   );
   calls[1].resolve("new page");
@@ -66,7 +66,7 @@ test("an in-flight render is followed only by the latest input", /* Word 请求�
   assert.equal(events.at(-1).result.value, "new page");
 });
 
-test("errors can be retried and missing input invalidates late results", /* 同输入允许失败重试，切回内置模板后不接收旧图片。 */ async (t) => {
+test("errors can be retried and missing input invalidates late results", /* 同输入允许失败重试；切回内置模板后不接收旧图片 */ async (t) => {
   const { queue, calls, events } = harness(t);
   queue.submit("input");
   t.mock.timers.tick(1000);
@@ -86,7 +86,7 @@ test("errors can be retried and missing input invalidates late results", /* 同�
   });
 });
 
-test("unmount suppresses late responses and queued work", /* 卸载组件后既不修改状态，也不启动待处理的 Word 请求。 */ async (t) => {
+test("unmount suppresses late responses and queued work", /* 卸载组件后既不修改状态；也不启动待处理的 Word 请求 */ async (t) => {
   const { queue, calls, events } = harness(t);
   queue.submit("first");
   t.mock.timers.tick(1000);
@@ -101,7 +101,7 @@ test("unmount suppresses late responses and queued work", /* 卸载组件后既�
   assert.equal(events.length, length);
 });
 
-test("payload follows unsaved content, visibility and order without saving references", /* 工作副本进入预览，改名不触发排版，正式引用和删掉的勾选仍保持原样。 */ () => {
+test("payload follows unsaved content, visibility and order without saving references", /* 工作副本进入预览；改名不触发排版；正式引用和删掉的勾选仍保持原样 */ () => {
   const revision = {
     id: "revision",
     project_id: "project",

@@ -9,7 +9,7 @@ import {
   replaceEntry,
 } from "../src/features/profile/entry.ts";
 
-test("modal entry saves apply only on success and retain unrelated drafts", /* 模态表单不提前污染草稿，保存时只提交本条，保留其他输入。 */ () => {
+test("modal entry saves apply only on success and retain unrelated drafts", /* 模态表单不提前污染草稿；保存时只提交本条；保留其他输入 */ () => {
   const saved = baseline();
   const draft = structuredClone(saved);
   draft.document.personal.name = "未保存姓名";
@@ -38,12 +38,12 @@ test("modal entry saves apply only on success and retain unrelated drafts", /* �
   assert.equal(accepted.version, 3);
 });
 
-/** 使用独立测试资料覆盖多条经历及字段显隐。 */
+/** 使用独立测试资料覆盖多条经历及字段显隐 */
 function baseline() {
   const document = newDocument();
   document.personal.name = "已保存姓名";
   document.sections[0].entries = ["one", "two"].map(
-    /* 两条资料具有不同的稳定身份。 */ (id) => ({
+    /* 两条资料具有不同的稳定身份 */ (id) => ({
       visible: true,
       hidden_fields: [],
       custom_fields: [],
@@ -64,7 +64,7 @@ function baseline() {
   };
 }
 
-test("entry saves isolate other drafts without losing pending changes", /* 保存一条时不提交其他经历、姓名、编排与项目引用。 */ () => {
+test("entry saves isolate other drafts without losing pending changes", /* 保存一条时不提交其他经历、姓名、编排与项目引用 */ () => {
   const saved = baseline();
   const draft = structuredClone(saved);
   draft.name = "方案草稿";
@@ -84,7 +84,7 @@ test("entry saves isolate other drafts without losing pending changes", /* 保�
   assert.equal(submitted.document.sections[0].title, "教育背景");
   assert.deepEqual(
     submitted.document.sections[0].entries.map(
-      /* 确认未提交草稿排序。 */ (entry) => entry.title,
+      /* 确认未提交草稿排序 */ (entry) => entry.title,
     ),
     ["本次学校", "two"],
   );
@@ -101,7 +101,7 @@ test("entry saves isolate other drafts without losing pending changes", /* 保�
   assert.equal(merged.document.sections[0].title, "栏目草稿");
   assert.deepEqual(
     merged.document.sections[0].entries.map(
-      /* 草稿排序继续保留。 */ (entry) => entry.id,
+      /* 草稿排序继续保留 */ (entry) => entry.id,
     ),
     ["two", "one"],
   );
@@ -122,7 +122,7 @@ test("entry saves isolate other drafts without losing pending changes", /* 保�
   );
 });
 
-test("entry responses preserve later typing, removals and selected resumes", /* 迟到保存响应不会覆盖新输入、恢复已删除条目或切回旧方案。 */ () => {
+test("entry responses preserve later typing, removals and selected resumes", /* 迟到保存响应不会覆盖新输入、恢复已删除条目或切回旧方案 */ () => {
   const submitted = baseline();
   const response = { ...submitted, version: 3 };
   const current = structuredClone(submitted);
@@ -143,7 +143,7 @@ test("entry responses preserve later typing, removals and selected resumes", /* 
   assert.equal(acceptSavedComposition(other, submitted, response), other);
 });
 
-test("new child entries save only their necessary structure and work with new or template-based resumes", /* 新栏目只补齐父级结构，空条目也能保存为只读记录。 */ () => {
+test("new child entries save only their necessary structure and work with new or template-based resumes", /* 新栏目只补齐父级结构；空条目也能保存为只读记录 */ () => {
   const saved = baseline();
   const draft = structuredClone(saved);
   const entry = {
@@ -214,13 +214,13 @@ test("new child entries save only their necessary structure and work with new or
   assert.equal(template.version, 2);
   assert.equal(template.template_id, null);
   assert.throws(
-    /* 已删除方案不能被局部保存重建。 */ () =>
+    /* 已删除方案不能被局部保存重建 */ () =>
       entryComposition(draft, undefined, "education", "one"),
     /已不存在/,
   );
 });
 
-test("entries in new project child sections save without publishing other drafts", /* 项目大栏目新增子栏目后，单条资料也能保存并保留原项目引用。 */ () => {
+test("entries in new project child sections save without publishing other drafts", /* 项目大栏目新增子栏目后；单条资料也能保存并保留原项目引用 */ () => {
   const saved = baseline();
   const draft = structuredClone(saved);
   draft.document.personal.name = "未保存姓名";

@@ -25,13 +25,13 @@ export const ENTRY_LABELS: Record<string, string> = {
   custom_fields: "自定义信息",
 };
 
-/** 生成用户当前可以映射的资料字段和栏目标题名称。 */
+/** 生成用户当前可以映射的资料字段和栏目标题名称 */
 export function personalTargets(document: ResumeDocument) {
   return {
     ...PERSONAL_LABELS,
     ...Object.fromEntries(
       document.personal.custom_fields.map(
-        /* 自定义字段按名称匹配，可复用于另一份同名资料。 */ (field) => [
+        /* 自定义字段按名称匹配；可复用于另一份同名资料 */ (field) => [
           `personal.custom:${field.label}`,
           field.label,
         ],
@@ -39,7 +39,7 @@ export function personalTargets(document: ResumeDocument) {
     ),
     ...Object.fromEntries(
       document.sections.map(
-        /* 栏目标题可以跟随同名资料栏目填入。 */ (section) => [
+        /* 栏目标题可以跟随同名资料栏目填入 */ (section) => [
           `section-title:${section.title}`,
           `${section.title} · 栏目标题`,
         ],
@@ -48,12 +48,12 @@ export function personalTargets(document: ResumeDocument) {
   };
 }
 
-/** 新增映射从明确的原文开始，保存前仍需校验具体字段和引文。 */
+/** 新增映射从明确的原文开始；保存前仍需校验具体字段和引文 */
 export function newBinding(node: TemplateNode, target: string): TextBinding {
   return { node: node.id, quote: node.text, target, occurrence: 1 };
 }
 
-/** 位置选项只展示用户可理解的容器和原文，不暴露 XML 路径。 */
+/** 位置选项只展示用户可理解的容器和原文且不暴露 XML 路径 */
 export function nodeLabel(node: TemplateNode) {
   const part = node.part.includes("header")
     ? "页眉"

@@ -3,7 +3,7 @@ import type { Resume, Revision } from "../../shared/types";
 import TemplatePreview from "../resumes/TemplatePreview";
 import { templatePreviewInput } from "../resumes/templatePreviewInput";
 
-/** 在模板工作区使用正式生成器预览内置版式，资料与经历沿用当前未保存内容。 */
+/** 在模板工作区使用正式生成器预览内置版式；资料与经历沿用当前未保存内容 */
 export default function BuiltinTemplate({
   active,
   resume,
@@ -40,7 +40,7 @@ export default function BuiltinTemplate({
             aria-label="内置模板预览缩放"
             value={zoom}
             onChange={
-              /* 以真实 Word 矢量分页缩放，不重新生成文档。 */ (event) =>
+              /* 以真实 Word 矢量分页缩放且不重新生成文档 */ (event) =>
                 setZoom(Number(event.target.value))
             }
           >

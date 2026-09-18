@@ -1,5 +1,3 @@
-"""test_catalog.py：模块职责与调用关系见 docs/architecture.md。"""
-
 import pytest
 
 from resume_maker.core.errors import Problem
@@ -10,7 +8,7 @@ from resume_maker.services.catalog import Catalog
 
 
 def test_commit_publishes_all_drafts_and_preserves_pinned_resume(catalog, project, populated):
-    """提交包含全部字段草稿，重启后保留新版本，已存简历仍引用原版本。"""
+    """提交包含全部字段草稿；重启后保留新版本；已存简历仍引用原版本"""
     p, base = project["id"], populated["id"]
     resume = catalog.save_resume(
         "Application",
@@ -36,7 +34,7 @@ def test_commit_publishes_all_drafts_and_preserves_pinned_resume(catalog, projec
 
 
 def test_incomplete_draft_survives_but_cannot_publish(catalog, project, populated):
-    """验证不完整内容可存草稿，但不能发布为正式经历。"""
+    """验证不完整内容可存草稿；但不能发布为正式经历"""
     p, base = project["id"], populated["id"]
     one = populated["content"]["highlights"][0]
     catalog.put_draft(p, base, "highlight:one", {**one, "text": ""}, 0)
@@ -46,7 +44,7 @@ def test_incomplete_draft_survives_but_cannot_publish(catalog, project, populate
 
 
 def test_stale_write_rejected(catalog, project, populated):
-    """验证过期草稿版本不能覆盖其他窗口的修改。"""
+    """验证过期草稿版本不能覆盖其他窗口的修改"""
     p, base = project["id"], populated["id"]
     one = populated["content"]["highlights"][0]
     catalog.put_draft(p, base, "highlight:one", {**one, "text": "First writer"}, 0)
@@ -56,7 +54,7 @@ def test_stale_write_rejected(catalog, project, populated):
 
 
 def test_cross_project_revision_is_rejected(catalog, project, populated, tmp_path):
-    """验证不能把其他项目的经历版本作为本项目内容。"""
+    """验证不能把其他项目的经历版本作为本项目内容"""
     other_dir = tmp_path / "other"
     other_dir.mkdir()
     other = catalog.create_project("Other", [str(other_dir)])
@@ -69,14 +67,14 @@ def test_cross_project_revision_is_rejected(catalog, project, populated, tmp_pat
 
 
 def test_duplicate_registration_keeps_history(catalog, project):
-    """验证重复导入相同来源时复用项目并保留历史。"""
+    """验证重复导入相同来源时复用项目并保留历史"""
     duplicate = catalog.create_project("New label", project["roots"])
     assert duplicate["id"] == project["id"]
     assert len(catalog.db.all("SELECT * FROM revisions")) == 1
 
 
 def test_order_draft_survives_added_removed_highlights(catalog, project, populated):
-    """验证新增亮点默认置顶，保存或删除后仍保留其他条目的手动排序。"""
+    """验证新增亮点默认置顶；保存或删除后仍保留其他条目的手动排序"""
     p, revision = project["id"], populated["id"]
     catalog.put_draft(p, revision, "order", ["two", "one"], 0)
     point = {"id": "three", "title": "Extra", "text": "Pending extra", "evidence": []}
@@ -98,7 +96,7 @@ def test_order_draft_survives_added_removed_highlights(catalog, project, populat
 
 
 def test_discard_rejects_stale_version(catalog, project, populated):
-    """验证过期窗口不能删除后来更新的草稿。"""
+    """验证过期窗口不能删除后来更新的草稿"""
     p, revision = project["id"], populated["id"]
     point = populated["content"]["highlights"][0]
     catalog.put_draft(p, revision, "highlight:one", {**point, "text": "pending"}, 0)
@@ -109,7 +107,7 @@ def test_discard_rejects_stale_version(catalog, project, populated):
 
 
 def test_restore_keeps_original_source_snapshot(catalog, project, populated):
-    """验证恢复历史经历仍保留对应的原始来源快照。"""
+    """验证恢复历史经历仍保留对应的原始来源快照"""
     from conftest import record_source_files
 
     snapshot = record_source_files(catalog.db, catalog.db.path.parent, project)
@@ -127,7 +125,7 @@ def test_restore_keeps_original_source_snapshot(catalog, project, populated):
 def test_saving_unchanged_content_clears_drafts_without_a_new_revision(
     catalog, project, populated, field
 ):
-    """验证内容未变时确认并清理草稿，无须制造重复版本。"""
+    """验证内容未变时确认并清理草稿；无须制造重复版本"""
     p, base = project["id"], populated["id"]
     value = field_value(populated["content"], field)
     catalog.put_draft(p, base, field, value, 0)
@@ -138,7 +136,7 @@ def test_saving_unchanged_content_clears_drafts_without_a_new_revision(
 
 
 def test_save_all_clears_an_edit_reverted_to_saved_content(catalog, project, populated):
-    """验证整段内容改回原值后可以清理全部无效草稿。"""
+    """验证整段内容改回原值后可以清理全部无效草稿"""
     p, base = project["id"], populated["id"]
     point = populated["content"]["highlights"][0]
     catalog.put_draft(p, base, "highlight:one", {**point, "text": "Temporary edit"}, 0)
@@ -150,7 +148,7 @@ def test_save_all_clears_an_edit_reverted_to_saved_content(catalog, project, pop
 
 
 def test_commit_includes_changes_alongside_unchanged_drafts(catalog, project, populated):
-    """未变化字段不妨碍整段提交其他字段的最新草稿。"""
+    """未变化字段不妨碍整段提交其他字段的最新草稿"""
     p, base = project["id"], populated["id"]
     one, two = populated["content"]["highlights"]
     catalog.put_draft(p, base, "highlight:one", one, 0)
@@ -164,7 +162,7 @@ def test_commit_includes_changes_alongside_unchanged_drafts(catalog, project, po
 
 
 def test_commit_keeps_field_overrides_of_a_whole_experience_draft(catalog, project, populated):
-    """整段提交保留单字段对整段草稿的有效覆盖。"""
+    """整段提交保留单字段对整段草稿的有效覆盖"""
     from copy import deepcopy
 
     p, base = project["id"], populated["id"]
@@ -180,7 +178,7 @@ def test_commit_keeps_field_overrides_of_a_whole_experience_draft(catalog, proje
 
 
 def test_unchanged_save_rejects_stale_head(catalog, project, populated):
-    """验证未改内容的保存操作仍须核验当前项目头版本。"""
+    """验证未改内容的保存操作仍须核验当前项目头版本"""
     p, base = project["id"], populated["id"]
     catalog.put_draft(p, base, "experience", populated["content"], 0)
     with pytest.raises(Problem, match="项目已有新版本"):
@@ -189,14 +187,14 @@ def test_unchanged_save_rejects_stale_head(catalog, project, populated):
 
 
 def test_unchanged_save_rejects_concurrent_draft_edit(catalog, project, populated, monkeypatch):
-    """验证保存确认期间的并发编辑会触发冲突而非丢失草稿。"""
+    """验证保存确认期间的并发编辑会触发冲突而非丢失草稿"""
     p, base = project["id"], populated["id"]
     point = populated["content"]["highlights"][0]
     catalog.put_draft(p, base, "highlight:one", point, 0)
     working = catalog.working
 
     def concurrent_edit(project_id, revision_id):
-        """在保存读取期间模拟另一窗口修改草稿，验证乐观锁拒绝覆盖。"""
+        """在保存读取期间模拟另一窗口修改草稿；验证乐观锁拒绝覆盖"""
         result = working(project_id, revision_id)
         with catalog.db.transaction() as conn:
             conn.execute("UPDATE drafts SET version=version+1 WHERE project_id=?", (p,))

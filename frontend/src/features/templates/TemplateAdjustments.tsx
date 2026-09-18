@@ -6,7 +6,7 @@ import AdvancedMapping from "./AdvancedMapping";
 import TemplateCanvas from "./TemplateCanvas";
 import TemplateInspector from "./TemplateInspector";
 
-/** 把常用修正放在 Word 试填旁，完整原文与范围操作按需展开。 */
+/** 把常用修正放在 Word 试填旁；完整原文与范围操作按需展开 */
 export default function TemplateAdjustments({
   nodes,
   plan,
@@ -33,13 +33,13 @@ export default function TemplateAdjustments({
   const [advanced, setAdvanced] = useState(false);
   const [showBlanks, setShowBlanks] = useState(false);
   const groups = useMemo(
-    /* 修改用途后同步更新分类。 */ () => adjustmentChoices(nodes, plan),
+    /* 修改用途后同步更新分类 */ () => adjustmentChoices(nodes, plan),
     [nodes, plan],
   );
   const known = groups.some(
-    /* 高级选区可能不是常用字段。 */ (group) =>
+    /* 高级选区可能不是常用字段 */ (group) =>
       group.choices.some(
-        /* 查找选中位置。 */ (choice) => choice.id === selected[0],
+        /* 查找选中位置 */ (choice) => choice.id === selected[0],
       ),
   );
   const inspector = (
@@ -52,7 +52,7 @@ export default function TemplateAdjustments({
       onChange={onChange}
       onSelect={onLocate}
       onRange={
-        /* 保留起点，下一次原文点击决定范围。 */ () => onRange(selected[0])
+        /* 保留起点；下一次原文点击决定范围 */ () => onRange(selected[0])
       }
     />
   );
@@ -67,7 +67,7 @@ export default function TemplateAdjustments({
         <select
           value={selected[0] ?? ""}
           onChange={
-            /* 选择用途时保持 Word 页面可见。 */ (event) =>
+            /* 选择用途时保持 Word 页面可见 */ (event) =>
               onLocate(event.target.value)
           }
         >
@@ -77,15 +77,15 @@ export default function TemplateAdjustments({
             </option>
           )}
           {groups.map(
-            /* 每个栏目聚合到一组，无需竖排全部段落。 */ (group, index) => (
+            /* 每个栏目聚合到一组；无需竖排全部段落 */ (group, index) => (
               <optgroup label={group.label} key={index}>
                 {group.choices.map(
-                  /* 重复用途以原文摘要区分位置。 */ (choice) => (
+                  /* 重复用途以原文摘要区分位置 */ (choice) => (
                     <option value={choice.id} key={choice.id}>
                       {choice.label} ·{" "}
                       {nodes
                         .find(
-                          /* 获取当前位置的原文。 */ (node) =>
+                          /* 获取当前位置的原文 */ (node) =>
                             node.id === choice.id,
                         )
                         ?.text.slice(0, 32) || "图片或空位"}
@@ -101,7 +101,7 @@ export default function TemplateAdjustments({
       <details
         className="template-structure-options"
         onToggle={
-          /* 仅在用户展开时创建完整原文列表。 */ (event) => {
+          /* 仅在用户展开时创建完整原文列表 */ (event) => {
             setAdvanced(event.currentTarget.open);
             if (!event.currentTarget.open) onRange(null);
           }
@@ -118,7 +118,7 @@ export default function TemplateAdjustments({
                 type="checkbox"
                 checked={showBlanks}
                 onChange={
-                  /* 空白只在需要补充填写位置时显示。 */ (event) =>
+                  /* 空白只在需要补充填写位置时显示 */ (event) =>
                     setShowBlanks(event.target.checked)
                 }
               />
@@ -127,7 +127,7 @@ export default function TemplateAdjustments({
             {rangeAnchor && (
               <div className="template-range-prompt">
                 已设置起点，请点击同级终点。
-                <button onClick={/* 取消未完成的选区。 */ () => onRange(null)}>
+                <button onClick={/* 取消未完成的选区 */ () => onRange(null)}>
                   取消选范围
                 </button>
               </div>

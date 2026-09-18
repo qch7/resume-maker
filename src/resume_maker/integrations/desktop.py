@@ -1,4 +1,4 @@
-"""调用本机文件管理器定位已由项目服务校验的来源文件。"""
+"""调用本机文件管理器定位已由项目服务校验的来源文件"""
 
 import subprocess
 import sys
@@ -8,7 +8,7 @@ from resume_maker.core.errors import Problem
 
 
 def reveal_file(path: Path) -> None:
-    """Windows 和 macOS 选中文件，其他桌面平台打开其所在目录。"""
+    """Windows 和 macOS 选中文件；其他桌面平台打开其所在目录"""
     if sys.platform == "win32":
         command = ["explorer.exe", "/select,", str(path)]
     elif sys.platform == "darwin":

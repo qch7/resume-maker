@@ -6,7 +6,7 @@ import type { Export, Resume } from "../../shared/types";
 import { isCurrentExport } from "./composition";
 import PrintedPage from "./PrintedPage";
 
-/** 展示某次导出的固定快照，下载名采用当时名称以免与后续改名混淆。 */
+/** 展示某次导出的固定快照；下载名采用当时名称以免与后续改名混淆 */
 function ExportCard({
   result,
   draft,
@@ -20,7 +20,7 @@ function ExportCard({
   const [error, setError] = useState("");
   const current = !previewChanged && isCurrentExport(result, draft);
   const name = result.manifest?.resume.name || "简历";
-  /** 直接下载历史文件，不依赖编辑区的草稿提交是否成功。 */
+  /** 直接下载历史文件且不依赖编辑区的草稿提交是否成功 */
   async function saveFile(file: string, filename: string) {
     setPending(true);
     setError("");
@@ -65,7 +65,7 @@ function ExportCard({
           <button
             disabled={pending}
             onClick={
-              /* 下载这次导出的 Word 文件。 */ () =>
+              /* 下载这次导出的 Word 文件 */ () =>
                 void saveFile("resume.docx", `${name}.docx`)
             }
           >
@@ -76,7 +76,7 @@ function ExportCard({
             <button
               disabled={pending}
               onClick={
-                /* PDF 与 Word 来自同一次导出。 */ () =>
+                /* PDF 与 Word 来自同一次导出 */ () =>
                   void saveFile("resume.pdf", `${name}.pdf`)
               }
             >
@@ -87,7 +87,7 @@ function ExportCard({
             className="text-button"
             disabled={pending}
             onClick={
-              /* 保存固定版本的追溯清单。 */ () =>
+              /* 保存固定版本的追溯清单 */ () =>
                 void saveFile("manifest.json", `${name}-版本清单.json`)
             }
           >
@@ -104,7 +104,7 @@ function ExportCard({
   );
 }
 
-/** 每次打开或完成导出后读取全部历史，并即时合并刚生成的文件。 */
+/** 每次打开或完成导出后读取全部历史并即时合并刚生成的文件 */
 export default function ExportHistory({
   draft,
   result,
@@ -122,15 +122,14 @@ export default function ExportHistory({
   );
   const rows = [...(latest ? [latest] : []), ...(history.data ?? [])]
     .filter(
-      /* 合并异步历史响应时，同一导出只展示一次。 */ (item, index, all) =>
+      /* 合并异步历史响应时；同一导出只展示一次 */ (item, index, all) =>
         all.findIndex(
-          /* 使用导出标识去重，不根据时间误合并。 */ (other) =>
+          /* 使用导出标识去重且不根据时间误合并 */ (other) =>
             other.id === item.id,
         ) === index,
     )
     .sort(
-      /* 最新成品优先显示。 */ (a, b) =>
-        b.created_at.localeCompare(a.created_at),
+      /* 最新成品优先显示 */ (a, b) => b.created_at.localeCompare(a.created_at),
     );
   return (
     <section className="resume-export-history" aria-label="导出记录">
@@ -144,8 +143,7 @@ export default function ExportHistory({
           className="text-button"
           disabled={!draft.id}
           onClick={
-            /* 重新获取文件列表，失败后也可重试。 */ () =>
-              setAttempt(attempt + 1)
+            /* 重新获取文件列表；失败后也可重试 */ () => setAttempt(attempt + 1)
           }
         >
           <RefreshCw size={13} />
@@ -174,7 +172,7 @@ export default function ExportHistory({
       ) : null}
       <div className="resume-export-grid">
         {rows.map(
-          /* 每份成品绑定其不可变导出标识。 */ (item) => (
+          /* 每份成品绑定其不可变导出标识 */ (item) => (
             <ExportCard
               key={item.id}
               result={item}

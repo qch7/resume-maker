@@ -6,7 +6,7 @@ import {
   toggleHighlightSelection,
 } from "../src/features/resumes/composition.ts";
 
-/** 构造已固定的简历与三个可独立编辑的经历版本。 */
+/** 构造已固定的简历与三个可独立编辑的经历版本 */
 function fixture() {
   const content = {
     title: "Project",
@@ -52,7 +52,7 @@ function fixture() {
   return { content, revisions, draft };
 }
 
-test("uncommitted text, metadata and ordering appear without modifying fixed revisions", /* 验证草稿即刻进入预览，正式经历与组合引用不变。 */ () => {
+test("uncommitted text, metadata and ordering appear without modifying fixed revisions", /* 验证草稿即刻进入预览；正式经历与组合引用不变 */ () => {
   const { content, revisions, draft } = fixture();
   const original = structuredClone({ revisions, draft });
   const working = {
@@ -76,7 +76,7 @@ test("uncommitted text, metadata and ordering appear without modifying fixed rev
   assert.equal(result.sources.project.content, working);
   assert.deepEqual(
     result.sources.project.content.highlights.map(
-      /* 检查当前显示顺序。 */ (h) => h.id,
+      /* 检查当前显示顺序 */ (h) => h.id,
     ),
     ["c", "a", "b"],
   );
@@ -84,7 +84,7 @@ test("uncommitted text, metadata and ordering appear without modifying fixed rev
   assert.deepEqual({ revisions, draft }, original);
 });
 
-test("switching editor revisions updates only that project's preview", /* 验证查看另一分支或版本不会串用其他项目内容或修改已固定版本。 */ () => {
+test("switching editor revisions updates only that project's preview", /* 验证查看另一分支或版本不会串用其他项目内容或修改已固定版本 */ () => {
   const { revisions, draft } = fixture();
   const current = buildLivePreview(draft, revisions, {}, "project", "newer");
   assert.equal(current.sources.project.id, "newer");
@@ -96,7 +96,7 @@ test("switching editor revisions updates only that project's preview", /* 验证
   assert.equal(unrelated.changed, false);
 });
 
-test("new draft highlights can be selected and reselected before committing", /* 验证新增未提交亮点可选择且按工作副本顺序预览。 */ () => {
+test("new draft highlights can be selected and reselected before committing", /* 验证新增未提交亮点可选择且按工作副本顺序预览 */ () => {
   const { content, revisions, draft } = fixture();
   const added = {
     id: "new",
@@ -122,15 +122,15 @@ test("new draft highlights can be selected and reselected before committing", /*
   assert.deepEqual(
     result.sources.project.content.highlights
       .filter(
-        /* 模拟只显示勾选项。 */ (h) =>
+        /* 模拟只显示勾选项 */ (h) =>
           draft.items[0].highlight_ids.includes(h.id),
       )
-      .map(/* 提取预览顺序。 */ (h) => h.id),
+      .map(/* 提取预览顺序 */ (h) => h.id),
     ["new", "a", "b", "c"],
   );
 });
 
-test("removing and restoring a highlight follows the working copy while retaining its selection", /* 验证草稿删除即刻消失，取消删除后恢复原来的勾选状态。 */ () => {
+test("removing and restoring a highlight follows the working copy while retaining its selection", /* 验证草稿删除即刻消失；取消删除后恢复原来的勾选状态 */ () => {
   const { content, revisions, draft } = fixture();
   const removed = {
     ...content,
@@ -156,7 +156,7 @@ test("removing and restoring a highlight follows the working copy while retainin
   assert.equal(restored.changed, false);
 });
 
-test("discarding draft order after toggling highlights restores the pinned export order", /* 排序草稿中取消再勾选后撤销草稿，导出顺序仍与固定版本预览一致。 */ () => {
+test("discarding draft order after toggling highlights restores the pinned export order", /* 排序草稿中取消再勾选后撤销草稿；导出顺序仍与固定版本预览一致 */ () => {
   const { content, revisions, draft } = fixture();
   const reordered = content.highlights.toReversed();
   const unchecked = toggleHighlightSelection(reordered, ["a", "b", "c"], "b");
@@ -181,7 +181,7 @@ test("discarding draft order after toggling highlights restores the pinned expor
   assert.deepEqual(orderCompositionHighlights(draft, {}).items, draft.items);
 });
 
-test("saving and export become available only after the preview matches the chosen revision", /* 验证预览不会伪装成已经提交并用于简历的内容。 */ () => {
+test("saving and export become available only after the preview matches the chosen revision", /* 验证预览不会伪装成已经提交并用于简历的内容 */ () => {
   const { revisions, draft } = fixture();
   assert.equal(
     buildLivePreview(draft, revisions, {}, "project", "newer").changed,

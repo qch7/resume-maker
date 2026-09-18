@@ -1,4 +1,4 @@
-"""Provider 配置与实际连接检查的 HTTP 入口。"""
+"""Provider 配置与实际连接检查的 HTTP 入口"""
 
 import threading
 
@@ -15,13 +15,13 @@ router = APIRouter(prefix="/api", tags=["settings"])
 
 @router.get("/settings/resume-defaults")
 def resume_defaults(services: ServicesDep):
-    """读取本机保存的默认栏目，未设置时由界面提供内置初始配置。"""
+    """读取本机保存的默认栏目；未设置时由界面提供内置初始配置"""
     return services.db.setting("resume_defaults")
 
 
 @router.put("/settings/resume-defaults")
 def save_resume_defaults(services: ServicesDep, body: ResumeDefaults):
-    """原子校验配置版本，保存后供新简历使用且随数据库备份。"""
+    """原子校验配置版本；保存后供新简历使用且随数据库备份"""
     with services.db.transaction() as conn:
         row = unpack(
             conn.execute("SELECT value_json FROM settings WHERE key='resume_defaults'").fetchone()
@@ -41,7 +41,7 @@ def save_resume_defaults(services: ServicesDep, body: ResumeDefaults):
 def settings(
     services: ServicesDep,
 ):
-    """返回 Provider 设置和数据目录，未配置的字段使用默认值。"""
+    """返回 Provider 设置和数据目录；未配置的字段使用默认值"""
     return {
         "provider": ProviderSettings.model_validate(
             services.db.setting("provider", {})
@@ -52,7 +52,7 @@ def settings(
 
 @router.put("/settings/provider")
 def provider_settings(services: ServicesDep, body: ProviderSettings):
-    """保存经过模型校验的 Provider 参数，供后续任务读取。"""
+    """保存经过模型校验的 Provider 参数；供后续任务读取"""
     services.db.set_setting("provider", body.model_dump())
     return body
 
@@ -61,7 +61,7 @@ def provider_settings(services: ServicesDep, body: ProviderSettings):
 def inspect_provider(
     services: ServicesDep,
 ):
-    """检查当前配置的 Codex CLI 是否可执行并返回版本信息。"""
+    """检查当前配置的 Codex CLI 是否可执行并返回版本信息"""
     return CodexProvider().inspect(
         ProviderSettings.model_validate(services.db.setting("provider", {}))
     )
@@ -71,7 +71,7 @@ def inspect_provider(
 def check_provider(
     services: ServicesDep,
 ):
-    """发起最小结构化连接请求，以真实响应确认当前 Provider 配置可用。"""
+    """发起最小结构化连接请求；以真实响应确认当前 Provider 配置可用"""
     result = CodexProvider().run(
         workspace=services.config.data_dir / "workspaces" / f"check-{uid()}",
         prompt="连接测试。不要使用工具或读取文件。reply 写连接成功；"

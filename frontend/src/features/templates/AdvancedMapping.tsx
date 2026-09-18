@@ -10,7 +10,7 @@ import {
   personalTargets,
 } from "./mapping";
 
-/** 提供完整映射清单与精确边界编辑，补充画布中的选区操作。 */
+/** 提供完整映射清单与精确边界编辑；补充画布中的选区操作 */
 export default function AdvancedMapping({
   nodes,
   plan,
@@ -27,12 +27,12 @@ export default function AdvancedMapping({
   onLocate: (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  /** 调整指定重复区域，保留其他字段和区域的配置。 */
+  /** 调整指定重复区域；保留其他字段和区域的配置 */
   function changeRegion(index: number, region: RepeatBinding) {
     edit({
       ...plan,
       repeats: plan.repeats.map(
-        /* 仅替换当前区域。 */ (item, at) => (at === index ? region : item),
+        /* 仅替换当前区域 */ (item, at) => (at === index ? region : item),
       ),
     });
   }
@@ -40,9 +40,8 @@ export default function AdvancedMapping({
     <details
       className="template-advanced"
       onToggle={
-        /* 仅在展开时创建完整字段清单，避免大模板生成大量隐藏选项。 */ (
-          event,
-        ) => setExpanded(event.currentTarget.open)
+        /* 仅在展开时创建完整字段清单以免大模板生成大量隐藏选项 */ (event) =>
+          setExpanded(event.currentTarget.open)
       }
     >
       <summary>全部映射与高级调整</summary>
@@ -55,14 +54,14 @@ export default function AdvancedMapping({
             nodes={nodes}
             targets={personalTargets(document)}
             onChange={
-              /* 更新全局字段映射。 */ (fields) => edit({ ...plan, fields })
+              /* 更新全局字段映射 */ (fields) => edit({ ...plan, fields })
             }
           />
           <h4>
             重复栏目 <span className="subtle">按当前资料自动增减条目</span>
           </h4>
           {plan.repeats.map(
-            /* 每个栏目独立核对重复样式。 */ (region, index) => (
+            /* 每个栏目独立核对重复样式 */ (region, index) => (
               <details className="template-region" key={index}>
                 <summary>
                   {region.section === "projects" ? "项目经历" : region.section}{" "}
@@ -73,7 +72,7 @@ export default function AdvancedMapping({
                   <select
                     value={region.section}
                     onChange={
-                      /* 选择此区域接收的资料栏目。 */ (event) =>
+                      /* 选择此区域接收的资料栏目 */ (event) =>
                         changeRegion(index, {
                           ...region,
                           section: event.target.value,
@@ -83,18 +82,18 @@ export default function AdvancedMapping({
                     <option value="projects">项目经历（固定版本）</option>
                     {document.sections
                       .filter(
-                        /* 项目区使用固定选项。 */ (section) =>
+                        /* 项目区使用固定选项 */ (section) =>
                           section.kind !== "projects",
                       )
                       .map(
-                        /* 其他栏目按当前名称匹配。 */ (section) => (
+                        /* 其他栏目按当前名称匹配 */ (section) => (
                           <option value={section.title} key={section.id}>
                             {section.title}
                           </option>
                         ),
                       )}
                     {!document.sections.some(
-                      /* 保留不匹配的识别结果供用户纠正。 */ (section) =>
+                      /* 保留不匹配的识别结果供用户纠正 */ (section) =>
                         section.title === region.section,
                     ) &&
                       region.section !== "projects" && (
@@ -110,7 +109,7 @@ export default function AdvancedMapping({
                   nodes={nodes}
                   targets={ENTRY_LABELS}
                   onChange={
-                    /* 更新样本内的字段。 */ (fields) =>
+                    /* 更新样本内的字段 */ (fields) =>
                       changeRegion(index, { ...region, fields })
                   }
                 />
@@ -125,13 +124,13 @@ export default function AdvancedMapping({
                         ["sample_end", "单条样本终点"],
                       ] as const
                     ).map(
-                      /* 起止范围均为包含当前位置。 */ ([key, label]) => (
+                      /* 起止范围均为包含当前位置 */ ([key, label]) => (
                         <label key={key}>
                           {label}
                           <select
                             value={region[key]}
                             onChange={
-                              /* 校验前允许用户调整结构边界。 */ (event) =>
+                              /* 校验前允许用户调整结构边界 */ (event) =>
                                 changeRegion(index, {
                                   ...region,
                                   [key]: event.target.value,
@@ -140,11 +139,11 @@ export default function AdvancedMapping({
                           >
                             {nodes
                               .filter(
-                                /* 重复范围可以是段落、表格或整行。 */ (node) =>
+                                /* 重复范围可以是段落、表格或整行 */ (node) =>
                                   node.kind !== "image",
                               )
                               .map(
-                                /* 展示原文摘要作为位置依据。 */ (node) => (
+                                /* 展示原文摘要作为位置依据 */ (node) => (
                                   <option value={node.id} key={node.id}>
                                     {nodeLabel(node)}
                                   </option>
@@ -158,11 +157,11 @@ export default function AdvancedMapping({
                 </details>
                 <button
                   onClick={
-                    /* 删除区域配置，原文会重新进入待处理清单。 */ () =>
+                    /* 删除区域配置；原文会重新进入待处理清单 */ () =>
                       edit({
                         ...plan,
                         repeats: plan.repeats.filter(
-                          /* 保留其他区域。 */ (_, at) => at !== index,
+                          /* 保留其他区域 */ (_, at) => at !== index,
                         ),
                       })
                   }
@@ -174,9 +173,9 @@ export default function AdvancedMapping({
           )}
           <button
             onClick={
-              /* 以一个可见段落创建待调整的栏目区域。 */ () => {
+              /* 以一个可见段落创建待调整的栏目区域 */ () => {
                 const node = nodes.find(
-                  /* 选择可编辑的非空段落。 */ (item) =>
+                  /* 选择可编辑的非空段落 */ (item) =>
                     item.kind === "p" && item.text,
                 );
                 if (node)
@@ -211,29 +210,28 @@ export default function AdvancedMapping({
                 ["remove", "删除示例内容"],
               ] as const
             ).map(
-              /* 所有原文处置都可撤销并重新核对。 */ ([key, label]) => (
+              /* 所有原文处置都可撤销并重新核对 */ ([key, label]) => (
                 <div key={key}>
                   <strong>{label}</strong>
                   {plan[key].map(
-                    /* 展示每个明确处理的节点。 */ (id) => (
+                    /* 展示每个明确处理的节点 */ (id) => (
                       <div className="template-unresolved" key={id}>
                         {nodes.some(
-                          /* 显示照片和装饰图片的真实内容。 */ (node) =>
+                          /* 显示照片和装饰图片的真实内容 */ (node) =>
                             node.id === id && node.kind === "image",
                         ) && <TemplateImage taskId={taskId} nodeId={id} />}
                         <span>
                           {nodes
-                            .find(/* 读取原文摘要。 */ (node) => node.id === id)
+                            .find(/* 读取原文摘要 */ (node) => node.id === id)
                             ?.text.slice(0, 150) || id}
                         </span>
                         <button
                           onClick={
-                            /* 撤回当前分类。 */ () =>
+                            /* 撤回当前分类 */ () =>
                               edit({
                                 ...plan,
                                 [key]: plan[key].filter(
-                                  /* 仅移除所选节点。 */ (value) =>
-                                    value !== id,
+                                  /* 仅移除所选节点 */ (value) => value !== id,
                                 ),
                               })
                           }

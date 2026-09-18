@@ -1,5 +1,3 @@
-"""test_sources.py：模块职责与调用关系见 docs/architecture.md。"""
-
 from pathlib import Path
 
 from conftest import record_source_files
@@ -8,7 +6,7 @@ from resume_maker.integrations.sources import check_evidence
 
 
 def test_snapshot_filters_secrets_and_preserves_original_input(catalog, project, tmp_path):
-    """验证快照过滤敏感内容并与之后修改的源码保持隔离。"""
+    """验证快照过滤敏感内容并与之后修改的源码保持隔离"""
     root = Path(project["roots"][0])
     (root / ".env").write_text("API_KEY=must-never-copy")
     (root / "config.yaml").write_text('api_key: "secret-token-value"\nport: 8080\n')
@@ -28,7 +26,7 @@ def test_snapshot_filters_secrets_and_preserves_original_input(catalog, project,
 
 
 def test_unmatched_evidence_cannot_be_marked_verified(catalog, project, tmp_path):
-    """验证无匹配引文或未经本人确认的证据不能伪装为已核实。"""
+    """验证无匹配引文或未经本人确认的证据不能伪装为已核实"""
     snapshot = record_source_files(catalog.db, tmp_path / "data", project)
     evidence = [
         {
@@ -46,7 +44,7 @@ def test_unmatched_evidence_cannot_be_marked_verified(catalog, project, tmp_path
 
 
 def test_snapshot_excludes_application_data_inside_source(catalog, project):
-    """数据放在源码目录时，连续采集不会复制个人数据或递归收录上次快照。"""
+    """数据放在源码目录时；连续采集不会复制个人数据或递归收录上次快照"""
     root = Path(project["roots"][0])
     data_dir = root / "data"
     data_dir.mkdir()

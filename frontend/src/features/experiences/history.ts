@@ -17,19 +17,19 @@ export const BRANCH_COLORS = [
   "#6aa8a1",
 ];
 
-/** 按真实父修订构建图坐标，不以保存时间猜测版本关系。 */
+/** 按真实父修订构建图坐标且不以保存时间猜测版本关系 */
 export function historyGraph(
   revisions: Revision[],
   branches: Branch[],
   working: UncommittedRevision[] = [],
 ) {
   const saved = [...revisions].sort(
-    /* 新版本排在上方，序号在项目内唯一。 */ (a, b) => b.number - a.number,
+    /* 新版本排在上方；序号在项目内唯一 */ (a, b) => b.number - a.number,
   );
   const ordered: HistoryRevision[] = saved.flatMap(
-    /* 草稿紧邻自己的基线版本，不占用正式版本编号或移动分支指针。 */ (base) => {
+    /* 草稿紧邻自己的基线版本且不占用正式版本编号或移动分支指针 */ (base) => {
       const draft = working.find(
-        /* 将每份未提交工作副本连接到准确的基线。 */ (item) =>
+        /* 将每份未提交工作副本连接到准确的基线 */ (item) =>
           item.base_revision === base.id,
       );
       if (!draft) return [base];
@@ -48,11 +48,11 @@ export function historyGraph(
     },
   );
   const nodes = ordered.map(
-    /* 同一分支使用固定泳道和颜色。 */ (revision, index) => {
+    /* 同一分支使用固定泳道和颜色 */ (revision, index) => {
       const lane = Math.max(
         0,
         branches.findIndex(
-          /* 找到修订所属分支。 */ (branch) => branch.id === revision.branch_id,
+          /* 找到修订所属分支 */ (branch) => branch.id === revision.branch_id,
         ),
       );
       return {
@@ -65,14 +65,14 @@ export function historyGraph(
   );
   const byId = new Map(
     nodes.map(
-      /* 以标识查找父节点，支持历史存在分叉。 */ (node) => [
+      /* 以标识查找父节点；支持历史存在分叉 */ (node) => [
         node.revision.id,
         node,
       ],
     ),
   );
   const edges = nodes.flatMap(
-    /* 仅绘制数据库实际记录的父子边。 */ (node) => {
+    /* 仅绘制数据库实际记录的父子边 */ (node) => {
       const parent = byId.get(node.revision.parent_id ?? "");
       if (!parent) return [];
       const path =
@@ -98,7 +98,7 @@ export function historyGraph(
   };
 }
 
-/** 将存储来源映射为用户可理解的历史动作。 */
+/** 将存储来源映射为用户可理解的历史动作 */
 export function revisionOrigin(origin: string) {
   return (
     (
@@ -112,7 +112,7 @@ export function revisionOrigin(origin: string) {
   );
 }
 
-/** 概括相对于父版本的内容变更，分支起点允许只有关系变化。 */
+/** 概括相对于父版本的内容变更；分支起点允许只有关系变化 */
 export function revisionChanges(revision: Revision, parent?: Revision) {
   if (!parent) return ["初始经历"];
   const labels = {
@@ -155,7 +155,7 @@ export function revisionChanges(revision: Revision, parent?: Revision) {
     changes.push("自定义信息");
   const before = new Map(
     parent.content.highlights.map(
-      /* 按稳定亮点标识比较。 */ (point) => [point.id, point],
+      /* 按稳定亮点标识比较 */ (point) => [point.id, point],
     ),
   );
   let added = 0,
@@ -173,12 +173,10 @@ export function revisionChanges(revision: Revision, parent?: Revision) {
     !added &&
     !before.size &&
     JSON.stringify(
-      revision.content.highlights.map(/* 比较排列顺序。 */ (point) => point.id),
+      revision.content.highlights.map(/* 比较排列顺序 */ (point) => point.id),
     ) !==
       JSON.stringify(
-        parent.content.highlights.map(
-          /* 提取父版本顺序。 */ (point) => point.id,
-        ),
+        parent.content.highlights.map(/* 提取父版本顺序 */ (point) => point.id),
       )
   )
     changes.push("亮点顺序");

@@ -16,7 +16,7 @@ import {
   isCurrentExport,
 } from "../src/features/resumes/composition.ts";
 
-/** 完整已核对资料，与个人数据库无关。 */
+/** 完整已核对资料；与个人数据库无关 */
 function source() {
   return {
     id: "linked",
@@ -37,7 +37,7 @@ function source() {
   };
 }
 
-test("existing linked honors recover all library fields without changing layout or drafts", /* 旧条目补齐缺失信息并拆开原来混入的级别，不覆盖未保存的其他资料。 */ () => {
+test("existing linked honors recover all library fields without changing layout or drafts", /* 旧条目补齐缺失信息并拆开原来混入的级别且不覆盖未保存的其他资料 */ () => {
   const document = newDocument();
   document.personal.name = "姓名草稿";
   const legacy = {
@@ -50,7 +50,7 @@ test("existing linked honors recover all library fields without changing layout 
   };
   legacy.custom_fields = Array.from(
     { length: 20 },
-    /* 保留已填满的二十项自定义资料。 */ (_, index) => ({
+    /* 保留已填满的二十项自定义资料 */ (_, index) => ({
       id: `note-${index}`,
       label: "备注",
       value: `${index}`,
@@ -77,7 +77,7 @@ test("existing linked honors recover all library fields without changing layout 
   assert.equal(syncHonorDocument(synced, [source()]), synced);
 });
 
-test("confirmed source changes and clearing fields update every selected resume and invalidate old exports", /* 来回切换缓存简历仍读当前资料，清空也能同步且各方案保留不同显隐。 */ () => {
+test("confirmed source changes and clearing fields update every selected resume and invalidate old exports", /* 来回切换缓存简历仍读当前资料；清空也能同步且各方案保留不同显隐 */ () => {
   const originalSource = source();
   const document = newDocument();
   document.sections[3].entries = [
@@ -130,7 +130,7 @@ test("confirmed source changes and clearing fields update every selected resume 
   assert.equal(syncHonorResume(synced, []), synced);
 });
 
-test("unreviewed suggestions, same-name records and manual entries cannot overwrite linked content", /* 同名不同标识、人工条目和未核对识别结果都不会被误关联。 */ () => {
+test("unreviewed suggestions, same-name records and manual entries cannot overwrite linked content", /* 同名不同标识、人工条目和未核对识别结果都不会被误关联 */ () => {
   const document = newDocument();
   document.sections[3].entries = [
     newHonorEntry(source().fields, "honor:linked"),

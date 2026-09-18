@@ -1,4 +1,4 @@
-"""模板分析任务、确认、试填、持久导出与接口隔离的集成测试。"""
+"""模板分析任务、确认、试填、持久导出与接口隔离的集成测试"""
 
 import base64
 import json
@@ -17,12 +17,12 @@ from resume_maker.domain.models import AIResult, ResumeItem
 from resume_maker.domain.resume import ResumeDocument
 from resume_maker.domain.templates import TemplatePlan, TextBinding
 from resume_maker.integrations.providers.codex import schema
-from resume_maker.integrations.word.template_map import TemplatePackage
-from resume_maker.services.templates import Templates
+from resume_maker.integrations.word.templates.mapping import TemplatePackage
+from resume_maker.services.templates.tasks import Templates
 
 
 def simple_document():
-    """创建仅填写姓名的当前资料，便于独立验证任务和接口边界。"""
+    """创建仅填写姓名的当前资料；便于独立验证任务和接口边界"""
     return ResumeDocument(
         personal={"name": "新的用户资料"},
         sections=[
@@ -32,23 +32,23 @@ def simple_document():
 
 
 def simple_template(path):
-    """构造可完全替换的脱敏模板，避免测试读取实际用户文件。"""
+    """构造可完全替换的脱敏模板以免测试读取实际用户文件"""
     doc = Document()
     doc.add_paragraph("原姓名")
     doc.save(path)
 
 
 class TemplateProvider:
-    """可控制取消及失败的结构化 AI 替身。"""
+    """可控制取消及失败的结构化 AI 替身"""
 
     def __init__(self, block=False, failure=False):
-        """用事件同步后台分析，避免依赖机器快慢或无界等待。"""
+        """用事件同步后台分析以免依赖机器快慢或无界等待"""
         self.block, self.failure = block, failure
         self.started, self.release = threading.Event(), threading.Event()
         self.calls = []
 
     def run_structured(self, **kwargs):
-        """返回模板映射，故意允许取消后的迟到结果以检验服务保护。"""
+        """返回模板映射；故意允许取消后的迟到结果以检验服务保护"""
         self.calls.append(kwargs)
         self.started.set()
         if self.block:
@@ -69,23 +69,23 @@ class TemplateProvider:
 
 
 def completed(service, identifier):
-    """有界等待实际分析线程结束，返回完成或失败的任务结果。"""
+    """有界等待实际分析线程结束；返回完成或失败的任务结果"""
     for thread in service.threads:
-        # 整页图片生成涉及磁盘和字体缓存，繁忙 Windows 主机上不能假设三秒内结束。
+        # 整页图片生成涉及磁盘和字体缓存；繁忙 Windows 主机上不能假设三秒内结束
         thread.join(timeout=10)
         assert not thread.is_alive()
     return service.get(identifier)
 
 
 def test_analysis_snapshot_save_restart_and_export(tmp_path, monkeypatch):
-    """源文件改变不影响确认，模板和映射在重启后仍可完整替换资料。"""
+    """源文件改变不影响确认；模板和映射在重启后仍可完整替换资料"""
     source = tmp_path / "source.docx"
     simple_template(source)
     provider = TemplateProvider()
     config = Config(data_dir=tmp_path / "data", token="test")
     app = create_app(config, provider)
     monkeypatch.setattr(
-        "resume_maker.services.templates.render_word", lambda *_: (None, "测试无渲染器")
+        "resume_maker.services.templates.tasks.render_word", lambda *_: (None, "测试无渲染器")
     )
     monkeypatch.setattr(
         "resume_maker.services.documents.render_word", lambda *_: (None, "测试无渲染器")
@@ -158,7 +158,7 @@ def test_analysis_snapshot_save_restart_and_export(tmp_path, monkeypatch):
 
 
 def test_cancel_and_stop_discard_late_analysis(catalog, tmp_path):
-    """取消后不能保存迟到方案，也不能在旧分析线程退出前启动另一项分析。"""
+    """取消后不能保存迟到方案；也不能在旧分析线程退出前启动另一项分析"""
     source = tmp_path / "source.docx"
     simple_template(source)
     provider = TemplateProvider(block=True)
@@ -179,7 +179,7 @@ def test_cancel_and_stop_discard_late_analysis(catalog, tmp_path):
 
 
 def test_reopen_saved_mapping_preserves_versions_and_checks_hash(tmp_path):
-    """重开直接恢复映射，修改另存不影响旧简历，且仍受实例隔离和文件哈希保护。"""
+    """重开直接恢复映射；修改另存不影响旧简历；且仍受实例隔离和文件哈希保护"""
     source = tmp_path / "source.docx"
     simple_template(source)
     provider = TemplateProvider()
@@ -231,7 +231,7 @@ def test_reopen_saved_mapping_preserves_versions_and_checks_hash(tmp_path):
 
 
 def test_failure_and_invalid_save_do_not_register_templates(catalog, tmp_path):
-    """分析失败、未处理原文或没有位置的当前字段均不能登记成完整模板。"""
+    """分析失败、未处理原文或没有位置的当前字段均不能登记成完整模板"""
     source = tmp_path / "source.docx"
     simple_template(source)
     provider = TemplateProvider(failure=True)
@@ -253,7 +253,7 @@ def test_failure_and_invalid_save_do_not_register_templates(catalog, tmp_path):
 
 
 def test_preview_checks_fixed_references(catalog, project, populated, tmp_path):
-    """重复项目、无效亮点及跨项目修订不能通过模板试填绕过引用校验。"""
+    """重复项目、无效亮点及跨项目修订不能通过模板试填绕过引用校验"""
     service = Templates(catalog, tmp_path / "data", TemplateProvider())
     valid = ResumeItem(project_id=project["id"], revision_id=populated["id"], highlight_ids=["one"])
     assert service.projects([valid])[0]["content"]["title"] == "Example"
@@ -266,7 +266,7 @@ def test_preview_checks_fixed_references(catalog, project, populated, tmp_path):
 
 
 def test_template_image_preview_is_embedded_and_authenticated(tmp_path):
-    """图片核对只返回当前模板中的资源，外部地址和未知节点不能充当文件路径。"""
+    """图片核对只返回当前模板中的资源；外部地址和未知节点不能充当文件路径"""
     source = tmp_path / "image.docx"
     simple_template(source)
     doc = Document(source)
@@ -300,11 +300,11 @@ def test_template_image_preview_is_embedded_and_authenticated(tmp_path):
 
 @pytest.mark.parametrize("model", [AIResult, TemplatePlan])
 def test_provider_generates_strict_schema_for_each_result(model):
-    """经历和模板共用执行器，各自结果的嵌套对象均满足严格结构化输出要求。"""
+    """经历和模板共用执行器；各自结果的嵌套对象均满足严格结构化输出要求"""
     result = schema(model)
 
     def check(node):
-        """遍历 schema 中的对象，检查所有属性必填且禁止模型添加额外键。"""
+        """遍历 schema 中的对象；检查所有属性必填且禁止模型添加额外键"""
         if isinstance(node, dict):
             assert "default" not in node
             if "properties" in node:

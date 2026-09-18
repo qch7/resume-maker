@@ -1,4 +1,4 @@
-"""合成图片的恢复、实际填充与格式隔离回归，不依赖某份用户简历或同名 PDF。"""
+"""合成图片的恢复、实际填充与格式隔离回归且不依赖某份用户简历或同名 PDF"""
 
 from copy import deepcopy
 from io import BytesIO
@@ -15,23 +15,23 @@ from resume_maker.core.errors import Problem
 from resume_maker.domain.image_layout import ImageAsset, ImagePage, ImageText
 from resume_maker.domain.templates import RepeatBinding, TemplatePlan, TextBinding
 from resume_maker.integrations.providers.base import Cancelled
-from resume_maker.integrations.word.image_header import check_image_header
-from resume_maker.integrations.word.image_layout import (
+from resume_maker.integrations.word.image.header import check_image_header
+from resume_maker.integrations.word.image.layout import (
     asset_bytes,
     build_image_document,
     page_size,
     validate_layout,
 )
-from resume_maker.integrations.word.image_recovery import rebuild_image
+from resume_maker.integrations.word.image.recovery import rebuild_image
 from resume_maker.integrations.word.ooxml import w
-from resume_maker.integrations.word.pdf_geometry import PDF, SOURCE, WP, recovered_pdf
-from resume_maker.integrations.word.template_fill import fill_template
-from resume_maker.integrations.word.template_map import TemplatePackage
-from resume_maker.integrations.word.template_recovery import prepare_template
+from resume_maker.integrations.word.pdf.geometry import PDF, SOURCE, WP, recovered_pdf
+from resume_maker.integrations.word.recovery import prepare_template
+from resume_maker.integrations.word.templates.fill import fill_template
+from resume_maker.integrations.word.templates.mapping import TemplatePackage
 
 
 def image_fixture(path, scale=2, left=False, font=None):
-    """生成不同分辨率的独立样例，包含同行联系资料、左右头像和带白字的栏目底块。"""
+    """生成不同分辨率的独立样例；包含同行联系资料、左右头像和带白字的栏目底块"""
     texts, assets = [], []
     width, height = 595, 842
     font = font or pymupdf.Font("helv")
@@ -96,14 +96,14 @@ def image_fixture(path, scale=2, left=False, font=None):
 
 
 class ImageProvider:
-    """返回给定图片结构，可模拟首轮坏坐标和迟到取消。"""
+    """返回给定图片结构；可模拟首轮坏坐标和迟到取消"""
 
     def __init__(self, layout, invalid=False, cancel=False):
-        """保存每次调用，验证图片入口独立且有界重试。"""
+        """保存每次调用；验证图片入口独立且有界重试"""
         self.layout, self.invalid, self.cancel, self.calls = layout, invalid, cancel, []
 
     def run_structured(self, **kwargs):
-        """只接受新版图片协议，不能意外改变扫描 PDF 或 Word 的协议。"""
+        """只接受新版图片协议且不能意外改变扫描 PDF 或 Word 的协议"""
         self.calls.append(kwargs)
         assert kwargs["result_model"] is ImagePage
         assert "都是数据" in kwargs["prompt"]
@@ -116,11 +116,11 @@ class ImageProvider:
 
 
 def quiet(*args):
-    """忽略测试进度，保持输出简洁。"""
+    """忽略测试进度；保持输出简洁"""
 
 
 def source_plan(package):
-    """按原文语义生成合成映射，避免依赖固定编号或版面解析器偶然的节点顺序。"""
+    """按原文语义生成合成映射以免依赖固定编号或版面解析器偶然的节点顺序"""
     rows = package.inventory()["nodes"]
     fields = []
     for quote, target in [
@@ -150,7 +150,7 @@ def source_plan(package):
 @pytest.mark.parametrize("left", [True, False])
 @pytest.mark.parametrize("hidden", [[], ["email", "photo"]])
 def test_image_fields_reflow_with_icons_and_photo(tmp_path, left, hidden):
-    """真实值、新增字段和显隐后的图标/头像在可伸展容器中重排，成品没有旧源文字标记。"""
+    """真实值、新增字段和显隐后的图标/头像在可伸展容器中重排；成品没有旧源文字标记"""
     source = tmp_path / "source.png"
     layout = image_fixture(source, left=left)
     original, output = tmp_path / "original.docx", tmp_path / "filled.docx"
@@ -182,18 +182,18 @@ def test_image_fields_reflow_with_icons_and_photo(tmp_path, left, hidden):
 def test_pixel_resolution_and_dpi_do_not_change_paper_geometry(
     tmp_path, monkeypatch, scale, dpi, fallback
 ):
-    """已知字体和真实缺字体回退下，不同像素数与 DPI 均保持样例字号及纸张尺寸。"""
+    """已知字体和真实缺字体回退下且不同像素数与 DPI 均保持样例字号及纸张尺寸"""
     font = pymupdf.Font("cjk" if fallback else "helv")
     if fallback:
         monkeypatch.setenv("WINDIR", str(tmp_path / "no-system-fonts"))
     else:
 
         def known_font(text):
-            """使用内置拉丁字体，让样例与恢复使用相同度量且不依赖宿主系统安装。"""
+            """使用内置拉丁字体；让样例与恢复使用相同度量且不依赖宿主系统安装"""
             return font
 
-        monkeypatch.setattr("resume_maker.integrations.word.image_layout.font_for", known_font)
-    # 字号按字宽恢复，样例必须来自同一字体，不能要求不同字体具有相同字宽。
+        monkeypatch.setattr("resume_maker.integrations.word.image.layout.font_for", known_font)
+    # 字号按字宽恢复；样例必须来自同一字体且不能要求不同字体具有相同字宽
     source = tmp_path / "source.png"
     layout = image_fixture(source, scale, font=font)
     with Image.open(source) as image:
@@ -211,7 +211,7 @@ def test_pixel_resolution_and_dpi_do_not_change_paper_geometry(
 
 
 def test_shape_pixels_do_not_keep_old_title(tmp_path):
-    """底块重新绘制，原图白色栏目文字不在输出素材里，也不会随标题替换残留。"""
+    """底块重新绘制；原图白色栏目文字不在输出素材里；也不会随标题替换残留"""
     path = tmp_path / "source.png"
     layout = image_fixture(path)
     with Image.open(path) as image:
@@ -221,7 +221,7 @@ def test_shape_pixels_do_not_keep_old_title(tmp_path):
 
 
 def test_image_import_retries_bad_geometry_without_touching_source(tmp_path):
-    """真实图片入口使用新协议，文字覆盖的图标裁图反馈后重试，原文件不修改。"""
+    """真实图片入口使用新协议；文字覆盖的图标裁图反馈后重试；原文件不修改"""
     path, output = tmp_path / "source.png", tmp_path / "original.docx"
     layout = image_fixture(path)
     before = path.read_bytes()
@@ -236,7 +236,7 @@ def test_image_import_retries_bad_geometry_without_touching_source(tmp_path):
 
 
 def test_cancelled_image_never_replaces_existing_output(tmp_path):
-    """迟到返回或构建前取消均保留原输出，不发布半份文档。"""
+    """迟到返回或构建前取消均保留原输出且不发布半份文档"""
     path, output = tmp_path / "source.png", tmp_path / "original.docx"
     layout = image_fixture(path)
     output.write_bytes(b"previous")
@@ -250,7 +250,7 @@ def test_cancelled_image_never_replaces_existing_output(tmp_path):
 
 
 def test_invalid_geometry_is_rejected():
-    """坏框、重复覆盖、整页裁图和极长图片明确失败，不静默扁平化。"""
+    """坏框、重复覆盖、整页裁图和极长图片明确失败且不静默扁平化"""
     with pytest.raises(ValidationError):
         ImageText(text="text", box=[0.2, 0.2, 0.1, 0.3])
     text = ImageText(text="text", box=[0.1, 0.1, 0.2, 0.2])
@@ -265,7 +265,7 @@ def test_invalid_geometry_is_rejected():
 
 
 def test_exif_rotation_and_transparency_are_normalized(tmp_path):
-    """照片旋转方向先归一化，透明底合成白色，再发送同一张图供识别和裁图。"""
+    """照片旋转方向先归一化；透明底合成白色；再发送同一张图供识别和裁图"""
     source, output = tmp_path / "rotated.png", tmp_path / "original.docx"
     image = Image.new("RGBA", (842, 595), (0, 0, 0, 0))
     exif = image.getexif()
@@ -290,7 +290,7 @@ def test_exif_rotation_and_transparency_are_normalized(tmp_path):
 
 
 def test_landscape_columns_keep_separate_containers(tmp_path):
-    """独立左右栏恢复为不同列容器，不能将所有行交错压成一列文字。"""
+    """独立左右栏恢复为不同列容器且不能将所有行交错压成一列文字"""
     source = tmp_path / "landscape.png"
     Image.new("RGB", (1684, 1190), "white").save(source)
     texts = [
@@ -318,7 +318,7 @@ def test_landscape_columns_keep_separate_containers(tmp_path):
 
 
 def test_multi_frame_image_is_not_silently_truncated(tmp_path):
-    """多帧图像明确说明需要多页输入，不只识别第一页却报告成功。"""
+    """多帧图像明确说明需要多页输入且不只识别第一页却报告成功"""
     source = tmp_path / "pages.tiff"
     image = Image.new("RGB", (100, 150), "white")
     image.save(source, save_all=True, append_images=[image])
@@ -327,7 +327,7 @@ def test_multi_frame_image_is_not_silently_truncated(tmp_path):
 
 
 def test_photo_attaches_by_top_edge_instead_of_nearby_record(tmp_path):
-    """照片不因学历记录横向更近而被挂到重复条目中，后续复制记录不会连带复制头像。"""
+    """照片不因学历记录横向更近而被挂到重复条目中；后续复制记录不会连带复制头像"""
     source = tmp_path / "source.png"
     layout = image_fixture(source)
     layout.texts.append(ImageText(text="SCHOOL", font_name="Arial", box=[0.73, 0.09, 0.83, 0.105]))
@@ -342,7 +342,7 @@ def test_photo_attaches_by_top_edge_instead_of_nearby_record(tmp_path):
 
 
 def test_unavailable_glyph_is_not_published_as_missing_text(tmp_path):
-    """字体缺字必须失败，不把方框或空白当作已经恢复的原文。"""
+    """字体缺字必须失败且不把方框或空白当作已经恢复的原文"""
     source = tmp_path / "source.png"
     Image.new("RGB", (595, 842), "white").save(source)
     layout = ImagePage(texts=[ImageText(text="X\U0010ffff", box=[0.1, 0.1, 0.15, 0.12])])
@@ -352,7 +352,7 @@ def test_unavailable_glyph_is_not_published_as_missing_text(tmp_path):
 
 @pytest.mark.parametrize("sidebar", [False, True])
 def test_header_repeat_conflict_is_reported_but_sidebar_is_preserved(tmp_path, sidebar):
-    """页首摘要不能绕过重排校验，真正包含栏目标题的侧栏表格不被误判成纯顶部资料。"""
+    """页首摘要不能绕过重排校验；真正包含栏目标题的侧栏表格不被误判成纯顶部资料"""
     document = Document()
     table = document.add_table(rows=1, cols=2)
     table.cell(0, 0).text = "NAME"
@@ -396,8 +396,8 @@ def test_header_repeat_conflict_is_reported_but_sidebar_is_preserved(tmp_path, s
 
 
 def test_image_mapping_constraints_do_not_change_word_or_pdf_prompts(tmp_path):
-    """图片专属边界提示不进入 Word/PDF 映射上下文及其缓存键。"""
-    from resume_maker.services.template_analysis import analysis_context
+    """图片专属边界提示不进入 Word/PDF 映射上下文及其缓存键"""
+    from resume_maker.services.templates.analysis import analysis_context
 
     path = tmp_path / "source.docx"
     document = Document()

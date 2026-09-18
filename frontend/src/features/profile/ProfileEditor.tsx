@@ -8,7 +8,7 @@ import type {
   SectionEntry,
 } from "../../shared/types";
 import { newCustomField, siblings, toggleHiddenField } from "./document";
-import { hasDefault, defaultLabel } from "./defaults";
+import { hasDefault, defaultLabel } from "./defaults/model";
 import SectionEditor from "./SectionEditor";
 import type { HonorSource } from "../../shared/types/honors";
 import CustomFields from "./CustomFields";
@@ -39,7 +39,7 @@ const FIELDS: {
   },
 ];
 
-/** 读取并压缩上传照片，限制缓存体积，输出跨预览与 Word 共用的 JPEG。 */
+/** 读取并压缩上传照片；限制缓存体积；输出跨预览与 Word 共用的 JPEG */
 async function readPhoto(file: File): Promise<string> {
   if (
     !["image/png", "image/jpeg"].includes(file.type) ||
@@ -75,7 +75,7 @@ async function readPhoto(file: File): Promise<string> {
   }
 }
 
-/** 编辑当前方案的顶部信息和各栏目资料，切换功能区后仍沿用同一份草稿。 */
+/** 编辑当前方案的顶部信息和各栏目资料；切换功能区后仍沿用同一份草稿 */
 export default function ProfileEditor({
   value,
   onChange,
@@ -120,7 +120,7 @@ export default function ProfileEditor({
   const latest = useRef(value);
   latest.current = value;
   const photoRequest = useRef(0);
-  /** 仅更新个人字段显隐，隐藏时仍保留照片和文字原值。 */
+  /** 仅更新个人字段显隐；隐藏时仍保留照片和文字原值 */
   function togglePersonalField(field: PersonalField) {
     onChange({
       ...value,
@@ -130,7 +130,7 @@ export default function ProfileEditor({
       },
     });
   }
-  /** 确认保存成功后退出编辑；出错时保留输入，并在基本信息内显示原因。 */
+  /** 确认保存成功后退出编辑；出错时保留输入并在基本信息内显示原因 */
   async function savePersonal() {
     if (saving || photoBusy) return;
     setSaving(true);
@@ -145,14 +145,14 @@ export default function ProfileEditor({
     }
   }
   useEffect(
-    /* 切换方案或离开功能区后取消旧照片回调。 */ () => {
-      return /* 使尚未完成的异步结果失效。 */ () => {
+    /* 切换方案或离开功能区后取消旧照片回调 */ () => {
+      return /* 使尚未完成的异步结果失效 */ () => {
         photoRequest.current++;
       };
     },
     [],
   );
-  /** 照片加载期间保留其他刚编辑的字段，最后一次上传或移除操作生效。 */
+  /** 照片加载期间保留其他刚编辑的字段；最后一次上传或移除操作生效 */
   async function uploadPhoto(file: File) {
     const serial = ++photoRequest.current;
     setPhotoBusy(true);
@@ -171,18 +171,18 @@ export default function ProfileEditor({
       if (serial === photoRequest.current) setPhotoBusy(false);
     }
   }
-  /** 更新单个栏目，保留同一方案中的基本信息与其他栏目。 */
+  /** 更新单个栏目；保留同一方案中的基本信息与其他栏目 */
   function updateSection(section: ResumeSection) {
     onChange({
       ...value,
       sections: value.sections.map(
-        /* 按稳定标识替换编辑项。 */ (item) =>
+        /* 按稳定标识替换编辑项 */ (item) =>
           item.id === section.id ? section : item,
       ),
     });
   }
   const ordered = siblings(value.sections).flatMap(
-    /* 子栏目紧跟所属大栏目。 */ (section) => [
+    /* 子栏目紧跟所属大栏目 */ (section) => [
       section,
       ...siblings(value.sections, section.id),
     ],
@@ -236,7 +236,7 @@ export default function ProfileEditor({
                       accept="image/png,image/jpeg"
                       disabled={!editing || photoBusy || saving}
                       onChange={
-                        /* 读取本次选择，不保留原始文件对象。 */ (event) => {
+                        /* 读取本次选择且不保留原始文件对象 */ (event) => {
                           const file = event.target.files?.[0];
                           event.target.value = "";
                           if (file) void uploadPhoto(file);
@@ -249,7 +249,7 @@ export default function ProfileEditor({
                       className="text-button"
                       disabled={!editing || saving}
                       onClick={
-                        /* 移除照片并使待处理上传失效。 */ () => {
+                        /* 移除照片并使待处理上传失效 */ () => {
                           photoRequest.current++;
                           setPhotoBusy(false);
                           onChange({
@@ -267,7 +267,7 @@ export default function ProfileEditor({
                     hidden={value.personal.hidden_fields.includes("photo")}
                     disabled={!editing || saving || photoBusy}
                     onToggle={
-                      /* 照片显隐与移除照片分开，便于恢复。 */ () =>
+                      /* 照片显隐与移除照片分开；便于恢复 */ () =>
                         togglePersonalField("photo")
                     }
                   />
@@ -284,7 +284,7 @@ export default function ProfileEditor({
                 disabled={editing || saving}
                 aria-label="编辑基本信息"
                 onClick={
-                  /* 进入编辑并将焦点放到姓名输入。 */ () => {
+                  /* 进入编辑并将焦点放到姓名输入 */ () => {
                     setEditRequest({ version: savedVersion });
                     setSaveError("");
                     document.getElementById("personal-name")?.focus();
@@ -310,7 +310,7 @@ export default function ProfileEditor({
               <button
                 disabled={saving || value.personal.custom_fields.length >= 20}
                 onClick={
-                  /* 添加信息时直接进入编辑状态，并保留已有资料。 */ () => {
+                  /* 添加信息时直接进入编辑状态并保留已有资料 */ () => {
                     setEditRequest({ version: savedVersion });
                     setSaveError("");
                     onChange({
@@ -338,10 +338,10 @@ export default function ProfileEditor({
           )}
           <div className="profile-fields personal-fields">
             {FIELDS.filter(
-              /* 删除的内置项不再出现在填写表单。 */ (field) =>
+              /* 删除的内置项不再出现在填写表单 */ (field) =>
                 hasDefault(value.personal.field_definitions, field.key),
             ).map(
-              /* 将基本信息字段映射到对应输入。 */ (field) => (
+              /* 将基本信息字段映射到对应输入 */ (field) => (
                 <VisibilityField
                   key={field.key}
                   id={`personal-${field.key}`}
@@ -353,7 +353,7 @@ export default function ProfileEditor({
                   hidden={value.personal.hidden_fields.includes(field.key)}
                   disabled={!editing || saving}
                   onToggle={
-                    /* 编辑时切换当前字段在简历中的显隐。 */ () =>
+                    /* 编辑时切换当前字段在简历中的显隐 */ () =>
                       togglePersonalField(field.key)
                   }
                 >
@@ -370,7 +370,7 @@ export default function ProfileEditor({
                           : 100
                     }
                     onChange={
-                      /* 只修改当前字段。 */ (event) =>
+                      /* 只修改当前字段 */ (event) =>
                         onChange({
                           ...value,
                           personal: {
@@ -390,7 +390,7 @@ export default function ProfileEditor({
               editing={editing}
               disabled={saving}
               onChange={
-                /* 自定义信息与固定基本信息使用同一保存流程。 */ (
+                /* 自定义信息与固定基本信息使用同一保存流程 */ (
                   custom_fields,
                 ) =>
                   onChange({
@@ -409,7 +409,7 @@ export default function ProfileEditor({
           </button>
         </div>
         {ordered.map(
-          /* 按简历排版顺序展示栏目资料编辑器。 */ (section) =>
+          /* 按简历排版顺序展示栏目资料编辑器 */ (section) =>
             section.kind === "projects" ? (
               <section
                 className="profile-card project-shortcut"
@@ -432,13 +432,13 @@ export default function ProfileEditor({
                 key={section.id}
                 section={section}
                 savedSection={savedSections?.find(
-                  /* 定位本栏目已保存的各条资料。 */ (item) =>
+                  /* 定位本栏目已保存的各条资料 */ (item) =>
                     item.id === section.id,
                 )}
                 savedVersion={savedVersion}
                 onSaveEntry={onSaveEntry}
                 parent={value.sections.find(
-                  /* 定位所属大栏目用于说明层级。 */ (item) =>
+                  /* 定位所属大栏目用于说明层级 */ (item) =>
                     item.id === section.parent_id,
                 )}
                 onChange={updateSection}

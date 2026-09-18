@@ -33,7 +33,7 @@ import type {
   TemplateTrialPreview,
 } from "./types";
 
-/** 在独立工作区识别、可视化调整、试填和保存完整 Word 模板。 */
+/** 在独立工作区识别、可视化调整、试填和保存完整 Word 模板 */
 export default function TemplateAdapter({
   active,
   layout,
@@ -61,11 +61,11 @@ export default function TemplateAdapter({
   const [path, setPath] = useState("");
   const [name, setName] = useState("");
   const [libraryId, setLibraryId] = useState<string | null>(
-    /* 未显式选择时跟随当前简历，空字符串明确表示内置版式。 */ () =>
+    /* 未显式选择时跟随当前简历；空字符串明确表示内置版式 */ () =>
       sessionStorage.getItem("rm.template.library"),
   );
   const [taskId, setTaskId] = useState(
-    /* 恢复同一服务实例中尚未确认的分析。 */ () =>
+    /* 恢复同一服务实例中尚未确认的分析 */ () =>
       sessionStorage.getItem("rm.template.analysis") ?? "",
   );
   const [analysis, setAnalysis] = useState<TemplateAnalysis | null>(null);
@@ -88,12 +88,12 @@ export default function TemplateAdapter({
   const [feedback, setFeedback] = useState("");
   const autoPreview = useRef(true);
   const document = useMemo(
-    /* 空白简历也保持资料对象稳定，避免异步响应被误判为过期。 */ () =>
+    /* 空白简历也保持资料对象稳定以免异步响应被误判为过期 */ () =>
       resume.document ?? newDocument(),
     [resume.document],
   );
   const previewInput = useMemo(
-    /* 保存或刷新会重建资料对象，只有实际内容变化才使已有分页失效。 */ () =>
+    /* 保存或刷新会重建资料对象且只有实际内容变化才使已有分页失效 */ () =>
       JSON.stringify([resume.id, document, resume.items]),
     [resume.id, document, resume.items],
   );
@@ -131,7 +131,7 @@ export default function TemplateAdapter({
   const savedId = libraryId ?? resume.template_id ?? "";
   const builtin = savedId === "" && !taskId;
   const saved = templates.find(
-    /* 定位模板库中当前选项。 */ (item) => item.id === savedId,
+    /* 定位模板库中当前选项 */ (item) => item.id === savedId,
   );
   const currentSnapshot = JSON.stringify([name.trim(), plan]);
   const mappingSaved =
@@ -157,14 +157,14 @@ export default function TemplateAdapter({
           ? "当前简历已使用此模板"
           : "识别结果已保存，可用于当前简历"
         : saveDisabledReason || "试填已生成，可以保存识别结果");
-  // 恢复中的分析优先保留；显式选模板时才替换，避免覆盖尚未保存的识别。
+  // 恢复中的分析优先保留；显式选模板时才替换以免覆盖尚未保存的识别
   const requestedId = useRef(taskId ? savedId : "");
   const libraryRequest = useRef<AbortController | null>(null);
   const selectionVersion = useRef(0);
   const selection = selectionVersion.current;
   const viewedResume = useRef<string | null>(null);
   useEffect(
-    /* 新进入的简历默认显示其实际版式；同一简历切换栏目不重置模板编辑。 */ () => {
+    /* 新进入的简历默认显示其实际版式；同一简历切换栏目不重置模板编辑 */ () => {
       if (!active) return;
       const key = JSON.stringify([resume.id, resume.template_id]);
       if (viewedResume.current !== key) {
@@ -186,28 +186,28 @@ export default function TemplateAdapter({
     [active, saved?.id, savedId, taskId, resume.id, resume.template_id],
   );
   useEffect(
-    /* 请求跨栏目切换保留，只在卸载或选择另一模板时取消映射读取。 */ () =>
-      /* 卸载后所有映射及试填结果均不再更新界面。 */ () => {
+    /* 请求跨栏目切换保留且只在卸载或选择另一模板时取消映射读取 */ () =>
+      /* 卸载后所有映射及试填结果均不再更新界面 */ () => {
         libraryRequest.current?.abort();
         selectionVersion.current++;
       },
     [],
   );
   useEffect(
-    /* 资料变化后旧试填不再代表当前简历，必须重新生成。 */ () => {
+    /* 资料变化后旧试填不再代表当前简历；必须重新生成 */ () => {
       setPreview(null);
       setPreviewStale(false);
     },
     [previewInput],
   );
   useEffect(
-    /* 首次及完成时加载结果，运行中只拉增量活动；重连不丢失任务。 */ () => {
+    /* 首次及完成时加载结果；运行中只拉增量活动；重连不丢失任务 */ () => {
       if (!taskId) return;
       const controller = new AbortController();
       let timer: ReturnType<typeof setTimeout>;
       let loaded = false;
       let cursor = 0;
-      /** 响应后才安排下一轮，结束后不再覆盖用户的人工调整。 */
+      /** 响应后才安排下一轮；结束后不再覆盖用户的人工调整 */
       async function poll() {
         try {
           if (loaded) {
@@ -223,12 +223,12 @@ export default function TemplateAdapter({
             )
               return;
             setNotice(
-              /* 重连成功只清除连接提示，保留其他操作反馈。 */ (previous) =>
+              /* 重连成功只清除连接提示；保留其他操作反馈 */ (previous) =>
                 previous === "实时动态连接中断，正在重新连接…" ? "" : previous,
             );
             cursor = progress.cursor;
             setAnalysis(
-              /* 合并增量活动，保留已加载的清单和方案。 */ (previous) =>
+              /* 合并增量活动；保留已加载的清单和方案 */ (previous) =>
                 previous?.id === taskId
                   ? {
                       ...previous,
@@ -288,7 +288,7 @@ export default function TemplateAdapter({
             ) {
               setNotice(error.message);
               setAnalysis(
-                /* 服务重启或鉴权失效后结束旧进度展示。 */ (previous) =>
+                /* 服务重启或鉴权失效后结束旧进度展示 */ (previous) =>
                   previous
                     ? { ...previous, status: "failed", activity: error.message }
                     : previous,
@@ -306,7 +306,7 @@ export default function TemplateAdapter({
         }
       }
       void poll();
-      return /* 任务切换或页面卸载后丢弃迟到结果。 */ () => {
+      return /* 任务切换或页面卸载后丢弃迟到结果 */ () => {
         controller.abort();
         clearTimeout(timer);
       };
@@ -314,11 +314,11 @@ export default function TemplateAdapter({
     [taskId],
   );
   useEffect(
-    /* 每次调整后自动校验当前方案，取消旧请求以免覆盖较新的修改。 */ () => {
+    /* 每次调整后自动校验当前方案；取消旧请求以免覆盖较新的修改 */ () => {
       if (!plan || !taskId || running) return;
       const controller = new AbortController();
       const timer = setTimeout(
-        /* 等待连续编辑结束再校验。 */ async () => {
+        /* 等待连续编辑结束再校验 */ async () => {
           try {
             const value = await api<MappingReview>(
               `/templates/analyses/${taskId}/review`,
@@ -334,7 +334,7 @@ export default function TemplateAdapter({
         },
         450,
       );
-      return /* 切换任务或继续输入时撤销旧校验。 */ () => {
+      return /* 切换任务或继续输入时撤销旧校验 */ () => {
         clearTimeout(timer);
         controller.abort();
       };
@@ -342,7 +342,7 @@ export default function TemplateAdapter({
     [plan, taskId, document, resume.items, running],
   );
   useEffect(
-    /* 当前页检查通过后自动试填一次；旧试填结束再处理新模板，避免 Word 请求堆积。 */ () => {
+    /* 当前页检查通过后自动试填一次；旧试填结束再处理新模板以免 Word 请求堆积 */ () => {
       if (
         !active ||
         !autoPreview.current ||
@@ -359,7 +359,7 @@ export default function TemplateAdapter({
     },
     [active, plan, review, busy, loading, running],
   );
-  /** 带上当前人工修改和用户说明，交给 AI 自动补全并建立独立结果。 */
+  /** 带上当前人工修改和用户说明；交给 AI 自动补全并建立独立结果 */
   async function repair(instructions = feedback) {
     const value = await api<TemplateAnalysis>(
       `/templates/analyses/${taskId}/repair`,
@@ -368,11 +368,11 @@ export default function TemplateAdapter({
     );
     if (isCurrent()) {
       openTask(value);
-      // 只清除本次已提交的说明，修复问题时保留用户尚未提交的文字。
+      // 只清除本次已提交的说明；修复问题时保留用户尚未提交的文字
       if (instructions === feedback) setFeedback("");
     }
   }
-  /** 检查短操作是否仍对应当前模板和当前简历的同一份资料。 */
+  /** 检查短操作是否仍对应当前模板和当前简历的同一份资料 */
   function isCurrent() {
     const current = latest.current;
     return (
@@ -382,7 +382,7 @@ export default function TemplateAdapter({
       current.previewInput === previewInput
     );
   }
-  /** 修改后保留上次真实页面供对照，撤销旧校验并禁止保存过期预览。 */
+  /** 修改后保留上次真实页面供对照；撤销旧校验并禁止保存过期预览 */
   function edit(value: TemplatePlan) {
     autoPreview.current = false;
     setPlan(value);
@@ -390,7 +390,7 @@ export default function TemplateAdapter({
     setPreviewStale(true);
     setView("preview");
   }
-  /** 将读取和保存的失败原因显示在工作区，保持用户已编辑的映射。 */
+  /** 将读取和保存的失败原因显示在工作区；保持用户已编辑的映射 */
   async function perform(work: () => Promise<void>) {
     setBusy(true);
     setNotice("");
@@ -402,7 +402,7 @@ export default function TemplateAdapter({
       setBusy(false);
     }
   }
-  /** 新文件识别失败单独显示文件名，保留当前模板结果并标明其归属。 */
+  /** 新文件识别失败单独显示文件名；保留当前模板结果并标明其归属 */
   async function recognize() {
     setBusy(true);
     setNotice("");
@@ -425,7 +425,7 @@ export default function TemplateAdapter({
       setBusy(false);
     }
   }
-  /** 内置版式直接展示；导入模板读取映射，快速切换时拒绝迟到结果。 */
+  /** 内置版式直接展示；导入模板读取映射；快速切换时拒绝迟到结果 */
   async function loadSaved(id: string) {
     libraryRequest.current?.abort();
     const controller = new AbortController();
@@ -461,7 +461,7 @@ export default function TemplateAdapter({
       if (!controller.signal.aborted) setLoading(false);
     }
   }
-  /** 接入新分析或已保存模板快照，清除上一份模板的选区和试填。 */
+  /** 接入新分析或已保存模板快照；清除上一份模板的选区和试填 */
   function openTask(value: TemplateAnalysis, templateId = "") {
     autoPreview.current = true;
     setImportError(null);
@@ -481,11 +481,9 @@ export default function TemplateAdapter({
     if (templateId) sessionStorage.setItem("rm.template.library", templateId);
     else sessionStorage.removeItem("rm.template.library");
   }
-  /** 点选文字、图片或同级范围，禁止跨单元格或跨部件拼接范围。 */
+  /** 点选文字、图片或同级范围；禁止跨单元格或跨部件拼接范围 */
   function select(id: string, extend = false) {
-    const node = nodes.find(
-      /* 定位用户点击的节点。 */ (item) => item.id === id,
-    );
+    const node = nodes.find(/* 定位用户点击的节点 */ (item) => item.id === id);
     const anchor = rangeAnchor ?? (extend ? selected[0] : undefined);
     if (node?.kind === "image") {
       setSelected([id]);
@@ -505,24 +503,24 @@ export default function TemplateAdapter({
     }
     setView("preview");
   }
-  /** 右侧定位始终选择单个位置，不继承尚未完成的范围选择。 */
+  /** 右侧定位始终选择单个位置且不继承尚未完成的范围选择 */
   function locate(id: string) {
     setRangeAnchor(null);
     setSelected([id]);
     setNotice("");
     setView("preview");
   }
-  /** 从固定操作区返回完整问题列表，并将键盘焦点和滚动位置移到原因。 */
+  /** 从固定操作区返回完整问题列表并将键盘焦点和滚动位置移到原因 */
   function showProblems() {
     setView("summary");
     requestAnimationFrame(
-      /* 等待摘要挂载后定位，避免用户仍停留在长列表底部。 */ () =>
+      /* 等待摘要挂载后定位以免用户仍停留在长列表底部 */ () =>
         workspace.current
           ?.querySelector<HTMLElement>(".template-questions")
           ?.focus(),
     );
   }
-  /** 使用当前简历生成真实 Word 和分页图，不让迟到预览覆盖后续资料。 */
+  /** 使用当前简历生成真实 Word 和分页图且不让迟到预览覆盖后续资料 */
   async function trial() {
     const value = await api<TemplateTrialPreview>(
       `/templates/analyses/${taskId}/preview`,
@@ -535,7 +533,7 @@ export default function TemplateAdapter({
       setView("preview");
     }
   }
-  /** 只保存识别结果到模板库，当前简历的模板选择由独立操作控制。 */
+  /** 只保存识别结果到模板库；当前简历的模板选择由独立操作控制 */
   async function save() {
     const value = await api<{ id: string }>(
       `/templates/analyses/${taskId}/save`,
@@ -549,12 +547,12 @@ export default function TemplateAdapter({
       setLibraryId(value.id);
       setSavedSnapshot(currentSnapshot);
       sessionStorage.setItem("rm.template.library", value.id);
-      // 刷新后应重开刚保存的版本，不能恢复未包含人工修正的原分析结果。
+      // 刷新后应重开刚保存的版本且不能恢复未包含人工修正的原分析结果
       sessionStorage.removeItem("rm.template.analysis");
       setNotice("识别结果已保存到模板库。");
     }
   }
-  /** 仅应用当前已保存版本，人工修改尚未保存时不能悄悄采用旧版本。 */
+  /** 仅应用当前已保存版本；人工修改尚未保存时不能悄悄采用旧版本 */
   function applySaved() {
     if (applyDisabledReason) return;
     onSelected(builtin ? null : savedId);
@@ -582,7 +580,7 @@ export default function TemplateAdapter({
               value={path}
               disabled={busy || loading || running}
               onChange={
-                /* 改选文件后撤销上一份文件的导入错误。 */ (value) => {
+                /* 改选文件后撤销上一份文件的导入错误 */ (value) => {
                   setPath(value);
                   setImportError(null);
                 }
@@ -592,7 +590,7 @@ export default function TemplateAdapter({
               className="primary"
               disabled={busy || loading || running || !path.trim()}
               onClick={
-                /* 将所选文件交给 AI 识别，失败信息与当前模板分开呈现。 */ () =>
+                /* 将所选文件交给 AI 识别；失败信息与当前模板分开呈现 */ () =>
                   void recognize()
               }
             >
@@ -610,7 +608,7 @@ export default function TemplateAdapter({
                 taskId && !savedId ? "当前导入 · 尚未保存" : undefined
               }
               onChange={
-                /* 确认后打开模板，继续沿用工作区的显式使用流程。 */ (id) => {
+                /* 确认后打开模板；继续沿用工作区的显式使用流程 */ (id) => {
                   void loadSaved(id);
                 }
               }
@@ -642,17 +640,17 @@ export default function TemplateAdapter({
             height={sizes.progress}
             maxHeight={sizes.progressMax}
             onResize={
-              /* 记录动态区展开后的高度。 */ (value) =>
+              /* 记录动态区展开后的高度 */ (value) =>
                 onResize("templateProgress", value)
             }
             onReset={
-              /* 恢复动态区的默认高度。 */ () =>
+              /* 恢复动态区的默认高度 */ () =>
                 onResize("templateProgress", DEFAULT_LAYOUT.templateProgress)
             }
             onCancel={
-              /* 取消后立即呈现冻结的进度，服务端拒绝迟到结果。 */ () =>
+              /* 取消后立即呈现冻结的进度；服务端拒绝迟到结果 */ () =>
                 void perform(
-                  /* 读取取消响应并保留本任务的活动记录。 */ async () => {
+                  /* 读取取消响应并保留本任务的活动记录 */ async () => {
                     setAnalysis(
                       await api<TemplateAnalysis>(
                         `/templates/analyses/${taskId}/cancel`,
@@ -676,8 +674,7 @@ export default function TemplateAdapter({
             revisions={revisions}
             previewSources={previewSources}
             run={
-              /* 将预览下载错误显示在模板工作区。 */ (work) =>
-                void perform(work)
+              /* 将预览下载错误显示在模板工作区 */ (work) => void perform(work)
             }
           />
         ) : !plan ? (
@@ -693,7 +690,7 @@ export default function TemplateAdapter({
                 <button
                   disabled={busy || running}
                   onClick={
-                    /* 加载失败时保留明确重试入口，不覆盖已打开的人工调整。 */ () =>
+                    /* 加载失败时保留明确重试入口且不覆盖已打开的人工调整 */ () =>
                       void loadSaved(savedId)
                   }
                 >
@@ -714,7 +711,7 @@ export default function TemplateAdapter({
                     <button
                       className={view === "summary" ? "active" : ""}
                       onClick={
-                        /* 以资料和栏目概览代替底层段落清单。 */ () =>
+                        /* 以资料和栏目概览代替底层段落清单 */ () =>
                           setView("summary")
                       }
                     >
@@ -723,7 +720,7 @@ export default function TemplateAdapter({
                     <button
                       className={view === "preview" ? "active" : ""}
                       onClick={
-                        /* 查看 Word 实际渲染的试填排版。 */ () =>
+                        /* 查看 Word 实际渲染的试填排版 */ () =>
                           setView("preview")
                       }
                     >
@@ -745,9 +742,9 @@ export default function TemplateAdapter({
                     review={review}
                     onLocate={locate}
                     onRepair={
-                      /* 专门修复检查问题，不混入尚未提交的调整说明。 */ () =>
+                      /* 专门修复检查问题且不混入尚未提交的调整说明 */ () =>
                         void perform(
-                          /* 空说明仍会把当前方案及完整校验结果交给 AI。 */ () =>
+                          /* 空说明仍会把当前方案及完整校验结果交给 AI */ () =>
                             repair(""),
                         )
                     }
@@ -760,7 +757,7 @@ export default function TemplateAdapter({
                     name={name}
                     pending={trialDisabledReason}
                     run={
-                      /* 试填文件下载失败时保留当前编辑内容。 */ (work) =>
+                      /* 试填文件下载失败时保留当前编辑内容 */ (work) =>
                         void perform(work)
                     }
                   />
@@ -775,11 +772,11 @@ export default function TemplateAdapter({
                 min={260}
                 max={sizes.inspectorMax}
                 onChange={
-                  /* 调整右栏宽度，并让左侧预览自动占用剩余空间。 */ (value) =>
+                  /* 调整右栏宽度并让左侧预览自动占用剩余空间 */ (value) =>
                     onResize("templateInspector", value)
                 }
                 onReset={
-                  /* 恢复模板左右分栏的默认比例。 */ () =>
+                  /* 恢复模板左右分栏的默认比例 */ () =>
                     onResize(
                       "templateInspector",
                       DEFAULT_LAYOUT.templateInspector,
@@ -794,11 +791,11 @@ export default function TemplateAdapter({
                 min={240}
                 max={1000}
                 onChange={
-                  /* 窄屏上下排列时独立调整预览高度。 */ (value) =>
+                  /* 窄屏上下排列时独立调整预览高度 */ (value) =>
                     onResize("templatePreview", value)
                 }
                 onReset={
-                  /* 恢复窄屏预览的默认高度。 */ () =>
+                  /* 恢复窄屏预览的默认高度 */ () =>
                     onResize("templatePreview", DEFAULT_LAYOUT.templatePreview)
                 }
               />
@@ -808,7 +805,7 @@ export default function TemplateAdapter({
                   <input
                     value={name}
                     onChange={
-                      /* 编辑另存时使用的名称。 */ (event) =>
+                      /* 编辑另存时使用的名称 */ (event) =>
                         setName(event.target.value)
                     }
                   />
@@ -840,7 +837,7 @@ export default function TemplateAdapter({
                     rows={4}
                     placeholder="说明要调整的内容，例如：顶部图片是证件照。"
                     onChange={
-                      /* 保存用户对模板用途的文字说明。 */ (event) =>
+                      /* 保存用户对模板用途的文字说明 */ (event) =>
                         setFeedback(event.target.value)
                     }
                   />
@@ -852,11 +849,11 @@ export default function TemplateAdapter({
                     min={64}
                     max={320}
                     onChange={
-                      /* 保存 AI 输入区域的高度偏好。 */ (value) =>
+                      /* 保存 AI 输入区域的高度偏好 */ (value) =>
                         onResize("templateAssistant", value)
                     }
                     onReset={
-                      /* 恢复 AI 输入区默认高度。 */ () =>
+                      /* 恢复 AI 输入区默认高度 */ () =>
                         onResize(
                           "templateAssistant",
                           DEFAULT_LAYOUT.templateAssistant,
@@ -867,7 +864,7 @@ export default function TemplateAdapter({
                     className="primary"
                     disabled={busy || running}
                     onClick={
-                      /* 主动继续完善当前映射。 */ () => void perform(repair)
+                      /* 主动继续完善当前映射 */ () => void perform(repair)
                     }
                   >
                     <Sparkles size={16} />
@@ -881,14 +878,14 @@ export default function TemplateAdapter({
                   )}
                 </div>
                 {analysis?.inventory.notices?.map(
-                  /* 自动处理仅作说明，不阻止识别和试填。 */ (message) => (
+                  /* 自动处理仅作说明且不阻止识别和试填 */ (message) => (
                     <p className="subtle" key={message}>
                       {message}
                     </p>
                   ),
                 )}
                 {review?.notices?.map(
-                  /* 在试填前说明复杂栏目的排版调整，方便核对模板效果。 */ (
+                  /* 在试填前说明复杂栏目的排版调整；方便核对模板效果 */ (
                     message,
                   ) => (
                     <p className="subtle" key={message}>
@@ -905,7 +902,7 @@ export default function TemplateAdapter({
                   </summary>
                   <p>{plan.summary}</p>
                   {plan.warnings.map(
-                    /* 保留模型对不确定内容的具体说明。 */ (warning, index) => (
+                    /* 保留模型对不确定内容的具体说明 */ (warning, index) => (
                       <p className="template-notice" key={index}>
                         {warning}
                       </p>
@@ -926,7 +923,7 @@ export default function TemplateAdapter({
                     {!review.ready && (
                       <button
                         onClick={
-                          /* 返回集中问题列表，不重复显示大量段落。 */ () =>
+                          /* 返回集中问题列表且不重复显示大量段落 */ () =>
                             setView("summary")
                         }
                       >
@@ -964,7 +961,7 @@ export default function TemplateAdapter({
                     title={trialDisabledReason || undefined}
                     aria-describedby="template-action-status"
                     onClick={
-                      /* 生成当前资料对应的 Word 试填。 */ () =>
+                      /* 生成当前资料对应的 Word 试填 */ () =>
                         void perform(trial)
                     }
                   >
@@ -980,7 +977,7 @@ export default function TemplateAdapter({
                     }
                     aria-describedby="template-action-status"
                     onClick={
-                      /* 确认试填后仅保存独立模板版本。 */ () =>
+                      /* 确认试填后仅保存独立模板版本 */ () =>
                         void perform(save)
                     }
                   >

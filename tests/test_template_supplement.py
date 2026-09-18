@@ -1,4 +1,4 @@
-"""验证识别阶段自动补齐无空位字段，保留原文件、映射身份和真实试填内容。"""
+"""验证识别阶段自动补齐无空位字段；保留原文件、映射身份和真实试填内容"""
 
 import pytest
 from docx import Document
@@ -9,10 +9,10 @@ from test_template_mapping import make_template, project_content, resume_content
 from resume_maker.domain.resume import CustomInfoField
 from resume_maker.domain.templates import RepeatBinding, TemplatePlan, TextBinding
 from resume_maker.integrations.word.ooxml import w
-from resume_maker.integrations.word.template_fill import fill_template
-from resume_maker.integrations.word.template_map import TemplatePackage, paragraph_text
-from resume_maker.integrations.word.template_supplement import supplement_personal_fields
-from resume_maker.services.templates import Templates
+from resume_maker.integrations.word.templates.fill import fill_template
+from resume_maker.integrations.word.templates.mapping import TemplatePackage, paragraph_text
+from resume_maker.integrations.word.templates.supplement import supplement_personal_fields
+from resume_maker.services.templates.tasks import Templates
 
 
 @pytest.mark.parametrize("prebound", [True, False])
@@ -20,7 +20,7 @@ from resume_maker.services.templates import Templates
 def test_location_uses_contact_column_and_leaves_photo_spacing_empty(
     tmp_path, prebound, explicit_break
 ):
-    """城市缺少位置或被误填进页首留白时，识别阶段即改到邮箱右列且原字体与缩进保留。"""
+    """城市缺少位置或被误填进页首留白时；识别阶段即改到邮箱右列且原字体与缩进保留"""
     source = tmp_path / "source.docx"
     doc = Document()
     doc.add_paragraph()
@@ -69,7 +69,7 @@ def test_location_uses_contact_column_and_leaves_photo_spacing_empty(
             == "姓名：新的用户资料\t电话：123456\n邮箱：new@example.test\t所在地：测试城市"
         )
     else:
-        # 原文没有显式换行时，不能靠第三项字段是邮箱而改写原段落的行结构。
+        # 原文没有显式换行时且不能靠第三项字段是邮箱而改写原段落的行结构
         assert result.paragraphs[1].text == "姓名：新的用户资料\t电话：123456邮箱：new@example.test"
         assert result.paragraphs[2].text == "所在地：测试城市"
     assert result.paragraphs[1].paragraph_format.left_indent == Pt(12)
@@ -83,7 +83,7 @@ def test_location_uses_contact_column_and_leaves_photo_spacing_empty(
 
 
 def test_explicit_location_field_is_not_moved(tmp_path):
-    """模板已有带标签城市示例时沿用原位，不能将用户明确的布局误判成留白。"""
+    """模板已有带标签城市示例时沿用原位且不能将用户明确的布局误判成留白"""
     source = tmp_path / "source.docx"
     doc = Document()
     doc.add_paragraph("现居地：旧城市")
@@ -113,7 +113,7 @@ def test_explicit_location_field_is_not_moved(tmp_path):
 
 
 def test_first_analysis_completes_fields_without_blank_slots(catalog, tmp_path):
-    """模型只识别原姓名时，一轮即可补齐所在地和自定义字段并真正写入试填。"""
+    """模型只识别原姓名时；一轮即可补齐所在地和自定义字段并真正写入试填"""
     source = tmp_path / "source.docx"
     simple_template(source)
     doc = Document(source)
@@ -151,7 +151,7 @@ def test_first_analysis_completes_fields_without_blank_slots(catalog, tmp_path):
 
 
 def test_repair_of_missing_location_needs_no_more_model_calls(catalog, tmp_path):
-    """已经有正确映射时立即补出新字段位置，修复副本不修改原分析结果。"""
+    """已经有正确映射时立即补出新字段位置；修复副本不修改原分析结果"""
     source = tmp_path / "source.docx"
     simple_template(source)
     document = simple_document()
@@ -171,7 +171,7 @@ def test_repair_of_missing_location_needs_no_more_model_calls(catalog, tmp_path)
 
 
 def test_new_nodes_preserve_all_existing_references_and_are_idempotent(tmp_path):
-    """新增段落后的字段、栏目、照片、页眉页脚和删除引用在重载后仍指向同一原文。"""
+    """新增段落后的字段、栏目、照片、页眉页脚和删除引用在重载后仍指向同一原文"""
     source = tmp_path / "source.docx"
     package, plan = make_template(source)
     old_text = {identifier: paragraph_text(node) for identifier, node in package.nodes.items()}
@@ -201,7 +201,7 @@ def test_new_nodes_preserve_all_existing_references_and_are_idempotent(tmp_path)
 
 
 def test_shared_table_does_not_trap_added_fields_in_repeated_rows(tmp_path):
-    """姓名与经历共享表格时，新增资料放在表格前，不能随重复区删除或被固定行高裁切。"""
+    """姓名与经历共享表格时；新增资料放在表格前且不能随重复区删除或被固定行高裁切"""
     source = tmp_path / "table.docx"
     doc = Document()
     table = doc.add_table(rows=2, cols=1)
@@ -240,7 +240,7 @@ def test_shared_table_does_not_trap_added_fields_in_repeated_rows(tmp_path):
 
 
 def test_unresolved_original_content_cannot_be_hidden_by_supplementation(tmp_path):
-    """不能通过另加姓名把原姓名或未知经历绕过校验，照片也不能当文字字段补出。"""
+    """不能通过另加姓名把原姓名或未知经历绕过校验；照片也不能当文字字段补出"""
     source = tmp_path / "source.docx"
     simple_template(source)
     package = TemplatePackage(source)
@@ -257,7 +257,7 @@ def test_unresolved_original_content_cannot_be_hidden_by_supplementation(tmp_pat
 def test_project_details_and_multiple_highlight_slots_never_duplicate_content(
     tmp_path, slots, flow
 ):
-    """亮点数量多于或少于样本位置时，每条仅填一次；综合正文不重复独立技术栈。"""
+    """亮点数量多于或少于样本位置时；每条仅填一次；综合正文不重复独立技术栈"""
     source = tmp_path / "project.docx"
     doc = Document()
     if flow:
@@ -273,7 +273,7 @@ def test_project_details_and_multiple_highlight_slots_never_duplicate_content(
             nodes, ["title", "stack", "details", *["highlights"] * slots], strict=True
         )
     ]
-    # 模型可乱序列出绑定，亮点仍按模板中的阅读顺序填入。
+    # 模型可乱序列出绑定；亮点仍按模板中的阅读顺序填入
     fields.reverse()
     plan = TemplatePlan(
         summary="项目",

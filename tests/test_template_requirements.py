@@ -1,19 +1,19 @@
-"""识别提示与实际资料覆盖一致，混合缺项修复不能遗漏仍未安排的内容。"""
+"""识别提示与实际资料覆盖一致；混合缺项修复不能遗漏仍未安排的内容"""
 
 import pytest
 from test_template_mapping import make_template, project_content, resume_content
 
 from resume_maker.domain.resume import ResumeSection
 from resume_maker.domain.templates import TextBinding
-from resume_maker.integrations.word.template_map import TemplatePackage
-from resume_maker.integrations.word.template_supplement import supplement_personal_fields
-from resume_maker.integrations.word.template_values import missing_targets
-from resume_maker.services.template_analysis import analysis_context, assess_plan
+from resume_maker.integrations.word.templates.mapping import TemplatePackage
+from resume_maker.integrations.word.templates.supplement import supplement_personal_fields
+from resume_maker.integrations.word.templates.values import missing_targets
+from resume_maker.services.templates.analysis import analysis_context, assess_plan
 
 
 @pytest.mark.parametrize("visible", [True, False])
 def test_project_custom_information_is_requested_and_checked(tmp_path, visible):
-    """可见项目自定义信息进入 AI 要求和漏填校验，综合正文能覆盖它且隐藏项不强制输出。"""
+    """可见项目自定义信息进入 AI 要求和漏填校验；综合正文能覆盖它且隐藏项不强制输出"""
     package, plan = make_template(tmp_path / "source.docx")
     document, projects = resume_content(), project_content()
     projects[0]["content"]["custom_fields"] = [
@@ -31,7 +31,7 @@ def test_project_custom_information_is_requested_and_checked(tmp_path, visible):
 
 
 def test_personal_fields_are_supplemented_while_other_fields_remain_missing(tmp_path):
-    """复现主页、项目自定义项、荣誉名称及时间同时缺位，先补主页且不掩盖其他问题。"""
+    """复现主页、项目自定义项、荣誉名称及时间同时缺位；先补主页且不掩盖其他问题"""
     source = tmp_path / "source.docx"
     package, plan = make_template(source)
     original = source.read_bytes()
@@ -43,7 +43,7 @@ def test_personal_fields_are_supplemented_while_other_fields_remain_missing(tmp_
     region = next(region for region in plan.repeats if region.section == "projects")
     body = next(field for field in region.fields if field.target == "details")
     body.target = "description"
-    # 保留项目其他已有绑定，让回归只留下截图中的四项缺位。
+    # 保留项目其他已有绑定；让回归只留下截图中的四项缺位
     for target, quote in (("role", "旧项目正文"), ("stack", "旧第二行")):
         region.fields.append(TextBinding(node=body.node, quote=quote, target=target))
     region.fields.remove(body)
@@ -79,7 +79,7 @@ def test_personal_fields_are_supplemented_while_other_fields_remain_missing(tmp_
 
 
 def test_honor_body_does_not_cover_name_or_period(tmp_path):
-    """荣誉正文不能代表名称和时间，模型与校验均要求这两项独立映射。"""
+    """荣誉正文不能代表名称和时间；模型与校验均要求这两项独立映射"""
     package, plan = make_template(tmp_path / "source.docx")
     document = resume_content()
     document.sections[0] = ResumeSection(

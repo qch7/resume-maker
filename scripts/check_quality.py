@@ -1,4 +1,4 @@
-"""检查后端中文函数说明与模块依赖方向，避免重构后的职责再次混杂。"""
+"""检查后端中文函数说明与模块依赖方向以免重构后的职责再次混杂"""
 
 import ast
 import re
@@ -18,7 +18,7 @@ FORBIDDEN = {
 
 
 def check_file(path: Path) -> tuple[list[str], int]:
-    """解析函数说明和包内导入，返回具体违规位置与检查到的函数数量。"""
+    """解析函数说明和包内导入；返回具体违规位置与检查到的函数数量"""
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     relative = path.relative_to(ROOT)
     layer = path.relative_to(PACKAGE).parts[0] if path.is_relative_to(PACKAGE) else ""
@@ -44,8 +44,8 @@ def check_file(path: Path) -> tuple[list[str], int]:
 
 
 def main() -> None:
-    """检查受版本管理的 Python 源码、测试和维护脚本，违规时返回非零退出码。"""
-    # 维护脚本输出统一为 UTF-8，不依赖 Windows 的系统语言或活动代码页。
+    """检查受版本管理的 Python 源码、测试和维护脚本；违规时返回非零退出码"""
+    # 维护脚本输出统一为 UTF-8且不依赖 Windows 的系统语言或活动代码页
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
     errors, functions = [], 0

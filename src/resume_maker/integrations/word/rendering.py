@@ -1,4 +1,4 @@
-"""隔离 Word 渲染与预览图片生成，并只回收本次启动的 Word 实例。"""
+"""隔离 Word 渲染与预览图片生成并只回收本次启动的 Word 实例"""
 
 import json
 import os
@@ -10,12 +10,12 @@ from pathlib import Path
 import psutil
 import pymupdf
 
-# Word COM 排版串行运行，避免并发导出争用桌面实例。
+# Word COM 排版串行运行以免并发导出争用桌面实例
 RENDER_LOCK = threading.Lock()
 
 
 def render_pages(pdf: Path) -> int:
-    """从同一 Word PDF 生成分页图，文字转矢量轮廓以免放大模糊或缺少字体。"""
+    """从同一 Word PDF 生成分页图；文字转矢量轮廓以免放大模糊或缺少字体"""
     with pymupdf.open(pdf) as document:
         for index, page in enumerate(document):
             (pdf.parent / f"page-{index + 1}.svg").write_text(
@@ -28,7 +28,7 @@ def render_pages(pdf: Path) -> int:
 
 
 def word_process(source: Path, output: Path, mode="render") -> str | None:
-    """隔离执行 Word 的转换或排版，只回收本次启动的进程，失败返回具体原因。"""
+    """隔离执行 Word 的转换或排版且只回收本次启动的进程；失败返回具体原因"""
     if os.name != "nt":
         return "此自动转换需要 Windows 上的 Microsoft Word。"
     with RENDER_LOCK:
@@ -73,11 +73,11 @@ def word_process(source: Path, output: Path, mode="render") -> str | None:
 
 
 def render_word(docx: Path, pdf: Path) -> tuple[int | None, str | None]:
-    """串行生成 PDF 和分页图片，失败仍保留已生成的 DOCX。"""
+    """串行生成 PDF 和分页图片；失败仍保留已生成的 DOCX"""
     error = word_process(docx, pdf)
     return (None, error) if error else (render_pages(pdf), None)
 
 
 def convert_word(source: Path, output: Path) -> str | None:
-    """将旧版 Word 或可修复文档保存为独立 DOCX 副本，不修改源文件。"""
+    """将旧版 Word 或可修复文档保存为独立 DOCX 副本且不修改源文件"""
     return word_process(source, output, "convert")

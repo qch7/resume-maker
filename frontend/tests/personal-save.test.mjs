@@ -8,7 +8,7 @@ import {
   sameComposition,
 } from "../src/features/resumes/composition.ts";
 
-test("saving personal information leaves other pending sections and project selections unpublished", /* 验证基本信息保存不带入其他栏目与未提交项目引用，保存后仍保留这些草稿。 */ () => {
+test("saving personal information leaves other pending sections and project selections unpublished", /* 验证基本信息保存不带入其他栏目与未提交项目引用；保存后仍保留这些草稿 */ () => {
   const saved = {
     id: "resume",
     name: "已保存方案",
@@ -67,7 +67,7 @@ test("saving personal information leaves other pending sections and project sele
   assert.equal(sameComposition(merged, response), false);
 });
 
-test("a new resume can save personal data while unfinished sections remain a draft", /* 验证新方案建立数据库身份后，其他未完成资料不会丢失或意外发布。 */ () => {
+test("a new resume can save personal data while unfinished sections remain a draft", /* 验证新方案建立数据库身份后；其他未完成资料不会丢失或意外发布 */ () => {
   const draft = {
     id: "",
     name: "新方案",
@@ -89,13 +89,13 @@ test("a new resume can save personal data while unfinished sections remain a dra
   assert.equal(merged.id, "created");
   assert.equal(merged.document.sections[0].title, "未保存栏目名");
   assert.throws(
-    /* 已删除方案不能被基本信息保存偷偷重建。 */ () =>
+    /* 已删除方案不能被基本信息保存偷偷重建 */ () =>
       personalComposition({ ...draft, id: "deleted" }),
     /已不存在/,
   );
 });
 
-test("personal save responses never erase newer typing or switch resumes", /* 已发请求只能结束对应输入的编辑，迟到结果不能覆盖新输入或其他方案。 */ () => {
+test("personal save responses never erase newer typing or switch resumes", /* 已发请求只能结束对应输入的编辑；迟到结果不能覆盖新输入或其他方案 */ () => {
   const submitted = {
     id: "one",
     name: "简历",
@@ -130,7 +130,7 @@ test("personal save responses never erase newer typing or switch resumes", /* �
   assert.equal(acceptSavedComposition(other, submitted, response), other);
 });
 
-test("object property order and visibility selection order do not keep a full save dirty", /* 属性顺序和显隐勾选顺序不影响保存状态，内容与可见性变化仍可识别。 */ () => {
+test("object property order and visibility selection order do not keep a full save dirty", /* 属性顺序和显隐勾选顺序不影响保存状态；内容与可见性变化仍可识别 */ () => {
   const draft = {
     id: "template",
     name: "简历",
@@ -184,7 +184,7 @@ test("object property order and visibility selection order do not keep a full sa
   );
 });
 
-test("personal saving keeps the original version for conflict detection and handles template-based resumes", /* 验证轮询期间的新版本不能绕过乐观锁，模板方案仍可切换为完整简历。 */ () => {
+test("personal saving keeps the original version for conflict detection and handles template-based resumes", /* 验证轮询期间的新版本不能绕过乐观锁；模板方案仍可切换为完整简历 */ () => {
   const draft = {
     id: "resume",
     name: "旧方案",

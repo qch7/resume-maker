@@ -28,7 +28,7 @@ interface Props {
   onRange: () => void;
 }
 
-/** 编辑画布当前选区的字段、照片用途和重复范围，所有修改仍需完整校验。 */
+/** 编辑画布当前选区的字段、照片用途和重复范围；所有修改仍需完整校验 */
 export default function TemplateInspector({
   nodes,
   plan,
@@ -43,7 +43,7 @@ export default function TemplateInspector({
   const [section, setSection] = useState("projects");
   const [targetRegion, setTargetRegion] = useState(0);
   const node = nodes.find(
-    /* 定位选区的第一个节点。 */ (item) => item.id === selected[0],
+    /* 定位选区的第一个节点 */ (item) => item.id === selected[0],
   );
   if (!node)
     return (
@@ -58,9 +58,9 @@ export default function TemplateInspector({
   const info = nodeMapping(nodes, plan, node);
   const region = plan.repeats[info.region];
   const touched = plan.repeats.map(
-    /* 判断选区是否同时跨越多个栏目。 */ (_, index) =>
+    /* 判断选区是否同时跨越多个栏目 */ (_, index) =>
       repeatNodes(nodes, plan, index).some(
-        /* 检测选区中的任意位置。 */ (id) => ids.has(id),
+        /* 检测选区中的任意位置 */ (id) => ids.has(id),
       ),
   );
   const hasRepeat = touched.some(Boolean);
@@ -69,30 +69,30 @@ export default function TemplateInspector({
     !hasRepeat ||
     (!!region &&
       [...ids].every(
-        /* 所有选中内容必须属于同一个单条样本。 */ (id) => sampleIds.has(id),
+        /* 所有选中内容必须属于同一个单条样本 */ (id) => sampleIds.has(id),
       ));
   const selectedRegion = region
     ? info.region
     : Math.min(targetRegion, plan.repeats.length - 1);
   const available = nodes.filter(
-    /* 只在选区内提供能映射的文字位置。 */ (item) =>
+    /* 只在选区内提供能映射的文字位置 */ (item) =>
       ids.has(item.id) && item.kind === "p" && (item.text || item.can_insert),
   );
   const fields = (region ? region.fields : plan.fields).filter(
-    /* 所选容器内的字段一起调整。 */ (field) => ids.has(field.node),
+    /* 所选容器内的字段一起调整 */ (field) => ids.has(field.node),
   );
   const canRange = selected.every(
-    /* 图片不能作为重复区边界。 */ (id) =>
-      nodes.find(/* 定位选中的节点。 */ (item) => item.id === id)?.kind !==
+    /* 图片不能作为重复区边界 */ (id) =>
+      nodes.find(/* 定位选中的节点 */ (item) => item.id === id)?.kind !==
       "image",
   );
-  /** 更新选区的字段集合，保留所有其他位置的映射。 */
+  /** 更新选区的字段集合；保留所有其他位置的映射 */
   function updateFields(value: TextBinding[]) {
     if (
       region &&
       !value.length &&
       !region.fields.some(
-        /* 当前选区外必须仍有可重复填写的字段。 */ (field) =>
+        /* 当前选区外必须仍有可重复填写的字段 */ (field) =>
           !ids.has(field.node),
       )
     ) {
@@ -107,14 +107,13 @@ export default function TemplateInspector({
       onChange({
         ...cleared,
         repeats: plan.repeats.map(
-          /* 只替换当前样本内的字段。 */ (item, index) =>
+          /* 只替换当前样本内的字段 */ (item, index) =>
             index === info.region
               ? {
                   ...item,
                   fields: [
                     ...item.fields.filter(
-                      /* 保留样本中其他位置。 */ (field) =>
-                        !ids.has(field.node),
+                      /* 保留样本中其他位置 */ (field) => !ids.has(field.node),
                     ),
                     ...value,
                   ],
@@ -124,12 +123,12 @@ export default function TemplateInspector({
       });
     } else onChange({ ...cleared, fields: [...cleared.fields, ...value] });
   }
-  /** 把选区明确分类，固定文字只能逐段确认，避免整个表格掩盖遗漏信息。 */
+  /** 把选区明确分类；固定文字只能逐段确认以免整个表格掩盖遗漏信息 */
   function classify(kind: "photos" | "keep" | "remove") {
     if (
       region &&
       !region.fields.some(
-        /* 固定内容不能清空整个重复栏目。 */ (field) => !ids.has(field.node),
+        /* 固定内容不能清空整个重复栏目 */ (field) => !ids.has(field.node),
       )
     ) {
       setWarning(
@@ -143,23 +142,23 @@ export default function TemplateInspector({
       kind === "keep"
         ? nodes
             .filter(
-              /* 固定内容逐段或逐图记录。 */ (item) =>
+              /* 固定内容逐段或逐图记录 */ (item) =>
                 ids.has(item.id) &&
                 (item.kind === "image" || (item.kind === "p" && !!item.text)),
             )
-            .map(/* 保留稳定位置。 */ (item) => item.id)
+            .map(/* 保留稳定位置 */ (item) => item.id)
         : selected;
     onChange({
       ...cleared,
       [kind]: [...new Set([...cleared[kind], ...chosen])],
       repeats: region
         ? cleared.repeats.map(
-            /* 固定标签不能继续保留同位置的字段映射。 */ (item, index) =>
+            /* 固定标签不能继续保留同位置的字段映射 */ (item, index) =>
               index === info.region
                 ? {
                     ...item,
                     fields: item.fields.filter(
-                      /* 仅撤回所选标签的字段。 */ (field) =>
+                      /* 仅撤回所选标签的字段 */ (field) =>
                         !ids.has(field.node),
                     ),
                   }
@@ -168,7 +167,7 @@ export default function TemplateInspector({
         : cleared.repeats,
     });
   }
-  /** 以选区作为一条完整样例建立重复栏目，再按需要扩展全部示例范围。 */
+  /** 以选区作为一条完整样例建立重复栏目；再按需要扩展全部示例范围 */
   function addRegion() {
     if (!available.length) return;
     const cleared = clearNodes(plan, nodes, selected);
@@ -187,13 +186,13 @@ export default function TemplateInspector({
       ],
     });
   }
-  /** 把当前同级选区写入指定栏目的重复范围或单条样本，随后由后端核验边界。 */
+  /** 把当前同级选区写入指定栏目的重复范围或单条样本；随后由后端核验边界 */
   function setRange(sample: boolean) {
     const index = selectedRegion;
     onChange({
       ...plan,
       repeats: plan.repeats.map(
-        /* 仅更新用户指定的栏目范围。 */ (item, at) =>
+        /* 仅更新用户指定的栏目范围 */ (item, at) =>
           at === index
             ? {
                 ...item,
@@ -254,7 +253,7 @@ export default function TemplateInspector({
           </p>
           <button
             onClick={
-              /* 定位真正作为样式来源的条目。 */ () =>
+              /* 定位真正作为样式来源的条目 */ () =>
                 onSelect(plan.repeats[touched.findIndex(Boolean)].sample_start)
             }
           >
@@ -287,8 +286,7 @@ export default function TemplateInspector({
               {node.kind === "image" && !region && (
                 <button
                   onClick={
-                    /* 使用当前个人照片替换所选图片。 */ () =>
-                      classify("photos")
+                    /* 使用当前个人照片替换所选图片 */ () => classify("photos")
                   }
                 >
                   设为简历照片
@@ -296,7 +294,7 @@ export default function TemplateInspector({
               )}
               <button
                 onClick={
-                  /* 明确保留固定标签或装饰内容。 */ () => classify("keep")
+                  /* 明确保留固定标签或装饰内容 */ () => classify("keep")
                 }
               >
                 保留为固定内容
@@ -304,7 +302,7 @@ export default function TemplateInspector({
               {!region && (
                 <button
                   onClick={
-                    /* 删除整段旧示例或所选图片。 */ () => classify("remove")
+                    /* 删除整段旧示例或所选图片 */ () => classify("remove")
                   }
                 >
                   <Trash2 size={14} />
@@ -314,7 +312,7 @@ export default function TemplateInspector({
               {!region && (
                 <button
                   onClick={
-                    /* 撤回所选位置的全部分类，重新核对用途。 */ () =>
+                    /* 撤回所选位置的全部分类；重新核对用途 */ () =>
                       onChange(clearNodes(plan, nodes, selected))
                   }
                 >
@@ -341,18 +339,17 @@ export default function TemplateInspector({
                 <select
                   value={section}
                   onChange={
-                    /* 选择新区域要填写的栏目。 */ (event) =>
+                    /* 选择新区域要填写的栏目 */ (event) =>
                       setSection(event.target.value)
                   }
                 >
                   <option value="projects">项目经历</option>
                   {document.sections
                     .filter(
-                      /* 项目区已单独列出。 */ (item) =>
-                        item.kind !== "projects",
+                      /* 项目区已单独列出 */ (item) => item.kind !== "projects",
                     )
                     .map(
-                      /* 使用当前资料中的栏目名称。 */ (item) => (
+                      /* 使用当前资料中的栏目名称 */ (item) => (
                         <option key={item.id} value={item.title}>
                           {item.title}
                         </option>
@@ -374,12 +371,12 @@ export default function TemplateInspector({
                   <select
                     value={selectedRegion}
                     onChange={
-                      /* 将选区用于明确指定的栏目。 */ (event) =>
+                      /* 将选区用于明确指定的栏目 */ (event) =>
                         setTargetRegion(Number(event.target.value))
                     }
                   >
                     {plan.repeats.map(
-                      /* 区域同名时通过顺序区别。 */ (item, index) => (
+                      /* 区域同名时通过顺序区别 */ (item, index) => (
                         <option value={index} key={index}>
                           {index + 1}.{" "}
                           {item.section === "projects"
@@ -394,7 +391,7 @@ export default function TemplateInspector({
               <div className="template-selection-actions">
                 <button
                   onClick={
-                    /* 使用当前所选起止节点作为全部示例范围。 */ () =>
+                    /* 使用当前所选起止节点作为全部示例范围 */ () =>
                       setRange(false)
                   }
                 >
@@ -402,8 +399,7 @@ export default function TemplateInspector({
                 </button>
                 <button
                   onClick={
-                    /* 使用当前所选起止节点作为单条样本。 */ () =>
-                      setRange(true)
+                    /* 使用当前所选起止节点作为单条样本 */ () => setRange(true)
                   }
                 >
                   设为单条样本
@@ -414,11 +410,11 @@ export default function TemplateInspector({
           {region && (
             <button
               onClick={
-                /* 取消栏目配置，原文重新进入待处理清单。 */ () =>
+                /* 取消栏目配置；原文重新进入待处理清单 */ () =>
                   onChange({
                     ...plan,
                     repeats: plan.repeats.filter(
-                      /* 保留其他重复栏目。 */ (_, index) =>
+                      /* 保留其他重复栏目 */ (_, index) =>
                         index !== info.region,
                     ),
                   })

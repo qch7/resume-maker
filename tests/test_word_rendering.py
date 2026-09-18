@@ -1,4 +1,4 @@
-"""验证矢量分页独立于本机字体和缩放，并保留现有图片输出。"""
+"""验证矢量分页独立于本机字体和缩放并保留现有图片输出"""
 
 import pymupdf
 from lxml import etree
@@ -7,7 +7,7 @@ from resume_maker.integrations.word.rendering import render_pages
 
 
 def test_vector_pages_preserve_page_sizes_and_outline_text(tmp_path):
-    """不同尺寸的 PDF 页面生成矢量轮廓，避免字体替换且不把文字栅格化。"""
+    """不同尺寸的 PDF 页面生成矢量轮廓以免字体替换且不把文字栅格化"""
     pdf = tmp_path / "resume.pdf"
     with pymupdf.open() as document:
         for width, height in [(595, 842), (842, 595)]:

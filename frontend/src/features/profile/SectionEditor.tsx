@@ -8,7 +8,7 @@ import type {
 } from "../../shared/types";
 import { newCustomField, newEntry, toggleHiddenField } from "./document";
 import { sameSectionEntry } from "./comparison";
-import { defaultLabel, hasDefault } from "./defaults";
+import { defaultLabel, hasDefault } from "./defaults/model";
 import CustomFields from "./CustomFields";
 import VisibilityField, { VisibilityButton } from "./VisibilityField";
 import {
@@ -19,7 +19,7 @@ import {
 import HonorEntryFields from "../honors/HonorEntryFields";
 import type { HonorSource } from "../../shared/types/honors";
 
-/** 在教育背景、课程、证书或自定义栏目中增删条目，并编辑结构化字段。 */
+/** 在教育背景、课程、证书或自定义栏目中增删条目并编辑结构化字段 */
 export default function SectionEditor({
   section,
   parent,
@@ -43,12 +43,12 @@ export default function SectionEditor({
   onHonors: () => void;
   onSort: (sectionId: string) => void;
 }) {
-  /** 替换单条内容并保留条目顺序。 */
+  /** 替换单条内容并保留条目顺序 */
   function updateEntry(entry: SectionEntry) {
     onChange({
       ...section,
       entries: section.entries.map(
-        /* 按标识定位正在编辑的条目。 */ (item) =>
+        /* 按标识定位正在编辑的条目 */ (item) =>
           item.id === entry.id ? entry : item,
       ),
     });
@@ -81,7 +81,7 @@ export default function SectionEditor({
             className="text-button"
             disabled={!honorSection && section.entries.length >= 100}
             onClick={
-              /* 证书统一从荣誉库添加，其他栏目继续创建空条目。 */ () => {
+              /* 证书统一从荣誉库添加；其他栏目继续创建空条目 */ () => {
                 if (honorSection) onHonors();
                 else
                   onChange({
@@ -106,7 +106,7 @@ export default function SectionEditor({
             aria-label={`${section.title}排序`}
             title="到栏目编排调整顺序"
             onClick={
-              /* 所有栏目共用编排页排序，新建栏目自动具备同一入口。 */ () =>
+              /* 所有栏目共用编排页排序；新建栏目自动具备同一入口 */ () =>
                 onSort(section.id)
             }
           >
@@ -124,10 +124,10 @@ export default function SectionEditor({
         </p>
       )}
       {section.entries.map(
-        /* 每条资料具有独立且稳定的编辑身份。 */ (entry, index) => (
+        /* 每条资料具有独立且稳定的编辑身份 */ (entry, index) => (
           <EntryEditor
             source={honors.find(
-              /* 来源身份与所在栏目名称无关。 */ (item) =>
+              /* 来源身份与所在栏目名称无关 */ (item) =>
                 item.reviewed && entry.id === `honor:${item.id}`,
             )}
             onEditHonor={onEditHonor}
@@ -136,7 +136,7 @@ export default function SectionEditor({
             entry={entry}
             index={index}
             savedEntry={savedSection?.entries.find(
-              /* 以稳定标识匹配保存记录。 */ (item) => item.id === entry.id,
+              /* 以稳定标识匹配保存记录 */ (item) => item.id === entry.id,
             )}
             savedVersion={savedVersion}
             onSaveEntry={onSaveEntry}
@@ -149,7 +149,7 @@ export default function SectionEditor({
   );
 }
 
-/** 每条资料独立维护编辑会话，保存成功回到只读，失败保留原输入。 */
+/** 每条资料独立维护编辑会话；保存成功回到只读；失败保留原输入 */
 function EntryEditor({
   section,
   entry,
@@ -185,7 +185,7 @@ function EntryEditor({
     (editRequest !== null && editRequest.version === savedVersion) ||
     !sameSectionEntry(entry, savedEntry) ||
     !savedEntry;
-  /** 只有服务器确认成功才结束本条编辑会话。 */
+  /** 只有服务器确认成功才结束本条编辑会话 */
   async function saveEntry() {
     if (saving) return;
     setSaving(true);
@@ -250,7 +250,7 @@ function EntryEditor({
             aria-label={`编辑${section.title}条目 ${index + 1}`}
             disabled={(!linked && editing) || saving}
             onClick={
-              /* 关联荣誉在一个表单中编辑内容与显示设置。 */ () => {
+              /* 关联荣誉在一个表单中编辑内容与显示设置 */ () => {
                 if (source && onEditHonor) {
                   onEditHonor(source.id, section.id, entry);
                   return;
@@ -285,12 +285,12 @@ function EntryEditor({
               disabled={
                 saving ||
                 entry.custom_fields.filter(
-                  /* 固定荣誉资料不占用用户的二十个自定义名额。 */ (field) =>
+                  /* 固定荣誉资料不占用用户的二十个自定义名额 */ (field) =>
                     !honor || !isHonorCustomField(field),
                 ).length >= 20
               }
               onClick={
-                /* 添加字段时自动进入本条编辑。 */ () => {
+                /* 添加字段时自动进入本条编辑 */ () => {
                   setEditRequest({ version: savedVersion });
                   setSaveError("");
                   if (honor) setHonorExpanded(true);
@@ -311,7 +311,7 @@ function EntryEditor({
               hidden={entry.visible === false}
               disabled={!editing || saving}
               onToggle={
-                /* 整条隐藏不删除正文或各字段的显隐设置。 */ () =>
+                /* 整条隐藏不删除正文或各字段的显隐设置 */ () =>
                   updateEntry({
                     ...entry,
                     visible: entry.visible === false,
@@ -324,11 +324,11 @@ function EntryEditor({
             aria-label={`删除${section.title}条目 ${index + 1}`}
             disabled={saving}
             onClick={
-              /* 删除当前资料条目。 */ () =>
+              /* 删除当前资料条目 */ () =>
                 onChange({
                   ...section,
                   entries: section.entries.filter(
-                    /* 保留其他条目。 */ (item) => item.id !== entry.id,
+                    /* 保留其他条目 */ (item) => item.id !== entry.id,
                   ),
                 })
             }
@@ -360,14 +360,14 @@ function EntryEditor({
           <div className="profile-fields compact-fields">
             {fields
               .filter(
-                /* 条目使用所属栏目的默认字段结构。 */ (field) =>
+                /* 条目使用所属栏目的默认字段结构 */ (field) =>
                   hasDefault(
                     entry.field_definitions ?? section.field_definitions,
                     field.key,
                   ),
               )
               .map(
-                /* 栏目字段共用独立输入与显隐开关。 */ (field) => (
+                /* 栏目字段共用独立输入与显隐开关 */ (field) => (
                   <VisibilityField
                     key={field.key}
                     id={`entry-${section.id}-${entry.id}-${field.key}`}
@@ -379,7 +379,7 @@ function EntryEditor({
                     hidden={entry.hidden_fields.includes(field.key)}
                     disabled={!editing || saving}
                     onToggle={
-                      /* 只切换当前字段，保持原有资料值。 */ () =>
+                      /* 只切换当前字段；保持原有资料值 */ () =>
                         updateEntry({
                           ...entry,
                           hidden_fields: toggleHiddenField(
@@ -396,7 +396,7 @@ function EntryEditor({
                       value={entry[field.key]}
                       placeholder={editing ? field.placeholder : "未填写"}
                       onChange={
-                        /* 更新本条资料的对应字段。 */ (event) =>
+                        /* 更新本条资料的对应字段 */ (event) =>
                           updateEntry({
                             ...entry,
                             [field.key]: event.target.value,
@@ -413,7 +413,7 @@ function EntryEditor({
               disabled={saving}
               scope={`${section.title}条目 ${index + 1}`}
               onChange={
-                /* 每条经历的自定义字段独立保存，不串到其他条目。 */ (
+                /* 每条经历的自定义字段独立保存且不串到其他条目 */ (
                   custom_fields,
                 ) => updateEntry({ ...entry, custom_fields })
               }
@@ -433,7 +433,7 @@ function EntryEditor({
               hidden={entry.hidden_fields.includes("details")}
               disabled={!editing || saving}
               onToggle={
-                /* 正文也可独立隐藏和恢复。 */ () =>
+                /* 正文也可独立隐藏和恢复 */ () =>
                   updateEntry({
                     ...entry,
                     hidden_fields: toggleHiddenField(
@@ -457,7 +457,7 @@ function EntryEditor({
                       : "填写具体内容，支持换行；只填写正文也可以。"
                 }
                 onChange={
-                  /* 同步多行正文。 */ (event) =>
+                  /* 同步多行正文 */ (event) =>
                     updateEntry({ ...entry, details: event.target.value })
                 }
               />

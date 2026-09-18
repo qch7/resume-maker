@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { request } from "../../shared/lib/api";
-/** 加载受鉴权保护的实际分页图片，在卸载时回收浏览器对象 URL。 */
+/** 加载受鉴权保护的实际分页图片；在卸载时回收浏览器对象 URL */
 export default function PrintedPage({
   exportId,
   path,
@@ -12,34 +12,31 @@ export default function PrintedPage({
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
   const imagePath = path ?? `/exports/${exportId}/page-${page}.png`;
-  useEffect(
-    /* 同步当前依赖对应的外部状态，并在需要时返回清理函数。 */ () => {
-      setUrl("");
-      setError("");
-      let objectUrl = "",
-        stopped = false;
-      void request(imagePath)
-        .then(/* 将下载响应转换为浏览器可展示的文件内容。 */ (r) => r.blob())
-        .then(
-          /* 将下载响应转换为浏览器可展示的文件内容。 */ (blob) => {
-            if (!stopped) {
-              objectUrl = URL.createObjectURL(blob);
-              setUrl(objectUrl);
-            }
-          },
-        )
-        .catch(
-          /* 保留可展示的失败原因，并避免已取消请求更新页面。 */ (e) => {
-            if (!stopped) setError(e.message);
-          },
-        );
-      return /* 在组件卸载或依赖变化时释放本次注册的资源。 */ () => {
-        stopped = true;
-        if (objectUrl) URL.revokeObjectURL(objectUrl);
-      };
-    },
-    [imagePath],
-  );
+  useEffect(() => {
+    setUrl("");
+    setError("");
+    let objectUrl = "",
+      stopped = false;
+    void request(imagePath)
+      .then(/* 将下载响应转换为浏览器可展示的文件内容 */ (r) => r.blob())
+      .then(
+        /* 将下载响应转换为浏览器可展示的文件内容 */ (blob) => {
+          if (!stopped) {
+            objectUrl = URL.createObjectURL(blob);
+            setUrl(objectUrl);
+          }
+        },
+      )
+      .catch(
+        /* 取消后忽略迟到的错误 */ (e) => {
+          if (!stopped) setError(e.message);
+        },
+      );
+    return () => {
+      stopped = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [imagePath]);
   return url ? (
     <img
       className="printed-page"

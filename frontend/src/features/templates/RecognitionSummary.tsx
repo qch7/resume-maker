@@ -10,7 +10,7 @@ import type { MappingReview, TemplateNode, TemplatePlan } from "./types";
 import { targetLabel } from "./visual";
 import { reviewProblems } from "./review";
 
-/** 用资料和栏目摘要呈现 AI 结果，原始段落范围留到主动调整时展示。 */
+/** 用资料和栏目摘要呈现 AI 结果；原始段落范围留到主动调整时展示 */
 export default function RecognitionSummary({
   plan,
   nodes,
@@ -25,7 +25,7 @@ export default function RecognitionSummary({
   onRepair: () => void;
 }) {
   const personal = plan.fields.filter(
-    /* 栏目标题单独显示，不混入个人资料。 */ (field) =>
+    /* 栏目标题单独显示且不混入个人资料 */ (field) =>
       field.target.startsWith("personal."),
   );
   const groups = new Map<string, typeof personal>();
@@ -62,7 +62,7 @@ export default function RecognitionSummary({
           <h3>暂时无法试填和保存的原因</h3>
           <div className="template-problem-list">
             {problems.map(
-              /* 有位置的问题可直接调整，其余原因保持正常文字亮度。 */ (
+              /* 有位置的问题可直接调整；其余原因保持正常文字亮度 */ (
                 problem,
                 index,
               ) =>
@@ -70,7 +70,7 @@ export default function RecognitionSummary({
                   <button
                     key={index}
                     onClick={
-                      /* 定位问题原文，进入试填旁的修正面板。 */ () =>
+                      /* 定位问题原文；进入试填旁的修正面板 */ () =>
                         onLocate(problem.nodes[0])
                     }
                   >
@@ -105,14 +105,14 @@ export default function RecognitionSummary({
         <h3>个人资料</h3>
         <div className="template-field-cards">
           {[...groups].map(
-            /* 同类资料合并展示，点击后可核对具体替换位置。 */ ([
+            /* 同类资料合并展示；点击后可核对具体替换位置 */ ([
               target,
               fields,
             ]) => (
               <button
                 key={target}
                 onClick={
-                  /* 进入当前资料的人工调整。 */ () => onLocate(fields[0].node)
+                  /* 进入当前资料的人工调整 */ () => onLocate(fields[0].node)
                 }
               >
                 <strong>{targetLabel(target)}</strong>
@@ -129,7 +129,7 @@ export default function RecognitionSummary({
           {plan.photos.length > 0 && (
             <button
               onClick={
-                /* 照片可直接打开调整，不显示底层图片编号。 */ () =>
+                /* 照片可直接打开调整且不显示底层图片编号 */ () =>
                   onLocate(plan.photos[0])
               }
             >
@@ -147,14 +147,14 @@ export default function RecognitionSummary({
         <h3>经历和栏目</h3>
         <div className="template-section-cards">
           {plan.repeats.map(
-            /* 栏目以用途和已识别字段呈现，不要求用户理解样本边界。 */ (
+            /* 栏目以用途和已识别字段呈现且不要求用户理解样本边界 */ (
               region,
               index,
             ) => (
               <button
                 key={index}
                 onClick={
-                  /* 主动调整时定位可编辑样本。 */ () =>
+                  /* 主动调整时定位可编辑样本 */ () =>
                     onLocate(region.sample_start)
                 }
               >
@@ -169,7 +169,7 @@ export default function RecognitionSummary({
                     {[
                       ...new Set(
                         region.fields.map(
-                          /* 展示字段中文名称。 */ (field) =>
+                          /* 展示字段中文名称 */ (field) =>
                             targetLabel(field.target),
                         ),
                       ),

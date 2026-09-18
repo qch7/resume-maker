@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { builtinDefaults } from "../src/features/profile/defaults.ts";
+import { builtinDefaults } from "../src/features/profile/defaults/model.ts";
 import { newDocument } from "../src/features/profile/document.ts";
 import {
   orderDefaultSections,
   searchDefaultFields,
-} from "../src/features/profile/defaultNavigation.ts";
+} from "../src/features/profile/defaults/navigation.ts";
 
 test("默认导航跟随编排的同级顺序，旧标识的子栏目紧跟父栏目", () => {
   const defaults = builtinDefaults();

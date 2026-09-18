@@ -26,7 +26,7 @@ export interface ResumeLibraryProps {
   onDismissNotice: () => void;
 }
 
-/** 在统一简历库内切换方案、选择排版并管理每次导出的独立文件。 */
+/** 在统一简历库内切换方案、选择排版并管理每次导出的独立文件 */
 export default function ResumeLibrary(props: ResumeLibraryProps) {
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -35,26 +35,26 @@ export default function ResumeLibrary(props: ResumeLibraryProps) {
   const { state, draft } = props;
   const dirty = !sameComposition(
     state.resumes.find(
-      /* 当前卡片的保存状态跟随实际草稿内容。 */ (item) => item.id === draft.id,
+      /* 当前卡片的保存状态跟随实际草稿内容 */ (item) => item.id === draft.id,
     ),
     draft,
   );
   const resumes = draft.id
     ? state.resumes.map(
-        /* 当前方案展示本机草稿名，保存前也能通过搜索找到。 */ (item) =>
+        /* 当前方案展示本机草稿名；保存前也能通过搜索找到 */ (item) =>
           item.id === draft.id ? draft : item,
       )
     : [draft, ...state.resumes];
   const visible = resumes.filter(
-    /* 方案搜索忽略大小写和首尾空格。 */ (item) =>
+    /* 方案搜索忽略大小写和首尾空格 */ (item) =>
       item.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()),
   );
   useEffect(
-    /* 原生模态层约束焦点，关闭后回到顶部统一入口。 */ () => {
+    /* 原生模态层约束焦点；关闭后回到顶部统一入口 */ () => {
       const element = dialog.current!;
       const trigger = document.activeElement;
       element.showModal();
-      return /* 卸载时恢复触发位置，继续编辑时无需重新定位。 */ () => {
+      return /* 卸载时恢复触发位置；继续编辑时无需重新定位 */ () => {
         element.close();
         if (trigger instanceof HTMLElement && trigger.isConnected)
           trigger.focus({ preventScroll: true });
@@ -68,7 +68,7 @@ export default function ResumeLibrary(props: ResumeLibraryProps) {
       className="resume-library-dialog"
       aria-labelledby={titleId}
       onCancel={
-        /* 子模板库和删除确认通过 Portal 冒泡取消事件时，只关闭对应子窗口。 */ (
+        /* 子模板库和删除确认通过 Portal 冒泡取消事件时且只关闭对应子窗口 */ (
           event,
         ) => {
           event.stopPropagation();
@@ -76,7 +76,7 @@ export default function ResumeLibrary(props: ResumeLibraryProps) {
         }
       }
       onKeyDown={
-        /* Escape 仅关闭当前模态层，不穿透到工作台的放大预览。 */ (event) => {
+        /* Escape 仅关闭当前模态层且不穿透到工作台的放大预览 */ (event) => {
           if (event.key === "Escape") event.stopPropagation();
         }
       }
@@ -121,7 +121,7 @@ export default function ResumeLibrary(props: ResumeLibraryProps) {
               aria-label="新建简历方案"
               disabled={props.deleting || props.exporting}
               onClick={
-                /* 新建后清空筛选，让新方案始终可见。 */ () => {
+                /* 新建后清空筛选；让新方案始终可见 */ () => {
                   setQuery("");
                   props.onNew();
                 }
@@ -137,13 +137,13 @@ export default function ResumeLibrary(props: ResumeLibraryProps) {
               placeholder="搜索简历方案"
               value={query}
               onChange={
-                /* 即时筛选方案列表。 */ (event) => setQuery(event.target.value)
+                /* 即时筛选方案列表 */ (event) => setQuery(event.target.value)
               }
             />
           </label>
           <div className="resume-library-list">
             {visible.map(
-              /* 选择方案后沿用其本机草稿，不自动保存或覆盖资料。 */ (item) => (
+              /* 选择方案后沿用其本机草稿且不自动保存或覆盖资料 */ (item) => (
                 <div
                   key={item.id || "new"}
                   className={`resume-library-item ${item.id === draft.id ? "selected" : ""}`}
@@ -153,7 +153,7 @@ export default function ResumeLibrary(props: ResumeLibraryProps) {
                     aria-current={item.id === draft.id ? "true" : undefined}
                     disabled={props.deleting || props.exporting}
                     onClick={
-                      /* 当前方案无需重复加载，避免覆盖未保存输入。 */ () => {
+                      /* 当前方案无需重复加载以免覆盖未保存输入 */ () => {
                         if (item.id !== draft.id) props.onChoose(item.id);
                       }
                     }
@@ -167,7 +167,7 @@ export default function ResumeLibrary(props: ResumeLibraryProps) {
                         <span>{item.items.length} 个项目</span>
                         <span>
                           {item.items.reduce(
-                            /* 卡片汇总该方案选择的全部亮点。 */ (sum, entry) =>
+                            /* 卡片汇总该方案选择的全部亮点 */ (sum, entry) =>
                               sum + entry.highlight_ids.length,
                             0,
                           )}{" "}
@@ -189,7 +189,7 @@ export default function ResumeLibrary(props: ResumeLibraryProps) {
                     title={`删除简历方案“${item.name || "未命名方案"}”`}
                     disabled={!item.id || props.deleting || props.exporting}
                     onClick={
-                      /* 删除入口独立于选择按钮，固定目标且不切换正在编辑的方案。 */ () =>
+                      /* 删除入口独立于选择按钮；固定目标且不切换正在编辑的方案 */ () =>
                         setDeleteTarget(item)
                     }
                   >
@@ -214,9 +214,9 @@ export default function ResumeLibrary(props: ResumeLibraryProps) {
       {deleteTarget && (
         <DeleteResumeDialog
           resume={deleteTarget}
-          onClose={/* 取消时保留方案及所有文件。 */ () => setDeleteTarget(null)}
+          onClose={/* 取消时保留方案及所有文件 */ () => setDeleteTarget(null)}
           onConfirm={
-            /* 仅删除卡片上经过确认的方案，不依赖当前选择。 */ () => {
+            /* 仅删除卡片上经过确认的方案且不依赖当前选择 */ () => {
               setDeleteTarget(null);
               props.onDelete(deleteTarget);
             }

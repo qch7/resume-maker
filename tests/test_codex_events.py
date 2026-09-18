@@ -1,4 +1,4 @@
-"""校验 Codex 公开动态不会混入推理、命令参数和最终映射。"""
+"""校验 Codex 公开动态不会混入推理、命令参数和最终映射"""
 
 import json
 import threading
@@ -10,7 +10,7 @@ from resume_maker.integrations.providers.codex import CodexProvider
 
 
 def test_public_events_and_resumed_schema(monkeypatch, tmp_path):
-    """模拟 CLI 事件，保留会话和用量，同时只向界面发布公开摘要。"""
+    """模拟 CLI 事件；保留会话和用量；同时只向界面发布公开摘要"""
     plan = TemplatePlan(
         summary="最终结果", fields=[], repeats=[], photos=[], keep=[], remove=[], warnings=[]
     )
@@ -35,21 +35,21 @@ def test_public_events_and_resumed_schema(monkeypatch, tmp_path):
     commands = []
 
     class Process:
-        """以可读取流替代真实 CLI，不触发外部模型。"""
+        """以可读取流替代真实 CLI且不触发外部模型"""
 
         def __init__(self, command, **kwargs):
-            """记录命令并准备模拟输出及空错误流。"""
+            """记录命令并准备模拟输出及空错误流"""
             commands.append(command)
             self.stdin = StringIO()
             self.stdout = StringIO("\n".join(json.dumps(event) for event in events) + "\n")
             self.stderr = StringIO()
 
         def wait(self, timeout):
-            """模拟进程正常结束。"""
+            """模拟进程正常结束"""
             return 0
 
         def poll(self):
-            """避免测试触发真实进程回收。"""
+            """避免测试触发真实进程回收"""
             return 0
 
     monkeypatch.setattr("resume_maker.integrations.providers.codex.subprocess.Popen", Process)

@@ -26,42 +26,32 @@ const conversations = [
   },
 ];
 
-test("alphabetic mode sorts projects and conversations naturally in both directions", /* 验证项目和会话支持自然名称正序与倒序。 */ () => {
+test("alphabetic mode sorts projects and conversations naturally in both directions", /* 验证项目和会话支持自然名称正序与倒序 */ () => {
   const asc = sortSidebar(projects, conversations, "asc");
   assert.deepEqual(
-    asc.projects.map(
-      /* 提取排序后的稳定标识，验证顺序且不依赖对象引用。 */ (p) => p.id,
-    ),
+    asc.projects.map((p) => p.id),
     ["a", "c", "b"],
   );
   assert.deepEqual(
-    asc.conversations.map(
-      /* 提取排序后的稳定标识，验证顺序且不依赖对象引用。 */ (c) => c.id,
-    ),
+    asc.conversations.map((c) => c.id),
     ["second", "first"],
   );
   const desc = sortSidebar(projects, conversations, "desc");
   assert.deepEqual(
-    desc.projects.map(
-      /* 提取排序后的稳定标识，验证顺序且不依赖对象引用。 */ (p) => p.id,
-    ),
+    desc.projects.map((p) => p.id),
     ["b", "c", "a"],
   );
   assert.deepEqual(
-    desc.conversations.map(
-      /* 提取排序后的稳定标识，验证顺序且不依赖对象引用。 */ (c) => c.id,
-    ),
+    desc.conversations.map((c) => c.id),
     ["first", "second"],
   );
   assert.deepEqual(
-    projects.map(
-      /* 提取排序后的稳定标识，验证顺序且不依赖对象引用。 */ (p) => p.id,
-    ),
+    projects.map((p) => p.id),
     ["a", "b", "c"],
   );
 });
 
-test("child activity brings its aggregate forward and navigation expands its ancestors", /* 验证子项目活动参与整体排序，并保留其他分组的折叠选择。 */ () => {
+test("child activity brings its aggregate forward and navigation expands its ancestors", /* 验证子项目活动参与整体排序并保留其他分组的折叠选择 */ () => {
   const rows = [
     { id: "parent", name: "TrustGuard", updated_at: "2026-09-01T00:00:00Z" },
     {
@@ -81,10 +71,10 @@ test("child activity brings its aggregate forward and navigation expands its anc
     },
   ];
   const roots = sortSidebar(rows, sessions, "recent").projects.filter(
-    /* 只比较顶层整体项目。 */ (p) => !p.parent_id,
+    /* 只比较顶层整体项目 */ (p) => !p.parent_id,
   );
   assert.deepEqual(
-    roots.map(/* 提取排序标识。 */ (p) => p.id),
+    roots.map(/* 提取排序标识 */ (p) => p.id),
     ["parent", "other"],
   );
   const folded = { parent: true, child: true, other: true };
@@ -96,27 +86,20 @@ test("child activity brings its aggregate forward and navigation expands its anc
   assert.deepEqual(folded, { parent: true, child: true, other: true });
 });
 
-test("recent mode includes project edits, drafts and conversation activity", /* 验证最近排序包含项目修改、草稿和会话活动。 */ () => {
+test("recent mode includes project edits, drafts and conversation activity", /* 验证最近排序包含项目修改、草稿和会话活动 */ () => {
   assert.deepEqual(
-    sortSidebar(projects, [], "recent").projects.map(
-      /* 提取排序后的稳定标识，验证顺序且不依赖对象引用。 */ (p) => p.id,
-    ),
+    sortSidebar(projects, [], "recent").projects.map((p) => p.id),
     ["b", "c", "a"],
   );
   assert.deepEqual(
-    sortSidebar(projects, conversations, "recent").projects.map(
-      /* 提取排序后的稳定标识，验证顺序且不依赖对象引用。 */ (p) => p.id,
-    ),
+    sortSidebar(projects, conversations, "recent").projects.map((p) => p.id),
     ["a", "b", "c"],
   );
-  const changed = projects.map(
-    /* 提取排序后的稳定标识，验证顺序且不依赖对象引用。 */ (p) =>
-      p.id === "c" ? { ...p, activity_at: "2026-09-06T00:00:00Z" } : p,
+  const changed = projects.map((p) =>
+    p.id === "c" ? { ...p, activity_at: "2026-09-06T00:00:00Z" } : p,
   );
   assert.deepEqual(
-    sortSidebar(changed, conversations, "recent").projects.map(
-      /* 提取排序后的稳定标识，验证顺序且不依赖对象引用。 */ (p) => p.id,
-    ),
+    sortSidebar(changed, conversations, "recent").projects.map((p) => p.id),
     ["c", "a", "b"],
   );
   assert.equal(
@@ -125,15 +108,13 @@ test("recent mode includes project edits, drafts and conversation activity", /* 
   );
 });
 
-test("missing timestamps and equal names have deterministic ordering", /* 验证缺失时间和重名条目仍有确定的排序。 */ () => {
+test("missing timestamps and equal names have deterministic ordering", /* 验证缺失时间和重名条目仍有确定的排序 */ () => {
   const rows = [
     { id: "2", name: "Same", updated_at: "invalid" },
     { id: "1", name: "same" },
   ];
   assert.deepEqual(
-    sortSidebar(rows, [], "recent").projects.map(
-      /* 提取排序后的稳定标识，验证顺序且不依赖对象引用。 */ (p) => p.id,
-    ),
+    sortSidebar(rows, [], "recent").projects.map((p) => p.id),
     ["1", "2"],
   );
   assert.equal(restoreSidebarSort("desc"), "desc");

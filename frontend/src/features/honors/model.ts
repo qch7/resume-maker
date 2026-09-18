@@ -1,4 +1,4 @@
-import { applyInfoDefaults } from "../profile/defaults.ts";
+import { applyInfoDefaults } from "../profile/defaults/model.ts";
 import type { ResumeDocument, SectionEntry } from "../../shared/types/index.ts";
 
 import type { HonorFields } from "./fields.ts";
@@ -34,12 +34,12 @@ export const STATUS = {
 };
 export const ACCEPT = ".pdf,.png,.jpg,.jpeg,.webp,.bmp,.tif,.tiff";
 
-/** 识别状态决定能否人工编辑，避免在途结果覆盖未保存内容。 */
+/** 识别状态决定能否人工编辑以免在途结果覆盖未保存内容 */
 export function isRecognizing(honor: Honor) {
   return honor.status === "queued" || honor.status === "running";
 }
 
-/** 按名称、单位、获奖人和编号等资料检索，不依赖隐藏的本机路径。 */
+/** 按名称、单位、获奖人和编号等资料检索且不依赖隐藏的本机路径 */
 export function matchesHonor(honor: Honor, query: string) {
   return [...Object.values(honor.fields), honor.attachment?.name ?? ""]
     .join(" ")
@@ -47,19 +47,19 @@ export function matchesHonor(honor: Honor, query: string) {
     .includes(query.trim().toLocaleLowerCase());
 }
 
-/** 检查荣誉是否已复制进当前简历，跨栏目去重。 */
+/** 检查荣誉是否已复制进当前简历；跨栏目去重 */
 export function hasHonor(document: ResumeDocument | null, id: string) {
   return (
     document?.sections.some(
-      /* 检查所有栏目中的稳定来源标识。 */ (section) =>
+      /* 检查所有栏目中的稳定来源标识 */ (section) =>
         section.entries.some(
-          /* 同一荣誉仅加入一次。 */ (entry) => entry.id === `honor:${id}`,
+          /* 同一荣誉仅加入一次 */ (entry) => entry.id === `honor:${id}`,
         ),
     ) ?? false
   );
 }
 
-/** 仅移除当前简历中的荣誉引用，保留栏目、其他资料及库中原件。 */
+/** 仅移除当前简历中的荣誉引用；保留栏目、其他资料及库中原件 */
 export function removeHonor(
   document: ResumeDocument,
   id: string,
@@ -68,9 +68,9 @@ export function removeHonor(
   return {
     ...document,
     sections: document.sections.map(
-      /* 来源可能位于自定义栏目，按稳定标识移除而不依赖名称。 */ (section) => {
+      /* 来源可能位于自定义栏目；按稳定标识移除而不依赖名称 */ (section) => {
         const entries = section.entries.filter(
-          /* 同名手动条目与其他来源均保留。 */ (entry) =>
+          /* 同名手动条目与其他来源均保留 */ (entry) =>
             entry.id !== `honor:${id}`,
         );
         return entries.length === section.entries.length
@@ -81,7 +81,7 @@ export function removeHonor(
   };
 }
 
-/** 将已核对荣誉关联到简历，初始内容完整复制，后续按来源同步。 */
+/** 将已核对荣誉关联到简历；初始内容完整复制；后续按来源同步 */
 export function addHonors(
   document: ResumeDocument,
   honors: Honor[],
@@ -89,20 +89,20 @@ export function addHonors(
 ): ResumeDocument {
   const additions: SectionEntry[] = honors
     .filter(
-      /* 只采用已核对且尚未加入的条目。 */ (honor) =>
+      /* 只采用已核对且尚未加入的条目 */ (honor) =>
         honor.reviewed &&
         honor.status === "ready" &&
         honor.fields.name.trim() &&
         !hasHonor(document, honor.id),
     )
     .map(
-      /* 完整保留各项荣誉资料，默认只显示名称与日期。 */ (honor) =>
+      /* 完整保留各项荣誉资料；默认只显示名称与日期 */ (honor) =>
         newHonorEntry(honor.fields, `honor:${honor.id}`),
     );
   if (!additions.length) return document;
   const section = target
     ? document.sections.find(
-        /* 显式目标必须仍然存在。 */ (item) =>
+        /* 显式目标必须仍然存在 */ (item) =>
           item.id === target && item.kind === "text",
       )
     : document.sections.find(isHonorSection);
@@ -115,14 +115,14 @@ export function addHonors(
     ...document,
     sections: section
       ? document.sections.map(
-          /* 保留其他栏目和当前顺序。 */ (item) =>
+          /* 保留其他栏目和当前顺序 */ (item) =>
             item.id === section.id
               ? {
                   ...item,
                   entries: [
                     ...item.entries,
                     ...additions.map(
-                      /* 新加入荣誉沿用目标栏目的默认字段。 */ (entry) =>
+                      /* 新加入荣誉沿用目标栏目的默认字段 */ (entry) =>
                         item.field_definitions
                           ? applyInfoDefaults(
                               entry,

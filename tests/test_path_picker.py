@@ -1,4 +1,4 @@
-"""验证原生路径选择的鉴权、取消、互斥与错误恢复，不在测试套件中弹出窗口。"""
+"""验证原生路径选择的鉴权、取消、互斥与错误恢复且不在测试套件中弹出窗口"""
 
 import threading
 from pathlib import Path
@@ -13,12 +13,12 @@ from resume_maker.integrations import path_picker
 
 
 def test_path_picker_endpoint_requires_token_and_valid_kind(tmp_path, monkeypatch):
-    """未授权或未知类型请求不能打开系统窗口；选定路径及取消结果原样返回。"""
+    """未授权或未知类型请求不能打开系统窗口；选定路径及取消结果原样返回"""
     calls = []
     selected = str(tmp_path / "中文 简历.docx")
 
     def choose(kind, initial):
-        """记录选择请求，第二次模拟用户取消。"""
+        """记录选择请求；第二次模拟用户取消"""
         calls.append((kind, initial))
         return selected if len(calls) == 1 else None
 
@@ -50,7 +50,7 @@ def test_path_picker_endpoint_requires_token_and_valid_kind(tmp_path, monkeypatc
 
 
 def test_initial_directory_uses_file_parent_and_resolves_executable(tmp_path, monkeypatch):
-    """现有文件、目录和 PATH 中的可执行文件都能提供正确的初始浏览位置。"""
+    """现有文件、目录和 PATH 中的可执行文件都能提供正确的初始浏览位置"""
     file = tmp_path / "简历 文档.docx"
     file.write_bytes(b"path only")
     monkeypatch.chdir(tmp_path)
@@ -66,19 +66,19 @@ def test_initial_directory_uses_file_parent_and_resolves_executable(tmp_path, mo
 
 
 def test_only_one_dialog_opens_and_cancel_releases_slot(tmp_path, monkeypatch):
-    """并行点击不产生多个窗口，取消之后允许再次选择且不持有失效锁。"""
+    """并行点击不产生多个窗口；取消之后允许再次选择且不持有失效锁"""
     monkeypatch.setattr(path_picker.sys, "platform", "win32")
     started, release = threading.Event(), threading.Event()
     results = []
 
     def dialog(_kind, _directory):
-        """用事件代表尚未关闭的原生选择窗口。"""
+        """用事件代表尚未关闭的原生选择窗口"""
         started.set()
         assert release.wait(3)
         return None
 
     def first():
-        """记录首次选择的取消结果。"""
+        """记录首次选择的取消结果"""
         results.append(path_picker.pick_path("folder", str(tmp_path)))
 
     monkeypatch.setattr(path_picker, "_windows_dialog", dialog)
@@ -97,11 +97,11 @@ def test_only_one_dialog_opens_and_cancel_releases_slot(tmp_path, monkeypatch):
 
 
 def test_dialog_failure_releases_slot_and_other_platforms_remain_usable(monkeypatch):
-    """系统错误转换为可操作提示，失败后不会阻塞下一次选择或手动填写。"""
+    """系统错误转换为可操作提示；失败后不会阻塞下一次选择或手动填写"""
     monkeypatch.setattr(path_picker.sys, "platform", "win32")
 
     def unavailable(*_args):
-        """模拟当前进程没有可用的 Windows 桌面。"""
+        """模拟当前进程没有可用的 Windows 桌面"""
         raise OSError("No desktop")
 
     monkeypatch.setattr(path_picker, "_windows_dialog", unavailable)

@@ -1,4 +1,4 @@
-"""验证方案删除、过期写入保护、历史文件保留以及重启后的删除状态。"""
+"""验证方案删除、过期写入保护、历史文件保留以及重启后的删除状态"""
 
 from fastapi.testclient import TestClient
 
@@ -8,7 +8,7 @@ from resume_maker.infrastructure.database import dump, now
 
 
 def test_delete_resume_preserves_projects_exports_and_other_plans(tmp_path):
-    """删除只移除目标方案，拒绝未鉴权或过期版本请求，并保留已导出文件。"""
+    """删除只移除目标方案；拒绝未鉴权或过期版本请求并保留已导出文件"""
     config = Config(data_dir=tmp_path / "data", token="test-token")
     app = create_app(config)
     source = tmp_path / "source"

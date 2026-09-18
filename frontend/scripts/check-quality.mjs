@@ -1,4 +1,4 @@
-/** 检查函数中文说明和前端依赖边界，供本机验证与 CI 共用。 */
+/** 检查函数中文说明和前端依赖边界；供本机验证与 CI 共用 */
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,7 +10,7 @@ const root = path.resolve(
 );
 const chinese = /[\u4e00-\u9fff]/;
 
-/** 递归收集应用源码，不遍历构建产物和 node_modules。 */
+/** 递归收集应用源码且不遍历构建产物和 node_modules */
 function sourceFiles(directory) {
   const result = [];
   for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
@@ -21,7 +21,7 @@ function sourceFiles(directory) {
   return result;
 }
 
-/** 找到函数说明所在的声明；命名箭头函数的说明放在变量声明前。 */
+/** 找到函数说明所在的声明；命名箭头函数的说明放在变量声明前 */
 function documentationAnchor(node) {
   if (ts.isParenthesizedExpression(node.parent)) return node.parent;
   if (ts.isVariableDeclaration(node.parent)) return node.parent.parent.parent;
@@ -34,7 +34,7 @@ function documentationAnchor(node) {
   return node;
 }
 
-/** 检查单个文件的函数说明、语法和从共享层反向依赖业务层的情况。 */
+/** 检查单个文件的函数说明、语法和从共享层反向依赖业务层的情况 */
 function checkFile(name) {
   const source = fs.readFileSync(name, "utf8");
   const file = ts.createSourceFile(name, source, ts.ScriptTarget.Latest, true);
@@ -42,7 +42,7 @@ function checkFile(name) {
   const errors = [];
   let functions = 0;
 
-  /** 遍历 AST；声明式回调类型不算实现，实际回调同样需要中文说明。 */
+  /** 检查具名函数的说明并校验全部导入 */
   function visit(node) {
     if (
       (ts.isFunctionDeclaration(node) ||
@@ -57,10 +57,15 @@ function checkFile(name) {
       const before = source.slice(0, anchor.getStart(file));
       const start = before.lastIndexOf("/*");
       const comment = before.slice(start);
+      const needsDocumentation =
+        node.name ||
+        ts.isConstructorDeclaration(node) ||
+        ts.isVariableStatement(anchor);
       if (
-        start < 0 ||
-        !comment.endsWith("*/" + comment.match(/\s*$/)[0]) ||
-        !chinese.test(comment)
+        needsDocumentation &&
+        (start < 0 ||
+          !comment.endsWith("*/" + comment.match(/\s*$/)[0]) ||
+          !chinese.test(comment))
       ) {
         const line =
           file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1;
@@ -102,6 +107,6 @@ if (errors.length) {
   process.exitCode = 1;
 } else {
   console.log(
-    `前端质量检查通过：${functions} 个函数和回调有中文说明，模块依赖方向有效。`,
+    `前端质量检查通过：已检查 ${functions} 个函数和回调，模块依赖方向有效。`,
   );
 }

@@ -106,7 +106,7 @@
   }
 }
 
-/* 独立模板区占满工作台，离开时只隐藏以保留选区和人工调整。 */
+/* 独立模板区占满工作台；离开时只隐藏以保留选区和人工调整 */
 .template-area .workbench {
   display: none;
 }
@@ -159,7 +159,7 @@
   min-width: min(100%, 760px);
   max-width: 100%;
 }
-/* 导入和模板库并排放置，表单标签内联，避免重复标题占用结果空间。 */
+/* 导入和模板库并排放置；表单标签内联以免重复标题占用结果空间 */
 .template-source-bar {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
@@ -483,7 +483,7 @@
 .template-inspector > label {
   margin: 0;
 }
-/* 真实分页常驻主区域；修正常用字段，只有主动展开才出现原文结构。 */
+/* 真实分页常驻主区域；修正常用字段且只有主动展开才出现原文结构 */
 .template-trial-empty {
   display: flex;
   flex: 1;
@@ -823,7 +823,7 @@
   --tone: #758194;
   --tone-bg: #f3f5f8;
 }
-/* 默认结果页按资料和栏目组织，精细结构仍在独立视图中可调整。 */
+/* 默认结果页按资料和栏目组织；精细结构仍在独立视图中可调整 */
 .template-result-scroll {
   overflow-y: auto;
   min-height: 0;
@@ -1013,7 +1013,7 @@
   }
 }
 
-/* 实际活动与耗时独立于模板清单，长消息与窄屏均可自然换行。 */
+/* 实际活动与耗时独立于模板清单；长消息与窄屏均可自然换行 */
 .template-live-progress {
   flex-shrink: 0;
   border-bottom: 1px solid var(--line);

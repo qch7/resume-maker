@@ -1,4 +1,4 @@
-"""为未保存的当前资料生成临时 Word 模板预览，不发布草稿或登记导出。"""
+"""为未保存的当前资料生成临时 Word 模板预览且不发布草稿或登记导出"""
 
 import threading
 from pathlib import Path
@@ -10,15 +10,15 @@ from resume_maker.infrastructure.database import dump, uid
 from resume_maker.integrations.sources import digest
 from resume_maker.integrations.word.full_resume import write_full_resume
 from resume_maker.integrations.word.rendering import render_word
-from resume_maker.integrations.word.template_fill import fill_template
+from resume_maker.integrations.word.templates.fill import fill_template
 from resume_maker.services.honor_links import resolve_honor_document
 
 
 class ResumePreviews:
-    """串行渲染并复用相同输入，临时文件随应用实例回收。"""
+    """串行渲染并复用相同输入；临时文件随应用实例回收"""
 
     def __init__(self, catalog, data_dir):
-        """仅保存依赖，首次预览时才创建临时目录。"""
+        """仅保存依赖；首次预览时才创建临时目录"""
         self.catalog, self.data_dir = catalog, data_dir
         self.lock = threading.Lock()
         self.directory = None
@@ -27,7 +27,7 @@ class ResumePreviews:
         self.stopped = False
 
     def render(self, template_id, document, items):
-        """使用当前资料和可选经历工作副本试填，固定版本仅核验归属而不被修改。"""
+        """使用当前资料和可选经历工作副本试填；固定版本仅核验归属而不被修改"""
         template = self.catalog.template(template_id) if template_id else None
         if document is None:
             raise Problem("请先填写个人资料和栏目。")
@@ -88,8 +88,8 @@ class ResumePreviews:
             return dict(result)
 
     def file(self, identifier, filename):
-        """只提供当前实例已生成的预览文件，模板源文件和任意路径均不可下载。"""
-        # 读已发布结果不占用渲染锁，更新下一版时上一版图片仍能立即加载。
+        """只提供当前实例已生成的预览文件；模板源文件和任意路径均不可下载"""
+        # 读已发布结果不占用渲染锁；更新下一版时上一版图片仍能立即加载
         result = need(self.results.get(identifier), "预览已失效，请重新生成。")
         allowed = {"resume.docx"}
         if result["pages"]:
@@ -104,7 +104,7 @@ class ResumePreviews:
         return path
 
     def stop(self):
-        """请求结束后回收本实例创建的预览目录，正式简历和导出文件不受影响。"""
+        """请求结束后回收本实例创建的预览目录；正式简历和导出文件不受影响"""
         with self.lock:
             self.stopped = True
             self.results.clear()

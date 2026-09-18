@@ -9,7 +9,7 @@ interface PreviewResult {
   render_error: string | null;
 }
 
-/** 使用正式导出填充器展示所选模板，自动排版不保存组合或发布经历。 */
+/** 使用正式导出填充器展示所选模板；自动排版不保存组合或发布经历 */
 export default function TemplatePreview({
   input,
   templateId,
@@ -31,9 +31,9 @@ export default function TemplatePreview({
     typeof createPreviewQueue<PreviewResult>
   > | null>(null);
   useEffect(
-    /* 队列跨资料及模板切换保留，防止重复启动 Word。 */ () => {
+    /* 队列跨资料及模板切换保留以防重复启动 Word */ () => {
       const current = createPreviewQueue(
-        /* 仅发送预览快照，不调用保存或正式导出接口。 */ (key, signal) =>
+        /* 仅发送预览快照且不调用保存或正式导出接口 */ (key, signal) =>
           api<PreviewResult>(
             "/resume-previews",
             "POST",
@@ -43,7 +43,7 @@ export default function TemplatePreview({
         setState,
       );
       queue.current = current;
-      return /* 卸载时回收防抖计时器并拒绝迟到响应。 */ () => {
+      return /* 卸载时回收防抖计时器并拒绝迟到响应 */ () => {
         current.dispose();
         queue.current = null;
       };
@@ -51,7 +51,7 @@ export default function TemplatePreview({
     [],
   );
   useEffect(
-    /* 输入变化交给单请求队列合并，不因每个按键取消在途渲染。 */ () => {
+    /* 输入变化交给单请求队列合并且不因每个按键取消在途渲染 */ () => {
       queue.current?.submit(input);
     },
     [input],
@@ -96,7 +96,7 @@ export default function TemplatePreview({
             <div className="actions">
               <button
                 onClick={
-                  /* 相同输入失败时显式重新尝试排版。 */ () =>
+                  /* 相同输入失败时显式重新尝试排版 */ () =>
                     queue.current?.submit(input, true)
                 }
               >
@@ -105,9 +105,9 @@ export default function TemplatePreview({
               {complete && result && (
                 <button
                   onClick={
-                    /* 排版失败仍允许查看已填好的临时 Word 文件。 */ () =>
+                    /* 排版失败仍允许查看已填好的临时 Word 文件 */ () =>
                       run(
-                        /* 下载当前未保存资料的试填文档。 */ () =>
+                        /* 下载当前未保存资料的试填文档 */ () =>
                           download(
                             `/resume-previews/${result.id}/resume.docx`,
                             "当前模板预览.docx",
@@ -133,7 +133,7 @@ export default function TemplatePreview({
         >
           {Array.from(
             { length: result.pages },
-            /* 以矢量页面呈现真实分页，放大时保持文字清晰。 */ (_, index) => (
+            /* 以矢量页面呈现真实分页；放大时保持文字清晰 */ (_, index) => (
               <PrintedPage
                 key={`${result.id}.${index}`}
                 path={`/resume-previews/${result.id}/page-${index + 1}.svg`}

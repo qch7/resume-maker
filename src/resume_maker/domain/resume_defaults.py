@@ -1,4 +1,4 @@
-"""可复用的简历栏目及表单字段配置，不存储任何填写内容。"""
+"""可复用的简历栏目及表单字段配置且不存储任何填写内容"""
 
 from typing import Literal
 
@@ -15,7 +15,7 @@ HONOR = {
 
 
 def validate_fields(fields: list[DefaultField], allowed: set[str]):
-    """拒绝重复标识、空白名称及超出表单容量的默认项。"""
+    """拒绝重复标识、空白名称及超出表单容量的默认项"""
     if len({field.id for field in fields}) != len(fields):
         raise ValueError("默认项标识不能重复。")
     if sum(field.id.startswith("default:") for field in fields) > 20:
@@ -28,7 +28,7 @@ def validate_fields(fields: list[DefaultField], allowed: set[str]):
 
 
 class DefaultSection(Model):
-    """新简历的栏目及其新增条目所用的字段定义。"""
+    """新简历的栏目及其新增条目所用的字段定义"""
 
     id: str = Field(min_length=1, max_length=100)
     title: str = Field(min_length=1, max_length=100)
@@ -39,7 +39,7 @@ class DefaultSection(Model):
 
     @model_validator(mode="after")
     def validate_definition(self):
-        """校验栏目标题与对应表单所支持的内置字段。"""
+        """校验栏目标题与对应表单所支持的内置字段"""
         if not self.title.strip():
             raise ValueError("栏目名称不能为空。")
         allowed = PROJECT if self.kind == "projects" else ENTRY | HONOR
@@ -48,7 +48,7 @@ class DefaultSection(Model):
 
 
 class ResumeDefaults(Model):
-    """带版本的本机默认配置，保护多个窗口的并发编辑。"""
+    """带版本的本机默认配置；保护多个窗口的并发编辑"""
 
     version: int = Field(default=0, ge=0)
     personal_fields: list[DefaultField] = Field(max_length=30)
@@ -56,7 +56,7 @@ class ResumeDefaults(Model):
 
     @model_validator(mode="after")
     def validate_structure(self):
-        """限制两级结构，并保留唯一项目区作为版本引用入口。"""
+        """限制两级结构并保留唯一项目区作为版本引用入口"""
         validate_fields(self.personal_fields, PERSONAL)
         sections = {section.id: section for section in self.sections}
         if len(sections) != len(self.sections):

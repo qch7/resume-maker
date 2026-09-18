@@ -1,4 +1,4 @@
-"""验证新增资料的标签样式和长短记录混排，不绑定真实模板或个人内容。"""
+"""验证新增资料的标签样式和长短记录混排且不绑定真实模板或个人内容"""
 
 from copy import deepcopy
 
@@ -13,15 +13,15 @@ from test_template_entry_layout import record_content, record_plan
 from resume_maker.domain.resume import ResumeDocument
 from resume_maker.domain.templates import TemplatePlan, TextBinding
 from resume_maker.integrations.word.ooxml import NS, w
-from resume_maker.integrations.word.template_fill import fill_template
-from resume_maker.integrations.word.template_map import TemplatePackage, paragraph_text
-from resume_maker.integrations.word.template_supplement import supplement_personal_fields
+from resume_maker.integrations.word.templates.fill import fill_template
+from resume_maker.integrations.word.templates.mapping import TemplatePackage, paragraph_text
+from resume_maker.integrations.word.templates.supplement import supplement_personal_fields
 
 
 @pytest.mark.parametrize("gap", [" " * 70, "\u3000" * 12, "\t"])
 @pytest.mark.parametrize("cell", [False, True])
 def test_long_repeat_titles_wrap_independently_of_dates(tmp_path, gap, cell):
-    """不同空白排版及容器中，长名称和完整日期占独立列，所有新增条目共用列宽。"""
+    """不同空白排版及容器中；长名称和完整日期占独立列；所有新增条目共用列宽"""
     source, output = tmp_path / "source.docx", tmp_path / "result.docx"
     doc = Document()
     area = doc.add_table(rows=1, cols=1).cell(0, 0) if cell else doc
@@ -77,7 +77,7 @@ def test_long_repeat_titles_wrap_independently_of_dates(tmp_path, gap, cell):
 
 
 def test_narrow_container_stacks_metadata_without_losing_labels(tmp_path):
-    """窄栏容不下完整时间范围时，每条记录统一纵排，固定说明和标签保留。"""
+    """窄栏容不下完整时间范围时；每条记录统一纵排；固定说明和标签保留"""
     source, output = tmp_path / "source.docx", tmp_path / "result.docx"
     doc = Document()
     cell = doc.add_table(rows=1, cols=1).cell(0, 0)
@@ -99,7 +99,7 @@ def test_narrow_container_stacks_metadata_without_losing_labels(tmp_path):
 
 
 def test_repeat_sample_uses_its_own_section_width(tmp_path):
-    """范围起点在多栏旧记录而样本在后续单栏时，复制过程不能误判样本的可用栏宽。"""
+    """范围起点在多栏旧记录而样本在后续单栏时；复制过程不能误判样本的可用栏宽"""
     source, output = tmp_path / "source.docx", tmp_path / "result.docx"
     doc = Document()
     doc.sections[0]._sectPr.find(w("cols")).set(w("num"), "2")
@@ -121,7 +121,7 @@ def test_repeat_sample_uses_its_own_section_width(tmp_path):
 
 
 def test_out_of_bounds_right_tab_is_replaced_even_for_short_values(tmp_path):
-    """右制表位落在当前页面之外时，即使内容很短也必须修复，不能仅判断字符串长度。"""
+    """右制表位落在当前页面之外时；即使内容很短也必须修复且不能仅判断字符串长度"""
     source, output = tmp_path / "source.docx", tmp_path / "result.docx"
     doc = Document()
     paragraph = doc.add_paragraph("Old title\tOld period")
@@ -142,7 +142,7 @@ def test_out_of_bounds_right_tab_is_replaced_even_for_short_values(tmp_path):
 
 
 def test_generated_columns_respect_the_aligned_body_indent(tmp_path):
-    """标题按正文缩进重新对齐后，列总宽同时收缩，右侧日期不会超出正文页面边界。"""
+    """标题按正文缩进重新对齐后；列总宽同时收缩；右侧日期不会超出正文页面边界"""
     source, output = tmp_path / "source.docx", tmp_path / "result.docx"
     doc = Document()
     literal = "Old title" + " " * 30 + "Old period"
@@ -169,7 +169,7 @@ def test_generated_columns_respect_the_aligned_body_indent(tmp_path):
 @pytest.mark.parametrize("after", [False, True])
 @pytest.mark.parametrize("section_break", [False, True])
 def test_unlabelled_contact_blank_is_repaired_on_either_side(tmp_path, after, section_break):
-    """AI 将主页放在联系方式前后留白时，补上标签并继承完整条目，不受连续分节影响。"""
+    """AI 将主页放在联系方式前后留白时；补上标签并继承完整条目且不受连续分节影响"""
     source, output = tmp_path / "source.docx", tmp_path / "result.docx"
     doc = Document()
     if not after:
@@ -216,7 +216,7 @@ def test_unlabelled_contact_blank_is_repaired_on_either_side(tmp_path, after, se
 
 
 def test_contact_blank_with_an_explicit_label_after_contacts_is_preserved(tmp_path):
-    """模板在联系方式后已安排独立主页标签时保留原位置，不能把明确设计当作留白。"""
+    """模板在联系方式后已安排独立主页标签时保留原位置且不能把明确设计当作留白"""
     source, output = tmp_path / "source.docx", tmp_path / "result.docx"
     doc = Document()
     doc.add_paragraph("电话：旧电话")
@@ -256,7 +256,7 @@ def test_contact_blank_with_an_explicit_label_after_contacts_is_preserved(tmp_pa
 def test_supplement_uses_label_and_value_styles_instead_of_isolated_city(
     tmp_path, legacy, hyperlink
 ):
-    """新字段和旧版生成字段均继承完整联系方式，不能把城市的巨大右缩进复制给网址。"""
+    """新字段和旧版生成字段均继承完整联系方式且不能把城市的巨大右缩进复制给网址"""
     source, completed, output = (
         tmp_path / name for name in ("source.docx", "completed.docx", "result.docx")
     )

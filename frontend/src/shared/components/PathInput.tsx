@@ -13,7 +13,7 @@ interface Props {
   multiline?: boolean;
 }
 
-/** 统一路径填写与 Windows 原生选择；取消、卸载或表单切换不会覆盖原值。 */
+/** 统一路径填写与 Windows 原生选择；取消、卸载或表单切换不会覆盖原值 */
 export default function PathInput({
   label,
   value,
@@ -30,13 +30,13 @@ export default function PathInput({
   const latest = useRef({ value, onChange, disabled });
   latest.current = { value, onChange, disabled };
   useEffect(
-    /* 关闭表单后忽略尚未返回的选择，避免修改别的项目或简历。 */ () => {
-      return /* 中止前端订阅，原生窗口仍可通过自身取消按钮关闭。 */ () =>
+    /* 关闭表单后忽略尚未返回的选择以免修改别的项目或简历 */ () => {
+      return /* 中止前端订阅；原生窗口仍可通过自身取消按钮关闭 */ () =>
         pending.current?.abort();
     },
     [],
   );
-  /** 请求系统选择窗口，只有当前输入仍对应原值时才回填。 */
+  /** 请求系统选择窗口且只有当前输入仍对应原值时才回填 */
   async function browse() {
     if (pending.current || disabled) return;
     const controller = new AbortController();
@@ -77,7 +77,7 @@ export default function PathInput({
     value,
     placeholder,
     disabled: disabled || selecting,
-    onChange: /* 手动输入仍沿用相同的业务回调。 */ (
+    onChange: /* 手动输入仍沿用相同的业务回调 */ (
       event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
     ) => {
       setError("");

@@ -1,4 +1,4 @@
-"""注释文字、备用绘图及连续分节的真实 DOCX 填充验证。"""
+"""注释文字、备用绘图及连续分节的真实 DOCX 填充验证"""
 
 from zipfile import ZipFile
 
@@ -10,12 +10,12 @@ from test_template_annotations import add_annotation_part
 from resume_maker.domain.resume import ResumeDocument
 from resume_maker.domain.templates import RepeatBinding, TemplatePlan, TextBinding
 from resume_maker.integrations.word.ooxml import NS, w
-from resume_maker.integrations.word.template_fill import fill_template
-from resume_maker.integrations.word.template_map import TemplatePackage
+from resume_maker.integrations.word.templates.fill import fill_template
+from resume_maker.integrations.word.templates.mapping import TemplatePackage
 
 
 def empty_plan(**kwargs):
-    """提供无预设分类的完整方案，测试只声明需要的替换。"""
+    """提供无预设分类的完整方案；测试只声明需要的替换"""
     return TemplatePlan(
         **(
             {
@@ -34,7 +34,7 @@ def empty_plan(**kwargs):
 
 @pytest.mark.parametrize("kind", ["footnote", "endnote"])
 def test_note_text_is_replaced_and_comments_are_removed_from_copy(tmp_path, kind):
-    """正文与脚注尾注同时替换，批注及其引用清理，原文件完全保留。"""
+    """正文与脚注尾注同时替换；批注及其引用清理；原文件完全保留"""
     doc = Document()
     paragraph = doc.add_paragraph("原姓名")
     reference = etree.SubElement(paragraph.add_run()._r, w(f"{kind}Reference"))
@@ -76,7 +76,7 @@ def test_note_text_is_replaced_and_comments_are_removed_from_copy(tmp_path, kind
 
 @pytest.mark.parametrize("requires,expected", [("wps", "现代表示"), ("future", "备用表示")])
 def test_word_alternate_representation_is_not_counted_twice(tmp_path, requires, expected):
-    """Word 的同一内容只选择一种有效表示，避免 AI 和待处理清单重复计算。"""
+    """Word 的同一内容只选择一种有效表示以免 AI 和待处理清单重复计算"""
     doc = Document()
     paragraph = doc.add_paragraph()
     paragraph._p.append(
@@ -100,7 +100,7 @@ def test_word_alternate_representation_is_not_counted_twice(tmp_path, requires, 
 
 @pytest.mark.parametrize("count", [0, 2])
 def test_repeated_experience_preserves_continuous_column_boundaries(tmp_path, count):
-    """多栏标题加单栏正文按条目重复，清空或增加经历不会改变后续正文分栏。"""
+    """多栏标题加单栏正文按条目重复；清空或增加经历不会改变后续正文分栏"""
     doc = Document()
     title = doc.add_paragraph("原项目")
     section = etree.SubElement(title._p.get_or_add_pPr(), w("sectPr"))

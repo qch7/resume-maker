@@ -24,7 +24,7 @@ import { isHonorEntry, isHonorSection } from "../honors/entry";
 import HonorSortControls from "../honors/HonorSortControls";
 import { sortHonorEntries, type HonorSort } from "../honors/sort";
 
-/** 提供大栏目与子栏目的层级选择、显隐、增删和同级排序。 */
+/** 提供大栏目与子栏目的层级选择、显隐、增删和同级排序 */
 export default function SectionOrganizer({
   value,
   onChange,
@@ -54,7 +54,7 @@ export default function SectionOrganizer({
     Record<string, HonorSort | undefined>
   >({});
   useEffect(
-    /* 从资料页进入排序时定位所属栏目，不修改名称或其他草稿。 */ () => {
+    /* 从资料页进入排序时定位所属栏目且不修改名称或其他草稿 */ () => {
       if (!scrollTarget) return;
       const input = document.getElementById(`section-title-${scrollTarget}`);
       const card = input?.closest(".organizer-card");
@@ -68,7 +68,7 @@ export default function SectionOrganizer({
     [scrollTarget, onScrolled],
   );
   useEffect(
-    /* 新子栏目出现后选中名称，方便直接输入而不打断其他栏目编辑。 */ () => {
+    /* 新子栏目出现后选中名称；方便直接输入而不打断其他栏目编辑 */ () => {
       if (!focusId) return;
       const input = document.getElementById(
         `section-title-${focusId}`,
@@ -79,20 +79,20 @@ export default function SectionOrganizer({
     },
     [focusId],
   );
-  /** 更新栏目结构时保留顶部个人信息。 */
+  /** 更新栏目结构时保留顶部个人信息 */
   function change(sections: ResumeSection[]) {
     onChange({ ...value, sections });
   }
-  /** 替换一个栏目，不重置其资料。 */
+  /** 替换一个栏目且不重置其资料 */
   function update(section: ResumeSection) {
     change(
       value.sections.map(
-        /* 根据标识替换栏目。 */ (item) =>
+        /* 根据标识替换栏目 */ (item) =>
           item.id === section.id ? section : item,
       ),
     );
   }
-  /** 创建指定类型的大栏目并清空输入。 */
+  /** 创建指定类型的大栏目并清空输入 */
   function add() {
     if (!title.trim() || value.sections.length >= 40) return;
     change([
@@ -108,7 +108,7 @@ export default function SectionOrganizer({
     ]);
     setTitle("");
   }
-  /** 在当前大栏目末尾直接添加子栏目，维持两级结构及总数限制。 */
+  /** 在当前大栏目末尾直接添加子栏目；维持两级结构及总数限制 */
   function addChild(parent: ResumeSection) {
     if (parent.parent_id || value.sections.length >= 40) return;
     const id = crypto.randomUUID();
@@ -125,25 +125,25 @@ export default function SectionOrganizer({
     ]);
     setFocusId(id);
   }
-  /** 同级排序独立于项目区内部的经历排序。 */
+  /** 同级排序独立于项目区内部的经历排序 */
   function renderGroup(parent: string | null = null) {
     const group = siblings(value.sections, parent);
     if (!group.length) return null;
     return (
       <SortableList
         items={group.map(
-          /* 为辅助播报提供栏目标题。 */ (section) => ({
+          /* 为辅助播报提供栏目标题 */ (section) => ({
             id: section.id,
             label: section.title,
           }),
         )}
         onMove={
-          /* 拖动只移动本层级。 */ (from, to) =>
+          /* 拖动只移动本层级 */ (from, to) =>
             change(moveSection(value.sections, parent, from, to))
         }
       >
         {group.map(
-          /* 大栏目携带子栏目一起呈现和移动。 */ (section, index) => (
+          /* 大栏目携带子栏目一起呈现和移动 */ (section, index) => (
             <SortableItem
               id={section.id}
               key={section.id}
@@ -151,7 +151,7 @@ export default function SectionOrganizer({
               className={`organizer-card ${parent ? "organizer-child" : ""}`}
             >
               {
-                /* 在标题行放置排序手柄，表单编辑不会触发拖动。 */ (handle) => (
+                /* 在标题行放置排序手柄；表单编辑不会触发拖动 */ (handle) => (
                   <>
                     <div className="organizer-row">
                       {handle}
@@ -164,7 +164,7 @@ export default function SectionOrganizer({
                         value={section.title}
                         maxLength={100}
                         onChange={
-                          /* 标题不能为空，输入时保留空格供继续编辑。 */ (
+                          /* 标题不能为空；输入时保留空格供继续编辑 */ (
                             event,
                           ) =>
                             update({
@@ -180,7 +180,7 @@ export default function SectionOrganizer({
                             aria-label={`为${section.title}添加子栏目`}
                             disabled={value.sections.length >= 40}
                             onClick={
-                              /* 新栏目直接归入当前大栏目。 */ () =>
+                              /* 新栏目直接归入当前大栏目 */ () =>
                                 addChild(section)
                             }
                           >
@@ -193,7 +193,7 @@ export default function SectionOrganizer({
                           aria-label={`上移栏目 ${section.title}`}
                           disabled={index === 0}
                           onClick={
-                            /* 上移当前栏目。 */ () =>
+                            /* 上移当前栏目 */ () =>
                               change(
                                 moveSection(
                                   value.sections,
@@ -211,7 +211,7 @@ export default function SectionOrganizer({
                           aria-label={`下移栏目 ${section.title}`}
                           disabled={index === group.length - 1}
                           onClick={
-                            /* 下移当前栏目。 */ () =>
+                            /* 下移当前栏目 */ () =>
                               change(
                                 moveSection(
                                   value.sections,
@@ -229,7 +229,7 @@ export default function SectionOrganizer({
                           aria-label={`${section.visible ? "隐藏" : "显示"}栏目 ${section.title}`}
                           aria-pressed={section.visible}
                           onClick={
-                            /* 保留资料，仅控制排版显隐。 */ () =>
+                            /* 保留资料且仅控制排版显隐 */ () =>
                               update({ ...section, visible: !section.visible })
                           }
                         >
@@ -249,7 +249,7 @@ export default function SectionOrganizer({
                               : "删除栏目；子栏目会保留为大栏目"
                           }
                           onClick={
-                            /* 保存删除项以供撤销，子栏目提升到顶层。 */ () => {
+                            /* 保存删除项以供撤销；子栏目提升到顶层 */ () => {
                               setDeleted(section);
                               change(removeSection(value.sections, section.id));
                             }
@@ -279,7 +279,7 @@ export default function SectionOrganizer({
                             siblings(value.sections, section.id).length > 0
                           }
                           onChange={
-                            /* 改变父级只调整排版层级，资料保持不变。 */ (
+                            /* 改变父级只调整排版层级；资料保持不变 */ (
                               event,
                             ) =>
                               update({
@@ -291,12 +291,12 @@ export default function SectionOrganizer({
                           <option value="">独立大栏目</option>
                           {siblings(value.sections)
                             .filter(
-                              /* 排除自身，子栏目只归入顶层栏目以避免循环。 */ (
+                              /* 排除自身；子栏目只归入顶层栏目以避免循环 */ (
                                 item,
                               ) => item.id !== section.id,
                             )
                             .map(
-                              /* 选择其他大栏目作为父级。 */ (item) => (
+                              /* 选择其他大栏目作为父级 */ (item) => (
                                 <option key={item.id} value={item.id}>
                                   {item.title} / 子栏目
                                 </option>
@@ -307,7 +307,7 @@ export default function SectionOrganizer({
                       <div className="organizer-entry-tools">
                         {(isHonorSection(section) ||
                           section.entries.some(
-                            /* 荣誉被移入自定义栏目后仍可使用排序按钮。 */ (
+                            /* 荣誉被移入自定义栏目后仍可使用排序按钮 */ (
                               entry,
                             ) => isHonorEntry(entry, section),
                           )) && (
@@ -316,16 +316,16 @@ export default function SectionOrganizer({
                             value={honorSorts[section.id] ?? null}
                             disabled={
                               section.entries.filter(
-                                /* 只有两条以上荣誉时才需要排序。 */ (entry) =>
+                                /* 只有两条以上荣誉时才需要排序 */ (entry) =>
                                   isHonorEntry(entry, section),
                               ).length < 2
                             }
                             onChange={
-                              /* 将排序写入当前简历草稿，预览和导出读取同一顺序。 */ (
+                              /* 将排序写入当前简历草稿；预览和导出读取同一顺序 */ (
                                 sort,
                               ) => {
                                 setHonorSorts(
-                                  /* 各栏目分别记住最近使用的排序方向。 */ (
+                                  /* 各栏目分别记住最近使用的排序方向 */ (
                                     current,
                                   ) => ({ ...current, [section.id]: sort }),
                                 );
@@ -354,13 +354,14 @@ export default function SectionOrganizer({
                       <EntryOrder
                         section={section}
                         onChange={
-                          /* 手动移动或移除后恢复自定义顺序状态。 */ (
+                          /* 手动移动或移除后恢复自定义顺序状态 */ (
                             changed,
                           ) => {
                             setHonorSorts(
-                              /* 只清除当前栏目的快捷排序高亮。 */ (
-                                current,
-                              ) => ({ ...current, [section.id]: undefined }),
+                              /* 只清除当前栏目的快捷排序高亮 */ (current) => ({
+                                ...current,
+                                [section.id]: undefined,
+                              }),
                             );
                             update(changed);
                           }
@@ -393,7 +394,7 @@ export default function SectionOrganizer({
         <form
           className="profile-card add-section"
           onSubmit={
-            /* 添加自定义大栏目并阻止页面提交。 */ (event) => {
+            /* 添加自定义大栏目并阻止页面提交 */ (event) => {
               event.preventDefault();
               add();
             }
@@ -409,7 +410,7 @@ export default function SectionOrganizer({
                 maxLength={100}
                 placeholder="如：实习经历、校园活动、个人评价"
                 onChange={
-                  /* 记录待创建栏目名称。 */ (event) =>
+                  /* 记录待创建栏目名称 */ (event) =>
                     setTitle(event.target.value)
                 }
               />
@@ -419,7 +420,7 @@ export default function SectionOrganizer({
               <select
                 value={kind}
                 onChange={
-                  /* 选择通用资料或教育经历布局。 */ (event) =>
+                  /* 选择通用资料或教育经历布局 */ (event) =>
                     setKind(event.target.value as "education" | "text")
                 }
               >
@@ -452,7 +453,7 @@ export default function SectionOrganizer({
               className="text-button"
               disabled={value.sections.length >= 40}
               onClick={
-                /* 恢复被删除栏目正文，不覆盖删除后的其他编排。 */ () => {
+                /* 恢复被删除栏目正文且不覆盖删除后的其他编排 */ () => {
                   change([...value.sections, { ...deleted, parent_id: null }]);
                   setDeleted(null);
                 }

@@ -1,7 +1,7 @@
 import type { Experience, Resume, Revision } from "../../shared/types/index";
 import { experienceContent } from "../experiences/visibility.ts";
 
-/** 使用正在编辑的工作副本构建预览，不改写组合引用或不可变修订缓存。 */
+/** 使用正在编辑的工作副本构建预览且不改写组合引用或不可变修订缓存 */
 export function buildLivePreview(
   draft: Resume,
   revisions: Record<string, Revision>,
@@ -30,9 +30,9 @@ export function buildLivePreview(
       experienceContent(content, settings) !==
         experienceContent(pinned?.content, settings) ||
       item.highlight_ids.some(
-        /* 新增草稿亮点必须先进入正式版本，才能保存或导出固定引用。 */ (id) =>
+        /* 新增草稿亮点必须先进入正式版本；才能保存或导出固定引用 */ (id) =>
           !pinned?.content.highlights.some(
-            /* 校验组合引用的亮点归属。 */ (point) => point.id === id,
+            /* 校验组合引用的亮点归属 */ (point) => point.id === id,
           ),
       )
     )

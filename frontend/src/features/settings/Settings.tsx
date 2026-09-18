@@ -12,7 +12,7 @@ interface Props {
   run: (work: () => Promise<void>) => void;
 }
 
-/** 管理项目导入、归档会话与 Provider 配置。 */
+/** 管理项目导入、归档会话与 Provider 配置 */
 export default function Settings(props: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [tab, setTab] = useState(props.initial);
@@ -35,55 +35,35 @@ export default function Settings(props: Props) {
   const [dataDir, setDataDir] = useState(""),
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false);
-  useEffect(
-    /* 同步当前依赖对应的外部状态，并在需要时返回清理函数。 */ () => {
-      dialog.current?.showModal();
-      return /* 在组件卸载或依赖变化时释放本次注册的资源。 */ () =>
-        dialog.current?.close();
-    },
-    [],
-  );
-  useEffect(
-    /* 同步当前依赖对应的外部状态，并在需要时返回清理函数。 */ () => {
-      void api<Conversation[]>("/conversations/archived")
-        .then(setArchived)
-        .catch(
-          /* 保留可展示的失败原因，并避免已取消请求更新页面。 */ (e) =>
-            setNotice(e.message),
-        );
-    },
-    [],
-  );
-  useEffect(
-    /* 同步当前依赖对应的外部状态，并在需要时返回清理函数。 */ () => {
-      void api<{ provider: ProviderSettings; data_dir: string }>("/settings")
-        .then(
-          /* 在异步操作成功后同步结果及相关状态。 */ (value) => {
-            setProvider(value.provider);
-            setDataDir(value.data_dir);
-            setLoaded(true);
-          },
-        )
-        .catch(
-          /* 保留可展示的失败原因，并避免已取消请求更新页面。 */ (error) =>
-            setNotice(error.message),
-        );
-    },
-    [],
-  );
-  /** 先刷新待保存草稿再执行用户操作，将异常统一显示为页面提示。 */
+  useEffect(() => {
+    dialog.current?.showModal();
+    return () => dialog.current?.close();
+  }, []);
+  useEffect(() => {
+    void api<Conversation[]>("/conversations/archived")
+      .then(setArchived)
+      .catch(/* 取消后忽略迟到的错误 */ (e) => setNotice(e.message));
+  }, []);
+  useEffect(() => {
+    void api<{ provider: ProviderSettings; data_dir: string }>("/settings")
+      .then((value) => {
+        setProvider(value.provider);
+        setDataDir(value.data_dir);
+        setLoaded(true);
+      })
+      .catch(/* 取消后忽略迟到的错误 */ (error) => setNotice(error.message));
+  }, []);
+  /** 先刷新待保存草稿再执行用户操作；将异常统一显示为页面提示 */
   function run(work: () => Promise<void>) {
-    props.run(
-      /* 在草稿刷新成功后执行当前业务操作。 */ async () => {
-        setBusy(true);
-        setNotice("");
-        try {
-          await work();
-        } finally {
-          setBusy(false);
-        }
-      },
-    );
+    props.run(async () => {
+      setBusy(true);
+      setNotice("");
+      try {
+        await work();
+      } finally {
+        setBusy(false);
+      }
+    });
   }
   return (
     <dialog ref={dialog} className="settings-dialog" onCancel={props.onClose}>
@@ -100,17 +80,13 @@ export default function Settings(props: Props) {
       <nav className="tabs">
         <button
           className={tab === "projects" ? "active" : ""}
-          onClick={
-            /* 响应当前操作按钮，执行对应业务动作。 */ () => setTab("projects")
-          }
+          onClick={() => setTab("projects")}
         >
           项目导入
         </button>
         <button
           className={tab === "settings" ? "active" : ""}
-          onClick={
-            /* 响应当前操作按钮，执行对应业务动作。 */ () => setTab("settings")
-          }
+          onClick={() => setTab("settings")}
         >
           Codex 与数据
         </button>
@@ -130,23 +106,20 @@ export default function Settings(props: Props) {
           />
           <button
             disabled={busy || !root.trim()}
-            onClick={
-              /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-                run(
-                  /* 在草稿刷新成功后执行当前业务操作。 */ async () => {
-                    const value = await api<
-                      { name: string; roots: string[] }[]
-                    >("/projects/scan", "POST", { path: root });
-                    setCandidates(
-                      value.map(
-                        /* 逐项转换数据，保留当前业务需要的字段。 */ (p) => ({
-                          ...p,
-                          selected: true,
-                        }),
-                      ),
-                    );
-                  },
-                )
+            onClick={() =>
+              run(async () => {
+                const value = await api<{ name: string; roots: string[] }[]>(
+                  "/projects/scan",
+                  "POST",
+                  { path: root },
+                );
+                setCandidates(
+                  value.map((p) => ({
+                    ...p,
+                    selected: true,
+                  })),
+                );
+              })
             }
           >
             扫描目录
@@ -154,69 +127,45 @@ export default function Settings(props: Props) {
           {candidates.length > 0 && (
             <>
               <div className="candidates">
-                {candidates.map(
-                  /* 按稳定标识生成对应的列表条目。 */ (p, index) => (
-                    <label className="candidate" key={index}>
-                      <input
-                        type="checkbox"
-                        checked={p.selected}
-                        onChange={
-                          /* 把控件的新值同步到对应编辑状态。 */ (e) =>
-                            setCandidates(
-                              /* 基于最近一次状态计算新值，避免异步闭包覆盖后续修改。 */ (
-                                values,
-                              ) =>
-                                values.map(
-                                  /* 逐项转换数据，保留当前业务需要的字段。 */ (
-                                    v,
-                                    i,
-                                  ) =>
-                                    i === index
-                                      ? { ...v, selected: e.target.checked }
-                                      : v,
-                                ),
-                            )
-                        }
-                      />
-                      <div>
-                        <strong>{p.name}</strong>
-                        <span>{p.roots.length} 个来源</span>
-                        {p.roots.map(
-                          /* 按稳定标识生成对应的列表条目。 */ (path) => (
-                            <code key={path}>{path}</code>
+                {candidates.map((p, index) => (
+                  <label className="candidate" key={index}>
+                    <input
+                      type="checkbox"
+                      checked={p.selected}
+                      onChange={(e) =>
+                        setCandidates((values) =>
+                          values.map((v, i) =>
+                            i === index
+                              ? { ...v, selected: e.target.checked }
+                              : v,
                           ),
-                        )}
-                      </div>
-                    </label>
-                  ),
-                )}
+                        )
+                      }
+                    />
+                    <div>
+                      <strong>{p.name}</strong>
+                      <span>{p.roots.length} 个来源</span>
+                      {p.roots.map((path) => (
+                        <code key={path}>{path}</code>
+                      ))}
+                    </div>
+                  </label>
+                ))}
               </div>
               <button
                 className="primary"
-                disabled={
-                  busy ||
-                  !candidates.some(
-                    /* 检查条目是否满足当前选择或校验条件。 */ (p) =>
-                      p.selected,
-                  )
-                }
-                onClick={
-                  /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-                    run(
-                      /* 在草稿刷新成功后执行当前业务操作。 */ async () => {
-                        for (const p of candidates.filter(
-                          /* 保留满足当前范围或有效性条件的条目。 */ (p) =>
-                            p.selected,
-                        ))
-                          await api("/projects", "POST", {
-                            name: p.name,
-                            roots: p.roots,
-                          });
-                        await props.onChanged();
-                        setNotice("选中的项目已导入，已有项目会保留原记录。");
-                        setCandidates([]);
-                      },
-                    )
+                disabled={busy || !candidates.some((p) => p.selected)}
+                onClick={() =>
+                  run(async () => {
+                    for (const p of candidates.filter((p) => p.selected))
+                      await api("/projects", "POST", {
+                        name: p.name,
+                        roots: p.roots,
+                      });
+                    await props.onChanged();
+                    setNotice("选中的项目已导入，已有项目会保留原记录。");
+                    setCandidates([]);
+                  })
                 }
               >
                 <FolderPlus size={16} />
@@ -230,10 +179,7 @@ export default function Settings(props: Props) {
               项目名称
               <input
                 value={manualName}
-                onChange={
-                  /* 把控件的新值同步到对应编辑状态。 */ (e) =>
-                    setManualName(e.target.value)
-                }
+                onChange={(e) => setManualName(e.target.value)}
               />
             </label>
             <PathInput
@@ -246,26 +192,20 @@ export default function Settings(props: Props) {
             />
             <button
               disabled={busy || !manualName.trim() || !manualRoots.trim()}
-              onClick={
-                /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-                  run(
-                    /* 在草稿刷新成功后执行当前业务操作。 */ async () => {
-                      await api("/projects", "POST", {
-                        name: manualName,
-                        roots: manualRoots
-                          .split("\n")
-                          .map(
-                            /* 逐项转换数据，保留当前业务需要的字段。 */ (v) =>
-                              v.trim(),
-                          )
-                          .filter(Boolean),
-                      });
-                      await props.onChanged();
-                      setManualName("");
-                      setManualRoots("");
-                      setNotice("项目已添加。");
-                    },
-                  )
+              onClick={() =>
+                run(async () => {
+                  await api("/projects", "POST", {
+                    name: manualName,
+                    roots: manualRoots
+                      .split("\n")
+                      .map((v) => v.trim())
+                      .filter(Boolean),
+                  });
+                  await props.onChanged();
+                  setManualName("");
+                  setManualRoots("");
+                  setNotice("项目已添加。");
+                })
               }
             >
               添加项目
@@ -285,7 +225,7 @@ export default function Settings(props: Props) {
             value={provider.executable}
             disabled={busy || !loaded}
             onChange={
-              /* 选择本机 CLI 启动文件，保留其他 Provider 设置。 */ (value) =>
+              /* 选择本机 CLI 启动文件；保留其他 Provider 设置 */ (value) =>
                 setProvider({ ...provider, executable: value })
             }
           />
@@ -295,9 +235,8 @@ export default function Settings(props: Props) {
               <input
                 disabled={busy || !loaded}
                 value={provider.profile}
-                onChange={
-                  /* 把控件的新值同步到对应编辑状态。 */ (e) =>
-                    setProvider({ ...provider, profile: e.target.value })
+                onChange={(e) =>
+                  setProvider({ ...provider, profile: e.target.value })
                 }
               />
             </label>
@@ -309,12 +248,11 @@ export default function Settings(props: Props) {
                 max={7200}
                 value={provider.timeout_seconds}
                 disabled={busy || !loaded}
-                onChange={
-                  /* 把控件的新值同步到对应编辑状态。 */ (e) =>
-                    setProvider({
-                      ...provider,
-                      timeout_seconds: Number(e.target.value),
-                    })
+                onChange={(e) =>
+                  setProvider({
+                    ...provider,
+                    timeout_seconds: Number(e.target.value),
+                  })
                 }
               />
             </label>
@@ -327,42 +265,36 @@ export default function Settings(props: Props) {
           <div className="actions">
             <button
               disabled={busy || !loaded}
-              onClick={
-                /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-                  run(
-                    /* 在草稿刷新成功后执行当前业务操作。 */ async () => {
-                      const saved = await api<ProviderSettings>(
-                        "/settings/provider",
-                        "PUT",
-                        provider,
-                      );
-                      setProvider(saved);
-                      setNotice("Codex 设置已保存，将用于新提交的 AI 任务。");
-                    },
-                  )
+              onClick={() =>
+                run(async () => {
+                  const saved = await api<ProviderSettings>(
+                    "/settings/provider",
+                    "PUT",
+                    provider,
+                  );
+                  setProvider(saved);
+                  setNotice("Codex 设置已保存，将用于新提交的 AI 任务。");
+                })
               }
             >
               保存设置
             </button>
             <button
               disabled={busy || !loaded}
-              onClick={
-                /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-                  run(
-                    /* 在草稿刷新成功后执行当前业务操作。 */ async () => {
-                      const saved = await api<ProviderSettings>(
-                        "/settings/provider",
-                        "PUT",
-                        provider,
-                      );
-                      setProvider(saved);
-                      const value = await api<{ reply: string }>(
-                        "/providers/codex/check",
-                        "POST",
-                      );
-                      setNotice(value.reply);
-                    },
-                  )
+              onClick={() =>
+                run(async () => {
+                  const saved = await api<ProviderSettings>(
+                    "/settings/provider",
+                    "PUT",
+                    provider,
+                  );
+                  setProvider(saved);
+                  const value = await api<{ reply: string }>(
+                    "/providers/codex/check",
+                    "POST",
+                  );
+                  setNotice(value.reply);
+                })
               }
             >
               {busy ? "连接测试中…" : "测试实际连接"}
@@ -372,39 +304,25 @@ export default function Settings(props: Props) {
           {archived.length > 0 && (
             <details>
               <summary>已归档会话 · {archived.length}</summary>
-              {archived.map(
-                /* 按稳定标识生成对应的列表条目。 */ (c) => (
-                  <div className="section-heading" key={c.id}>
-                    <span>{c.title}</span>
-                    <button
-                      className="text-button"
-                      onClick={
-                        /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-                          run(
-                            /* 在草稿刷新成功后执行当前业务操作。 */ async () => {
-                              await api(`/conversations/${c.id}`, "PATCH", {
-                                archived: false,
-                              });
-                              setArchived(
-                                /* 基于最近一次状态计算新值，避免异步闭包覆盖后续修改。 */ (
-                                  v,
-                                ) =>
-                                  v.filter(
-                                    /* 保留满足当前范围或有效性条件的条目。 */ (
-                                      x,
-                                    ) => x.id !== c.id,
-                                  ),
-                              );
-                              await props.onChanged();
-                            },
-                          )
-                      }
-                    >
-                      恢复会话
-                    </button>
-                  </div>
-                ),
-              )}
+              {archived.map((c) => (
+                <div className="section-heading" key={c.id}>
+                  <span>{c.title}</span>
+                  <button
+                    className="text-button"
+                    onClick={() =>
+                      run(async () => {
+                        await api(`/conversations/${c.id}`, "PATCH", {
+                          archived: false,
+                        });
+                        setArchived((v) => v.filter((x) => x.id !== c.id));
+                        await props.onChanged();
+                      })
+                    }
+                  >
+                    恢复会话
+                  </button>
+                </div>
+              ))}
             </details>
           )}
           <code className="path">{dataDir}</code>
@@ -413,18 +331,11 @@ export default function Settings(props: Props) {
           </p>
           <button
             disabled={busy}
-            onClick={
-              /* 响应当前操作按钮，执行对应业务动作。 */ () =>
-                run(
-                  /* 在草稿刷新成功后执行当前业务操作。 */ async () => {
-                    await download(
-                      "/backups",
-                      "resume-maker-backup.zip",
-                      "POST",
-                    );
-                    setNotice("备份已下载。");
-                  },
-                )
+            onClick={() =>
+              run(async () => {
+                await download("/backups", "resume-maker-backup.zip", "POST");
+                setNotice("备份已下载。");
+              })
             }
           >
             导出完整备份

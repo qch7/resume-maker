@@ -1,4 +1,4 @@
-"""共享荣誉内容与简历内独立排版设置之间的无副作用映射。"""
+"""共享荣誉内容与简历内独立排版设置之间的无副作用映射"""
 
 from copy import deepcopy
 
@@ -21,7 +21,7 @@ HONOR_CUSTOM_IDS = {f"honor-field:{key}" for key in HONOR_CUSTOM_FIELDS}
 
 
 def sync_honor_document(document, honors):
-    """按稳定来源标识同步已核对资料，保留显隐、排序、备注及没有来源的条目。"""
+    """按稳定来源标识同步已核对资料；保留显隐、排序、备注及没有来源的条目"""
     if not document:
         return document
     sources = {f"honor:{item['id']}": item for item in honors if item["reviewed"]}
