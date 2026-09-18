@@ -104,9 +104,10 @@ class Database:
             conn.execute("INSERT OR REPLACE INTO settings VALUES (?,?)", (key, dump(value)))
 
     def event(self, job_id: str, kind: str, data):
-        """把任务进度事件持久化；供 SSE 按递增游标重放"""
+        """持久化仍存在任务的进度；项目删除后忽略取消进程的迟到事件"""
         with self.transaction() as conn:
             conn.execute(
-                "INSERT INTO events(job_id,kind,data_json,created_at) VALUES (?,?,?,?)",
-                (job_id, kind, dump(data), now()),
+                "INSERT INTO events(job_id,kind,data_json,created_at) "
+                "SELECT ?,?,?,? WHERE EXISTS (SELECT 1 FROM jobs WHERE id=?)",
+                (job_id, kind, dump(data), now(), job_id),
             )

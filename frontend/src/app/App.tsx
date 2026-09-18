@@ -28,6 +28,11 @@ import Editor from "../features/experiences/Editor";
 import { clearLocalDrafts } from "../features/experiences/useField";
 import { experienceContent } from "../features/experiences/visibility";
 import ProjectSidebar from "../features/projects/ProjectSidebar";
+import DeleteProjectDialog from "../features/projects/DeleteProjectDialog";
+import {
+  projectDeletionBlocker,
+  projectDeletionIds,
+} from "../features/projects/deletion";
 import {
   expandProjectPath,
   restoreSidebarSort,
@@ -67,6 +72,7 @@ import type {
   ConversationDetail,
   Experience,
   ProjectDetail,
+  Project,
   Proposal,
   Resume,
   ResumeDefaults,
@@ -155,6 +161,7 @@ export default function App() {
     Record<string, string>
   >({});
   const [creatingConversation, setCreatingConversation] = useState("");
+  const [deletingProject, setDeletingProject] = useState<Project | null>(null);
   const conversationCreationPending = useRef(false);
   const [mode, setMode] = useState<"edit" | "chat">("edit");
   const [folded, setFolded] = useState<Record<string, boolean>>({});
@@ -340,6 +347,16 @@ export default function App() {
     run,
     notify: setToast,
   });
+  const deletingProjectIds = projectDeletionIds(
+    state.projects,
+    deletingProject?.id ?? "",
+  );
+  const deletionBlocker = projectDeletionBlocker(
+    deletingProjectIds,
+    state.resumes,
+    draft,
+    state.jobs,
+  );
 
   useEffect(() => {
     let stopped = false,
@@ -360,16 +377,22 @@ export default function App() {
     };
   }, [reload]);
   useEffect(
-    /* 首次有项目时打开排序后的顶层首项；后续排序或轮询不打断当前编辑 */ () => {
-      if (!activeProject && firstProject) {
+    /* 首次加载或当前项目被其他窗口删除后恢复有效选择；排序不打断现有编辑 */ () => {
+      if (!loaded || state.projects.some((item) => item.id === activeProject))
+        return;
+      if (firstProject) {
         setActiveProject(firstProject.id);
+        setMode("edit");
         setSelectedRevisions((v) => ({
           ...v,
           [firstProject.id]: firstProject.head_revision,
         }));
+      } else if (activeProject) {
+        setActiveProject("");
+        setMode("edit");
       }
     },
-    [activeProject, firstProject],
+    [activeProject, firstProject, loaded, state.projects],
   );
   useEffect(() => {
     if (remoteProject.data)
@@ -489,6 +512,39 @@ export default function App() {
         return next;
       });
     changed();
+  }
+  /** 删除前等待草稿写入；服务确认后立即移除列表和导航缓存且保留其他选择 */
+  async function deleteProject() {
+    if (!deletingProject) return;
+    if (deletionBlocker) throw new Error(deletionBlocker);
+    await flushDrafts();
+    const result = await api<{ deleted_project_ids: string[] }>(
+      `/projects/${encodeURIComponent(deletingProject.id)}`,
+      "DELETE",
+    );
+    const ids = new Set(result.deleted_project_ids);
+    ++stateRequests.current;
+    ++navigation.current;
+    setState((current) => ({
+      ...current,
+      projects: current.projects.filter((item) => !ids.has(item.id)),
+      conversations: current.conversations.filter(
+        (item) => !ids.has(item.project_id),
+      ),
+      branches: current.branches.filter((item) => !ids.has(item.project_id)),
+      jobs: current.jobs.filter((item) => !ids.has(item.project_id)),
+    }));
+    /** 清理被删除项目的导航偏好；保留其他项目当前版本和折叠状态 */
+    const remaining = <T,>(values: Record<string, T>) =>
+      Object.fromEntries(Object.entries(values).filter(([id]) => !ids.has(id)));
+    setSelectedRevisions(remaining);
+    setSelectedConversations(remaining);
+    setFolded(remaining);
+    if (ids.has(activeProject)) {
+      setActiveProject("");
+      setMode("edit");
+    }
+    setToast({ text: `已删除项目“${deletingProject.name}”` });
   }
   /** 复用当前项目的会话；尚无会话时创建并返回独立标识 */
   async function ensureConversation() {
@@ -921,6 +977,7 @@ export default function App() {
             /* 处理 onArchive 回调；将变化同步到工作台状态 */ (projectId, id) =>
               run(() => archiveConversation(projectId, id))
           }
+          onDelete={setDeletingProject}
           onImport={
             /* 处理 onImport 回调；将变化同步到工作台状态 */ () =>
               setModal("projects")
@@ -1458,6 +1515,15 @@ export default function App() {
           }
         />
       </div>
+      {deletingProject && (
+        <DeleteProjectDialog
+          project={deletingProject}
+          childCount={deletingProjectIds.size - 1}
+          blocker={deletionBlocker}
+          onClose={() => setDeletingProject(null)}
+          onDelete={deleteProject}
+        />
+      )}
       {modal && (
         <Settings
           initial={modal}

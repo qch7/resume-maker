@@ -144,6 +144,12 @@ class Jobs:
             .model_dump(),
         }
         with self.db.transaction() as conn:
+            need(
+                conn.execute(
+                    "SELECT id FROM conversations WHERE id=?", (conversation_id,)
+                ).fetchone(),
+                "该项目或会话已删除，请刷新后重试。",
+            )
             active = conn.execute(
                 "SELECT id FROM jobs WHERE conversation_id=? AND status IN ('queued','running')",
                 (conversation_id,),

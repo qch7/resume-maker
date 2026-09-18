@@ -9,6 +9,7 @@ import {
   MoreHorizontal,
   PanelLeftClose,
   Plus,
+  Trash2,
 } from "lucide-react";
 import type { Dispatch, SetStateAction } from "react";
 import type { Job, Project, ResumeItem } from "../../shared/types";
@@ -31,6 +32,7 @@ interface Props {
   onToggleProject: (projectId: string) => void;
   onNewConversation: (projectId: string) => void;
   onArchive: (projectId: string, conversationId: string) => void;
+  onDelete: (project: Project) => void;
   onImport: () => void;
 }
 
@@ -52,6 +54,7 @@ export default function ProjectSidebar({
   onToggleProject,
   onNewConversation,
   onArchive,
+  onDelete,
   onImport,
 }: Props) {
   /** 按来源分组递归显示项目；整体与子项目分别持有选择状态和会话 */
@@ -100,6 +103,14 @@ export default function ProjectSidebar({
             ) : (
               <Plus size={15} />
             )}
+          </button>
+          <button
+            className="icon-button project-delete"
+            aria-label={`删除项目 ${p.name}`}
+            title={`删除项目 ${p.name}`}
+            onClick={() => onDelete(p)}
+          >
+            <Trash2 size={14} />
           </button>
           <button
             className="icon-button"

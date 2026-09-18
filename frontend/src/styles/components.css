@@ -65,6 +65,13 @@
   flex-shrink: 0;
   padding: 4px;
 }
+.project-row > .project-delete {
+  color: var(--subtle);
+}
+.project-row > .project-delete:hover,
+.project-row > .project-delete:focus-visible {
+  color: var(--danger);
+}
 .project-name {
   min-width: 0;
   font-weight: 600;

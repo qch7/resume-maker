@@ -46,6 +46,12 @@ def get_project(services: ServicesDep, project_id: str, revision_id: str | None 
     return services.projects.get_project(project_id, revision_id)
 
 
+@router.delete("/projects/{project_id}")
+def delete_project(services: ServicesDep, project_id: str):
+    """删除未被简历引用的项目组；返回实际移除范围供工作台清理选中状态"""
+    return {"deleted_project_ids": services.projects.delete(project_id)}
+
+
 @router.get("/revisions/{revision_id}")
 def get_revision(services: ServicesDep, revision_id: str):
     """返回指定不可变经历版本；供简历组合恢复其固定引用"""

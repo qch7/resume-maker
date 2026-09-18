@@ -433,6 +433,15 @@ class Catalog:
             self.template(template_id)
         resume_id = resume_id or uid()
         with self.db.transaction() as conn:
+            # 引用校验必须与写入持有同一把锁；避免校验后项目被另一窗口删除
+            for item in items:
+                need(
+                    conn.execute(
+                        "SELECT id FROM revisions WHERE id=? AND project_id=?",
+                        (item.revision_id, item.project_id),
+                    ).fetchone(),
+                    "简历中的项目已删除，请刷新后重新选择。",
+                )
             if conn.execute(
                 "SELECT 1 FROM resume_deletions WHERE resume_id=?", (resume_id,)
             ).fetchone():

@@ -44,6 +44,66 @@ class Projects:
             ),
         }
 
+    def delete(self, project_id: str) -> list[str]:
+        """同一事务内检查简历引用和运行任务后删除项目组；不访问源码或历史导出文件"""
+        with self.db.transaction() as conn:
+            need(
+                conn.execute("SELECT id FROM projects WHERE id=?", (project_id,)).fetchone(),
+                "该项目不存在或已删除。",
+            )
+            ids = [
+                row["id"]
+                for row in conn.execute(
+                    "WITH RECURSIVE scope(id) AS (SELECT ? UNION "
+                    "SELECT h.project_id FROM project_hierarchy h "
+                    "JOIN scope s ON h.parent_id=s.id) "
+                    "SELECT id FROM scope",
+                    (project_id,),
+                )
+            ]
+            placeholders = ",".join("?" for _ in ids)
+            used = conn.execute(
+                "SELECT r.name FROM resumes r WHERE r.id NOT IN "
+                "(SELECT resume_id FROM resume_deletions) AND EXISTS "
+                "(SELECT 1 FROM json_each(r.items_json) item "
+                f"WHERE json_extract(item.value,'$.project_id') IN ({placeholders})) "
+                "ORDER BY r.created_at,r.id",
+                ids,
+            ).fetchall()
+            if used:
+                names = "、".join(row["name"] for row in used[:3])
+                raise Problem(
+                    f"项目或其子项目正在被 {len(used)} 份简历使用（{names}），不能删除。"
+                    "请先从这些简历中移除项目并保存组合。",
+                    409,
+                )
+            if conn.execute(
+                f"SELECT 1 FROM jobs WHERE project_id IN ({placeholders}) "
+                "AND status IN ('queued','running') LIMIT 1",
+                ids,
+            ).fetchone():
+                raise Problem("项目或其子项目仍有 AI 任务进行中，请等待完成或取消后再删除。", 409)
+
+            # 按外键依赖顺序清理整组数据；任一步失败都回滚且不改动其他简历
+            conversations = f"SELECT id FROM conversations WHERE project_id IN ({placeholders})"
+            jobs = f"SELECT id FROM jobs WHERE project_id IN ({placeholders})"
+            revisions = f"SELECT id FROM revisions WHERE project_id IN ({placeholders})"
+            conn.execute(f"DELETE FROM proposals WHERE conversation_id IN ({conversations})", ids)
+            conn.execute(f"DELETE FROM messages WHERE conversation_id IN ({conversations})", ids)
+            conn.execute(f"DELETE FROM events WHERE job_id IN ({jobs})", ids)
+            conn.execute(f"DELETE FROM jobs WHERE project_id IN ({placeholders})", ids)
+            conn.execute(f"DELETE FROM conversations WHERE project_id IN ({placeholders})", ids)
+            conn.execute(f"DELETE FROM drafts WHERE project_id IN ({placeholders})", ids)
+            conn.execute(f"DELETE FROM revision_branches WHERE revision_id IN ({revisions})", ids)
+            conn.execute(
+                f"DELETE FROM experience_branches WHERE project_id IN ({placeholders})", ids
+            )
+            conn.execute(f"DELETE FROM revisions WHERE project_id IN ({placeholders})", ids)
+            conn.execute(f"DELETE FROM snapshots WHERE project_id IN ({placeholders})", ids)
+            conn.execute(f"DELETE FROM project_hierarchy WHERE project_id IN ({placeholders})", ids)
+            conn.execute(f"DELETE FROM projects WHERE id IN ({placeholders})", ids)
+        return ids
+
     def uncommitted(self, project_id: str) -> list[dict]:
         """列出各版本上实际不同的工作副本且仅供历史树展示且不创建修订"""
         result = []
