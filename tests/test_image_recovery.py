@@ -30,12 +30,14 @@ from resume_maker.integrations.word.template_map import TemplatePackage
 from resume_maker.integrations.word.template_recovery import prepare_template
 
 
-def image_fixture(path, scale=2, left=False):
+def image_fixture(path, scale=2, left=False, font=None):
     """生成不同分辨率的独立样例，包含同行联系资料、左右头像和带白字的栏目底块。"""
     texts, assets = [], []
     width, height = 595, 842
+    font = font or pymupdf.Font("helv")
     with pymupdf.open() as pdf:
         page = pdf.new_page(width=width, height=height)
+        page.insert_font(fontname="FixtureFont", fontbuffer=font.buffer)
         for x, y, text, size in [
             (230, 50, "SAMPLE NAME", 20),
             (100, 80, "OLD PHONE", 11),
@@ -44,7 +46,7 @@ def image_fixture(path, scale=2, left=False):
             (45, 153, "SECTION", 12),
             (40, 182, "FIXED BODY", 11),
         ]:
-            span_width = pymupdf.get_text_length(text, fontname="helv", fontsize=size)
+            span_width = font.text_length(text, fontsize=size)
             texts.append(
                 ImageText(
                     text=text,
@@ -81,10 +83,11 @@ def image_fixture(path, scale=2, left=False):
         )
         for text in texts:
             x0, y0, x1, y1 = text.box
-            size = (x1 - x0) * width / pymupdf.get_text_length(text.text, fontsize=1)
+            size = (x1 - x0) * width / font.text_length(text.text, fontsize=1)
             page.insert_text(
                 (x0 * width, y1 * height),
                 text.text,
+                fontname="FixtureFont",
                 fontsize=size,
                 color=(1, 1, 1) if text.text == "SECTION" else (0, 0, 0),
             )
@@ -175,10 +178,24 @@ def test_image_fields_reflow_with_icons_and_photo(tmp_path, left, hidden):
 
 
 @pytest.mark.parametrize("scale,dpi", [(1, 72), (2, 300), (3, 96)])
-def test_pixel_resolution_and_dpi_do_not_change_paper_geometry(tmp_path, scale, dpi):
-    """同一版式不同像素数和 DPI 得到相同物理字号及纸张尺寸。"""
+@pytest.mark.parametrize("fallback", [False, True], ids=["latin", "missing-system-font"])
+def test_pixel_resolution_and_dpi_do_not_change_paper_geometry(
+    tmp_path, monkeypatch, scale, dpi, fallback
+):
+    """已知字体和真实缺字体回退下，不同像素数与 DPI 均保持样例字号及纸张尺寸。"""
+    font = pymupdf.Font("cjk" if fallback else "helv")
+    if fallback:
+        monkeypatch.setenv("WINDIR", str(tmp_path / "no-system-fonts"))
+    else:
+
+        def known_font(text):
+            """使用内置拉丁字体，让样例与恢复使用相同度量且不依赖宿主系统安装。"""
+            return font
+
+        monkeypatch.setattr("resume_maker.integrations.word.image_layout.font_for", known_font)
+    # 字号按字宽恢复，样例必须来自同一字体，不能要求不同字体具有相同字宽。
     source = tmp_path / "source.png"
-    layout = image_fixture(source, scale)
+    layout = image_fixture(source, scale, font=font)
     with Image.open(source) as image:
         image.save(tmp_path / "dpi.png", dpi=(dpi, dpi))
     document = build_image_document(tmp_path / "dpi.png", layout, Event())
