@@ -10,12 +10,15 @@ NAMES = re.compile(r"context\.txt|source-[0-9]{4}\.txt")
 TOOLS = [
     {
         "name": "read_material",
-        "description": "读取脱敏副本的一段文字，行号从 1 开始",
+        "description": "读取脱敏副本，行号和列号从 1 开始。返回 next_column 时，"
+        "以该记录的 line 和 next_column 作为 start_line 和 start_column 继续读取；"
+        "否则从最后返回行的下一行继续",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "file": {"type": "string"},
                 "start_line": {"type": "integer", "minimum": 1},
+                "start_column": {"type": "integer", "minimum": 1},
                 "line_count": {"type": "integer", "minimum": 1, "maximum": 200},
             },
             "required": ["file"],
@@ -54,17 +57,32 @@ def contents(root, name):
 def call(root, name, args):
     """限制搜索和读取的参数、次数及输出长度，不执行材料中的指令"""
     if name == "read_material":
-        if set(args) - {"file", "start_line", "line_count"}:
+        if set(args) - {"file", "start_line", "start_column", "line_count"}:
             raise ValueError("读取参数不受支持")
         start, count = args.get("start_line", 1), args.get("line_count", 100)
-        if type(start) is not int or type(count) is not int or start < 1 or not 1 <= count <= 200:
+        column = args.get("start_column", 1)
+        if (
+            type(start) is not int
+            or type(count) is not int
+            or type(column) is not int
+            or start < 1
+            or column < 1
+            or not 1 <= count <= 200
+        ):
             raise ValueError("读取行数不在允许范围内")
         lines = contents(root, args.get("file"))
-        value = [
-            {"line": i + 1, "text": text}
-            for i, text in enumerate(lines)
-            if start <= i + 1 < start + count
-        ]
+        value = []
+        for index in range(start - 1, min(len(lines), start - 1 + count)):
+            offset = column - 1 if index == start - 1 else 0
+            text = lines[index]
+            if offset > len(text):
+                raise ValueError("读取列号超出当前行")
+            row = {"line": index + 1, "text": text[offset : offset + 2000]}
+            if offset + len(row["text"]) < len(text):
+                row["next_column"] = offset + len(row["text"]) + 1
+            value.append(row)
+            if "next_column" in row:
+                break
     elif name == "search_materials":
         query = args.get("query")
         if set(args) != {"query"} or not isinstance(query, str) or not 1 <= len(query) <= 200:
@@ -74,15 +92,32 @@ def call(root, name, args):
             if not NAMES.fullmatch(file.name):
                 continue
             for i, text in enumerate(contents(root, file.name)):
-                if query.casefold() in text.casefold():
-                    value.append({"file": file.name, "line": i + 1, "text": text[:1000]})
+                match = re.search(re.escape(query), text, re.IGNORECASE)
+                if match:
+                    offset = max(0, match.start() - 120)
+                    value.append(
+                        {
+                            "file": file.name,
+                            "line": i + 1,
+                            "column": offset + 1,
+                            "text": text[offset : offset + 1000],
+                        }
+                    )
                     if len(value) == 100:
                         break
             if len(value) == 100:
                 break
     else:
         raise ValueError("工具不在允许范围内")
-    return json.dumps(value, ensure_ascii=False)[:24000]
+    rows, size = [], 2
+    for row in value:
+        encoded = json.dumps(row, ensure_ascii=False)
+        extra = len(encoded) + (2 if rows else 0)
+        if size + extra > 24000:
+            break
+        rows.append(encoded)
+        size += extra
+    return "[" + ", ".join(rows) + "]"
 
 
 def dispatch(root, request):

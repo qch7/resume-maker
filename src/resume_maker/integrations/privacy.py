@@ -153,7 +153,7 @@ class Redactor:
         )
         return pattern.sub(lambda match: self.token(match[0]), value)
 
-    def protect(self, value):
+    def protect(self, value, *, fixed_keys=()):
         """逐个处理 JSON 字符串，避免转义或字典键绕过替换"""
         if isinstance(value, str):
             return self.text(value)
@@ -161,9 +161,29 @@ class Redactor:
             return [self.protect(child) for child in value]
         if isinstance(value, dict):
             return {
-                self.text(key): "[凭据已移除]" if SECRET_KEY.fullmatch(key) else self.protect(child)
+                key if key in fixed_keys else self.text(key): (
+                    "[凭据已移除]" if SECRET_KEY.fullmatch(key) else self.protect(child)
+                )
                 for key, child in value.items()
             }
+        return value
+
+    def protect_schema(self, value):
+        """保留程序生成契约的固定语法，仅脱敏说明和动态候选中的资料"""
+        if isinstance(value, list):
+            return [self.protect_schema(child) for child in value]
+        if isinstance(value, dict):
+            result = {}
+            for key, child in value.items():
+                if key in {"title", "description", "enum", "const", "examples", "default"}:
+                    result[key] = self.protect(child)
+                elif key in {"properties", "$defs"}:
+                    result[key] = {
+                        name: self.protect_schema(definition) for name, definition in child.items()
+                    }
+                else:
+                    result[key] = self.protect_schema(child)
+            return result
         return value
 
     def prompt(self, value):
@@ -178,7 +198,20 @@ class Redactor:
             return self.text(value)
         self.learn(context)
         self.learn(head)
-        return self.text(head) + separator + json.dumps(self.protect(context), ensure_ascii=False)
+        protected = self.protect(context, fixed_keys={"source_materials", "output_schema"})
+        if isinstance(context, dict) and isinstance(context.get("source_materials"), dict):
+            source = context["source_materials"]
+            # 仅保留本机材料清单的固定路由字段，路径、正文及未知字典键继续脱敏
+            protected["source_materials"] = self.protect(
+                source, fixed_keys={"files", "limited", "omitted", "notice"}
+            )
+            protected["source_materials"]["files"] = [
+                self.protect(row, fixed_keys={"source", "path", "line_start", "text"})
+                for row in source.get("files", [])
+            ]
+        if isinstance(context, dict) and isinstance(context.get("output_schema"), dict):
+            protected["output_schema"] = self.protect_schema(context["output_schema"])
+        return self.text(head) + separator + json.dumps(protected, ensure_ascii=False)
 
     def restore(self, value):
         """单次替换响应占位符，拒绝模型编造的未知标识"""

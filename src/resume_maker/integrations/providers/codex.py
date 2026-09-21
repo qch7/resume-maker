@@ -147,7 +147,7 @@ class CodexProvider:
                 "\n本地 OCR 文字和比例坐标（低置信度片段已整体替换，禁止推测）：\n"
                 + json.dumps(redactor.protect(documents), ensure_ascii=False)
             )
-        safe_schema = redactor.protect(schema(result_model))
+        safe_schema = redactor.protect_schema(schema(result_model))
         payload = {
             "transport": "codex-cli-sandbox",
             "input": safe_prompt,

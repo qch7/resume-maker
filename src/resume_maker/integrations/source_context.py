@@ -1,6 +1,7 @@
 """本机收集有界源码文本，模型仅接收文字包且不能直接读取文件"""
 
 import os
+from collections import deque
 from pathlib import Path
 
 from resume_maker.integrations.providers.base import Cancelled
@@ -29,71 +30,84 @@ BINARY = {
 }
 
 
+def source_paths(root, data_dir, cancelled):
+    """逐个产出目录标记和候选文件，允许多个来源交替推进且保留遍历预算"""
+    for directory, dirs, names in os.walk(root, followlinks=False):
+        if cancelled.is_set():
+            raise Cancelled("源码收集已取消。")
+        yield None
+        parent = Path(directory)
+        dirs[:] = sorted(
+            name
+            for name in dirs
+            if name.lower() not in SKIP
+            and not SECRET_FILE.search(name)
+            and not linked(parent / name)
+            and not (parent / name).resolve().is_relative_to(data_dir.resolve())
+        )
+        names.sort(key=lambda name: (not name.lower().startswith("readme"), name))
+        for name in names:
+            yield parent / name
+
+
 def source_context(sources, data_dir, cancelled):
-    """保留相对路径和原始行号，跳过链接、凭据、应用资料及超限内容"""
-    files, omitted = [], 0
+    """交替收集各来源并保留行号，跳过链接、凭据、应用资料及超限内容"""
+    files, omitted, limited = [], 0, False
     remaining, visited, directories = 350_000, 0, 0
-    for source in sources:
-        root = Path(source["path"])
-        for directory, dirs, names in os.walk(root, followlinks=False):
+    pending = deque(
+        (source, source_paths(Path(source["path"]), data_dir, cancelled)) for source in sources
+    )
+    while pending:
+        if cancelled.is_set():
+            raise Cancelled("源码收集已取消。")
+        source, paths = pending.popleft()
+        try:
+            path = next(paths)
+        except StopIteration:
+            continue
+        pending.append((source, paths))
+        if path is None:
             directories += 1
-            if cancelled.is_set():
-                raise Cancelled("源码收集已取消。")
-            if directories > 10000:
-                return {
-                    "files": files,
-                    "limited": True,
-                    "omitted": omitted,
-                    "notice": "目录数量达到预算，请缩小关联目录后重新分析。",
-                }
-            parent = Path(directory)
-            dirs[:] = sorted(
-                name
-                for name in dirs
-                if name.lower() not in SKIP
-                and not SECRET_FILE.search(name)
-                and not linked(parent / name)
-                and not (parent / name).resolve().is_relative_to(data_dir.resolve())
-            )
-            names.sort(key=lambda name: (not name.lower().startswith("readme"), name))
-            for name in names:
-                if cancelled.is_set():
-                    raise Cancelled("源码收集已取消。")
-                visited += 1
-                if visited > 10000 or remaining <= 0 or len(files) >= 200:
-                    return {
-                        "files": files,
-                        "limited": True,
-                        "omitted": omitted,
-                        "notice": "材料达到预算，仅分析已提供文件；未提供的实现必须标为无法核实。",
-                    }
-                path = parent / name
-                if SECRET_FILE.search(name) or path.suffix.lower() in BINARY:
-                    omitted += 1
-                    continue
-                relative = path.relative_to(root).as_posix()
-                try:
-                    safe_path, _ = evidence_file(sources, source["id"], relative, data_dir)
-                    # 有界读取避免文件在 stat 后增长导致一次读入超大文件
-                    with safe_path.open("rb") as stream:
-                        raw = stream.read(128_001)
-                    if len(raw) > 128_000 or b"\0" in raw:
-                        omitted += 1
-                        continue
-                    text = raw.decode("utf-8-sig")
-                except (OSError, UnicodeError, ValueError):
-                    omitted += 1
-                    continue
-                if len(text) > remaining:
-                    omitted += 1
-                    continue
-                files.append(
-                    {"source": source["id"], "path": relative, "line_start": 1, "text": text}
-                )
-                remaining -= len(text)
+        else:
+            visited += 1
+        if directories > 10000 or visited > 10000 or remaining <= 0 or len(files) >= 200:
+            limited = True
+            break
+        if path is None:
+            continue
+        if SECRET_FILE.search(path.name) or path.suffix.lower() in BINARY:
+            omitted += 1
+            continue
+        relative = path.relative_to(source["path"]).as_posix()
+        try:
+            safe_path, _ = evidence_file(sources, source["id"], relative, data_dir)
+            # 有界读取避免文件在 stat 后增长导致一次读入超大文件
+            with safe_path.open("rb") as stream:
+                raw = stream.read(128_001)
+            if len(raw) > 128_000:
+                omitted += 1
+                limited = True
+                continue
+            if b"\0" in raw:
+                omitted += 1
+                continue
+            text = raw.decode("utf-8-sig")
+        except (OSError, UnicodeError, ValueError):
+            omitted += 1
+            continue
+        if len(text) > remaining:
+            omitted += 1
+            limited = True
+            continue
+        files.append({"source": source["id"], "path": relative, "line_start": 1, "text": text})
+        remaining -= len(text)
     return {
         "files": files,
-        "limited": False,
+        "limited": limited,
         "omitted": omitted,
-        "notice": "仅分析提供的文字材料，未提供或跳过的文件不能作为证据。",
+        "notice": (
+            "材料达到预算，请缩小关联目录后重新分析；未提供的实现必须标为无法核实。"
+            if limited
+            else "仅分析提供的文字材料，未提供或跳过的文件不能作为证据。"
+        ),
     }
