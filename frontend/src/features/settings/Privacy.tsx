@@ -131,6 +131,7 @@ export default function Privacy() {
         <p className="subtle">
           显示初始脱敏材料、输出契约及最近 20 次源码工具结果，较早结果不保留。
           不包含鉴权或还原表，也不是完整网络抓包；记录仍可能含业务内容，可随时清除。
+          替换次数包含同一信息的重复出现，请核对脱敏内容。
         </p>
         <button
           disabled={busy}

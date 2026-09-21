@@ -198,7 +198,8 @@ def test_native_cli_tool_boundary(tmp_path, model):
     requests = []
     root = tmp_path / "PRIVATE-SOURCE-ROOT"
     root.mkdir()
-    original = "# ordinary source\n" * 12000 + "TAIL_FEATURE late4726@example.invalid\n"
+    tail = "TAIL_FEATURE late4726@example.invalid 762810219043785"
+    original = "# ordinary source\n" * 12000 + tail + "\n"
     (root / "main.py").write_text(original, encoding="utf-8")
     (root / "feature.py").write_text("SEARCH_FEATURE", encoding="utf-8")
     (root / ".env").write_text("SOURCE-SECRET-CANARY", encoding="utf-8")
@@ -304,7 +305,7 @@ def test_native_cli_tool_boundary(tmp_path, model):
         provider = CodexProvider(
             environment={"CODEX_HOME": str(tmp_path), "SYNTHETIC_KEY": "SECRET-CANARY"},
             runner=run_cli,
-        ).with_private_data({"personal": {"name": "合成测试甲"}})
+        ).with_private_data({"personal": {"name": "合成测试甲", "age": "21"}})
         result = provider.run_structured(
             result_model=BoundaryReply,
             workspace=tmp_path,
@@ -321,7 +322,7 @@ def test_native_cli_tool_boundary(tmp_path, model):
         server.shutdown()
         server.server_close()
         thread.join(timeout=2)
-    assert result.answer == "TAIL_FEATURE late4726@example.invalid"
+    assert result.answer == tail
     assert (root / "main.py").read_text(encoding="utf-8") == original
     wire = json.dumps(requests, ensure_ascii=False)
     assert all(value not in wire for value in ("CONFIG-CANARY", "RULES-CANARY", "SECRET-CANARY"))
@@ -336,6 +337,9 @@ def test_native_cli_tool_boundary(tmp_path, model):
             "PRIVATE-SOURCE-ROOT",
             "SOURCE-SECRET-CANARY",
             "late4726@example.invalid",
+            "762810219043785",
+            "7628102",
+            "9043785",
         )
     )
     assert "[[RM_" in wire

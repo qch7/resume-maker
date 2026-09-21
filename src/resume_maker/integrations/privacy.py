@@ -5,6 +5,12 @@ import re
 import secrets
 from urllib.parse import quote
 
+from resume_maker.integrations.privacy_identifiers import (
+    IDENTIFIER_KEYS,
+    identifier_spans,
+    identifier_values,
+    literal_pattern,
+)
 from resume_maker.integrations.privacy_text import formatted_values, known_variants, labeled_values
 from resume_maker.integrations.providers.base import ProviderError
 
@@ -94,13 +100,18 @@ class Redactor:
                     for field in child.get("custom_fields", []):
                         if field.get("value", "").strip():
                             self.values.add(field["value"].strip())
-                elif key.lower() in KEYS and isinstance(child, str) and child.strip():
+                elif (
+                    key.lower() in KEYS | IDENTIFIER_KEYS
+                    and isinstance(child, str)
+                    and child.strip()
+                ):
                     self.values.add(child.strip())
                 self.learn(child)
         elif isinstance(value, list):
             for child in value:
                 self.learn(child)
         elif isinstance(value, str):
+            self.values.update(identifier_values(value))
             for match in SECRET.finditer(value):
                 self.secrets.add(match[2].strip().strip("\"'"))
             self.values.update(labeled_values(value, LABEL))
@@ -121,6 +132,15 @@ class Redactor:
 
     def text(self, value):
         """先移除凭据再替换已知值和常见身份格式，编码附件直接拦截"""
+        if TOKEN.search(value):
+            registered = set(self.mapping.values())
+            parts, offset = [], 0
+            for match in TOKEN.finditer(value):
+                if match[0] not in registered:
+                    raise ProviderError("输入含未知隐私占位符，请使用原始本地资料。")
+                parts.extend([self.text(value[offset : match.start()]), match[0]])
+                offset = match.end()
+            return "".join(parts) + self.text(value[offset:])
         if BLOB.search(value):
             raise ProviderError("隐私保护已拦截编码附件或长编码文本，请移除后重试。")
         value = re.sub(
@@ -146,12 +166,23 @@ class Redactor:
             candidates.add(json.dumps(candidate, ensure_ascii=True)[1:-1])
             candidates.add(quote(candidate, safe=""))
         candidates.update(formatted_values(value, PATTERNS))
-        if not candidates:
-            return value
-        pattern = re.compile(
-            "|".join(re.escape(v) for v in sorted(candidates, key=len, reverse=True) if v)
-        )
-        return pattern.sub(lambda match: self.token(match[0]), value)
+        spans = identifier_spans(value)
+        if candidates:
+            pattern = re.compile(
+                "|".join(literal_pattern(v) for v in sorted(candidates, key=len, reverse=True) if v)
+            )
+            spans.extend((match.start(), match.end()) for match in pattern.finditer(value))
+        merged = []
+        for start, end in sorted(spans):
+            if merged and start < merged[-1][1]:
+                merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+            else:
+                merged.append((start, end))
+        parts, offset = [], 0
+        for start, end in merged:
+            parts.extend([value[offset:start], self.token(value[start:end])])
+            offset = end
+        return "".join(parts) + value[offset:]
 
     def protect(self, value, *, fixed_keys=()):
         """逐个处理 JSON 字符串，避免转义或字典键绕过替换"""
@@ -194,6 +225,9 @@ class Redactor:
         try:
             context = json.loads(tail)
         except ValueError:
+            self.learn(value)
+            return self.text(value)
+        if not isinstance(context, (dict, list, str)):
             self.learn(value)
             return self.text(value)
         self.learn(context)
