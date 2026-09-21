@@ -252,6 +252,14 @@ def test_cli_trace_records_tool_arguments_result_and_agent_message(tmp_path, mon
         """测试不访问本机登录信息"""
         yield env
 
+    @contextmanager
+    def workspace():
+        """事件解析测试仅使用临时材料，真实目录权限由沙箱边界测试覆盖"""
+        root = tmp_path / "sandbox"
+        (root / "control").mkdir(parents=True)
+        (root / "materials").mkdir()
+        yield root
+
     def execute(command, **kwargs):
         """以真实 CLI JSON 结构模拟受限工具调用和回复"""
         if "--version" in command:
@@ -275,6 +283,7 @@ def test_cli_trace_records_tool_arguments_result_and_agent_message(tmp_path, mon
         emit({"type": "turn.completed", "usage": {"input_tokens": 12, "output_tokens": 3}})
 
     monkeypatch.setattr(cli, "connection", lambda *_: ({}, {}))
+    monkeypatch.setattr(cli, "workspace", workspace)
     monkeypatch.setattr(cli, "isolated_credentials", credentials)
     monkeypatch.setattr(cli, "native_executable", lambda *_: "synthetic-cli")
     monkeypatch.setattr(cli, "write_catalog", lambda root, selected: str(root / "catalog.json"))
