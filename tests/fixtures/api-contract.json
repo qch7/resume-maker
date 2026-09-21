@@ -126,6 +126,27 @@
             }
           },
           {
+            "name": "hide_polling",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Hide Polling"
+            }
+          },
+          {
+            "name": "polling_paths",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 2000,
+              "default": "/api/state\n/api/honors\n/api/templates/analyses/*/progress",
+              "title": "Polling Paths"
+            }
+          },
+          {
             "name": "after",
             "in": "query",
             "required": false,
@@ -277,6 +298,27 @@
               "maxLength": 40,
               "default": "",
               "title": "Until"
+            }
+          },
+          {
+            "name": "hide_polling",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Hide Polling"
+            }
+          },
+          {
+            "name": "polling_paths",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 2000,
+              "default": "/api/state\n/api/honors\n/api/templates/analyses/*/progress",
+              "title": "Polling Paths"
             }
           },
           {

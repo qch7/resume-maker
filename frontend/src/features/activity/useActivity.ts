@@ -12,11 +12,13 @@ export function useActivity(query: string, live: boolean) {
   const [hasOlder, setHasOlder] = useState(false);
   const [refresh, setRefresh] = useState(0);
   const session = useRef<AbortController | null>(null);
+  const historyRequest = useRef<Set<string> | null>(null);
   const liveRef = useRef(live);
   liveRef.current = live;
   useEffect(() => {
     const controller = new AbortController();
     session.current = controller;
+    historyRequest.current = null;
     let timer: ReturnType<typeof setTimeout>;
     let cursor = 0;
     let initialized = false;
@@ -38,7 +40,12 @@ export function useActivity(query: string, live: boolean) {
             controller.signal,
           );
           if (controller.signal.aborted) return;
-          setEvents((current) => mergeEvents(current, result.events));
+          // 历史请求可能带回旧快照，保留同期撤回的链路直到该请求结束
+          for (const trace of result.hidden_trace_ids)
+            historyRequest.current?.add(trace);
+          setEvents((current) =>
+            mergeEvents(current, result.events, false, result.hidden_trace_ids),
+          );
           setPage(result);
           setError("");
           if (!initialized) setHasOlder(result.has_more);
@@ -63,7 +70,9 @@ export function useActivity(query: string, live: boolean) {
   /** 向前加载较早记录，后端过滤和当前筛选保持一致 */
   async function loadOlder() {
     const controller = session.current;
-    if (!controller || olderLoading || !events.length) return;
+    if (!controller || historyRequest.current || !events.length) return;
+    const hidden = new Set<string>();
+    historyRequest.current = hidden;
     setOlderLoading(true);
     try {
       const result = await api<ActivityPage>(
@@ -73,11 +82,14 @@ export function useActivity(query: string, live: boolean) {
         controller.signal,
       );
       if (controller.signal.aborted) return;
-      setEvents((current) => mergeEvents(current, result.events, true));
+      setEvents((current) =>
+        mergeEvents(current, result.events, true, [...hidden]),
+      );
       setHasOlder(result.has_more);
     } catch (failure) {
       if (!controller.signal.aborted) setError((failure as Error).message);
     } finally {
+      if (historyRequest.current === hidden) historyRequest.current = null;
       if (!controller.signal.aborted) setOlderLoading(false);
     }
   }

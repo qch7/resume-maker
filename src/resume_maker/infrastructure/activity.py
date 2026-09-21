@@ -24,6 +24,7 @@ SECRET_TEXT = re.compile(
     r"-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?-----END [^-]*PRIVATE KEY-----"
 )
 MAX_DETAIL = 262_144
+DEFAULT_POLLING_PATHS = "/api/state\n/api/honors\n/api/templates/analyses/*/progress"
 SUMMARY_COLUMNS = (
     "id,created_at,category,level,source,event,title,trace_id,span_id,parent_span_id,"
     "job_id,conversation_id,project_id,duration_ms"
@@ -127,9 +128,9 @@ class ActivityLog:
             self._prune(conn)
             conn.commit()
 
-    def connect(self):
+    def connect(self, *, check_same_thread=True):
         """创建短连接，日志锁和业务事务互不共享"""
-        conn = sqlite3.connect(self.path, timeout=2)
+        conn = sqlite3.connect(self.path, timeout=2, check_same_thread=check_same_thread)
         conn.row_factory = sqlite3.Row
         return conn
 
@@ -187,10 +188,16 @@ class ActivityLog:
         conversation_id="",
         since="",
         until="",
+        hide_polling=False,
         **_,
     ):
         """组合固定列的参数化条件，关键词按字面搜索全部正文和关联标识"""
         clauses, args = [], []
+        if hide_polling and not trace_id:
+            clauses.append(
+                "NOT (category IN ('api','service') AND level='info' "
+                "AND trace_id IN (SELECT trace_id FROM hidden_polling))"
+            )
         for key, value in {
             "category": category,
             "level": level,
@@ -225,10 +232,29 @@ class ActivityLog:
             args.extend([pattern] * 6)
         return " AND ".join(clauses) or "1=1", args
 
+    def polling_cte(self, *, hide_polling=False, polling_paths=DEFAULT_POLLING_PATHS, **_):
+        """从成功响应识别轮询链路，路径只支持星号且其余字符按字面匹配"""
+        patterns = []
+        if hide_polling:
+            for path in dict.fromkeys(polling_paths.splitlines()):
+                path = path.strip()
+                if path.startswith("/api/"):
+                    escaped = path.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+                    patterns.append("GET " + escaped.replace("*", "%") + " · 200")
+        matches = " OR ".join("title LIKE ? ESCAPE '\\'" for _ in patterns) or "0"
+        return (
+            "WITH hidden_polling AS (SELECT trace_id,MAX(id) AS completed_id FROM activity "
+            "WHERE category='api' AND event='response' AND level='info' AND trace_id<>'' "
+            f"AND ({matches}) GROUP BY trace_id) ",
+            patterns,
+        )
+
     def page(self, *, after=None, before=0, limit=200, **filters):
         """返回稳定游标分页，初次读取最近记录，增量读取保持顺序且不漏页"""
         where, args = self.filters(**filters)
+        cte, polling_args = self.polling_cte(**filters)
         with closing(self.connect()) as conn:
+            conn.execute("BEGIN")
             snapshot = conn.execute("SELECT COALESCE(MAX(id),0) FROM activity").fetchone()[0]
             bounds, values = "id<=?", [snapshot]
             if after is not None:
@@ -239,9 +265,9 @@ class ActivityLog:
                 values.append(before)
             direction = "ASC" if after is not None else "DESC"
             rows = conn.execute(
-                f"SELECT {SUMMARY_COLUMNS} FROM activity WHERE {where} AND {bounds} "
+                cte + f"SELECT {SUMMARY_COLUMNS} FROM activity WHERE {where} AND {bounds} "
                 f"ORDER BY id {direction} LIMIT ?",
-                (*args, *values, limit + 1),
+                (*polling_args, *args, *values, limit + 1),
             ).fetchall()
             more = len(rows) > limit
             rows = rows[:limit]
@@ -249,15 +275,27 @@ class ActivityLog:
                 rows = rows[::-1]
             counts = dict(
                 conn.execute(
-                    f"SELECT category,COUNT(*) FROM activity WHERE {where} "
+                    cte + f"SELECT category,COUNT(*) FROM activity WHERE {where} "
                     "AND id<=? GROUP BY category",
-                    (*args, snapshot),
+                    (*polling_args, *args, snapshot),
                 ).fetchall()
             )
+            cursor = rows[-1]["id"] if after is not None and more else snapshot
+            hidden = []
+            if after is not None and filters.get("hide_polling") and not filters.get("trace_id"):
+                hidden = [
+                    row[0]
+                    for row in conn.execute(
+                        cte + "SELECT trace_id FROM hidden_polling WHERE completed_id>? "
+                        "AND completed_id<=?",
+                        (*polling_args, after, cursor),
+                    )
+                ]
         events = [dict(row) for row in rows]
         return {
             "events": events,
-            "cursor": rows[-1]["id"] if after is not None and more else snapshot,
+            "cursor": cursor,
+            "hidden_trace_ids": hidden,
             "has_more": more,
             "oldest": rows[0]["id"] if rows else 0,
             "counts": counts,
@@ -282,24 +320,26 @@ class ActivityLog:
     def export(self, **filters):
         """以固定快照分批导出 JSONL，导出过程中新增记录留给下次导出"""
         where, args = self.filters(**filters)
-        with closing(self.connect()) as conn:
+        cte, polling_args = self.polling_cte(**filters)
+        # 流式迭代串行执行，但框架可能将下一批调度到另一线程
+        with closing(self.connect(check_same_thread=False)) as conn:
+            conn.execute("BEGIN")
             snapshot = conn.execute("SELECT COALESCE(MAX(id),0) FROM activity").fetchone()[0]
-        after = 0
-        while True:
-            with closing(self.connect()) as conn:
+            after = 0
+            while True:
                 rows = conn.execute(
-                    f"SELECT * FROM activity WHERE {where} AND id>? AND id<=? "
+                    cte + f"SELECT * FROM activity WHERE {where} AND id>? AND id<=? "
                     "ORDER BY id LIMIT 200",
-                    (*args, after, snapshot),
+                    (*polling_args, *args, after, snapshot),
                 ).fetchall()
-            if not rows:
-                return
-            for row in rows:
-                value = dict(row)
-                value["payload"] = json.loads(value.pop("payload_json"))
-                value.pop("origin_key")
-                yield dump(value) + "\n"
-            after = rows[-1]["id"]
+                if not rows:
+                    return
+                for row in rows:
+                    value = dict(row)
+                    value["payload"] = json.loads(value.pop("payload_json"))
+                    value.pop("origin_key")
+                    yield dump(value) + "\n"
+                after = rows[-1]["id"]
 
     def import_history(self, db):
         """首次接入时按原时间补录已保存消息及工具事件，重启不会重复导入"""

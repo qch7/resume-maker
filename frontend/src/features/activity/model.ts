@@ -37,6 +37,7 @@ export type ActivityPage = {
   last_error: string;
   retention_days: number;
   max_records: number;
+  hidden_trace_ids: string[];
 };
 
 /** 按持久游标去重并保持时间顺序，限制当前页面内存占用 */
@@ -44,11 +45,24 @@ export function mergeEvents(
   current: ActivityEvent[],
   incoming: ActivityEvent[],
   older = false,
+  hiddenTraces: string[] = [],
 ): ActivityEvent[] {
+  const hidden = new Set(hiddenTraces);
   const values = new Map(current.map((event) => [event.id, event]));
   for (const event of incoming) values.set(event.id, event);
-  const sorted = [...values.values()].sort((a, b) => a.id - b.id);
+  const sorted = [...values.values()]
+    .filter((event) => !isHiddenPolling(event, hidden))
+    .sort((a, b) => a.id - b.id);
   return older ? sorted.slice(0, 3000) : sorted.slice(-3000);
+}
+
+/** 成功响应到达后移除普通轮询活动，保留警告、错误和 AI 工具记录 */
+export function isHiddenPolling(event: ActivityEvent, hidden: Set<string>) {
+  return (
+    hidden.has(event.trace_id) &&
+    event.level === "info" &&
+    ["api", "service"].includes(event.category)
+  );
 }
 
 /** 以可见事件的真实时间定位轨道标记，同毫秒事件仍保留可选择位置 */

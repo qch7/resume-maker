@@ -1,3 +1,7 @@
+.app-shell.activity-area {
+  height: 100dvh;
+  overflow: hidden;
+}
 .activity-area .workbench,
 .activity-area .guide-container {
   display: none;
@@ -6,6 +10,8 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
+  min-width: 0;
+  overflow: hidden;
   flex: 1;
   background: var(--surface);
   --activity-api: light-dark(#3973b5, #7ba8e6);
@@ -20,16 +26,58 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 20px;
-  padding: 20px 24px 16px;
+  gap: 8px;
+  padding: 6px 12px;
+  flex-shrink: 0;
 }
 .activity-heading h1 {
-  font-size: 20px;
+  font-size: 16px;
 }
-.activity-heading p {
-  color: var(--subtle);
-  margin: 8px 0 0;
+.activity-actions {
+  position: relative;
+  gap: 4px;
+}
+.activity-workspace .activity-actions button,
+.activity-workspace .activity-filters button {
+  padding: 4px 7px;
+  font-size: 11px;
+}
+.activity-settings {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 20;
+  width: min(380px, calc(100vw - 24px));
+  max-height: 70vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  box-shadow: 0 8px 24px #0002;
   font-size: 12px;
+}
+.activity-settings small {
+  color: var(--subtle);
+}
+.activity-settings label {
+  margin: 0;
+}
+.activity-settings textarea {
+  font:
+    12px/1.5 ui-monospace,
+    Consolas,
+    monospace;
+  resize: vertical;
+}
+.activity-settings [role="alert"] {
+  color: var(--danger);
+}
+.activity-settings .row {
+  justify-content: flex-end;
 }
 .activity-live {
   font-size: 11px;
@@ -45,13 +93,41 @@
 .activity-filters {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 24px 16px;
+  gap: 6px;
+  padding: 0 12px 6px;
   flex-wrap: wrap;
+  flex-shrink: 0;
+}
+.activity-filters input,
+.activity-filters select {
+  padding: 5px 7px;
+  font-size: 12px;
+  min-height: 28px;
+}
+.activity-polling-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  font-size: 11px;
+  cursor: pointer;
+  margin: 0;
+}
+.activity-polling-toggle input {
+  width: auto;
+  min-height: 0;
+  margin: 0;
+}
+.activity-time-filters {
+  display: flex;
+  flex-basis: 100%;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 .activity-search {
   flex: 1;
-  min-width: 220px;
+  min-width: 150px;
   display: flex;
   align-items: center;
   padding-left: 10px;
@@ -65,7 +141,7 @@
   background: transparent;
 }
 .activity-filters select {
-  width: 114px;
+  width: 98px;
 }
 .activity-filters input[type="datetime-local"] {
   width: 190px;
@@ -74,14 +150,31 @@
 .activity-overview {
   background: var(--panel);
   border-block: 1px solid var(--line);
-  padding: 10px 24px 12px;
+  padding: 4px 12px;
+  flex-shrink: 0;
+  overflow: auto;
+}
+.activity-panels {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.activity-panels > .resize-y,
+.activity-body > .resize-y {
+  flex: 0 0 6px;
+}
+.activity-body > .resize-x {
+  flex: 0 0 6px;
 }
 .activity-overview-meta {
   display: flex;
   justify-content: space-between;
   color: var(--subtle);
   font-size: 11px;
-  margin-bottom: 10px;
+  margin-bottom: 4px;
+  gap: 8px;
+  white-space: nowrap;
 }
 .activity-overview-meta b {
   color: var(--text);
@@ -89,12 +182,12 @@
 }
 .activity-track {
   display: flex;
-  height: 22px;
-  gap: 14px;
+  height: 18px;
+  gap: 8px;
   align-items: center;
 }
 .activity-track-label {
-  width: 125px;
+  width: 110px;
   flex-shrink: 0;
   border: 0;
   background: none;
@@ -171,8 +264,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 8px 24px;
-  font-size: 12px;
+  padding: 3px 12px;
+  font-size: 11px;
+  flex-shrink: 0;
   color: var(--subtle);
   border-bottom: 1px solid var(--line);
 }
@@ -188,22 +282,29 @@
   display: flex;
   flex: 1;
   min-height: 0;
+  overflow: hidden;
+  container-type: inline-size;
+}
+.activity-body.is-stacked {
+  flex-direction: column;
 }
 .activity-list {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   overflow: auto;
   overflow-anchor: none;
+  container: activity-list / inline-size;
 }
 .activity-row {
   display: flex;
   width: 100%;
-  height: 44px;
+  height: 32px;
   border: 0;
   border-bottom: 1px solid var(--line);
   border-radius: 0;
-  padding: 0 24px;
-  gap: 12px;
+  padding: 0 12px;
+  gap: 8px;
   text-align: left;
   justify-content: flex-start;
 }
@@ -229,7 +330,7 @@
   text-align: center;
 }
 .activity-event-kind {
-  width: 105px;
+  width: 85px;
   flex-shrink: 0;
   color: var(--subtle);
   font-size: 11px;
@@ -263,17 +364,22 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 14px;
+  gap: 8px;
   color: var(--subtle);
-  padding: 70px 24px;
+  padding: 24px 12px;
 }
 .activity-empty span {
   font-size: 12px;
 }
+.activity-detail-panel {
+  flex: 0 0 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
 .activity-detail {
-  width: clamp(340px, 40vw, 680px);
-  flex-shrink: 0;
-  border-left: 1px solid var(--line);
+  width: 100%;
+  height: 100%;
   background: var(--panel);
   display: flex;
   flex-direction: column;
@@ -283,7 +389,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 16px;
+  padding: 6px 10px;
+  font-size: 12px;
   border-bottom: 1px solid var(--line);
 }
 .activity-detail header button {
@@ -291,24 +398,24 @@
   font-size: 11px;
 }
 .activity-detail-scroll {
-  padding: 16px;
+  padding: 10px;
   overflow: auto;
 }
 .activity-detail h2 {
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: 13px;
+  line-height: 1.4;
   overflow-wrap: anywhere;
   max-height: 110px;
   overflow: auto;
 }
 .activity-detail h3 {
   font-size: 12px;
-  margin-top: 24px;
+  margin-top: 12px;
 }
 .activity-detail dl {
   display: grid;
   grid-template-columns: 75px minmax(0, 1fr);
-  gap: 10px;
+  gap: 6px;
   font-size: 11px;
 }
 .activity-detail dt {
@@ -327,9 +434,9 @@
 .activity-detail pre {
   background: var(--surface);
   border: 1px solid var(--line);
-  padding: 12px;
+  padding: 8px;
   font-size: 11px;
-  line-height: 1.7;
+  line-height: 1.5;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   font-family: ui-monospace, Consolas, monospace;
@@ -340,22 +447,26 @@
   gap: 10px;
   background: var(--error-soft);
   color: var(--danger);
-  padding: 8px 24px;
+  padding: 6px 12px;
   font-size: 12px;
 }
 .activity-error button {
   padding: 2px 8px;
   font-size: 11px;
 }
-.activity-footer {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 24px;
-  border-top: 1px solid var(--line);
-  color: var(--subtle);
-  font-size: 10px;
-  background: var(--panel);
+@container activity-list (max-width: 560px) {
+  .activity-event-kind {
+    display: none;
+  }
+}
+@container activity-list (max-width: 380px) {
+  .activity-duration {
+    display: none;
+  }
+  .activity-row {
+    padding-inline: 6px;
+    gap: 5px;
+  }
 }
 @media (max-width: 1100px) {
   .activity-filters input[type="datetime-local"] {
@@ -371,10 +482,9 @@
 }
 @media (max-width: 700px) {
   .activity-heading {
-    align-items: flex-start;
-    padding: 14px 12px;
+    padding: 6px 12px;
     flex-wrap: wrap;
-    gap: 12px;
+    gap: 6px;
   }
   .activity-filters,
   .activity-overview {
@@ -384,15 +494,8 @@
     width: 155px;
   }
   .activity-event-kind,
-  .activity-duration,
-  .activity-footer span:last-child {
+  .activity-duration {
     display: none;
-  }
-  .activity-detail {
-    position: absolute;
-    inset: 52px 0 0;
-    width: 100%;
-    z-index: 10;
   }
   .activity-overview-meta {
     gap: 12px;

@@ -96,6 +96,105 @@ def test_activity_cursor_filter_search_export_and_restart(tmp_path):
     assert restarted.detail(5)["title"] == "event-4"
 
 
+def test_successful_polling_filter_preserves_failures_and_raw_trace(tmp_path):
+    """默认路径只隐藏成功 GET 的普通轨迹，错误请求和关联详情仍可查看"""
+    app = create_app(Config(data_dir=tmp_path, token="synthetic-token"))
+    with TestClient(app) as client:
+        headers = {"x-resume-token": "synthetic-token"}
+        success = client.get("/api/state", headers=headers)
+        client.get("/api/state")
+        client.get("/api/missing", headers=headers)
+        client.get("/api/template-library", headers=headers)
+        query = {"hide_polling": True}
+        filtered = client.get("/api/activity", params=query, headers=headers).json()
+        assert not any(
+            row["trace_id"] == success.headers["x-request-id"] for row in filtered["events"]
+        )
+        titles = [row["title"] for row in filtered["events"]]
+        assert "GET /api/state · 401" in titles
+        assert "GET /api/missing · 404" in titles
+        assert "GET /api/template-library · 200" in titles
+        exported = client.get("/api/activity/export", params=query, headers=headers)
+        assert [json.loads(line)["id"] for line in exported.text.splitlines()] == [
+            row["id"] for row in filtered["events"]
+        ]
+        related = client.get(
+            "/api/activity",
+            params={**query, "trace_id": success.headers["x-request-id"]},
+            headers=headers,
+        ).json()
+        assert len(related["events"]) == 4
+        raw = client.get("/api/activity", headers=headers).json()
+        assert raw["total"] == filtered["total"] + 4
+        assert (
+            client.get(
+                "/api/activity", params={**query, "polling_paths": ""}, headers=headers
+            ).json()["total"]
+            == raw["total"]
+        )
+
+
+def test_polling_live_retraction_pagination_and_path_rules(tmp_path):
+    """跨轮询批次撤回先到的开始事件，分页计数和导出保持同一过滤语义"""
+    log = ActivityLog(tmp_path / "log.sqlite")
+    log.write("api", "request", "GET /api/state", trace_id="pending")
+    log.write("service", "started", "workspace.state", trace_id="pending")
+    first = log.page(hide_polling=True)
+    assert len(first["events"]) == 2
+    log.write("api", "response", "GET /api/state · 200", trace_id="pending")
+    # 相同链路上的警告和 AI、工具活动不能被过滤规则吞掉
+    for category, level in [
+        ("service", "warning"),
+        ("api", "error"),
+        ("ai", "info"),
+        ("tool", "info"),
+    ]:
+        log.write(category, "done", "keep", trace_id="pending", level=level)
+    incremental = log.page(after=first["cursor"], hide_polling=True, limit=1)
+    assert incremental["hidden_trace_ids"] == ["pending"]
+    assert incremental["total"] == 4 and incremental["has_more"]
+    found = incremental["events"]
+    while incremental["has_more"]:
+        incremental = log.page(after=incremental["cursor"], hide_polling=True, limit=1)
+        found += incremental["events"]
+    assert [row["id"] for row in found] == [4, 5, 6, 7]
+    assert len(list(log.export(hide_polling=True))) == 4
+    assert log.page(hide_polling=True, q="workspace.state")["total"] == 0
+    assert log.page(hide_polling=True, category="service")["counts"] == {"service": 1}
+    assert len(log.page(hide_polling=True, before=6)["events"]) == 2
+    log.write("api", "response", "GET /api/templates/analyses/one/progress · 200", trace_id="wild")
+    log.write("api", "response", "POST /api/state · 200", trace_id="post")
+    log.write("api", "response", "GET /api/state · 201", trace_id="created")
+    log.write("api", "response", "GET /api/state_extra · 200", trace_id="literal")
+    assert log.page(hide_polling=True)["total"] == 7
+    assert log.page(hide_polling=True, polling_paths="/api/state%extra")["total"] == 11
+    assert log.page(hide_polling=True, polling_paths="/api/state_*")["total"] == 10
+    # 只有被过滤的响应到达时也要推进游标并撤回已显示记录
+    cursor = log.page()["cursor"]
+    log.write("api", "response", "GET /api/state · 200", trace_id="last")
+    empty = log.page(after=cursor, hide_polling=True)
+    assert empty["events"] == [] and empty["cursor"] == cursor + 1
+    assert empty["hidden_trace_ids"] == ["last"]
+
+
+def test_filtered_export_keeps_snapshot_when_stream_worker_changes(tmp_path):
+    """流式下载跨工作线程仍可继续，晚到的响应不改变导出中的过滤快照"""
+    log = ActivityLog(tmp_path / "log.sqlite")
+    for index in range(201):
+        log.write("system", "done", f"event-{index}")
+    log.write("api", "request", "GET /api/state", trace_id="pending")
+    log.write("service", "started", "workspace.state", trace_id="pending")
+    stream = log.export(hide_polling=True)
+    with ThreadPoolExecutor(max_workers=1) as first, ThreadPoolExecutor(max_workers=1) as second:
+        head = first.submit(next, stream).result()
+        log.write("api", "response", "GET /api/state · 200", trace_id="pending")
+        rest = second.submit(list, stream).result()
+    exported = [json.loads(line) for line in [head, *rest]]
+    assert len(exported) == 203
+    assert exported[-1]["title"] == "workspace.state"
+    assert log.page(hide_polling=True)["total"] == 201
+
+
 def test_sensitive_values_binary_and_large_details_are_bounded(tmp_path):
     """嵌套密钥、文本鉴权、编码查询和大型内容不泄漏到列表详情及导出"""
     log = ActivityLog(tmp_path / "log.sqlite")

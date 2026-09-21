@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from resume_maker.api.dependencies import ServicesDep
 from resume_maker.core.errors import need
+from resume_maker.infrastructure.activity import DEFAULT_POLLING_PATHS
 
 router = APIRouter(prefix="/api/activity", tags=["activity"])
 
@@ -41,6 +42,8 @@ class ActivityQuery(BaseModel):
     conversation_id: str = Field(default="", max_length=100)
     since: str = Field(default="", max_length=40)
     until: str = Field(default="", max_length=40)
+    hide_polling: bool = False
+    polling_paths: str = Field(default=DEFAULT_POLLING_PATHS, max_length=2000)
     after: int | None = Field(default=None, ge=0)
     before: int = Field(default=0, ge=0)
     limit: int = Field(default=200, ge=1, le=500)
