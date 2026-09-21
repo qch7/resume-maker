@@ -1,4 +1,4 @@
-"""对模板建议自动校验和有界修正；保留最佳结果供人工核对"""
+"""对模板建议自动校验和有界修正，保留最佳结果供人工核对"""
 
 from importlib.resources import files
 
@@ -56,7 +56,7 @@ FIXED_LABELS = {
 
 
 def check_trial(source, plan, review, document, projects):
-    """识别通过后先实际生成试填副本；提前发现栏目容器与排序约束"""
+    """识别通过后先实际生成试填副本，提前发现栏目容器和排序约束"""
     if review["ready"]:
         output = source.parent / "layout-check.docx"
         try:
@@ -71,7 +71,7 @@ def check_trial(source, plan, review, document, projects):
 
 
 def complete_labels(package, plan):
-    """只补齐确定的空值标签并去重；绝不把未知正文或照片自动当作固定内容"""
+    """只补齐确定的空值标签并去重，绝不把未知正文或照片自动当作固定内容"""
     plan = plan.model_copy(deep=True)
     for key in ("keep", "remove", "photos"):
         setattr(plan, key, list(dict.fromkeys(getattr(plan, key))))
@@ -82,7 +82,7 @@ def complete_labels(package, plan):
             removal_roots[identifier] = image_container(node) if node.tag in IMAGE_TAGS else node
         except Problem:
             continue
-    # 删除父段落已经包含其图片和子段落；冗余子项不是与替换字段冲突。
+    # 删除父段落已涵盖其图片和子段落，可移除这些冗余删除项
     roots, seen, removals = set(removal_roots.values()), set(), []
     for identifier in plan.remove:
         root = removal_roots.get(identifier)
@@ -92,8 +92,8 @@ def complete_labels(package, plan):
             seen.add(root)
         removals.append(identifier)
     plan.remove = removals
-    # 删除完整父块也会删除其固定装饰；keep 不能让子图片成为一枚无资料的孤立图标。
-    # 动态 fields / photos 仍由 review 检查冲突，不能借此覆盖真正的替换目标。
+    # 删除完整父块也会删除其固定装饰，keep 不能让子图片成为一枚无资料的孤立图标
+    # 动态 fields 和 photos 的冲突继续由 review 检查
     deleted = package.descendants(list(removal_roots.values()))
     plan.keep = [identifier for identifier in plan.keep if identifier not in deleted]
     claimed = {field.node for field in plan.fields}
@@ -115,7 +115,7 @@ def complete_labels(package, plan):
 
 
 def assess_plan(package, plan, document, projects):
-    """同时核验结构与当前资料覆盖以免试填阶段才暴露漏填字段"""
+    """同时核验结构和当前资料覆盖以免试填阶段才暴露漏填字段"""
     review = package.review(plan)
     try:
         missing = missing_targets(document, plan, projects)
@@ -128,7 +128,7 @@ def assess_plan(package, plan, document, projects):
 
 
 def compact_inventory(inventory):
-    """以列定义和部件分组压缩清单；完整保留精确文字、同级及祖先约束"""
+    """以列定义和部件分组压缩清单，完整保留精确文字、同级及祖先约束"""
     parts = {}
     for node in inventory["nodes"]:
         parts.setdefault(node["part"], []).append(
@@ -145,7 +145,7 @@ def compact_inventory(inventory):
 
 
 def analysis_context(package, document, projects):
-    """提供模板原文、栏目和所需字段名；用户当前填写的个人资料值不发送给模型"""
+    """提供模板原文、栏目和所需字段名，用户当前填写的个人资料值不发送给模型"""
     requirements = {}
     for section in document.sections:
         records = section_records(document, section.title, projects)
@@ -157,7 +157,7 @@ def analysis_context(package, document, projects):
             {"id": s.id, "title": s.title, "kind": s.kind, "parent_id": s.parent_id}
             for s in document.sections
         ],
-        # 某些上游不执行 API 的结构化输出参数；正文也携带同一领域模型的字段契约。
+        # 某些上游不执行 API 的结构化输出参数，正文也携带同一领域模型的字段契约
         "output_schema": TemplatePlan.model_json_schema(),
         "completion_policy": {
             "missing_personal_text": "omit_binding",
@@ -202,7 +202,7 @@ def analyze_plan(
     initial=None,
     feedback="",
 ):
-    """最多分析三轮；把具体校验反馈交回 AI；失败或退步时保留已有最佳建议"""
+    """最多分析三轮，把具体校验反馈交回 AI，失败或退步时保留已有最佳建议"""
     source = workspace / "original.docx"
     if initial is not None and not feedback:
         package, initial, notices = complete_template(
@@ -259,7 +259,7 @@ def analyze_plan(
     usage_by_thread = {}
 
     def receive(kind, data):
-        """捕获本次模板会话用于增量修正并转发公开进度；不借用其他任务会话"""
+        """捕获本次模板会话用于增量修正并转发公开进度，不借用其他任务会话"""
         nonlocal thread_id
         if kind == "thread":
             thread_id = data["id"]
@@ -277,7 +277,7 @@ def analyze_plan(
         if flag.is_set():
             raise Cancelled("模板分析已取消。")
         if source.read_bytes() != evidence_source:
-            # 补充结构后节点编号可能全部变化；重发对应快照的清单和图片且不能续用旧编号会话
+            # 补充结构后重新发送对应快照的清单和图片并新建识别会话
             context.update(analysis_context(package, document, projects))
             pages, visual, visual_notices = source_pages(source, workspace, flag)
             sheets, shown = image_sheets(package, workspace)
@@ -414,7 +414,7 @@ def analyze_plan(
             break
     if flag.is_set():
         raise Cancelled("模板分析已取消。")
-    # 最佳方案与源快照必须一起恢复；失败轮次新增的节点不能污染此前仍可核对的方案
+    # 最佳方案和源快照必须一起恢复，失败轮次新增的节点不能污染此前仍可核对的方案
     if best_source is not None and source.read_bytes() != best_source:
         temporary = source.with_name("best-source.docx")
         temporary.write_bytes(best_source)

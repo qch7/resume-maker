@@ -1,4 +1,4 @@
-"""用独立模板验证项目空白元信息的位置、样式和重复填充且不依赖具体简历"""
+"""使用合成模板验证项目空位的位置、样式和重复填充"""
 
 from copy import deepcopy
 from io import BytesIO
@@ -25,7 +25,7 @@ def project_document():
 
 
 def plan_for(path, bindings, keep=(), row=False):
-    """按段落原文和空位出现顺序建立映射；允许测试不同容器与节点编号"""
+    """按段落原文和空位出现顺序建立映射，允许测试不同容器和节点编号"""
     package = TemplatePackage(path)
     paragraphs = [node for node in package.nodes.values() if node.tag == w("p")]
     fields = []
@@ -60,7 +60,7 @@ def plan_for(path, bindings, keep=(), row=False):
 
 
 def metadata_template(path, container, indent, role=""):
-    """构造正文或表格样本；末尾角色的原缩进故意与正文不同"""
+    """构造正文或表格样本，末尾角色的原缩进故意和正文不同"""
     doc = Document()
     if container == "body":
         area = doc
@@ -101,7 +101,7 @@ def metadata_template(path, container, indent, role=""):
 @pytest.mark.parametrize("container", ["body", "cell", "row"])
 @pytest.mark.parametrize("indent", [7, 23])
 def test_unlabelled_role_precedes_body_and_inherits_metadata_style(tmp_path, container, indent):
-    """正文、单元格与整行重复都把角色放到基本信息区并保留邻段缩进和标签字重"""
+    """正文、单元格和整行重复都把角色放到基本信息区并保留邻段缩进和标签字重"""
     source, output = tmp_path / "template.docx", tmp_path / "filled.docx"
     plan = metadata_template(source, container, indent)
     before, plan_before = source.read_bytes(), plan.model_dump()
@@ -135,7 +135,7 @@ def test_unlabelled_role_precedes_body_and_inherits_metadata_style(tmp_path, con
 
 
 def test_explicit_trailing_role_keeps_its_original_position(tmp_path):
-    """原模板有明确角色示例时遵循原位且不强制改写已有的项目布局"""
+    """模板已有角色示例时沿用原位置"""
     source, output = tmp_path / "template.docx", tmp_path / "filled.docx"
     plan = metadata_template(source, "body", 17, role="Old Role")
     fill_template(source, output, plan, project_document().model_dump(), project_content())
@@ -147,7 +147,7 @@ def test_explicit_trailing_role_keeps_its_original_position(tmp_path):
 
 @pytest.mark.parametrize("label", ["Role:", "担任角色：", "Role"])
 def test_fixed_label_preserves_native_blank_slot(tmp_path, label):
-    """固定标签与值分段时；角色仍跟随标签且不额外补标签或移动到其他位置"""
+    """标签和值分段时角色仍保留在对应标签之后"""
     source, output = tmp_path / "template.docx", tmp_path / "filled.docx"
     doc = Document()
     for text in ("Old Project", "Old Details", label, ""):
@@ -170,7 +170,7 @@ def test_fixed_label_preserves_native_blank_slot(tmp_path, label):
 
 @pytest.mark.parametrize("decoration", ["icon", "pBdr", "shd", "framePr"])
 def test_decorated_blank_role_retains_its_native_location(tmp_path, decoration):
-    """图标与显式段落装饰标识的空位仍在原处且不能按无标签留白处理"""
+    """保留带图标或段落装饰的字段空位"""
     source, output = tmp_path / "template.docx", tmp_path / "filled.docx"
     doc = Document()
     doc.add_paragraph("Old Project")
@@ -203,7 +203,7 @@ def test_decorated_blank_role_retains_its_native_location(tmp_path, decoration):
 
 @pytest.mark.parametrize("targets", list(permutations(("period", "role", "stack"))))
 def test_multiple_missing_metadata_fields_have_stable_semantic_order(tmp_path, targets):
-    """只有项目标题示例时；无论空位和映射顺序如何；新增时间、角色、技术栈顺序一致"""
+    """只有项目标题示例时，无论空位和映射顺序如何，新增时间、角色、技术栈顺序一致"""
     source, output = tmp_path / "template.docx", tmp_path / "filled.docx"
     doc = Document()
     doc.add_paragraph("Old Project")
@@ -226,7 +226,7 @@ def test_multiple_missing_metadata_fields_have_stable_semantic_order(tmp_path, t
 
 
 def test_role_in_separate_table_cell_is_not_moved_across_columns(tmp_path):
-    """表格右列的独立角色空位保留在本列且不根据左列内容猜测布局"""
+    """表格右列的角色空位保留在本列"""
     source, output = tmp_path / "template.docx", tmp_path / "filled.docx"
     doc = Document()
     table = doc.add_table(rows=1, cols=2)
@@ -250,7 +250,7 @@ def test_role_in_separate_table_cell_is_not_moved_across_columns(tmp_path):
 
 
 def test_unlabelled_role_cannot_cross_a_section_boundary(tmp_path):
-    """跨分节且没有本节元信息可依附时明确失败；交给识别修正而非静默错位"""
+    """跨节补位缺少本节元信息时返回定位错误供识别修正"""
     source, output = tmp_path / "template.docx", tmp_path / "filled.docx"
     doc = Document()
     doc.add_paragraph("Old Project")
@@ -274,7 +274,7 @@ def test_unlabelled_role_cannot_cross_a_section_boundary(tmp_path):
 
 
 def test_section_ending_after_metadata_remains_after_new_role(tmp_path):
-    """原标题同时结束当前节时；新增角色继承该节且不丢失连续分节设置"""
+    """原标题位于节末时新增角色沿用该节及连续分节设置"""
     source, output = tmp_path / "template.docx", tmp_path / "filled.docx"
     doc = Document()
     doc.add_paragraph()

@@ -5,7 +5,7 @@ from resume_maker.core.config import Config
 
 
 def test_sidebar_activity_tracks_drafts_and_conversation_edits(tmp_path, monkeypatch):
-    """验证项目活动时间聚合草稿与会话修改；重复值不会刷新时间"""
+    """验证项目活动时间聚合草稿和会话修改，重复值不会刷新时间"""
     stamp = "2026-01-01T00:00:00Z"
     monkeypatch.setattr("resume_maker.services.catalog.now", lambda: stamp)
     monkeypatch.setattr("resume_maker.services.conversations.now", lambda: stamp)
@@ -18,7 +18,7 @@ def test_sidebar_activity_tracks_drafts_and_conversation_edits(tmp_path, monkeyp
         ).json()
 
         def state():
-            """聚合项目活动时间、会话、简历、模板及最近任务；供工作台轮询"""
+            """聚合项目活动时间、会话、简历、模板及最近任务，供工作台轮询"""
             return client.get("/api/state", headers=headers).json()
 
         conversation = state()["conversations"][0]
@@ -104,7 +104,7 @@ def test_project_and_conversation_persist_after_app_restart(tmp_path):
 
 
 def test_commit_and_restore_publish_complete_working_copy(tmp_path):
-    """当前请求提交全部字段；过期提交被拒绝；恢复后项目默认版本来自主分支"""
+    """当前请求提交全部字段，过期提交被拒绝，恢复后项目默认版本来自主分支"""
     source = tmp_path / "source"
     source.mkdir()
     config = Config(data_dir=tmp_path / "data", token="test")

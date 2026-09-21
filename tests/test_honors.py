@@ -18,10 +18,10 @@ from resume_maker.infrastructure.storage import create_backup, restore_backup
 
 
 class CertificateProvider:
-    """受事件控制的识别替身；验证任务协议而不发送用户资料"""
+    """用事件控制识别替身以验证任务协议"""
 
     def __init__(self):
-        """记录模型输入；默认立即返回固定的合成证书信息"""
+        """记录模型输入，默认立即返回固定的合成证书信息"""
         self.calls = []
         self.entered = threading.Event()
         self.release = threading.Event()
@@ -52,7 +52,7 @@ class CertificateProvider:
 
 
 def certificate_bytes(kind="png", pages=1):
-    """生成与用户资料无关的真实图片或多页 PDF；用于解码和预览验证"""
+    """生成和用户资料无关的真实图片或多页 PDF，用于解码和预览验证"""
     if kind == "pdf":
         with pymupdf.open() as document:
             for index in range(pages):
@@ -75,7 +75,7 @@ def upload(client, name="certificate.png", raw=None):
 
 
 def wait_honor(client, identifier, status="review"):
-    """等待可观察的任务状态；超时包含最后一份资料以便定位失败"""
+    """等待可观察的任务状态，超时包含最后一份资料以便定位失败"""
     deadline = time.monotonic() + 6
     while time.monotonic() < deadline:
         item = next(item for item in client.get("/api/honors").json() if item["id"] == identifier)
@@ -87,7 +87,7 @@ def wait_honor(client, identifier, status="review"):
 
 @pytest.mark.parametrize("kind", ["png", "jpeg", "webp", "pdf"])
 def test_upload_recognize_review_and_persist(tmp_path, kind):
-    """PDF 和常见图片均生成原件与分页并在核对后独立持久化"""
+    """PDF 和常见图片均生成原件和分页并在核对后独立持久化"""
     provider = CertificateProvider()
     config = Config(data_dir=tmp_path / "data", token="test")
     app = create_app(config, provider)
@@ -150,7 +150,7 @@ def test_upload_recognize_review_and_persist(tmp_path, kind):
 
 
 def test_failed_recognition_keeps_original_and_allows_manual_save(tmp_path):
-    """识别失败不丢文件；人工补充后可以正常使用"""
+    """识别失败不丢文件，人工补充后可以正常使用"""
     provider = CertificateProvider()
     provider.fail = True
     with TestClient(
@@ -170,7 +170,7 @@ def test_failed_recognition_keeps_original_and_allows_manual_save(tmp_path):
 
 
 def test_cancel_and_delete_discard_late_results_and_queue_is_serial(tmp_path):
-    """取消后迟到结果不覆盖人工资料；删除排队记录不会被工作线程复活"""
+    """取消后迟到结果不覆盖人工资料，删除排队记录不会被工作线程复活"""
     provider = CertificateProvider()
     provider.release.clear()
     app = create_app(Config(data_dir=tmp_path, token="test"), provider)
@@ -226,7 +226,7 @@ def test_cancel_and_delete_discard_late_results_and_queue_is_serial(tmp_path):
     ids=["unsupported", "invalid-pdf", "invalid-image", "empty", "too-many-pages", "too-large"],
 )
 def test_invalid_upload_leaves_no_record_or_files(tmp_path, name, raw, status):
-    """无效格式、空文件、页数与字节上限均返回明确错误且不留半条数据"""
+    """无效格式、空文件、页数超限或体积超限时拒绝导入并清理数据"""
     with TestClient(
         create_app(Config(data_dir=tmp_path, token="test"), CertificateProvider()),
         headers={"x-resume-token": "test"},
@@ -237,7 +237,7 @@ def test_invalid_upload_leaves_no_record_or_files(tmp_path, name, raw, status):
 
 
 def test_honors_backup_restore_and_delete_preserve_resume_snapshot(tmp_path):
-    """荣誉及原件进入现有备份；删除库条目不连带删除简历中采用的文字"""
+    """荣誉及原件进入现有备份，删除库条目不连带删除简历中采用的文字"""
     directory = tmp_path / "data"
     app = create_app(Config(data_dir=directory, token="test"), CertificateProvider())
     with TestClient(app, headers={"x-resume-token": "test"}) as client:
@@ -302,7 +302,7 @@ def test_honors_backup_restore_and_delete_preserve_resume_snapshot(tmp_path):
 
 
 def test_restart_marks_unfinished_recognition_as_retryable(tmp_path):
-    """上次崩溃遗留的识别状态在启动时变成可重试失败；手工条目保持原样"""
+    """上次崩溃遗留的识别状态在启动时变成可重试失败，手工条目保持原样"""
     config = Config(data_dir=tmp_path, token="test")
     app = create_app(config, CertificateProvider())
     with TestClient(app, headers={"x-resume-token": "test"}) as client:

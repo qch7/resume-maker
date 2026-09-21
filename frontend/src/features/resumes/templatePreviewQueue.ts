@@ -5,7 +5,7 @@ export interface PreviewState<T> {
   error?: string;
 }
 
-/** 合并连续输入；已有 Word 请求完成后只处理最新资料且不中断请求制造后台排队 */
+/** 等待当前 Word 请求完成后处理最新输入 */
 export function createPreviewQueue<T>(
   execute: (key: string, signal: AbortSignal) => Promise<T>,
   emit: (state: PreviewState<T>) => void,
@@ -19,13 +19,13 @@ export function createPreviewQueue<T>(
   let timer: ReturnType<typeof setTimeout> | undefined;
   const controller = new AbortController();
 
-  /** 仅发布最新任务的状态；卸载后的完成事件不能再修改页面 */
+  /** 仅发布最新任务的状态，卸载后的完成事件不能再修改页面 */
   function publish(value: PreviewState<T>) {
     state = value;
     if (!disposed) emit(state);
   }
 
-  /** 每次最多一个真实请求；过时响应只释放队列且不冒充新资料 */
+  /** 串行执行预览请求并丢弃过时响应 */
   async function drain() {
     if (disposed || busy || !ready || state.key === null) return;
     const current = generation;
@@ -51,7 +51,7 @@ export function createPreviewQueue<T>(
   }
 
   return {
-    /** 相同资料无需重排版；显式重试允许绕过失败状态 */
+    /** 相同资料无需重排版，显式重试允许绕过失败状态 */
     submit(key: string | null, force = false) {
       if (disposed || (state.key === key && !force)) return;
       generation++;
@@ -64,14 +64,14 @@ export function createPreviewQueue<T>(
       });
       if (key !== null)
         timer = setTimeout(
-          /* 输入停顿后才排版；合并中间按键 */ () => {
+          /* 输入停顿后才排版，合并中间按键 */ () => {
             ready = true;
             void drain();
           },
           delay,
         );
     },
-    /** 仅卸载时取消网络读取并阻止迟到结果与后续任务 */
+    /** 仅卸载时取消网络读取并阻止迟到结果和后续任务 */
     dispose() {
       disposed = true;
       clearTimeout(timer);

@@ -5,7 +5,7 @@ import type {
 } from "../../shared/types/index.ts";
 import { isHonorEntry, isHonorSection } from "../honors/entry.ts";
 
-/** 技能栏目允许改名；默认标识和常见名称共用同一定位规则 */
+/** 技能栏目允许改名，默认标识和常见名称共用同一定位规则 */
 export function isSkillsSection(section: ResumeSection) {
   return (
     section.kind === "text" &&
@@ -13,7 +13,7 @@ export function isSkillsSection(section: ResumeSection) {
   );
 }
 
-/** 忽略空白和隐藏字段以免空壳条目被计入制作完成进度 */
+/** 只统计有可见内容的条目 */
 function hasEntryContent(entry: SectionEntry) {
   return (
     entry.visible &&
@@ -28,7 +28,7 @@ function hasEntryContent(entry: SectionEntry) {
   );
 }
 
-/** 连同父栏目检查显隐；隐藏或移除的可选栏目不阻碍后续制作 */
+/** 连同父栏目检查显隐，隐藏或移除的可选栏目不阻碍后续制作 */
 export function visibleSections(document?: ResumeDocument | null) {
   const sections = document?.sections ?? [];
   return sections.filter(
@@ -48,17 +48,16 @@ export function visibleSections(document?: ResumeDocument | null) {
   );
 }
 
-/** 依据整份简历的可见资料计算准备状态且不要求填写选填个人字段 */
+/** 根据整份简历的可见资料计算准备状态 */
 export function getProfileProgress(document?: ResumeDocument | null) {
   const personal = document?.personal;
   const sections = visibleSections(document);
   const education = sections.filter(
-    /* 教育栏目以类型识别且不受用户改名影响 */ (section) =>
-      section.kind === "education",
+    /* 按栏目类型识别教育信息 */ (section) => section.kind === "education",
   );
   const skills = sections.filter(isSkillsSection);
   const honors = sections.filter(isHonorSection);
-  /** 已移除或隐藏的可选栏目视为无需填写；有栏目时必须存在有效内容 */
+  /** 已移除或隐藏的可选栏目视为无需填写，有栏目时必须存在有效内容 */
   function ready(group: ResumeSection[]) {
     return (
       !!document &&
@@ -70,7 +69,7 @@ export function getProfileProgress(document?: ResumeDocument | null) {
     );
   }
   const selectedHonor = sections.some(
-    /* 荣誉即使移动到自定义栏目；仍按来源标识识别 */ (section) =>
+    /* 荣誉即使移动到自定义栏目，仍按来源标识识别 */ (section) =>
       section.entries.some(
         /* 手动录入和荣誉库引用都属于有效简历内容 */ (entry) =>
           isHonorEntry(entry, section) && hasEntryContent(entry),

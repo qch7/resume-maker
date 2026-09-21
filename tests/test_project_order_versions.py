@@ -1,4 +1,4 @@
-"""基本信息顺序随版本提交；以及整份草稿二次确认撤销的事务验证"""
+"""基本信息顺序随版本提交，以及整份草稿二次确认撤销的事务验证"""
 
 from copy import deepcopy
 
@@ -23,7 +23,7 @@ from resume_maker.integrations.word.templates.fill import fill_template
 def test_body_order_publishes_new_revision_and_preserves_old_export(
     catalog, project, tmp_path, layout
 ):
-    """调整进入草稿；旧版不变；提交一次产生新版本并覆盖旧简历中的排序设置"""
+    """调整进入草稿，旧版不变，提交一次产生新版本并覆盖旧简历中的排序设置"""
     identifier, initial = project["id"], project["head_revision"]
     catalog.put_draft(identifier, initial, "experience", project_info(), 0)
     base = catalog.save_revision(identifier, initial, initial)
@@ -94,13 +94,13 @@ def test_body_order_publishes_new_revision_and_preserves_old_export(
 
 @pytest.mark.parametrize("order", [["title"], ["period"], ["role", "role"], ["custom:"]])
 def test_version_order_validated(order):
-    """版本和旧布局使用相同合法字段集合；禁止重复及固定顶部字段"""
+    """版本和旧布局使用相同合法字段集合，禁止重复及固定顶部字段"""
     with pytest.raises(ValidationError):
         Experience.model_validate({**project_info(), "body_order": order})
 
 
 def test_atomic_discard_clears_only_confirmed_revision(catalog, project, populated):
-    """撤销元信息、排序及亮点增删且不影响其他基线、版本与简历显隐"""
+    """撤销当前基线的元信息、排序和亮点增删并保留其他版本及简历显隐"""
     identifier, revision = project["id"], populated["id"]
     other = project["head_revision"]
     catalog.put_draft(identifier, other, "meta", {"role": "其他基线"}, 0)
@@ -124,7 +124,7 @@ def test_atomic_discard_clears_only_confirmed_revision(catalog, project, populat
 
 @pytest.mark.parametrize("concurrent", ["update", "add", "remove"])
 def test_discard_conflict_keeps_entire_working_copy(catalog, project, populated, concurrent):
-    """确认期间另一窗口新增、修改或删除草稿时；撤销整体失败且不能部分清空"""
+    """确认期间草稿集合发生变化时整体拒绝撤销"""
     identifier, revision = project["id"], populated["id"]
     catalog.put_draft(identifier, revision, "meta", {"body_order": ORDER}, 0)
     catalog.put_draft(identifier, revision, "order", ["two", "one"], 0)
@@ -142,7 +142,7 @@ def test_discard_conflict_keeps_entire_working_copy(catalog, project, populated,
 
 
 def test_discard_api_requires_matching_snapshot(tmp_path):
-    """HTTP 撤销需要已确认的草稿版本；冲突时返回 409；成功不产生新版本"""
+    """HTTP 撤销需要已确认的草稿版本，冲突时返回 409，成功不产生新版本"""
     app = create_app(Config(data_dir=tmp_path / "data", token="qa"))
     catalog = app.state.services.catalog
     project = catalog.create_project("测试", [str(tmp_path)])

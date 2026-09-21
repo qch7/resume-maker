@@ -1,4 +1,4 @@
-"""恢复基线内容的草稿不展示未提交节点；也不生成无效版本"""
+"""恢复基线内容的草稿不展示未提交节点，也不生成无效版本"""
 
 from copy import deepcopy
 
@@ -11,7 +11,7 @@ from resume_maker.services.projects import Projects
 
 @pytest.mark.parametrize("field", ["meta", "order", "highlight:one"])
 def test_reverted_draft_not_in_history_or_new_versions(catalog, project, populated, field):
-    """已自动保存过的文字或排序改回原值；保留并发记录但历史树和版本均无差异"""
+    """已自动保存过的文字或排序改回原值，保留并发记录但历史树和版本均无差异"""
     identifier, revision = project["id"], populated["id"]
     base = populated["content"]
     original = field_value(base, field)
@@ -30,7 +30,7 @@ def test_reverted_draft_not_in_history_or_new_versions(catalog, project, populat
 
 
 def test_equivalent_explicit_order_does_not_create_versions(catalog, project, populated):
-    """已保存的明确排序可忽略失效自定义标识且不制造无意义的新版本"""
+    """已保存的排序忽略失效自定义标识后仍视为未修改"""
     identifier, revision = project["id"], populated["id"]
     base = populated["content"]
     catalog.put_draft(identifier, revision, "meta", {"body_order": project_body_order(base)}, 0)
@@ -45,7 +45,7 @@ def test_equivalent_explicit_order_does_not_create_versions(catalog, project, po
 
 
 def test_explicit_default_order_can_replace_legacy_resume_order(catalog, project, populated):
-    """旧版可能从简历继承不同顺序；用户明确改成默认顺序时仍需保存一个版本"""
+    """旧版可能从简历继承不同顺序，用户明确改成默认顺序时仍需保存一个版本"""
     identifier, revision = project["id"], populated["id"]
     base = populated["content"]
     value = {**base, "body_order": project_body_order(base)}

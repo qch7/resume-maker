@@ -5,7 +5,7 @@ import type {
 } from "../../../shared/types/index.ts";
 import { applyCustomDefaults } from "./model.ts";
 
-/** 为项目表单补齐默认项和初始显隐且不写入不可变项目版本 */
+/** 为项目表单补齐默认项和初始显示设置 */
 export function projectDefaultView(
   original: Meta,
   settings: ProjectVisibility,

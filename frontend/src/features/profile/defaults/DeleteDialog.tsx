@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-/** 已填写的默认项删除前再次确认；取消时不改变设置副本 */
+/** 已填写的默认项删除前再次确认，取消时不改变设置副本 */
 export default function DefaultDeleteDialog({
   label,
   onConfirm,
@@ -12,7 +12,7 @@ export default function DefaultDeleteDialog({
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(
-    /* 第二层弹窗独立管理焦点；关闭后返回设置界面 */ () => {
+    /* 第二层弹窗独立管理焦点，关闭后返回设置界面 */ () => {
       const element = dialog.current!;
       element.showModal();
       return /* 卸载时释放模态焦点 */ () => element.close();

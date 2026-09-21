@@ -1,7 +1,7 @@
 import type { Export, Highlight, Resume, Revision } from "../../shared/types";
 import { sameResumeDocument } from "../profile/comparison.ts";
 
-/** 将亮点选择投影到经历版本的顺序；勾选先后不参与排序 */
+/** 按经历版本中的顺序排列选中亮点 */
 export function orderedHighlightIds(
   highlights: Highlight[],
   selectedIds: string[],
@@ -12,7 +12,7 @@ export function orderedHighlightIds(
     .map(/* 沿用经历中的稳定顺序 */ (h) => h.id);
 }
 
-/** 切换亮点后恢复经历顺序；重新勾选回到原位置 */
+/** 切换亮点后恢复经历顺序，重新勾选回到原位置 */
 export function toggleHighlightSelection(
   highlights: Highlight[],
   selectedIds: string[],
@@ -24,7 +24,7 @@ export function toggleHighlightSelection(
   return orderedHighlightIds(highlights, next);
 }
 
-/** 固定引用始终按版本顺序导出；未提交亮点的选择暂存到正式条目之后 */
+/** 按固定版本顺序导出并将未提交亮点暂存于正式条目之后 */
 export function orderCompositionHighlights(
   draft: Resume,
   revisions: Record<string, Revision>,
@@ -32,7 +32,7 @@ export function orderCompositionHighlights(
   return {
     ...draft,
     items: draft.items.map(
-      /* 编辑区可单独排序；取消草稿后组合仍须恢复固定版本的顺序 */ (item) => {
+      /* 编辑区可单独排序，取消草稿后组合仍须恢复固定版本的顺序 */ (item) => {
         const highlights = revisions[item.revision_id]?.content.highlights;
         if (!highlights) return item;
         const positions = new Map(
@@ -43,7 +43,7 @@ export function orderCompositionHighlights(
         return {
           ...item,
           highlight_ids: [...item.highlight_ids].sort(
-            /* 暂存的新亮点保持相对顺序且不因版本尚未提交而丢失选择 */ (a, b) =>
+            /* 保留未提交亮点的选择和相对顺序 */ (a, b) =>
               (positions.get(a) ?? highlights.length) -
               (positions.get(b) ?? highlights.length),
           ),
@@ -53,7 +53,7 @@ export function orderCompositionHighlights(
   };
 }
 
-/** 比较实际组合内容和固定引用；忽略保存次数等非内容变化 */
+/** 比较实际组合内容和固定引用，忽略保存次数等非内容变化 */
 export function sameComposition(a: Resume | undefined, b: Resume) {
   return (
     !!a &&
@@ -65,7 +65,7 @@ export function sameComposition(a: Resume | undefined, b: Resume) {
   );
 }
 
-/** 确认导出属于当前简历且清单中的组合与当前选择一致 */
+/** 确认导出属于当前简历且清单中的组合和当前选择一致 */
 export function isCurrentExport(result: Export | null, draft: Resume) {
   return (
     !!result &&

@@ -1,4 +1,4 @@
-"""把模板已有节点编译为输出候选，模型不能把原文误写成节点标识。"""
+"""把模板已有节点编译为输出候选，模型不能把原文误写成节点标识"""
 
 from typing import Literal
 
@@ -8,12 +8,12 @@ from resume_maker.domain.templates import RepeatBinding, TemplatePlan, TextBindi
 
 
 def binding_values(cls, value):
-    """兼容 Provider 直接构造基础绑定对象，并按当前候选重新校验。"""
+    """兼容 Provider 直接构造基础绑定对象，并按当前候选重新校验"""
     return [item.model_dump() if isinstance(item, BaseModel) else item for item in value]
 
 
 def plan_schema(package, document):
-    """只约束真实节点和已知栏目；精确引文、层级及语义仍由映射校验器核验。"""
+    """限制可选节点和栏目并将引文及结构检查交给映射校验器"""
     nodes = package.inventory()["nodes"]
     paragraphs = tuple(node["id"] for node in nodes if node["kind"] == "p")
     blocks = tuple(node["id"] for node in nodes if node["kind"] in {"p", "tbl", "tr"})

@@ -14,7 +14,7 @@ from resume_maker.services.jobs import Jobs
 
 
 def test_fork_drafts_save_restore_and_pinned_resume(catalog, project, populated):
-    """同一节点分叉时草稿独立；保存和恢复只移动目标分支；简历引用不变"""
+    """同一节点分叉时草稿独立，保存和恢复只移动目标分支，简历引用不变"""
     p, base = project["id"], populated["id"]
     one, two = populated["content"]["highlights"]
     catalog.put_draft(p, base, "highlight:one", {**one, "text": "Copied draft"}, 0)
@@ -61,7 +61,7 @@ def test_fork_drafts_save_restore_and_pinned_resume(catalog, project, populated)
 
 
 def test_branch_api_validation_and_graph(tmp_path):
-    """接口返回可绘制的父关系和分支指针；拒绝重名与跨项目创建"""
+    """接口返回可绘制的父关系和分支指针，拒绝重名和跨项目创建"""
     app = create_app(Config(data_dir=tmp_path / "data", token="test"))
     roots = [tmp_path / "one", tmp_path / "two"]
     for root in roots:
@@ -95,7 +95,7 @@ def test_branch_api_validation_and_graph(tmp_path):
 
 
 def test_ai_adoption_tracks_branch_head(catalog, project, tmp_path):
-    """AI 建议只写入生成时的分支草稿；其他分支发布不使该建议过期"""
+    """AI 建议只写入生成时的分支草稿，其他分支发布不使该建议过期"""
     p, base = project["id"], project["head_revision"]
     branch = catalog.history.create(p, base, "AI 岗位版", False)
     provider = FakeProvider()

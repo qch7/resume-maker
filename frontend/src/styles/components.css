@@ -1,4 +1,4 @@
-/* 侧栏、经历、会话、简历预览与设置组件 */
+/* 侧栏、经历、会话、简历预览和设置组件 */
 .sidebar {
   display: flex;
   flex-direction: column;
@@ -1259,7 +1259,7 @@
   animation: spin 1s linear infinite;
 }
 
-/* 本机路径输入：保留文本编辑；旁边打开系统文件或文件夹选择窗口 */
+/* 本机路径输入：保留文本编辑，旁边打开系统文件或文件夹选择窗口 */
 .path-field {
   min-width: 0;
   margin: 12px 0;

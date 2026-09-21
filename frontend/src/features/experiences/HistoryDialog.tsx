@@ -7,7 +7,7 @@ import type { Branch, ProjectDetail } from "../../shared/types/index";
 import type { EditorProps } from "./types";
 import { historyGraph, revisionChanges, revisionOrigin } from "./history";
 
-/** 在历史树中预览不可变版本；或从任意节点创建独立分支 */
+/** 在历史树中预览不可变版本，或从任意节点创建独立分支 */
 export default function HistoryDialog({
   props,
   createInitially,
@@ -33,7 +33,7 @@ export default function HistoryDialog({
     detail.uncommitted,
   );
   const current = graph.nodes.find(
-    /* 草稿节点使用工作副本；正式节点仍使用不可变内容 */ (node) =>
+    /* 草稿节点使用工作副本，正式节点仍使用不可变内容 */ (node) =>
       node.revision.id === selected,
   )!.revision;
   const baseId = current.uncommitted ? current.parent_id! : current.id;
@@ -46,7 +46,7 @@ export default function HistoryDialog({
   )!;
 
   useEffect(
-    /* 使用原生模态焦点约束；关闭时归还焦点 */ () => {
+    /* 使用原生模态焦点约束，关闭时归还焦点 */ () => {
       const element = dialog.current;
       element?.showModal();
       return /* 卸载时释放原生模态状态 */ () => element?.close();
@@ -55,7 +55,7 @@ export default function HistoryDialog({
   );
 
   useEffect(
-    /* 打开历史树时先同步输入；再读取所有分支的未提交工作副本 */ () => {
+    /* 打开历史树时先同步输入，再读取所有分支的未提交工作副本 */ () => {
       const controller = new AbortController();
       void flushDrafts()
         .then(
@@ -68,7 +68,7 @@ export default function HistoryDialog({
             ),
         )
         .then(
-          /* 首次打开优先展示当前工作副本；创建分支仍以正式版本为起点 */ (
+          /* 首次打开优先展示当前工作副本，创建分支仍以正式版本为起点 */ (
             fresh,
           ) => {
             if (controller.signal.aborted) return;
@@ -104,7 +104,7 @@ export default function HistoryDialog({
     [props.detail.project.id, revisionId, createInitially],
   );
 
-  /** 先落盘输入；再创建分支；错误留在表单中；保留用户填写的名称 */
+  /** 先落盘输入，再创建分支，错误留在表单中，保留用户填写的名称 */
   async function create() {
     if (busy) return;
     setBusy(true);
@@ -136,7 +136,7 @@ export default function HistoryDialog({
       className="history-dialog"
       aria-labelledby={titleId}
       onCancel={
-        /* 创建过程中保持弹窗以免重复提交 */ (event) => {
+        /* 创建期间保留弹窗以防重复提交 */ (event) => {
           if (busy) event.preventDefault();
           else onClose();
         }
@@ -181,7 +181,7 @@ export default function HistoryDialog({
               aria-hidden="true"
             >
               {graph.edges.map(
-                /* 真实父子关系连线；分支交汇点保留颜色 */ (edge) => (
+                /* 真实父子关系连线，分支交汇点保留颜色 */ (edge) => (
                   <path
                     key={edge.from}
                     d={edge.path}
@@ -222,7 +222,7 @@ export default function HistoryDialog({
               )}
             </svg>
             {graph.nodes.map(
-              /* 一行对应一个保存版本；按钮支持键盘选择 */ ({
+              /* 一行对应一个保存版本，按钮支持键盘选择 */ ({
                 revision,
                 color,
               }) => {
@@ -281,7 +281,7 @@ export default function HistoryDialog({
             <button
               disabled={busy}
               onClick={
-                /* 将该节点载入工作区；保留简历当前固定引用 */ () => {
+                /* 将该节点载入工作区，保留简历当前固定引用 */ () => {
                   props.onRevision(baseId);
                   onClose();
                 }
@@ -304,7 +304,7 @@ export default function HistoryDialog({
               <form
                 className="history-branch-form"
                 onSubmit={
-                  /* 拦截浏览器表单跳转；通过事务接口创建分支 */ (event) => {
+                  /* 拦截浏览器表单跳转，通过事务接口创建分支 */ (event) => {
                     event.preventDefault();
                     void create();
                   }
@@ -331,7 +331,7 @@ export default function HistoryDialog({
                     checked={includeDrafts}
                     disabled={busy}
                     onChange={
-                      /* 选择是否复制未发布修改；原稿继续保留 */ (event) =>
+                      /* 选择是否复制未发布修改，原稿继续保留 */ (event) =>
                         setIncludeDrafts(event.target.checked)
                     }
                   />
@@ -402,7 +402,7 @@ export default function HistoryDialog({
               <p>{current.content.stack.join(" · ")}</p>
               <p>{current.content.description || "尚未填写项目描述"}</p>
               {(current.content.custom_fields ?? []).map(
-                /* 历史详情展示保存的自定义原文；隐藏项仍可核对和恢复 */ (
+                /* 历史详情展示保存的自定义原文，隐藏项仍可核对和恢复 */ (
                   field,
                 ) => (
                   <p key={field.id}>
@@ -413,7 +413,7 @@ export default function HistoryDialog({
                 ),
               )}
               {current.content.highlights.map(
-                /* 只展示保存内容；切换浏览不会改变原始版本 */ (point) => (
+                /* 只展示保存内容，切换浏览不会改变原始版本 */ (point) => (
                   <div className="history-highlight" key={point.id}>
                     <b>{point.title}</b>
                     <p>{point.text}</p>

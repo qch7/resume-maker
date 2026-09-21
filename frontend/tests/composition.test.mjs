@@ -35,7 +35,7 @@ test("partial and empty selections keep experience order regardless of click ord
   assert.deepEqual(selected, []);
 });
 
-test("applying a reordered revision preserves the selected subset in the new order", /* 验证显式更新版本后采用新顺序且不选中新亮点或恢复已取消的亮点 */ () => {
+test("applying a reordered revision preserves the selected subset in the new order", /* 更新版本后沿用新顺序并保留原有亮点选择 */ () => {
   const next = [
     highlights[3],
     highlights[2],

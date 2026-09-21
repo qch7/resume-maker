@@ -14,7 +14,7 @@ export const META_FIELDS: ExperienceField[] = [
   "description",
 ];
 
-/** 读取当前简历的覆盖设置；未覆盖的旧版本沿用自身的显示状态 */
+/** 读取当前简历的覆盖设置，未覆盖的旧版本沿用自身的显示状态 */
 export function fieldVisible(
   value: Meta,
   visibility: ProjectVisibility,
@@ -25,7 +25,7 @@ export function fieldVisible(
   );
 }
 
-/** 比较实际正文；兼容旧版本没有扩展字段以及 JSON 属性顺序不同的情况 */
+/** 按正文内容比较并忽略 JSON 键序及缺失的扩展字段 */
 export function experienceContent(
   value?: Experience,
   settings: ProjectVisibility = {},
@@ -35,7 +35,7 @@ export function experienceContent(
     ...META_FIELDS.map(/* 仅把正文纳入版本差异 */ (field) => value[field]),
     projectBodyOrder(value, settings),
     (value.custom_fields ?? []).map(
-      /* 显隐属于简历；名称、值及顺序属于内容 */ (field) => [
+      /* 显隐属于简历，名称、值及顺序属于内容 */ (field) => [
         field.id,
         field.label,
         field.value,

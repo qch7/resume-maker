@@ -6,7 +6,7 @@ import type { Export, Resume } from "../../shared/types";
 import { isCurrentExport } from "./composition";
 import PrintedPage from "./PrintedPage";
 
-/** 展示某次导出的固定快照；下载名采用当时名称以免与后续改名混淆 */
+/** 按导出时的名称展示和下载历史快照 */
 function ExportCard({
   result,
   draft,
@@ -20,7 +20,7 @@ function ExportCard({
   const [error, setError] = useState("");
   const current = !previewChanged && isCurrentExport(result, draft);
   const name = result.manifest?.resume.name || "简历";
-  /** 直接下载历史文件且不依赖编辑区的草稿提交是否成功 */
+  /** 历史文件可独立于草稿保存直接下载 */
   async function saveFile(file: string, filename: string) {
     setPending(true);
     setError("");
@@ -76,7 +76,7 @@ function ExportCard({
             <button
               disabled={pending}
               onClick={
-                /* PDF 与 Word 来自同一次导出 */ () =>
+                /* PDF 和 Word 来自同一次导出 */ () =>
                   void saveFile("resume.pdf", `${name}.pdf`)
               }
             >
@@ -122,11 +122,9 @@ export default function ExportHistory({
   );
   const rows = [...(latest ? [latest] : []), ...(history.data ?? [])]
     .filter(
-      /* 合并异步历史响应时；同一导出只展示一次 */ (item, index, all) =>
-        all.findIndex(
-          /* 使用导出标识去重且不根据时间误合并 */ (other) =>
-            other.id === item.id,
-        ) === index,
+      /* 合并异步历史响应时，同一导出只展示一次 */ (item, index, all) =>
+        all.findIndex(/* 按导出标识去重 */ (other) => other.id === item.id) ===
+        index,
     )
     .sort(
       /* 最新成品优先显示 */ (a, b) => b.created_at.localeCompare(a.created_at),
@@ -143,7 +141,7 @@ export default function ExportHistory({
           className="text-button"
           disabled={!draft.id}
           onClick={
-            /* 重新获取文件列表；失败后也可重试 */ () => setAttempt(attempt + 1)
+            /* 重新获取文件列表，失败后也可重试 */ () => setAttempt(attempt + 1)
           }
         >
           <RefreshCw size={13} />

@@ -11,7 +11,7 @@ import { toggleHighlightSelection } from "../src/features/resumes/composition.ts
 import { projectBodyOrder } from "../src/features/experiences/bodyOrder.ts";
 import { revisionChanges } from "../src/features/experiences/history.ts";
 
-/** 创建带隐藏默认值的旧项目版本；测试新覆盖可同时隐藏和恢复 */
+/** 创建带隐藏默认值的旧项目版本，测试新覆盖可同时隐藏和恢复 */
 function fixture() {
   const content = {
     title: "项目",
@@ -38,7 +38,7 @@ function fixture() {
   return { content, revision, draft };
 }
 
-test("项目显隐与亮点选择只改变简历，允许直接保存同一版本", /* 验证无需内容草稿即可隐藏和恢复；保留亮点原始顺序 */ () => {
+test("项目显隐与亮点选择只改变简历，允许直接保存同一版本", /* 验证无需内容草稿即可隐藏和恢复，保留亮点原始顺序 */ () => {
   const { content, revision, draft } = fixture();
   const before = structuredClone({ content, draft });
   const next = structuredClone(draft);
@@ -77,7 +77,7 @@ test("项目显隐与亮点选择只改变简历，允许直接保存同一版�
   assert.deepEqual({ content, draft }, before);
 });
 
-test("旧版简历顺序仍可读取，标题时间固定，新字段自动追加", /* 版本切换忽略缺失项但保留其存储位置；旧设置不自动改变经历 */ () => {
+test("旧版简历顺序仍可读取，标题时间固定，新字段自动追加", /* 版本切换忽略缺失项但保留其存储位置，旧设置不自动改变经历 */ () => {
   const { content, revision, draft } = fixture();
   const settings = {
     order: [
@@ -175,7 +175,7 @@ test("显隐不改变版本内容判断", () => {
   }
 });
 
-test("缺省设置兼容旧版，当前文字变更仍会阻止直接导出", /* 避免仅补默认字段误报未提交；也避免忽略真正的正文输入 */ () => {
+test("缺省设置兼容旧版，当前文字变更仍会阻止直接导出", /* 补默认字段不算修改而正文输入仍算修改 */ () => {
   const { content, revision, draft } = fixture();
   const { hidden_fields: _hidden, custom_fields: _custom, ...legacy } = content;
   assert.equal(

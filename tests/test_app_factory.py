@@ -1,4 +1,4 @@
-"""验证接口拆分后的 HTTP 契约、实例隔离、生命周期与静态资源交付"""
+"""验证接口拆分后的 HTTP 契约、实例隔离、生命周期和静态资源交付"""
 
 import json
 from pathlib import Path
@@ -20,7 +20,7 @@ def without_descriptions(value):
 
 
 def test_http_contract_matches_current_application(tmp_path):
-    """校验当前路径、参数和请求体；服务注入不能泄漏为查询参数"""
+    """校验当前路径、参数和请求体，服务注入不能泄漏为查询参数"""
     spec = create_app(Config(data_dir=tmp_path)).openapi()
     actual = {
         "paths": {
@@ -61,7 +61,7 @@ def test_applications_keep_data_and_tokens_isolated(tmp_path):
 
 
 def test_lifespan_stops_worker_even_on_exception(tmp_path):
-    """应用上下文异常退出后；工作线程仍应收到停止信号并完成回收"""
+    """应用上下文异常退出后，工作线程仍应收到停止信号并完成回收"""
     app = create_app(Config(data_dir=tmp_path))
     queue = app.state.services.jobs
     with pytest.raises(RuntimeError, match="模拟关闭异常"), TestClient(app):
@@ -93,7 +93,7 @@ def test_static_assets_and_current_token_are_served(tmp_path):
 
 
 def test_missing_frontend_and_explicit_directory(tmp_path, monkeypatch):
-    """缺少构建资源时给出操作提示；环境变量支持独立资源部署"""
+    """缺少构建资源时给出操作提示，环境变量支持独立资源部署"""
     monkeypatch.setenv("RESUME_MAKER_FRONTEND_DIR", str(tmp_path / "custom"))
     assert frontend_directory() == tmp_path / "custom"
     with TestClient(create_app(Config(data_dir=tmp_path / "data"))) as client:

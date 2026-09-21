@@ -1,4 +1,4 @@
-"""陌生模板的完整填充、样式保留、旧信息清理与错误映射边界"""
+"""陌生模板的完整填充、样式保留、旧信息清理和错误映射边界"""
 
 import base64
 from io import BytesIO
@@ -22,7 +22,7 @@ from resume_maker.integrations.word.templates.values import missing_targets
 
 
 def photo_bytes(color):
-    """生成无个人信息的纯色照片；验证包内图片是否真正更换"""
+    """生成纯色照片用于核验包内图片替换"""
     pixmap = pymupdf.Pixmap(pymupdf.csRGB, (0, 0, 30, 40), False)
     pixmap.clear_with(color)
     return pixmap.tobytes("png")
@@ -131,7 +131,7 @@ def make_template(path, *, decoration=False):
     package = TemplatePackage(path)
 
     def locate(text):
-        """用测试原文定位首次出现的段落且不依赖 XML 节点编号的具体数值"""
+        """按测试原文定位首次出现的段落"""
         return next(
             key
             for key, node in package.nodes.items()
@@ -198,7 +198,7 @@ def make_template(path, *, decoration=False):
 
 
 def test_complete_fill_keeps_layout_and_removes_old_data(tmp_path):
-    """整份替换所有容器、重复记录和照片；同时保留样式、布局与包资源"""
+    """整份替换所有容器、重复记录和照片，同时保留样式、布局和包资源"""
     source, output = tmp_path / "source.docx", tmp_path / "filled.docx"
     package, plan = make_template(source)
     assert package.review(plan)["ready"]
@@ -232,11 +232,11 @@ def test_complete_fill_keeps_layout_and_removes_old_data(tmp_path):
         assert "word/media/image1.png" not in after.namelist()
         assert photo_bytes(20) not in [after.read(name) for name in after.namelist()]
         assert photo_bytes(180) in [after.read(name) for name in after.namelist()]
-    assert package.review(plan)["ready"]  # 导出不能修改模板与映射
+    assert package.review(plan)["ready"]  # 导出不能修改模板和映射
 
 
 def test_hidden_rows_fields_and_photos_do_not_reappear(tmp_path):
-    """隐藏资料清空原位置；空重复区可移除全部表格行而不损坏文档"""
+    """隐藏资料时清空原位置并安全移除空重复区的全部表格行"""
     source, output = tmp_path / "source.docx", tmp_path / "filled.docx"
     _, plan = make_template(source)
     document = resume_content()
@@ -258,7 +258,7 @@ def test_hidden_rows_fields_and_photos_do_not_reappear(tmp_path):
     "case", ["quote", "overlap", "sample", "unknown", "keep_remove", "photo_duplicate"]
 )
 def test_invalid_mapping_is_rejected(tmp_path, case):
-    """错误位置、引文、范围与相互矛盾的分类不能产生导出文件"""
+    """错误位置、引文、范围和相互矛盾的分类不能产生导出文件"""
     source = tmp_path / "source.docx"
     package, plan = make_template(source)
     if case == "quote":
@@ -280,7 +280,7 @@ def test_invalid_mapping_is_rejected(tmp_path, case):
 
 
 def test_unresolved_and_missing_current_information_block_export(tmp_path):
-    """原文未处理或当前新填资料没有位置时；明确阻止遗漏信息的导出"""
+    """原文未处理或当前新填资料没有位置时，明确阻止遗漏信息的导出"""
     source = tmp_path / "source.docx"
     package, plan = make_template(source)
     plan.remove = []
@@ -294,7 +294,7 @@ def test_unresolved_and_missing_current_information_block_export(tmp_path):
 
 @pytest.mark.parametrize("encoded_path", [False, True])
 def test_sample_decoration_requires_explicit_confirmation(tmp_path, encoded_path):
-    """重复样本图片需要确认；仍被装饰引用的同一图片资源必须保留"""
+    """重复样本图片需要确认，仍被装饰引用的同一图片资源必须保留"""
     source = tmp_path / "source.docx"
     package, plan = make_template(source, decoration=True)
     media = "word/media/image1.png"
@@ -324,7 +324,7 @@ def test_sample_decoration_requires_explicit_confirmation(tmp_path, encoded_path
 
 
 def test_empty_insertion_and_occurrence_rules(tmp_path):
-    """空引文不能覆盖非空原文；同段多处相同值按指定次数独立替换"""
+    """空引文不能覆盖非空原文，同段多处相同值按指定次数独立替换"""
     path = tmp_path / "repeat.docx"
     doc = Document()
     doc.add_paragraph("示例 / 示例")
@@ -363,7 +363,7 @@ def test_empty_insertion_and_occurrence_rules(tmp_path):
 
 
 def test_empty_text_does_not_make_a_photo_paragraph_an_insertion_slot(tmp_path):
-    """无文字的图片与文本框容器不是空白段落；AI 和人工映射都不能占用它"""
+    """含图片或文本框的无文字段落禁止用作字段空位"""
     package, plan = make_template(tmp_path / "source.docx")
     image = next(row for row in package.inventory()["nodes"] if row["kind"] == "image")
     owner = next(row for row in package.inventory()["nodes"] if row["id"] == image["ancestors"][0])
@@ -373,7 +373,7 @@ def test_empty_text_does_not_make_a_photo_paragraph_an_insertion_slot(tmp_path):
 
 
 def test_dynamic_fields_are_frozen_without_restoring_old_values(tmp_path):
-    """无缓存的合并域自动变为可编辑空位；指令不会恢复旧值"""
+    """无缓存的合并域自动变为可编辑空位，指令不会恢复旧值"""
     path = tmp_path / "dynamic.docx"
     doc = Document()
     paragraph = doc.add_paragraph("姓名")
@@ -388,7 +388,7 @@ def test_dynamic_fields_are_frozen_without_restoring_old_values(tmp_path):
 
 
 def test_only_replaced_hyperlinks_are_removed(tmp_path):
-    """替换个人主页后不再跳转旧地址；同段明确保留的固定链接仍可使用"""
+    """替换个人主页后不再跳转旧地址，同段明确保留的固定链接仍可使用"""
     source, output = tmp_path / "links.docx", tmp_path / "result.docx"
     doc = Document()
     paragraph = doc.add_paragraph()

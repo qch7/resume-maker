@@ -61,7 +61,7 @@ export default function TemplateAdapter({
   const [path, setPath] = useState("");
   const [name, setName] = useState("");
   const [libraryId, setLibraryId] = useState<string | null>(
-    /* 未显式选择时跟随当前简历；空字符串明确表示内置版式 */ () =>
+    /* 未显式选择时跟随当前简历，空字符串明确表示内置版式 */ () =>
       sessionStorage.getItem("rm.template.library"),
   );
   const [taskId, setTaskId] = useState(
@@ -157,14 +157,14 @@ export default function TemplateAdapter({
           ? "当前简历已使用此模板"
           : "识别结果已保存，可用于当前简历"
         : saveDisabledReason || "试填已生成，可以保存识别结果");
-  // 恢复中的分析优先保留；显式选模板时才替换以免覆盖尚未保存的识别
+  // 恢复中的分析优先保留，显式选模板时才替换以免覆盖尚未保存的识别
   const requestedId = useRef(taskId ? savedId : "");
   const libraryRequest = useRef<AbortController | null>(null);
   const selectionVersion = useRef(0);
   const selection = selectionVersion.current;
   const viewedResume = useRef<string | null>(null);
   useEffect(
-    /* 新进入的简历默认显示其实际版式；同一简历切换栏目不重置模板编辑 */ () => {
+    /* 新进入的简历默认显示其实际版式，同一简历切换栏目不重置模板编辑 */ () => {
       if (!active) return;
       const key = JSON.stringify([resume.id, resume.template_id]);
       if (viewedResume.current !== key) {
@@ -194,20 +194,20 @@ export default function TemplateAdapter({
     [],
   );
   useEffect(
-    /* 资料变化后旧试填不再代表当前简历；必须重新生成 */ () => {
+    /* 资料变化后旧试填不再代表当前简历，必须重新生成 */ () => {
       setPreview(null);
       setPreviewStale(false);
     },
     [previewInput],
   );
   useEffect(
-    /* 首次及完成时加载结果；运行中只拉增量活动；重连不丢失任务 */ () => {
+    /* 首次及完成时加载结果，运行中只拉增量活动，重连不丢失任务 */ () => {
       if (!taskId) return;
       const controller = new AbortController();
       let timer: ReturnType<typeof setTimeout>;
       let loaded = false;
       let cursor = 0;
-      /** 响应后才安排下一轮；结束后不再覆盖用户的人工调整 */
+      /** 响应后才安排下一轮，结束后不再覆盖用户的人工调整 */
       async function poll() {
         try {
           if (loaded) {
@@ -223,12 +223,12 @@ export default function TemplateAdapter({
             )
               return;
             setNotice(
-              /* 重连成功只清除连接提示；保留其他操作反馈 */ (previous) =>
+              /* 重连成功只清除连接提示，保留其他操作反馈 */ (previous) =>
                 previous === "实时动态连接中断，正在重新连接…" ? "" : previous,
             );
             cursor = progress.cursor;
             setAnalysis(
-              /* 合并增量活动；保留已加载的清单和方案 */ (previous) =>
+              /* 合并增量活动，保留已加载的清单和方案 */ (previous) =>
                 previous?.id === taskId
                   ? {
                       ...previous,
@@ -314,7 +314,7 @@ export default function TemplateAdapter({
     [taskId],
   );
   useEffect(
-    /* 每次调整后自动校验当前方案；取消旧请求以免覆盖较新的修改 */ () => {
+    /* 调整后重新校验并取消旧请求 */ () => {
       if (!plan || !taskId || running) return;
       const controller = new AbortController();
       const timer = setTimeout(
@@ -342,7 +342,7 @@ export default function TemplateAdapter({
     [plan, taskId, document, resume.items, running],
   );
   useEffect(
-    /* 当前页检查通过后自动试填一次；旧试填结束再处理新模板以免 Word 请求堆积 */ () => {
+    /* 检查通过后串行试填以免 Word 请求堆积 */ () => {
       if (
         !active ||
         !autoPreview.current ||
@@ -359,7 +359,7 @@ export default function TemplateAdapter({
     },
     [active, plan, review, busy, loading, running],
   );
-  /** 带上当前人工修改和用户说明；交给 AI 自动补全并建立独立结果 */
+  /** 将人工修改和补充说明交给 AI 生成独立调整结果 */
   async function repair(instructions = feedback) {
     const value = await api<TemplateAnalysis>(
       `/templates/analyses/${taskId}/repair`,
@@ -368,7 +368,7 @@ export default function TemplateAdapter({
     );
     if (isCurrent()) {
       openTask(value);
-      // 只清除本次已提交的说明；修复问题时保留用户尚未提交的文字
+      // 只清除本次已提交的说明，修复问题时保留用户尚未提交的文字
       if (instructions === feedback) setFeedback("");
     }
   }
@@ -382,7 +382,7 @@ export default function TemplateAdapter({
       current.previewInput === previewInput
     );
   }
-  /** 修改后保留上次真实页面供对照；撤销旧校验并禁止保存过期预览 */
+  /** 修改后保留上次真实页面供对照，撤销旧校验并禁止保存过期预览 */
   function edit(value: TemplatePlan) {
     autoPreview.current = false;
     setPlan(value);
@@ -390,7 +390,7 @@ export default function TemplateAdapter({
     setPreviewStale(true);
     setView("preview");
   }
-  /** 将读取和保存的失败原因显示在工作区；保持用户已编辑的映射 */
+  /** 将读取和保存的失败原因显示在工作区，保持用户已编辑的映射 */
   async function perform(work: () => Promise<void>) {
     setBusy(true);
     setNotice("");
@@ -402,7 +402,7 @@ export default function TemplateAdapter({
       setBusy(false);
     }
   }
-  /** 新文件识别失败单独显示文件名；保留当前模板结果并标明其归属 */
+  /** 新文件识别失败单独显示文件名，保留当前模板结果并标明其归属 */
   async function recognize() {
     setBusy(true);
     setNotice("");
@@ -425,7 +425,7 @@ export default function TemplateAdapter({
       setBusy(false);
     }
   }
-  /** 内置版式直接展示；导入模板读取映射；快速切换时拒绝迟到结果 */
+  /** 内置版式直接展示，导入模板读取映射，快速切换时拒绝迟到结果 */
   async function loadSaved(id: string) {
     libraryRequest.current?.abort();
     const controller = new AbortController();
@@ -461,7 +461,7 @@ export default function TemplateAdapter({
       if (!controller.signal.aborted) setLoading(false);
     }
   }
-  /** 接入新分析或已保存模板快照；清除上一份模板的选区和试填 */
+  /** 接入新分析或已保存模板快照，清除上一份模板的选区和试填 */
   function openTask(value: TemplateAnalysis, templateId = "") {
     autoPreview.current = true;
     setImportError(null);
@@ -481,7 +481,7 @@ export default function TemplateAdapter({
     if (templateId) sessionStorage.setItem("rm.template.library", templateId);
     else sessionStorage.removeItem("rm.template.library");
   }
-  /** 点选文字、图片或同级范围；禁止跨单元格或跨部件拼接范围 */
+  /** 点选文字、图片或同级范围，禁止跨单元格或跨部件拼接范围 */
   function select(id: string, extend = false) {
     const node = nodes.find(/* 定位用户点击的节点 */ (item) => item.id === id);
     const anchor = rangeAnchor ?? (extend ? selected[0] : undefined);
@@ -503,7 +503,7 @@ export default function TemplateAdapter({
     }
     setView("preview");
   }
-  /** 右侧定位始终选择单个位置且不继承尚未完成的范围选择 */
+  /** 右侧定位会清除范围选择并选中单个位置 */
   function locate(id: string) {
     setRangeAnchor(null);
     setSelected([id]);
@@ -520,7 +520,7 @@ export default function TemplateAdapter({
           ?.focus(),
     );
   }
-  /** 使用当前简历生成真实 Word 和分页图且不让迟到预览覆盖后续资料 */
+  /** 用当前简历生成 Word 和分页图并丢弃过时结果 */
   async function trial() {
     const value = await api<TemplateTrialPreview>(
       `/templates/analyses/${taskId}/preview`,
@@ -533,7 +533,7 @@ export default function TemplateAdapter({
       setView("preview");
     }
   }
-  /** 只保存识别结果到模板库；当前简历的模板选择由独立操作控制 */
+  /** 只保存识别结果到模板库，当前简历的模板选择由独立操作控制 */
   async function save() {
     const value = await api<{ id: string }>(
       `/templates/analyses/${taskId}/save`,
@@ -547,12 +547,12 @@ export default function TemplateAdapter({
       setLibraryId(value.id);
       setSavedSnapshot(currentSnapshot);
       sessionStorage.setItem("rm.template.library", value.id);
-      // 刷新后应重开刚保存的版本且不能恢复未包含人工修正的原分析结果
+      // 刷新后重开包含人工修正的已保存版本
       sessionStorage.removeItem("rm.template.analysis");
       setNotice("识别结果已保存到模板库。");
     }
   }
-  /** 仅应用当前已保存版本；人工修改尚未保存时不能悄悄采用旧版本 */
+  /** 仅应用当前已保存版本，人工修改尚未保存时不能悄悄采用旧版本 */
   function applySaved() {
     if (applyDisabledReason) return;
     onSelected(builtin ? null : savedId);
@@ -590,7 +590,7 @@ export default function TemplateAdapter({
               className="primary"
               disabled={busy || loading || running || !path.trim()}
               onClick={
-                /* 将所选文件交给 AI 识别；失败信息与当前模板分开呈现 */ () =>
+                /* 将所选文件交给 AI 识别，失败信息和当前模板分开呈现 */ () =>
                   void recognize()
               }
             >
@@ -608,7 +608,7 @@ export default function TemplateAdapter({
                 taskId && !savedId ? "当前导入 · 尚未保存" : undefined
               }
               onChange={
-                /* 确认后打开模板；继续沿用工作区的显式使用流程 */ (id) => {
+                /* 确认后打开模板，继续沿用工作区的显式使用流程 */ (id) => {
                   void loadSaved(id);
                 }
               }
@@ -648,7 +648,7 @@ export default function TemplateAdapter({
                 onResize("templateProgress", DEFAULT_LAYOUT.templateProgress)
             }
             onCancel={
-              /* 取消后立即呈现冻结的进度；服务端拒绝迟到结果 */ () =>
+              /* 取消后立即呈现冻结的进度，服务端拒绝迟到结果 */ () =>
                 void perform(
                   /* 读取取消响应并保留本任务的活动记录 */ async () => {
                     setAnalysis(
@@ -690,7 +690,7 @@ export default function TemplateAdapter({
                 <button
                   disabled={busy || running}
                   onClick={
-                    /* 加载失败时保留明确重试入口且不覆盖已打开的人工调整 */ () =>
+                    /* 加载失败时保留重试入口和已打开的人工调整 */ () =>
                       void loadSaved(savedId)
                   }
                 >
@@ -742,7 +742,7 @@ export default function TemplateAdapter({
                     review={review}
                     onLocate={locate}
                     onRepair={
-                      /* 专门修复检查问题且不混入尚未提交的调整说明 */ () =>
+                      /* 单独提交检查问题的修复请求 */ () =>
                         void perform(
                           /* 空说明仍会把当前方案及完整校验结果交给 AI */ () =>
                             repair(""),
@@ -772,7 +772,7 @@ export default function TemplateAdapter({
                 min={260}
                 max={sizes.inspectorMax}
                 onChange={
-                  /* 调整右栏宽度并让左侧预览自动占用剩余空间 */ (value) =>
+                  /* 调整右栏宽度并由左侧预览填满剩余空间 */ (value) =>
                     onResize("templateInspector", value)
                 }
                 onReset={
@@ -878,14 +878,14 @@ export default function TemplateAdapter({
                   )}
                 </div>
                 {analysis?.inventory.notices?.map(
-                  /* 自动处理仅作说明且不阻止识别和试填 */ (message) => (
+                  /* 自动处理说明仅供查看 */ (message) => (
                     <p className="subtle" key={message}>
                       {message}
                     </p>
                   ),
                 )}
                 {review?.notices?.map(
-                  /* 在试填前说明复杂栏目的排版调整；方便核对模板效果 */ (
+                  /* 在试填前说明复杂栏目的排版调整，方便核对模板效果 */ (
                     message,
                   ) => (
                     <p className="subtle" key={message}>
@@ -922,10 +922,7 @@ export default function TemplateAdapter({
                     </p>
                     {!review.ready && (
                       <button
-                        onClick={
-                          /* 返回集中问题列表且不重复显示大量段落 */ () =>
-                            setView("summary")
-                        }
+                        onClick={/* 返回问题列表 */ () => setView("summary")}
                       >
                         查看需要确认的内容
                       </button>

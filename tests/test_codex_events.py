@@ -17,7 +17,7 @@ from resume_maker.integrations.providers.codex import CodexProvider, structured_
 @pytest.mark.parametrize("fenced", [False, True])
 @pytest.mark.parametrize("reconnected", [False, True])
 def test_public_events_and_resumed_schema(monkeypatch, tmp_path, fenced, reconnected):
-    """模拟 CLI 事件；保留会话和用量；同时只向界面发布公开摘要"""
+    """模拟 CLI 事件，保留会话和用量，同时只向界面发布公开摘要"""
     plan = TemplatePlan(
         summary="最终结果", fields=[], repeats=[], photos=[], keep=[], remove=[], warnings=[]
     )
@@ -50,7 +50,7 @@ def test_public_events_and_resumed_schema(monkeypatch, tmp_path, fenced, reconne
     environments = []
 
     class Process:
-        """以可读取流替代真实 CLI且不触发外部模型"""
+        """使用可读取流模拟 CLI 输出"""
 
         def __init__(self, command, **kwargs):
             """记录命令并准备模拟输出及空错误流"""
@@ -134,7 +134,7 @@ def test_public_events_and_resumed_schema(monkeypatch, tmp_path, fenced, reconne
     ],
 )
 def test_structured_message_cannot_hide_extra_text_or_multiple_results(message):
-    """去包装不能吞掉块外结构化数据、多个结果或截断内容。"""
+    """去包装不能吞掉块外结构化数据、多个结果或截断内容"""
     with pytest.raises(ValueError):
         json.loads(structured_text(message))
 
@@ -143,12 +143,12 @@ def test_structured_message_cannot_hide_extra_text_or_multiple_results(message):
     "prefix,suffix", [("说明如下：\n", ""), ("", "\n映射完成。"), ("已检查 `n1`。\n", "\n结束。")]
 )
 def test_unique_json_fence_allows_prose_wrapper(prefix, suffix):
-    """唯一完整代码块可以忽略非数据说明；字段和节点仍须通过同一严格模型校验。"""
+    """唯一完整代码块可以忽略非数据说明，字段和节点仍须通过同一严格模型校验"""
     assert json.loads(structured_text(prefix + '```json\n{"x":1}\n```' + suffix)) == {"x": 1}
 
 
 def test_failed_turn_remains_failure_even_with_valid_json(monkeypatch, tmp_path):
-    """重连未成功完成时不能仅凭中间 JSON 把失败判为通过。"""
+    """重连未成功完成时不能仅凭中间 JSON 把失败判为通过"""
     plan = TemplatePlan(
         summary="中间结果", fields=[], repeats=[], photos=[], keep=[], remove=[], warnings=[]
     )
@@ -161,7 +161,7 @@ def test_failed_turn_remains_failure_even_with_valid_json(monkeypatch, tmp_path)
     ]
 
     def launch(*args, **kwargs):
-        """构造退出码正常但当前轮次失败的 CLI 事件流。"""
+        """构造退出码正常但当前轮次失败的 CLI 事件流"""
         return SimpleNamespace(
             stdin=StringIO(),
             stdout=StringIO("\n".join(json.dumps(event) for event in events)),
@@ -185,7 +185,7 @@ def test_failed_turn_remains_failure_even_with_valid_json(monkeypatch, tmp_path)
 
 
 def test_invalid_output_exposes_field_path_for_repair(monkeypatch, tmp_path):
-    """结构校验失败携带真实字段路径，而不是只有不可用于修正的通用报错。"""
+    """结构校验失败时返回出错字段的实际路径"""
     response = json.dumps(
         {
             "summary": [],
@@ -203,7 +203,7 @@ def test_invalid_output_exposes_field_path_for_repair(monkeypatch, tmp_path):
     ]
 
     def launch(*args, **kwargs):
-        """模拟已成功连接但返回错误字段类型的模型。"""
+        """模拟已成功连接但返回错误字段类型的模型"""
         return SimpleNamespace(
             stdin=StringIO(),
             stdout=StringIO("\n".join(json.dumps(e) for e in events)),
@@ -230,29 +230,29 @@ def test_invalid_output_exposes_field_path_for_repair(monkeypatch, tmp_path):
 
 
 def test_startup_failure_reports_cli_diagnostic_instead_of_broken_pipe(monkeypatch, tmp_path):
-    """配置无效导致 CLI 提前退出时保留真正错误，不能被 stdin BrokenPipe 覆盖。"""
+    """CLI 因配置无效提前退出时优先报告 stderr 中的错误"""
 
     class ClosedInput(StringIO):
-        """模拟 CLI 已经关闭输入管道。"""
+        """模拟 CLI 已经关闭输入管道"""
 
         def write(self, value):
-            """写入尚未启动的模型请求时抛出管道错误。"""
+            """写入尚未启动的模型请求时抛出管道错误"""
             raise BrokenPipeError("closed")
 
     class Process:
-        """模拟配置解析失败而提前退出的 CLI。"""
+        """模拟配置解析失败而提前退出的 CLI"""
 
         def __init__(self, *args, **kwargs):
-            """保留错误流供正常收集路径读取。"""
+            """保留错误流供正常收集路径读取"""
             self.stdin, self.stdout = ClosedInput(), StringIO()
             self.stderr = StringIO("Invalid model catalog: missing slug\n")
 
         def wait(self, timeout):
-            """配置错误退出码。"""
+            """配置错误退出码"""
             return 1
 
         def poll(self):
-            """进程已退出，无需回收。"""
+            """进程已退出，无需回收"""
             return 1
 
     monkeypatch.setattr("resume_maker.integrations.providers.codex.subprocess.Popen", Process)

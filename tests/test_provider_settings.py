@@ -16,7 +16,7 @@ from resume_maker.services.templates.tasks import Templates
 
 
 def test_settings_persist_normalize_and_fill_defaults(tmp_path):
-    """保存全部功能覆盖后重开应用仍保留；缺省字段补齐且模型空白会被清除"""
+    """保存全部功能覆盖后重开应用仍保留，缺省字段补齐且模型空白会被清除"""
     config = Config(data_dir=tmp_path, token="test")
     app = create_app(config)
     app.state.services.db.set_setting("provider", {"model": "existing-model"})
@@ -64,7 +64,7 @@ def test_settings_persist_normalize_and_fill_defaults(tmp_path):
     ],
 )
 def test_invalid_settings_do_not_replace_saved_configuration(tmp_path, invalid):
-    """拒绝未知强度与功能标识；校验失败不能覆盖已保存的配置"""
+    """拒绝未知强度和功能标识，校验失败不能覆盖已保存的配置"""
     with TestClient(
         create_app(Config(data_dir=tmp_path, token="test")), headers={"x-resume-token": "test"}
     ) as client:
@@ -84,7 +84,7 @@ def test_invalid_settings_do_not_replace_saved_configuration(tmp_path, invalid):
 def test_project_buttons_use_independent_settings_snapshot(
     catalog, populated, tmp_path, kind, scope, expected
 ):
-    """三个经历入口逐字段继承；排队后修改设置不会改变已提交任务"""
+    """三个经历入口逐字段继承，排队后修改设置不会改变已提交任务"""
     provider = FakeProvider()
     jobs = Jobs(catalog.db, catalog, tmp_path / "data", provider)
     settings = ProviderSettings(
@@ -119,7 +119,7 @@ def test_project_buttons_use_independent_settings_snapshot(
 
 
 def test_connection_check_uses_its_override_and_inherits_after_reset(tmp_path, monkeypatch):
-    """连接测试采用独立配置；清空覆盖后立即继承全局默认"""
+    """连接测试采用独立配置，清空覆盖后立即继承全局默认"""
     calls = []
 
     def run(self, **kwargs):
@@ -149,7 +149,7 @@ def test_connection_check_uses_its_override_and_inherits_after_reset(tmp_path, m
 
 
 class ThreeRoundProvider(TemplateProvider):
-    """前两轮留下不同的待修正方案；第三轮补齐姓名"""
+    """前两轮留下不同的待修正方案，第三轮补齐姓名"""
 
     def run_structured(self, **kwargs):
         """触发完整三轮识别以检查强度不会被内部策略覆盖"""
@@ -161,7 +161,7 @@ class ThreeRoundProvider(TemplateProvider):
 
 
 def test_template_recognition_and_both_repair_buttons_use_selected_settings(catalog, tmp_path):
-    """识别三轮固定使用用户配置；两种人工完善入口使用各自提交时的覆盖"""
+    """识别三轮固定使用用户配置，两种人工完善入口使用各自提交时的覆盖"""
     source = tmp_path / "source.docx"
     simple_template(source)
     provider = ThreeRoundProvider(block=True)
@@ -214,7 +214,7 @@ def test_template_recognition_and_both_repair_buttons_use_selected_settings(cata
 
 @pytest.mark.parametrize("override", [{"model": "another-model"}, {"reasoning_effort": "high"}])
 def test_changed_template_settings_do_not_reuse_old_model_cache(catalog, tmp_path, override):
-    """切换模板模型或强度后重新识别；相同设置仍复用已通过校验的结果"""
+    """切换模板模型或强度后重新识别，相同设置仍复用已通过校验的结果"""
     source = tmp_path / "source.docx"
     simple_template(source)
     provider = TemplateProvider()

@@ -48,7 +48,7 @@ def test_macro_enabled_package_becomes_standard_editable_docx(tmp_path):
 
 
 def page_pdf(output, count=1, *, scan=False):
-    """生成含真实文字的脱敏分页作为排版器输出；测试不依赖本机 Word"""
+    """生成含真实文字的脱敏分页作为排版器输出，测试不依赖本机 Word"""
     with pymupdf.open() as pdf:
         for number in range(count):
             page = pdf.new_page(width=595, height=842)
@@ -64,15 +64,15 @@ def page_pdf(output, count=1, *, scan=False):
 
 
 class RecoveryProvider(TemplateProvider):
-    """同时模拟图片转可编辑页与后续精确映射；两个阶段使用不同 schema"""
+    """同时模拟图片转可编辑页和后续精确映射，两个阶段使用不同 schema"""
 
     def __init__(self, cancel=False):
-        """记录逐页请求；可在恢复返回时触发取消来检查迟到结果隔离"""
+        """记录逐页请求，可在恢复返回时触发取消来检查迟到结果隔离"""
         super().__init__()
         self.pages, self.cancel = [], cancel
 
     def run_structured(self, **kwargs):
-        """恢复页包含独立原文段落；映射只使用恢复后重新分配的节点"""
+        """恢复页包含独立原文段落，映射只使用恢复后重新分配的节点"""
         from resume_maker.domain.image_layout import ImagePage, ImageText
 
         if kwargs["result_model"] is ImagePage:
@@ -111,7 +111,7 @@ class RecoveryProvider(TemplateProvider):
 
 @pytest.mark.parametrize("kind", ["object", "chart", "drawing-text", "altChunk", "scan"])
 def test_complex_word_formats_automatically_recover_and_fill(catalog, tmp_path, monkeypatch, kind):
-    """无文字来源可恢复；可编辑 DOCX 遇到不支持对象时保留原件并报告具体问题"""
+    """无文字来源可恢复，可编辑 DOCX 遇到不支持对象时保留原件并报告具体问题"""
     source = tmp_path / "source.docx"
     doc = Document()
     paragraph = doc.add_paragraph("" if kind in {"scan", "drawing-text"} else "原姓名")
@@ -172,7 +172,7 @@ def test_complex_word_formats_automatically_recover_and_fill(catalog, tmp_path, 
 
 @pytest.mark.parametrize("kind", ["pdf", "png"])
 def test_pdf_and_scanned_image_sources_enter_same_mapping_workflow(catalog, tmp_path, kind):
-    """PDF 按页恢复；扫描图片直接进入视觉识别且不要求用户预先转换格式"""
+    """PDF 按页恢复且扫描图片直接进入视觉识别"""
     pdf = tmp_path / "source.pdf"
     page_pdf(pdf, 2 if kind == "pdf" else 1)
     source = tmp_path / f"source.{kind}"
@@ -190,7 +190,7 @@ def test_pdf_and_scanned_image_sources_enter_same_mapping_workflow(catalog, tmp_
 
 
 def test_legacy_word_is_converted_in_background(catalog, tmp_path, monkeypatch):
-    """旧版 Word 的转换发生在独立任务中；输入快照与源文件互不覆盖"""
+    """旧版 Word 的转换发生在独立任务中，输入快照和源文件互不覆盖"""
     source = tmp_path / "legacy.doc"
     source.write_bytes(b"legacy-document")
     calls = []
@@ -214,7 +214,7 @@ def test_legacy_word_is_converted_in_background(catalog, tmp_path, monkeypatch):
 
 
 def test_cancelling_page_recovery_does_not_publish_late_plan(catalog, tmp_path):
-    """恢复过程取消后既不启动映射；也不把迟到的恢复结果发布为可用模板"""
+    """恢复过程取消后既不启动映射，也不把迟到的恢复结果发布为可用模板"""
     source = tmp_path / "source.pdf"
     page_pdf(source, scan=True)
     provider = RecoveryProvider(cancel=True)
@@ -226,7 +226,7 @@ def test_cancelling_page_recovery_does_not_publish_late_plan(catalog, tmp_path):
 
 
 def test_revisions_and_data_bindings_are_frozen_without_manual_cleanup(tmp_path):
-    """修订保留新增内容并清除删除内容；绑定和编辑锁定自动解除；原文不被改写"""
+    """修订保留新增内容并清除删除内容，绑定和编辑锁定自动解除，原文不被改写"""
     source = tmp_path / "revisions.docx"
     doc = Document()
     paragraph = doc.add_paragraph()
@@ -250,7 +250,7 @@ def test_revisions_and_data_bindings_are_frozen_without_manual_cleanup(tmp_path)
 
 
 def test_long_templates_are_not_rejected_by_node_count(tmp_path):
-    """保留超过旧节点数量阈值的全文；识别层不再要求用户删去页面"""
+    """保留超过旧节点数量阈值的全文，识别层不再要求用户删去页面"""
     source = tmp_path / "long.docx"
     doc = Document()
     for index in range(2001):
@@ -262,7 +262,7 @@ def test_long_templates_are_not_rejected_by_node_count(tmp_path):
 
 @pytest.mark.parametrize("kind", ["docx", "pdf"])
 def test_empty_source_builds_editable_framework(catalog, tmp_path, kind):
-    """空白 DOCX 和未识别到内容的 PDF 均自动建框架且不把 PDF 对象误当简历资料"""
+    """为空白 DOCX 和未识别到内容的 PDF 自动生成资料框架"""
     source = tmp_path / f"empty.{kind}"
     if kind == "docx":
         Document().save(source)
@@ -272,10 +272,10 @@ def test_empty_source_builds_editable_framework(catalog, tmp_path, kind):
             pdf.save(source)
 
     class EmptyProvider(RecoveryProvider):
-        """模拟空白页返回空结构；后续映射仍使用真实生成的段落"""
+        """模拟空白页返回空结构，后续映射仍使用真实生成的段落"""
 
         def run_structured(self, **kwargs):
-            """返回空页面；让恢复器依据当前资料字段建立占位模板"""
+            """返回空页面，让恢复器依据当前资料字段建立占位模板"""
             if kwargs["result_model"] is RecoveredPage:
                 return RecoveredPage(blocks=[])
             return super().run_structured(**kwargs)
@@ -289,7 +289,7 @@ def test_empty_source_builds_editable_framework(catalog, tmp_path, kind):
 
 
 def test_blank_framework_uses_photo_placeholder_without_user_image(tmp_path):
-    """空白框架支持照片映射；但发送识别的占位图不复制真实用户照片"""
+    """空白框架支持照片映射，但发送识别的占位图不复制真实用户照片"""
     content = simple_document()
     content.personal.photo = "data:image/png;base64,cHJpdmF0ZS1waG90bw=="
     output = tmp_path / "blank.docx"
@@ -301,7 +301,7 @@ def test_blank_framework_uses_photo_placeholder_without_user_image(tmp_path):
 
 
 def test_editable_source_never_uses_lossy_recovery_when_word_is_unavailable(tmp_path, monkeypatch):
-    """Word 不可用不会使原生 DOCX 退化为 OCR 文字；未支持对象留在副本并报告"""
+    """Word 不可用不会使原生 DOCX 退化为 OCR 文字，未支持对象留在副本并报告"""
     source, output = tmp_path / "source.docx", tmp_path / "original.docx"
     doc = Document()
     etree.SubElement(doc.add_paragraph("原姓名")._p, w("object"))
@@ -321,12 +321,12 @@ def test_editable_source_never_uses_lossy_recovery_when_word_is_unavailable(tmp_
 
 
 def test_recovery_retries_invalid_photo_coordinates(catalog, tmp_path):
-    """错误裁剪坐标自动重试；成功后保留有效照片且不静默跳过照片或整页"""
+    """裁剪坐标无效时重试并在成功后保留有效照片"""
     source = tmp_path / "source.pdf"
     page_pdf(source, scan=True)
 
     class RetryProvider(RecoveryProvider):
-        """第一次提供越界坐标；第二次提供完整可编辑内容"""
+        """第一次提供越界坐标，第二次提供完整可编辑内容"""
 
         failed = False
 
@@ -350,7 +350,7 @@ def test_recovery_retries_invalid_photo_coordinates(catalog, tmp_path):
 def test_trial_layout_conflict_keeps_native_table_and_reports_error(
     catalog, tmp_path, monkeypatch, same_paragraph
 ):
-    """独立左右栏可直接适配；同一段落中的交叉栏目反馈修正；两者均保留原生表格"""
+    """独立左右栏可直接适配，同一段落中的交叉栏目反馈修正，两者均保留原生表格"""
     from resume_maker.domain.templates import TemplatePlan
 
     source = tmp_path / "shared.docx"
@@ -364,10 +364,10 @@ def test_trial_layout_conflict_keeps_native_table_and_reports_error(
     original = source.read_bytes()
 
     class SharedProvider(RecoveryProvider):
-        """首轮按真实共用表格映射；恢复后使用普通段落映射"""
+        """首轮按真实共用表格映射，恢复后使用普通段落映射"""
 
         def run_structured(self, **kwargs):
-            """首轮结果能通过节点检查；但实际栏目编排无法独立移动同一行"""
+            """首轮结果能通过节点检查，但实际栏目编排无法独立移动同一行"""
             if issubclass(kwargs["result_model"], TemplatePlan) and not self.pages:
                 self.calls.append(kwargs)
                 rows = TemplatePackage(kwargs["workspace"] / "original.docx").inventory()["nodes"]
@@ -395,7 +395,7 @@ def test_trial_layout_conflict_keeps_native_table_and_reports_error(
             return super().run_structured(**kwargs)
 
     def render(document, output):
-        """提供冲突表格的可读页面以验证恢复路径且不调用本机排版器"""
+        """构造冲突表格的可读页面以验证恢复流程"""
         page_pdf(output)
         return 1, None
 

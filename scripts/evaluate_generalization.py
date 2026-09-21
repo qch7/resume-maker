@@ -1,4 +1,4 @@
-"""独立构造陌生模板并跨供应商测试；不读取用户简历，不使用预先编写的模型映射。"""
+"""使用独立构造的模板进行跨供应商评测"""
 
 import argparse
 import base64
@@ -20,7 +20,7 @@ from resume_maker.integrations.word.templates.mapping import TemplatePackage
 
 
 def portrait(color):
-    """用简单头像图验证照片替换；不使用真人照片或外部素材。"""
+    """用简单头像图验证照片替换，不使用真人照片或外部素材"""
     image = Image.new("RGB", (90, 120), "white")
     draw = ImageDraw.Draw(image)
     draw.ellipse((26, 12, 64, 50), fill=color)
@@ -31,7 +31,7 @@ def portrait(color):
 
 
 def headings(chinese):
-    """栏目名与原测试简历不同；验证结构处理不依赖固定中文名称。"""
+    """栏目名和原测试简历不同，验证结构处理不依赖固定中文名称"""
     return (
         ["学习轨迹", "实践记录", "竞赛与认证", "能力清单", "补充学习"]
         if chinese
@@ -40,7 +40,7 @@ def headings(chinese):
 
 
 def trial_profile(chinese, with_photo=True):
-    """生成与样本完全不同的资料；缺失字段、子栏目和大栏目均需通用补齐。"""
+    """生成不同于样本的资料以验证字段和栏目补全"""
     education, projects_title, awards, skills, courses = headings(chinese)
     document = ResumeDocument(
         personal={
@@ -129,7 +129,7 @@ def trial_profile(chinese, with_photo=True):
 
 
 def add_text(area, text, *, heading=False, fragment=False):
-    """用不同运行切分同一段文字，改变节点编号但保持视觉和字段语义。"""
+    """拆分同段文字的运行节点并保留原有显示效果和字段含义"""
     paragraph = area.add_paragraph()
     pieces = [text[i : i + 3] for i in range(0, len(text), 3)] if fragment else [text]
     for piece in pieces:
@@ -145,7 +145,7 @@ def add_text(area, text, *, heading=False, fragment=False):
 
 
 def sample_blocks(title, kind, sparse):
-    """源样本与试填资料使用不同标记，支持检查旧内容是否残留。"""
+    """源样本和试填资料使用不同标记，支持检查旧内容是否残留"""
     if kind == "education":
         return (
             [["SAMPLE-University"]]
@@ -163,7 +163,7 @@ def sample_blocks(title, kind, sparse):
 
 
 def build_source(path, layout, chinese, sparse=False):
-    """分别建立段落、整行表格和左右独立容器；不借用用户模板。"""
+    """分别建立段落、整行表格和左右独立容器，不借用用户模板"""
     doc = Document()
     doc.sections[0].top_margin = Inches(0.45)
     doc.sections[0].bottom_margin = Inches(0.45)
@@ -179,7 +179,7 @@ def build_source(path, layout, chinese, sparse=False):
     add_text(doc, "Email: sample@example.test", fragment=True)
     add_text(doc, "Phone: +1 555 0100")
     education, project_title, _, skills, _ = headings(chinese)
-    # 样本栏目顺序故意不同于输出顺序。
+    # 样本栏目顺序故意不同于输出顺序
     regions = [(skills, "skills"), (education, "education"), (project_title, "projects")]
     table = doc.add_table(rows=0, cols=3) if layout == "rows" else None
     sidebar = doc.add_table(rows=1, cols=2) if layout == "sidebar" else None
@@ -211,7 +211,7 @@ def build_source(path, layout, chinese, sparse=False):
 
 
 def make_cases(directory):
-    """生成六个独立版式；PDF 经过真实 Word 导出后从 PDF 重新识别。"""
+    """生成六种独立版式并在 Word 导出 PDF 后重新识别"""
     directory.mkdir(parents=True, exist_ok=True)
     specs = [
         ("english-paragraphs", "body", False, False, False),
@@ -241,7 +241,7 @@ def make_cases(directory):
 
 
 def verify_extra(directory, document):
-    """独立检查旧样本、姓名重复及照片替换；不读取模型给自己的解释。"""
+    """独立检查旧样本、姓名重复及照片替换，不读取模型给自己的解释"""
     package = TemplatePackage(directory / "resume.docx")
     text = "".join(node.text or "" for root in package.parts.values() for node in root.iter(w("t")))
     photo = document.personal.photo.partition(",")[2]
@@ -255,7 +255,7 @@ def verify_extra(directory, document):
 
 
 def main():
-    """按同一六模板集合运行各供应商；所有失败都写报告并返回非零状态。"""
+    """按同一六模板集合运行各供应商，所有失败都写报告并返回非零状态"""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--cc-switch-db", type=Path)
@@ -277,7 +277,7 @@ def main():
         parser.error("实际评测需要指定供应商及 CC Switch 数据库。")
 
     def run(supplier, case):
-        """调用同一生产识别流程，并补充与模型映射无关的验证。"""
+        """调用同一生产识别流程，并补充和模型映射无关的验证"""
         source, document, projects = case
         report = evaluate(args, supplier, source, document, projects)
         directory = args.output / supplier / source.stem

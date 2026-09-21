@@ -11,7 +11,7 @@ import type {
 } from "../../../shared/types/index.ts";
 import { matchDefaultSections, repairDefaultDuplicates } from "./sections.ts";
 
-/** 判断删除默认项是否涉及已填写内容；隐藏但有值的字段也必须确认 */
+/** 判断删除默认项是否涉及已填写内容，隐藏但有值的字段也必须确认 */
 export function defaultHasContent(
   document: ResumeDocument | null,
   sectionId: string,
@@ -21,7 +21,7 @@ export function defaultHasContent(
 ): boolean {
   const sections =
     document?.sections.filter(
-      /* 旧简历同名栏目沿用原标识；删除前仍须检查其中的填写内容 */ (item) =>
+      /* 旧简历同名栏目沿用原标识，删除前仍须检查其中的填写内容 */ (item) =>
         item.id === sectionId ||
         (definition &&
           item.kind === definition.kind &&
@@ -70,10 +70,10 @@ export function defaultHasContent(
   );
 }
 
-/** 将内置字段的语义标识与中文名称转换为可编辑定义 */
+/** 将内置字段标识和名称转为可编辑定义 */
 function fields(items: [string, string][]): DefaultField[] {
   return items.map(
-    /* 每次生成独立定义以免表单编辑污染内置配置 */ ([id, label]) => ({
+    /* 每次复制独立定义供表单编辑 */ ([id, label]) => ({
       id,
       label,
       visible: true,
@@ -140,7 +140,7 @@ export function builtinFields(
     : TEXT_FIELDS;
 }
 
-/** 提供独立的内置默认配置；保存设置之前不依赖网络请求 */
+/** 提供独立的内置默认配置，保存设置之前不依赖网络请求 */
 export function builtinDefaults(): ResumeDefaults {
   const sections: DefaultSection[] = [
     {
@@ -202,19 +202,19 @@ export function hasDefault(
   );
 }
 
-/** 字段重命名只影响界面标签；保存值仍使用原有语义键 */
+/** 字段改名后仍用原标识保存内容 */
 export function defaultLabel(
   definitions: DefaultField[] | null | undefined,
   id: string,
   fallback: string,
 ) {
   return (
-    definitions?.find(/* 按语义标识查找用户配置 */ (field) => field.id === id)
+    definitions?.find(/* 按字段标识查找用户配置 */ (field) => field.id === id)
       ?.label ?? fallback
   );
 }
 
-/** 合并默认自定义项并保留已填写的已删除项；后者隐藏且不再出现在表单中 */
+/** 合并默认自定义项并隐藏已删除项的填写入口 */
 export function applyCustomDefaults(
   existing: CustomInfoField[],
   definitions: DefaultField[],
@@ -268,7 +268,7 @@ export function applyCustomDefaults(
   return result;
 }
 
-/** 应用字段结构时只调整显隐和定义；保留所有已填写内容 */
+/** 应用字段结构时只调整显隐和定义，保留所有已填写内容 */
 export function applyInfoDefaults<T extends PersonalInfo | SectionEntry>(
   info: T,
   definitions: DefaultField[],
@@ -316,7 +316,7 @@ export function applyInfoDefaults<T extends PersonalInfo | SectionEntry>(
   } as T;
 }
 
-/** 把新配置应用于当前简历；移除栏目时保留有内容的资料并隐藏 */
+/** 把新配置应用于当前简历，移除栏目时保留有内容的资料并隐藏 */
 export function applyResumeDefaults(
   document: ResumeDocument,
   defaults: ResumeDefaults,
@@ -338,7 +338,7 @@ export function applyResumeDefaults(
   );
   const used = new Set(
     [...matches.values()].map(
-      /* 旧栏目的标识已被复用；末尾不再重复追加 */ (section) => section.id,
+      /* 旧栏目的标识已被复用，末尾不再重复追加 */ (section) => section.id,
     ),
   );
   const sections = defaults.sections.map(
@@ -372,7 +372,7 @@ export function applyResumeDefaults(
   for (const section of sections) {
     if (!section.parent_id) continue;
     const parent = sections.find(
-      /* 仅在父栏目已移除或变成子栏目时提升；保留有效的自定义层级 */ (item) =>
+      /* 仅在父栏目已移除或变成子栏目时提升，保留有效的自定义层级 */ (item) =>
         item.id === section.parent_id,
     );
     if (!parent || parent.parent_id) section.parent_id = null;

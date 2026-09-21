@@ -3,7 +3,7 @@ import { hasDefault } from "./defaults/model";
 import type { CustomInfoField, DefaultField } from "../../shared/types";
 import { VisibilityButton } from "./VisibilityField";
 
-/** 自定义名称与内容沿用紧凑字段布局；支持独立隐藏、恢复和删除 */
+/** 自定义名称和内容沿用紧凑字段布局，支持独立隐藏、恢复和删除 */
 export default function CustomFields({
   fields,
   definitions,
@@ -25,7 +25,7 @@ export default function CustomFields({
   onToggleVisibility?: (id: string) => void;
   indexOffset?: number;
 }) {
-  /** 根据稳定标识更新单项；保留其他自定义信息及其顺序 */
+  /** 根据稳定标识更新单项，保留其他自定义信息及其顺序 */
   function updateField(field: CustomInfoField) {
     onChange(
       fields.map(
@@ -38,7 +38,7 @@ export default function CustomFields({
     <>
       {fields
         .filter(
-          /* 已移除的默认项只保留数据且不再提供填写入口 */ (field) =>
+          /* 已删除的默认项保留数据并隐藏填写入口 */ (field) =>
             !field.id.startsWith("default:") ||
             hasDefault(definitions, field.id),
         )
@@ -75,7 +75,7 @@ export default function CustomFields({
                   maxLength={1000}
                   readOnly={!editing || disabled}
                   onChange={
-                    /* 内容与名称一并进入当前资料草稿 */ (event) =>
+                    /* 内容和名称一并进入当前资料草稿 */ (event) =>
                       updateField({ ...field, value: event.target.value })
                   }
                 />
@@ -100,7 +100,7 @@ export default function CustomFields({
                     aria-label={`删除${field.label || `${scope}自定义信息 ${index + indexOffset + 1}`}`}
                     disabled={!editing || disabled}
                     onClick={
-                      /* 删除当前自定义信息；其他字段保持原状 */ () =>
+                      /* 删除当前自定义信息，其他字段保持原状 */ () =>
                         onChange(
                           fields.filter(
                             /* 按稳定标识移除 */ (item) => item.id !== field.id,

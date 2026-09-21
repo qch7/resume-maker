@@ -1,4 +1,4 @@
-"""模板库分类、收藏与真实首屏缩略图；组织信息独立于不可变模板映射"""
+"""模板库分类、收藏和真实首屏缩略图，组织信息独立于不可变模板映射"""
 
 import logging
 import threading
@@ -16,10 +16,10 @@ from resume_maker.services.templates.cleanup import cleanup_template
 
 
 class TemplateLibrary:
-    """以数据库配置保存分类和 Like；缩略图按模板内容复用"""
+    """以数据库配置保存分类和 Like，缩略图按模板内容复用"""
 
     def __init__(self, catalog, data_dir: Path, templates=None, previews=None):
-        """绑定当前应用的数据目录；隔离缩略图生成锁"""
+        """绑定当前应用的数据目录，隔离缩略图生成锁"""
         self.catalog, self.db, self.data_dir = catalog, catalog.db, data_dir
         self.preview_lock = threading.RLock()
         self.templates, self.previews = templates, previews
@@ -27,7 +27,7 @@ class TemplateLibrary:
         self.worker = None
 
     def state(self):
-        """返回组织信息；未设置的模板由客户端归入未分类"""
+        """返回组织信息，未设置的模板由客户端归入未分类"""
         with self.db.connect() as conn:
             conn.execute("BEGIN")
             return self._state(conn)
@@ -46,7 +46,7 @@ class TemplateLibrary:
         return state
 
     def update(self, template_id, changes):
-        """原子修改名称和组织信息；保持模板标识、映射、文件及简历引用不变"""
+        """原子修改名称和组织信息，保持模板标识、映射、文件及简历引用不变"""
         changes = dict(changes)
         name = changes.pop("name", None)
         if name is not None:
@@ -72,7 +72,7 @@ class TemplateLibrary:
             return self._state(conn)
 
     def delete(self, template_id, permanent=False, cutoff=None):
-        """拒绝删除被引用的模板；默认移入回收站；永久删除同步清理文件及数据库"""
+        """拒绝删除被引用的模板，默认移入回收站，永久删除同步清理文件及数据库"""
         if template_id == "builtin":
             raise Problem("内置模板是默认版式，不能删除。", 409)
         with (
@@ -117,7 +117,7 @@ class TemplateLibrary:
             return self._state(conn)
 
     def restore(self, template_id):
-        """恢复模板及原分类收藏；到期清理与恢复共享写事务且不产生过期引用"""
+        """在写事务中恢复模板及原分类收藏以排除到期清理竞争"""
         with self.db.transaction() as conn:
             need(conn.execute("SELECT 1 FROM templates WHERE id=?", (template_id,)).fetchone())
             if not (self.data_dir / "templates" / template_id / "template.docx").is_file():
@@ -129,7 +129,7 @@ class TemplateLibrary:
             return self._state(conn)
 
     def purge_expired(self, at=None):
-        """逐项清理满三十天的模板；单项占用或文件错误留待下次重试"""
+        """逐项清理满三十天的模板，单项占用或文件错误留待下次重试"""
         cutoff = (at or datetime.now(UTC)) - timedelta(days=30)
         for identifier, item in self.state()["items"].items():
             try:
@@ -139,7 +139,7 @@ class TemplateLibrary:
                 logging.getLogger(__name__).exception("回收站模板清理失败：%s", identifier)
 
     def start(self):
-        """启动时先补做过期清理；随后每分钟检查；不依赖打开模板库"""
+        """启动时先补做过期清理，随后每分钟检查，不依赖打开模板库"""
         self.purge_expired()
         self.stop_flag.clear()
         self.worker = threading.Thread(target=self._maintain, daemon=True, name="template-trash")
@@ -151,13 +151,13 @@ class TemplateLibrary:
             self.purge_expired()
 
     def stop(self):
-        """停止回收站定时器；等待当前清理结束再关闭其他模板服务"""
+        """停止回收站定时器，等待当前清理结束再关闭其他模板服务"""
         self.stop_flag.set()
         if self.worker:
             self.worker.join()
 
     def create_category(self, name):
-        """新建非空且不重名的分类且不自动改变模板所属分类"""
+        """创建名称非空且唯一的分类"""
         name = name.strip()
         if not name or name in {"全部模板", "未分类", "我的喜欢", "回收站"}:
             raise Problem("请填写其他分类名称。")
@@ -170,7 +170,7 @@ class TemplateLibrary:
             return self._state(conn)
 
     def delete_category(self, category_id):
-        """移除分类时将其中模板归回未分类；保留模板、收藏和简历引用"""
+        """移除分类时将其中模板归回未分类，保留模板、收藏和简历引用"""
         with self.db.transaction() as conn:
             state = self._read(conn)
             state["categories"] = [c for c in state["categories"] if c["id"] != category_id]
@@ -186,11 +186,11 @@ class TemplateLibrary:
         return row["value"] if row else {"categories": [], "items": {}}
 
     def _write(self, conn, state):
-        """在调用方事务中保存组织信息；随数据库备份恢复"""
+        """在调用方事务中保存组织信息，随数据库备份恢复"""
         conn.execute("INSERT OR REPLACE INTO settings VALUES (?,?)", (KEY, dump(state)))
 
     def thumbnail(self, template_id):
-        """渲染源模板首屏并缓存；不试填个人资料、不登记导出、不调用 AI"""
+        """渲染源模板首屏并缓存，不试填个人资料、不登记导出、不调用 AI"""
         with self.preview_lock:
             return self._thumbnail(template_id)
 
@@ -224,7 +224,7 @@ class TemplateLibrary:
 
 
 def builtin_sample():
-    """给内置真实排版器提供公开示例；缩略图不使用用户个人资料"""
+    """给内置真实排版器提供公开示例，缩略图不使用用户个人资料"""
     from resume_maker.domain.resume import ResumeDocument
 
     return ResumeDocument.model_validate(

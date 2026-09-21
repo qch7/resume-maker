@@ -8,7 +8,7 @@ from resume_maker.core.config import Config
 
 
 def mount_frontend(app: FastAPI, config: Config) -> None:
-    """挂载构建资源与首页；缺少构建时提供明确的操作提示"""
+    """挂载构建资源和首页，缺少构建时提供明确的操作提示"""
     if config.frontend.exists():
         assets = config.frontend / "assets"
         if assets.exists():
@@ -16,7 +16,7 @@ def mount_frontend(app: FastAPI, config: Config) -> None:
 
     @app.get("/", response_class=HTMLResponse)
     def index():
-        """读取已构建首页并注入当前令牌；缺少构建时返回明确提示"""
+        """读取已构建首页并注入当前令牌，缺少构建时返回明确提示"""
         path = config.frontend / "index.html"
         if not path.exists():
             return HTMLResponse(

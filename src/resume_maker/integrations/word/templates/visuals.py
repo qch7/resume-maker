@@ -1,4 +1,4 @@
-"""为陌生模板提供真实整页图和 OOXML 版式证据且不由字段名称推测坐标"""
+"""为模板识别提供整页图和 OOXML 版式证据"""
 
 import pymupdf
 from lxml import etree
@@ -9,12 +9,12 @@ from resume_maker.integrations.word.rendering import word_process
 
 
 def attributes(node):
-    """保留原始属性及单位且不把 Word 的相对位置误报为页面绝对坐标"""
+    """保留 Word 原始位置属性和单位"""
     return {etree.QName(key).localname: value for key, value in node.attrib.items()}
 
 
 def layout_context(package):
-    """提供实际换行、制表位和排版容器；字符偏移与精确引文使用同一段落文字"""
+    """提供实际换行、制表位和排版容器，字符偏移和精确引文使用同一段落文字"""
     paragraphs, containers = {}, {}
     for identifier, paragraph in package.nodes.items():
         if paragraph.tag != w("p"):
@@ -65,7 +65,7 @@ def layout_context(package):
 
 
 def source_pages(source, directory, flag):
-    """仅渲染源模板副本供模型看整页；失败和超出图片预算的页数明确返回"""
+    """仅渲染源模板副本供模型看整页，失败和超出图片预算的页数明确返回"""
     if flag.is_set():
         raise Cancelled("模板分析已取消。")
     output = directory / "source-layout"
@@ -79,7 +79,7 @@ def source_pages(source, directory, flag):
     try:
         with pymupdf.open(pdf) as document:
             paths, pages = [], []
-            # 整页证据与最多四张图片拼图共同限制单轮附件体积；未展示页面必须告知模型
+            # 整页证据和最多四张图片拼图共同限制单轮附件体积，未展示页面必须告知模型
             for index in range(min(len(document), 6)):
                 page = document[index]
                 image = output / f"source-page-{index + 1}.png"

@@ -16,11 +16,11 @@ class FakeProvider:
     """可控 AI 替身以免自动测试调用真实 CLI 或消耗模型额度"""
 
     def __init__(self, block=False):
-        """配置测试替身是否等待取消；用于覆盖成功与取消两条任务路径"""
+        """配置测试替身是否等待取消，用于覆盖成功和取消两条任务路径"""
         self.calls, self.block = [], block
 
     def run(self, **kw):
-        """返回可预测的结构化建议并模拟独立会话标识与取消信号"""
+        """返回可预测的结构化建议并模拟独立会话标识和取消信号"""
         context = json.loads(kw["prompt"].split("本轮上下文数据：\n")[1])
         self.calls.append(
             {"context": context, "thread": kw["thread_id"], "settings": kw["settings"]}
@@ -41,7 +41,7 @@ class FakeProvider:
 
 
 def wait_job(catalog, job_id):
-    """在有界时间内等待后台任务结束；超时则报告测试失败"""
+    """在有界时间内等待后台任务结束，超时则报告测试失败"""
     until = time.monotonic() + 5
     while time.monotonic() < until:
         job = catalog.db.one("SELECT * FROM jobs WHERE id=?", (job_id,))

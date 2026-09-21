@@ -1,4 +1,4 @@
-"""用独立生成的 PDF 检查记录边界、侧栏连续性以及表格误判保护。"""
+"""用独立生成的 PDF 检查记录边界、侧栏连续性以及表格误判保护"""
 
 from io import BytesIO
 from threading import Event
@@ -20,7 +20,7 @@ from resume_maker.services.templates.analysis import complete_labels
 
 
 def sidebar_pdf(path, *, offset=0, swap=False, ruled=False, secondary=True):
-    """不使用用户模板或字段内容；通过错开的内部标题证明两侧是独立文字流。"""
+    """不使用用户模板或字段内容，通过错开的内部标题证明两侧是独立文字流"""
     with pymupdf.open() as pdf:
         page = pdf.new_page(width=620, height=800)
         page.insert_text((30, 40), "Applicant", fontsize=16)
@@ -54,7 +54,7 @@ def sidebar_pdf(path, *, offset=0, swap=False, ruled=False, secondary=True):
 
 @pytest.mark.parametrize("offset,swap", [(0, False), (45, False), (-30, True)])
 def test_sidebar_records_stay_in_one_container_and_can_repeat(tmp_path, offset, swap):
-    """改变栏宽与左右位置后仍可增加项目；长尾学历和通栏页尾不能被拆入其他容器。"""
+    """改变栏宽和左右位置后仍可增加项目，长尾学历和通栏页尾不能被拆入其他容器"""
     pdf, source, output = (tmp_path / name for name in ("source.pdf", "source.docx", "filled.docx"))
     sidebar_pdf(pdf, offset=offset, swap=swap)
     rebuild_pdf(pdf, source, Event(), quiet, forbidden_fallback)
@@ -150,7 +150,7 @@ def test_sidebar_records_stay_in_one_container_and_can_repeat(tmp_path, offset, 
 
 @pytest.mark.parametrize("ruled,secondary", [(True, True), (False, False)])
 def test_table_headers_are_not_enough_to_transpose_rows(tmp_path, ruled, secondary):
-    """横向表格线或只有一排表头时保持原解析路线；不能因列对齐就改成独立侧栏。"""
+    """横向表格线或只有一排表头时保持原解析路线，不能因列对齐就改成独立侧栏"""
     from pdf2docx import Converter
 
     pdf = tmp_path / "table.pdf"
@@ -170,7 +170,7 @@ def test_table_headers_are_not_enough_to_transpose_rows(tmp_path, ruled, seconda
 
 
 def test_compact_equal_style_records_do_not_merge_into_one_paragraph(tmp_path):
-    """紧密排列且同字体的记录保留物理行，模型可选完整样本并删除全部旧条目。"""
+    """紧密排列且同字体的记录保留物理行，模型可选完整样本并删除全部旧条目"""
     pdf, source = tmp_path / "lines.pdf", tmp_path / "lines.docx"
     with pymupdf.open() as document:
         page = document.new_page()
@@ -187,7 +187,7 @@ def test_compact_equal_style_records_do_not_merge_into_one_paragraph(tmp_path):
 
 
 def test_photo_is_independent_of_nearby_old_summary(tmp_path):
-    """删除照片附近的旧学历摘要不会与照片替换冲突；不靠模型虚构空自定义字段。"""
+    """删除照片附近的旧学历摘要不会和照片替换冲突，不靠模型虚构空自定义字段"""
     pdf, source = tmp_path / "photo.pdf", tmp_path / "photo.docx"
     raw = BytesIO()
     Image.new("RGB", (50, 70), "navy").save(raw, format="PNG")

@@ -3,7 +3,7 @@ import { download } from "../../shared/lib/api";
 import PrintedPage from "../resumes/PrintedPage";
 import type { TemplateTrialPreview } from "./types";
 
-/** 始终展示真实 Word 页面；调整期间保留旧页并明确提示更新状态 */
+/** 更新期间保留上次生成的 Word 页面并提示状态 */
 export default function TemplateTrial({
   preview,
   stale,
@@ -44,7 +44,7 @@ export default function TemplateTrial({
               disabled={stale}
               title={stale ? "更新试填预览后即可下载" : undefined}
               onClick={
-                /* 下载当前试填生成的 Word；禁止把旧结果当成新结果 */ () =>
+                /* 下载当前试填生成的 Word，禁止把旧结果当成新结果 */ () =>
                   run(
                     /* 将实际文件交给浏览器下载 */ () =>
                       download(
@@ -61,7 +61,7 @@ export default function TemplateTrial({
                 disabled={stale}
                 title={stale ? "更新试填预览后即可下载" : undefined}
                 onClick={
-                  /* PDF 与当前 Word 使用同一次排版结果 */ () =>
+                  /* PDF 和当前 Word 使用同一次排版结果 */ () =>
                     run(
                       /* 下载 Word 实际生成的 PDF */ () =>
                         download(
@@ -82,7 +82,7 @@ export default function TemplateTrial({
           )}
           {Array.from(
             { length: preview.pages ?? 0 },
-            /* 按真实页序展示；修正填写规则不会拆散或重建旧页面 */ (
+            /* 按真实页序展示，修正填写规则不会拆散或重建旧页面 */ (
               _,
               index,
             ) => (

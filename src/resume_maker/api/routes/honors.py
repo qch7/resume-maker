@@ -1,4 +1,4 @@
-"""荣誉条目、受鉴权保护的文件上传与证书预览入口"""
+"""荣誉条目、受鉴权保护的文件上传和证书预览入口"""
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import FileResponse
@@ -39,7 +39,7 @@ def create_honor(services: ServicesDep, body: HonorSave):
 async def upload_honor(
     request: Request, services: ServicesDep, filename: str = Query(min_length=1, max_length=240)
 ):
-    """流式接收一个原件；先限制实际字节数；再在工作线程解码和入队"""
+    """流式接收一个原件，先限制实际字节数，再在工作线程解码和入队"""
     content = bytearray()
     async for chunk in request.stream():
         if len(content) + len(chunk) > MAX_BYTES:
@@ -50,13 +50,13 @@ async def upload_honor(
 
 @router.put("/{honor_id}")
 def save_honor(services: ServicesDep, honor_id: str, body: HonorSave):
-    """核对保存条目；拒绝过期版本"""
+    """核对保存条目，拒绝过期版本"""
     return services.honors.save(body, honor_id)
 
 
 @router.delete("/{honor_id}")
 def delete_honor(services: ServicesDep, honor_id: str, version: int = Query(ge=1)):
-    """删除库记录和原件且不连带修改已保存的简历"""
+    """删除荣誉库记录和原件并保留已保存的简历"""
     return services.honors.delete(honor_id, version)
 
 
@@ -74,7 +74,7 @@ def cancel_honor(services: ServicesDep, honor_id: str):
 
 @router.get("/{honor_id}/original")
 def original_honor(services: ServicesDep, honor_id: str):
-    """下载原始证书；使用附件响应而不执行上传内容"""
+    """以附件形式下载原始证书"""
     path, name = services.honors.file(honor_id)
     return FileResponse(
         path,
@@ -86,6 +86,6 @@ def original_honor(services: ServicesDep, honor_id: str):
 
 @router.get("/{honor_id}/pages/{page}")
 def honor_page(services: ServicesDep, honor_id: str, page: int):
-    """提供由本机解码生成的 PNG 页面；PDF 和图片共用预览"""
+    """提供由本机解码生成的 PNG 页面，PDF 和图片共用预览"""
     path, _ = services.honors.file(honor_id, page)
     return FileResponse(path, media_type="image/png", headers={"X-Content-Type-Options": "nosniff"})

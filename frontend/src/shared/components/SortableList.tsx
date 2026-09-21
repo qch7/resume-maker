@@ -41,9 +41,9 @@ export function SortableList({
       coordinateGetter: sortableKeyboardCoordinates,
     }),
   );
-  /** 按指针所在滚动视口判断落点；移出列表时取消排序 */
+  /** 按指针所在滚动视口判断落点，移出列表时取消排序 */
   const collisionDetection: CollisionDetection = (args) => {
-    // 松手落在列表或滚动视口外时取消；键盘排序继续按条目位置定位
+    // 松手落在列表或滚动视口外时取消，键盘排序继续按条目位置定位
     if (args.pointerCoordinates && root.current) {
       const { x, y } = args.pointerCoordinates;
       const bounds = [root.current, ...getScrollableAncestors(root.current)];
@@ -54,7 +54,7 @@ export function SortableList({
         })
       )
         return [];
-      // 亮点高度不同；按手柄所在位置确定落点以免大卡片中心偏移
+      // 亮点高度不同，按手柄所在位置确定落点以免大卡片中心偏移
       return closestCenter({
         ...args,
         collisionRect: {
@@ -69,10 +69,10 @@ export function SortableList({
     }
     return closestCenter(args);
   };
-  /** 按稳定条目标识查找列表位置；供拖拽和辅助播报使用 */
+  /** 按稳定条目标识查找列表位置，供拖拽和辅助播报使用 */
   const position = (id: string | number) =>
     items.findIndex((item) => item.id === id);
-  /** 读取条目的可读名称；缺失时使用通用名称 */
+  /** 读取条目的可读名称，缺失时使用通用名称 */
   const label = (id: string | number) => items[position(id)]?.label ?? "条目";
   return (
     <DndContext
@@ -92,16 +92,16 @@ export function SortableList({
           draggable: "按空格开始排序，上下方向键移动，再按空格放下，Esc 取消。",
         },
         announcements: {
-          onDragStart: /* 生成当前拖拽阶段的辅助播报；便于键盘和读屏操作 */ ({
+          onDragStart: /* 生成当前拖拽阶段的辅助播报，便于键盘和读屏操作 */ ({
             active,
           }) => `正在拖动${label(active.id)}。`,
-          onDragOver: /* 生成当前拖拽阶段的辅助播报；便于键盘和读屏操作 */ ({
+          onDragOver: /* 生成当前拖拽阶段的辅助播报，便于键盘和读屏操作 */ ({
             over,
           }) =>
             over
               ? `放到第 ${position(over.id) + 1} 位。`
               : "移出列表，松手取消。",
-          onDragEnd: /* 生成当前拖拽阶段的辅助播报；便于键盘和读屏操作 */ ({
+          onDragEnd: /* 生成当前拖拽阶段的辅助播报，便于键盘和读屏操作 */ ({
             active,
             over,
           }) =>
@@ -109,7 +109,7 @@ export function SortableList({
               ? `${label(active.id)}已放到第 ${position(over.id) + 1} 位。`
               : "已取消排序。",
           onDragCancel:
-            /* 生成当前拖拽阶段的辅助播报；便于键盘和读屏操作 */ () =>
+            /* 生成当前拖拽阶段的辅助播报，便于键盘和读屏操作 */ () =>
               "已取消排序。",
         },
       }}
@@ -127,7 +127,7 @@ export function SortableList({
   );
 }
 
-/** 连接条目和拖拽手柄；呈现移动变换及落点位置 */
+/** 连接条目和拖拽手柄，呈现移动变换及落点位置 */
 export function SortableItem({
   id,
   label,

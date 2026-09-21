@@ -8,7 +8,7 @@ on:
 permissions:
   contents: read
 
-# 英文 Windows runner 默认使用 cp1252，显式启用 UTF-8 以输出中文检查报告。
+# 英文 Windows runner 默认使用 cp1252，显式启用 UTF-8 以输出中文检查报告
 env:
   PYTHONUTF8: "1"
   PYTHONIOENCODING: "utf-8"

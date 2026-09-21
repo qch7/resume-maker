@@ -1,4 +1,4 @@
-"""按已核对映射填充陌生模板；复制原样式并按实际记录增减重复区"""
+"""按已核对映射填充陌生模板，复制原样式并按实际记录增减重复区"""
 
 import base64
 import posixpath
@@ -52,7 +52,7 @@ CONTENT_TYPES = "http://schemas.openxmlformats.org/package/2006/content-types"
 
 
 def set_text(node, value: str):
-    """保留原文本片段样式；把用户换行转换为 Word 换行节点"""
+    """保留原文本片段样式，把用户换行转换为 Word 换行节点"""
     parent, index = node.getparent(), node.getparent().index(node)
     parent.remove(node)
     for offset, line in enumerate(value.split("\n")):
@@ -67,7 +67,7 @@ def set_text(node, value: str):
 
 
 def empty_entry_range(text, start, end):
-    """字段独占段落时同时移除其标签或手输列表符号且不吞掉同段其他字段和固定说明"""
+    """字段独占段落时一并移除标签或手写列表符号"""
     prefix, suffix = text[:start].strip(), text[end:].strip()
     marker = r"(?:[•●○▪▫◆◇·\-–—*]|\d+[.)、])?\s*"
     if not suffix and re.fullmatch(marker + r"(?:[^:：\n]{1,50}[:：]\s*)?", prefix):
@@ -76,7 +76,7 @@ def empty_entry_range(text, start, end):
 
 
 def empty_field_paragraph(paragraph):
-    """空字段可删除自己的列表段落；图片、文本框、域、引用及固定说明必须保留"""
+    """空字段可删除自己的列表段落，图片、文本框、域、引用及固定说明必须保留"""
     if paragraph_text(paragraph).strip():
         return False
     protected = {
@@ -95,7 +95,7 @@ def empty_field_paragraph(paragraph):
 
 
 def fill_fields(nodes: dict, fields: list[TextBinding], values: dict):
-    """保留样式替换引文并按顺序分配亮点；返回所有失去内容且可安全收起的字段段落"""
+    """保留样式替换引文并按顺序分配亮点，返回所有失去内容且可安全收起的字段段落"""
     grouped = {}
     field_counts = Counter(field.node for field in fields)
     order = {identifier: index for index, identifier in enumerate(nodes)}
@@ -112,7 +112,7 @@ def fill_fields(nodes: dict, fields: list[TextBinding], values: dict):
         value = str(values.get(binding.target, ""))
         if binding.target == "highlights" and "_highlight_items" in values:
             position = highlight_fields.index(binding)
-            # 位置不足时将余下亮点合并到最后一处；位置过多时不重复填充整组内容
+            # 位置不足时将余下亮点合并到最后一处，位置过多时不重复填充整组内容
             stop = position + 1 if position < len(highlight_fields) - 1 else None
             value = "\n".join(values["_highlight_items"][position:stop])
         if not value.strip():
@@ -126,7 +126,7 @@ def fill_fields(nodes: dict, fields: list[TextBinding], values: dict):
         colon = binding.quote.find("：")
         replacement_colon = value.find("：")
         if binding.target == "highlights" and 0 < colon < 40 and replacement_colon > 0:
-            # 标题和正文常使用不同字重且不能把整条亮点塞进原来的粗体标题运行
+            # 整条亮点按标题和正文分别继承字重
             grouped.setdefault(binding.node, []).extend(
                 [
                     (start, start + colon + 1, value[: replacement_colon + 1]),
@@ -190,7 +190,7 @@ def fill_fields(nodes: dict, fields: list[TextBinding], values: dict):
 
 
 def region_values(record, fields):
-    """项目综合正文只补充未单独安排的资料以免与技术栈、角色或亮点重复"""
+    """项目综合正文只补充未单独安排的资料以免和技术栈、角色或亮点重复"""
     targets = {field.target for field in fields}
     if "_highlight_items" not in record or "details" not in targets:
         return record
@@ -212,14 +212,14 @@ def region_values(record, fields):
 
 
 def remove_node(node):
-    """删除文字区域或图片容器；保留相邻段落与表格结构"""
+    """删除文字区域或图片容器，保留相邻段落和表格结构"""
     if node.tag in IMAGE_TAGS:
         node = image_container(node)
     node.getparent().remove(node)
 
 
 def fill_photo(package: TemplatePackage, identifier: str, photo: str):
-    """更换选定图片关系并沿用照片框尺寸；隐藏照片时仅移除该图片"""
+    """更换选定图片关系并沿用照片框尺寸，隐藏照片时仅移除该图片"""
     node = package.node(identifier)
     if not photo:
         remove_node(node)
@@ -272,7 +272,7 @@ def fill_photo(package: TemplatePackage, identifier: str, photo: str):
 
 
 def clean_resources(package: TemplatePackage):
-    """移除已不再使用的旧照片和链接资源；保留其他部件仍在引用的装饰图片"""
+    """移除已不再使用的旧照片和链接资源，保留其他部件仍在引用的装饰图片"""
     referenced = set()
     for name, data in list(package.files.items()):
         if not name.endswith(".rels"):
@@ -317,14 +317,14 @@ def clean_resources(package: TemplatePackage):
 
 
 def section_marker(properties):
-    """用空段落保存一次分节设置；使删去的内容不改变相邻区域的页面排版"""
+    """用空段落保存一次分节设置，使删去的内容不改变相邻区域的页面排版"""
     paragraph = etree.Element(w("p"))
     etree.SubElement(paragraph, w("pPr")).append(deepcopy(properties))
     return paragraph
 
 
 def remove_preserving_sections(node, compact_table=False):
-    """保留被删除内容的分栏和分节边界；空字段所在表格行完全腾空时同时收起"""
+    """保留被删除内容的分栏和分节边界，空字段所在表格行完全腾空时同时收起"""
     parent = node.getparent()
     row = parent.getparent() if parent is not None and parent.tag == w("tc") else None
     if parent is not None:
@@ -345,7 +345,7 @@ def remove_preserving_sections(node, compact_table=False):
 
 
 def close_empty_tail(package):
-    """删除末尾已清空栏目的空节；沿用最后有内容区域的页面设置以免产生空白页"""
+    """删除末尾已清空栏目的空节，沿用最后有内容区域的页面设置以免产生空白页"""
     body = package.parts["word/document.xml"].find(w("body"))
     if body is None or not len(body) or body[-1].tag != w("sectPr"):
         return
@@ -371,7 +371,7 @@ def close_empty_tail(package):
 def fill_template(
     source: Path, output: Path, plan: TemplatePlan, content: dict, projects: list[dict]
 ) -> list[str]:
-    """按已核对模板填充；自动扩展个人资料及普通栏目；预览与导出共用排版规则"""
+    """按已核对模板填充，自动扩展个人资料及普通栏目，预览和导出共用排版规则"""
     package = TemplatePackage(source)
     review = package.review(plan)
     if not review["ready"]:
@@ -383,7 +383,7 @@ def fill_template(
     missing = missing_targets(document, plan, projects)
     if missing:
         raise Problem("模板未覆盖这些已填写资料，请补充映射或在资料中隐藏：" + "、".join(missing))
-    # 已核对的删除必须先落地，避免 PDF 页首重排把旧占位或弃用图形当作未映射内容。
+    # 已核对的删除必须先落地，避免 PDF 页首重排把旧占位或弃用图形当作未映射内容
     for identifier in plan.remove:
         remove_preserving_sections(package.node(identifier))
     values = personal_values(document)
@@ -412,7 +412,7 @@ def fill_template(
             if not has_sections and any(list(node.iter(w("sectPr"))) for node in original)
             else None
         )
-        # 多栏标题和单栏正文同属一条经历；每条复制结束时闭合原有连续分节
+        # 多栏标题和单栏正文同属一条经历，每条复制结束时闭合原有连续分节
         trailing = (
             next(iter(sample[-1].xpath("following::w:sectPr[1]", namespaces=NS)), None)
             if has_sections
@@ -456,7 +456,7 @@ def fill_template(
                     parent.insert(position, section_marker(properties))
                     position += 1
         elif closing is not None:
-            # 样本外的旧记录可能结束当前页面设置；删除它们时仍须闭合样本所属的节
+            # 样本外的旧记录可能结束当前页面设置，删除它们时仍须闭合样本所属的节
             parent.insert(position, section_marker(closing))
         for node in original:
             parent.remove(node)
@@ -480,7 +480,7 @@ def fill_template(
         for cell in root.iter(w("tc"), w("txbxContent")):
             if not len(cell) or cell[-1].tag != w("p"):
                 etree.SubElement(cell, w("p"))
-        # 组合子图形与外层绘图共享编号空间；单独重编号外层会碰撞并导致 Word 无法打开
+        # 组合子图形和外层绘图共享编号空间，单独重编号外层会碰撞并导致 Word 无法打开
         for drawing in root.xpath(".//*[local-name()='docPr' or local-name()='cNvPr']"):
             drawing_id += 1
             drawing.set("id", str(drawing_id))

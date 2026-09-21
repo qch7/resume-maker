@@ -22,7 +22,7 @@ def page_background(drawing, page):
 
 
 def background_assets(page):
-    """纯色背景独立生成透明素材；其内部不会包含其他图片、图标或旧文字"""
+    """纯色背景独立生成透明素材，其内部不会包含其他图片、图标或旧文字"""
     assets = []
     for drawing in page.get_drawings():
         if not page_background(drawing, page) or min(drawing["fill"]) > 0.97:
@@ -42,13 +42,13 @@ def background_assets(page):
 
 
 def asset_regions(page):
-    """合并相交的局部绘制与图片；忽略整页白底但保留裁剪、透明和图形组合"""
+    """合并相交的局部绘制和图片，忽略整页白底但保留裁剪、透明和图形组合"""
     regions = []
     for drawing in page.get_drawings():
         if page_background(drawing, page):
             continue
         padding = max(0.5, (drawing.get("width") or 0) / 2)
-        # 路径矩形不含笔画宽度；纯水平或垂直线的面积为零；必须先扩到可见笔画再裁切
+        # 路径矩形不含笔画宽度，纯水平或垂直线的面积为零，必须先扩到可见笔画再裁切
         box = (pymupdf.Rect(drawing["rect"]) + (-padding, -padding, padding, padding)) & page.rect
         fill = drawing.get("fill")
         if box.is_empty or (
@@ -80,7 +80,7 @@ def asset_regions(page):
 
 
 def extract_assets(page):
-    """在副本中删除文字再裁图；图片里不残留旧姓名、正文或标题文字"""
+    """在副本中删除文字再裁图，图片里不残留旧姓名、正文或标题文字"""
     regions = asset_regions(page)
     assets = background_assets(page)
     if not regions:
@@ -91,7 +91,7 @@ def extract_assets(page):
         clean.apply_redactions(images=0, graphics=0, text=0)
         for photographs in (True, False):
             if not photographs:
-                # 横线的裁剪区可能擦过照片边缘；先去掉照片以防裁入一条照片色带
+                # 横线的裁剪区可能擦过照片边缘，先去掉照片以防裁入一条照片色带
                 clean.add_redact_annot(clean.rect, fill=None)
                 clean.apply_redactions(images=1, graphics=0, text=1)
             for box, photo in regions:
@@ -134,7 +134,7 @@ def separate_bullets(page, assets):
 
 
 def attach_asset(paragraph, raw, box, top, column_left, label, layer):
-    """把素材放在文字后方；纵坐标相对段落；使栏目重排和重复条目保持图文关联"""
+    """把素材放在文字后方，纵坐标相对段落，使栏目重排和重复条目保持图文关联"""
     inline = paragraph.add_run().add_picture(
         BytesIO(raw), width=Pt(box.width), height=Pt(box.height)
     )
@@ -148,7 +148,7 @@ def attach_asset(paragraph, raw, box, top, column_left, label, layer):
         "distL": "0",
         "distR": "0",
         "simplePos": "0",
-        # Word 会把接近零的层级重新排序；使用其正常绘图层级区间保持底色、图标和照片顺序
+        # Word 会把接近零的层级重新排序，使用其正常绘图层级区间保持底色、图标和照片顺序
         "relativeHeight": str(251658240 + layer * 1000),
         "behindDoc": "1",
         "locked": "0",
@@ -183,7 +183,7 @@ def attach_asset(paragraph, raw, box, top, column_left, label, layer):
 
 
 def place_assets(assets, paragraphs):
-    """把底色关联覆盖的文字；把图标、照片和分隔线关联最近的段落"""
+    """把底色关联覆盖的文字，把图标、照片和分隔线关联最近的段落"""
     for box, photo, raw in assets:
 
         def distance(item, area=box):
@@ -196,7 +196,7 @@ def place_assets(assets, paragraphs):
         paragraph, rect, column_left = min(paragraphs, key=distance)
         top = rect.y0
         if photo:
-            # 照片只借用几何位置，不属于附近的旧文字；给它独立锚点以允许删除旧摘要。
+            # 照片只借用几何位置，不属于附近的旧文字，给它独立锚点以允许删除旧摘要
             before = paragraph.paragraph_format.space_before
             top -= before.pt if before is not None else 0
             holder = OxmlElement("w:p")

@@ -34,12 +34,12 @@ export const STATUS = {
 };
 export const ACCEPT = ".pdf,.png,.jpg,.jpeg,.webp,.bmp,.tif,.tiff";
 
-/** 识别状态决定能否人工编辑以免在途结果覆盖未保存内容 */
+/** 识别期间禁用人工编辑以防结果覆盖未保存内容 */
 export function isRecognizing(honor: Honor) {
   return honor.status === "queued" || honor.status === "running";
 }
 
-/** 按名称、单位、获奖人和编号等资料检索且不依赖隐藏的本机路径 */
+/** 按名称、单位、获奖人和编号等荣誉资料检索 */
 export function matchesHonor(honor: Honor, query: string) {
   return [...Object.values(honor.fields), honor.attachment?.name ?? ""]
     .join(" ")
@@ -47,7 +47,7 @@ export function matchesHonor(honor: Honor, query: string) {
     .includes(query.trim().toLocaleLowerCase());
 }
 
-/** 检查荣誉是否已复制进当前简历；跨栏目去重 */
+/** 检查荣誉是否已复制进当前简历，跨栏目去重 */
 export function hasHonor(document: ResumeDocument | null, id: string) {
   return (
     document?.sections.some(
@@ -59,7 +59,7 @@ export function hasHonor(document: ResumeDocument | null, id: string) {
   );
 }
 
-/** 仅移除当前简历中的荣誉引用；保留栏目、其他资料及库中原件 */
+/** 仅移除当前简历中的荣誉引用，保留栏目、其他资料及库中原件 */
 export function removeHonor(
   document: ResumeDocument,
   id: string,
@@ -68,9 +68,9 @@ export function removeHonor(
   return {
     ...document,
     sections: document.sections.map(
-      /* 来源可能位于自定义栏目；按稳定标识移除而不依赖名称 */ (section) => {
+      /* 按来源标识移除条目以支持自定义栏目 */ (section) => {
         const entries = section.entries.filter(
-          /* 同名手动条目与其他来源均保留 */ (entry) =>
+          /* 同名手动条目和其他来源均保留 */ (entry) =>
             entry.id !== `honor:${id}`,
         );
         return entries.length === section.entries.length
@@ -81,7 +81,7 @@ export function removeHonor(
   };
 }
 
-/** 将已核对荣誉关联到简历；初始内容完整复制；后续按来源同步 */
+/** 将已核对荣誉关联到简历，初始内容完整复制，后续按来源同步 */
 export function addHonors(
   document: ResumeDocument,
   honors: Honor[],
@@ -96,7 +96,7 @@ export function addHonors(
         !hasHonor(document, honor.id),
     )
     .map(
-      /* 完整保留各项荣誉资料；默认只显示名称与日期 */ (honor) =>
+      /* 完整保留各项荣誉资料，默认只显示名称和日期 */ (honor) =>
         newHonorEntry(honor.fields, `honor:${honor.id}`),
     );
   if (!additions.length) return document;

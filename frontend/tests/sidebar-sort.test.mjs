@@ -26,7 +26,7 @@ const conversations = [
   },
 ];
 
-test("alphabetic mode sorts projects and conversations naturally in both directions", /* 验证项目和会话支持自然名称正序与倒序 */ () => {
+test("alphabetic mode sorts projects and conversations naturally in both directions", /* 验证项目和会话支持自然名称正序和倒序 */ () => {
   const asc = sortSidebar(projects, conversations, "asc");
   assert.deepEqual(
     asc.projects.map((p) => p.id),

@@ -4,7 +4,7 @@ import type {
   SectionEntry,
 } from "../../shared/types/index.ts";
 
-/** 按字段内容比较资料；显隐按集合处理；自定义信息保持用户排序 */
+/** 按字段内容比较资料，显隐按集合处理，自定义信息保持用户排序 */
 function infoSnapshot(info?: PersonalInfo | SectionEntry) {
   if (!info) return null;
   const { hidden_fields, custom_fields, field_definitions, ...fields } = info;
@@ -30,19 +30,19 @@ export function sameSectionEntry(a?: SectionEntry, b?: SectionEntry) {
   return JSON.stringify(infoSnapshot(a)) === JSON.stringify(infoSnapshot(b));
 }
 
-/** 按实际资料比较保存状态；忽略 JSON 属性顺序 */
+/** 按实际资料比较保存状态，忽略 JSON 属性顺序 */
 export function samePersonalInfo(a?: PersonalInfo, b?: PersonalInfo) {
   return JSON.stringify(infoSnapshot(a)) === JSON.stringify(infoSnapshot(b));
 }
 
-/** 比较完整资料；保留栏目、条目和自定义信息的顺序 */
+/** 比较完整资料，保留栏目、条目和自定义信息的顺序 */
 function documentSnapshot(document?: ResumeDocument | null) {
   if (!document) return null;
   return [
     infoSnapshot(document.personal),
     Object.entries(document.project_visibility ?? {})
       .sort(
-        /* 项目标识与设置键的排列不代表实际修改 */ ([a], [b]) =>
+        /* 项目标识和设置键的排列不代表实际修改 */ ([a], [b]) =>
           a.localeCompare(b),
       )
       .map(
@@ -58,7 +58,7 @@ function documentSnapshot(document?: ResumeDocument | null) {
         ],
       ),
     document.sections.map(
-      /* 栏目顺序和归属属于真实修改且不能在比较时重新排序 */ (section) => [
+      /* 比较时保留栏目顺序和归属以识别编排修改 */ (section) => [
         section.id,
         section.title,
         section.kind,

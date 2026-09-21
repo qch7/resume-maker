@@ -1,4 +1,4 @@
-"""将重复条目中靠空格推开的元信息转成稳定列宽；长标题在自己的列内换行"""
+"""将重复条目中靠空格推开的元信息转成稳定列宽，长标题在自己的列内换行"""
 
 import re
 import unicodedata
@@ -13,7 +13,7 @@ from resume_maker.integrations.word.templates.personal import paragraph_stream, 
 
 
 def metadata_separator(paragraph, binding, fields, values):
-    """日期与名称原本紧贴时补可见间距；保留已有空格、制表符及换行。"""
+    """日期和名称原本紧贴时补可见间距，保留已有空格、制表符及换行"""
     if binding.target not in {"title", "period"} or not values.get(binding.target):
         return ""
     text = paragraph_text(paragraph)
@@ -36,7 +36,7 @@ def metadata_separator(paragraph, binding, fields, values):
 
 
 def content_width(styles, paragraph):
-    """从本单元格或本节取得可用宽度；未知宽度、分栏和绝对定位不猜测页面坐标"""
+    """从本单元格或本节取得可用宽度，未知宽度、分栏和绝对定位不猜测页面坐标"""
     if styles.group(paragraph) is None:
         return None
     if next(paragraph.iterancestors(w("txbxContent")), None) is not None:
@@ -72,7 +72,7 @@ def content_width(styles, paragraph):
 
 
 def text_width(text, size):
-    """保守估算中英文混排宽度且只用于分配列宽；实际换行仍由 Word 完成"""
+    """保守估算中英文混排宽度且只用于分配列宽，实际换行仍由 Word 完成"""
     return round(
         sum(
             1
@@ -98,7 +98,7 @@ def font_size(styles, paragraph):
 
 
 def column_fragments(paragraph, fields):
-    """只拆两个已映射元信息之间的排版空白；保留引文内空格、固定标签和超链接"""
+    """只拆两个已映射元信息之间的排版空白，保留引文内空格、固定标签和超链接"""
     if len(fields) != 2 or {field.target for field in fields} != {"title", "period"}:
         return None
     if paragraph.xpath(
@@ -131,7 +131,7 @@ def column_fragments(paragraph, fields):
 
 
 def column_paragraph(paragraph, align):
-    """单元格内清除旧推移坐标；保留字体、行距与标签字重；固定行高改为最小行高"""
+    """单元格内清除旧推移坐标，保留字体、行距和标签字重，固定行高改为最小行高"""
     properties = paragraph.find(w("pPr"))
     if properties is None:
         properties = etree.Element(w("pPr"))
@@ -152,7 +152,7 @@ def column_paragraph(paragraph, align):
 
 
 def make_columns(paragraph, fragments, widths, left):
-    """创建无边框固定列宽表格且不设行高或不换行约束；让长标题自然撑高一条记录"""
+    """创建可换行且高度自适应的无边框固定列宽表格"""
     table = etree.Element(w("tbl"))
     properties = etree.SubElement(table, w("tblPr"))
     etree.SubElement(properties, w("tblW"), {w("w"): str(sum(widths)), w("type"): "dxa"})
@@ -188,7 +188,7 @@ def prepare_record_columns(styles, nodes, fields, records, source_nodes=None):
         grouped[field.node].append(field)
     for identifier, bindings in grouped.items():
         paragraph = nodes[identifier]
-        # 克隆暂时插在重复区起点；起点与样本之间可能有分节；必须使用样本原位置的几何
+        # 克隆暂时插在重复区起点，起点和样本之间可能有分节，必须使用样本原位置的几何
         source = (source_nodes or {}).get(identifier, paragraph)
         width = content_width(styles, source)
         if width is not None:
@@ -237,7 +237,7 @@ def prepare_record_columns(styles, nodes, fields, records, source_nodes=None):
         if right < width * 0.6:
             make_columns(paragraph, fragments, [width - right, right], left)
         else:
-            # 极窄容器或很长的元信息统一按两行排列且不再制造更窄的单元格
+            # 容器过窄或元信息过长时改为两行排列
             for fragment, _ in fragments:
                 column_paragraph(fragment, "left")
                 paragraph.addprevious(fragment)

@@ -1,4 +1,4 @@
-"""按图片原始空间关系恢复文字与素材；输出可继续映射和填充的 Word 模板"""
+"""按图片原始空间关系恢复文字和素材，输出可继续映射和填充的 Word 模板"""
 
 from resume_maker.core.errors import Problem
 from resume_maker.domain.image_layout import ImagePage
@@ -20,7 +20,7 @@ polygon 为页面比例坐标的顶点列表（斜切底块需要四角），普
 
 
 def recognize_image(provider, image, output, settings, flag, emit):
-    """结构识别和几何检查共用两次有界重试；取消后不发布迟到结果"""
+    """结构识别和几何检查共用两次有界重试，取消后不发布迟到结果"""
     from PIL import Image
 
     from resume_maker.integrations.word.image.layout import page_size, text_layer, validate_layout
@@ -60,7 +60,7 @@ def recognize_image(provider, image, output, settings, flag, emit):
 
 
 def rebuild_image(source, output, provider, settings, flag, emit):
-    """仅图片输入使用新的版面恢复器；最终文件原子发布；原图始终不修改"""
+    """仅图片输入使用新的版面恢复器，最终文件原子发布，原图始终不修改"""
     from PIL import Image, ImageOps
 
     from resume_maker.integrations.word.image.layout import build_image_document
@@ -75,7 +75,7 @@ def rebuild_image(source, output, provider, settings, flag, emit):
         canvas.alpha_composite(oriented)
         canvas.convert("RGB").save(image)
     recovered = recognize_image(provider, image, output, settings, flag, emit)
-    # 保存结构证据以便定位识别问题且不用同名 PDF 或其他来源替代当前图片
+    # 保存当前图片的结构证据以便排查识别问题
     (output.parent / "image-layout.json").write_text(recovered.model_dump_json(), encoding="utf-8")
     emit("activity", {"type": "prepare", "text": "正在重建图片的可编辑布局与局部图标"})
     document = build_image_document(image, recovered, flag)

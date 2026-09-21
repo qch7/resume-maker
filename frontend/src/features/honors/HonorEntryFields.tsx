@@ -20,7 +20,7 @@ const OPTIONAL = HONOR_FIELDS.filter(
     field.key !== "name" && field.key !== "date",
 );
 
-/** 在个人信息中使用与荣誉库一致的字段；折叠状态不改变简历显隐 */
+/** 在个人信息中使用和荣誉库一致的字段，折叠状态不改变简历显隐 */
 export default function HonorEntryFields({
   entry,
   idPrefix,
@@ -60,7 +60,7 @@ export default function HonorEntryFields({
         field.visible && field.label.trim() && field.value.trim(),
     ).length;
 
-  /** 同一字段使用统一标签、长度限制和更新逻辑 */
+  /** 字段共用标签、长度限制和更新逻辑 */
   function renderField(field: HonorField) {
     const fieldId =
       (
@@ -82,7 +82,7 @@ export default function HonorEntryFields({
       );
     const disabled = !editing || saving || full;
     const value = honorFieldValue(entry, field.key);
-    /** 编辑当前表单草稿；由上层统一保存内容与显示设置 */
+    /** 编辑表单草稿并由上层保存内容和显示设置 */
     function updateValue(value: string) {
       onChange(updateHonorField(entry, field.key, { value }));
     }
@@ -94,7 +94,7 @@ export default function HonorEntryFields({
         hidden={honorFieldHidden(entry, field.key)}
         disabled={disabled}
         onToggle={
-          /* 显示和隐藏只影响简历；保留信息原文 */ () =>
+          /* 显示和隐藏只影响简历，保留信息原文 */ () =>
             onChange(
               updateHonorField(entry, field.key, {
                 hidden: !honorFieldHidden(entry, field.key),
@@ -108,7 +108,7 @@ export default function HonorEntryFields({
             value={value}
             disabled={disabled || linked}
             onChange={
-              /* 分类名称与库中一致 */ (event) =>
+              /* 分类名称和库中一致 */ (event) =>
                 updateValue(event.target.value)
             }
           >
@@ -158,7 +158,7 @@ export default function HonorEntryFields({
     <div className="honor-entry-fields">
       <div className="profile-fields compact-fields">
         {PRIMARY.filter(
-          /* 只读卡片已在标题中显示荣誉名称；编辑表单仍提供完整字段 */ (
+          /* 只读卡片已在标题中显示荣誉名称，编辑表单仍提供完整字段 */ (
             field,
           ) => showName || field.key !== "name",
         ).map(renderField)}

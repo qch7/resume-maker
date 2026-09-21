@@ -7,7 +7,7 @@ from resume_maker.services.catalog import Catalog
 
 @pytest.fixture(autouse=True)
 def isolate_template_visual_renderer(monkeypatch):
-    """单元测试不启动桌面 Word；整页证据测试显式注入 PDF；真实排版另做本机验收"""
+    """单元测试不启动桌面 Word，整页证据测试显式注入 PDF，真实排版另做本机验收"""
     monkeypatch.setattr(
         "resume_maker.integrations.word.templates.visuals.word_process",
         lambda *_: "测试环境未启动 Word",
@@ -27,7 +27,7 @@ def record_source_files(db, data_dir, project, paths=("README.md",)):
 
 @pytest.fixture
 def catalog(tmp_path):
-    """在临时数据目录创建业务服务；让每个测试的数据相互隔离"""
+    """在临时数据目录创建业务服务，让每个测试的数据相互隔离"""
     return Catalog(Database(tmp_path / "data" / "resume.db"))
 
 
@@ -43,7 +43,7 @@ def project(catalog, tmp_path):
 
 
 def experience(title="Example"):
-    """构造含两条亮点的最小经历；用于测试保存、排序和固定引用"""
+    """构造含两条亮点的最小经历，用于测试保存、排序和固定引用"""
     return {
         "title": title,
         "period": "",
@@ -60,7 +60,7 @@ def experience(title="Example"):
 
 @pytest.fixture
 def populated(catalog, project):
-    """将示例经历发布为正式修订；作为后续测试的已保存基线"""
+    """将示例经历发布为正式修订，作为后续测试的已保存基线"""
     base = project["head_revision"]
     catalog.put_draft(project["id"], base, "experience", experience(), 0)
     return catalog.save_revision(project["id"], base, base)

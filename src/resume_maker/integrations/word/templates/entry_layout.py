@@ -1,4 +1,4 @@
-"""根据条目的有效样式和排版容器统一文字起点且不依赖模板名称或固定坐标"""
+"""根据条目样式和排版容器对齐文字起点"""
 
 from collections import Counter, defaultdict
 from copy import deepcopy
@@ -13,7 +13,7 @@ BODY_FIELDS = {"details", "description", "highlights", "stack", "role", "custom_
 
 
 def merge_properties(target, source):
-    """逐属性展开继承的格式；保留字体及其他属性且不把缺省值当成覆盖"""
+    """逐属性展开继承格式并保留未被显式覆盖的属性"""
     target.attrib.update(source.attrib)
     for child in source:
         existing = (
@@ -35,10 +35,10 @@ def merge_properties(target, source):
 
 
 class ParagraphStyles:
-    """解析默认样式、继承链和编号级别；取得 Word 实际使用的段落几何属性"""
+    """解析默认样式、继承链和编号级别，取得 Word 实际使用的段落几何属性"""
 
     def __init__(self, package):
-        """只读取样式部件；填充时不修改源样式或全局编号定义"""
+        """只读取样式部件，填充时不修改源样式或全局编号定义"""
         parser = etree.XMLParser(resolve_entities=False, no_network=True)
         source = package.files.get("word/styles.xml")
         styles = etree.fromstring(source, parser) if source else etree.Element(w("styles"))
@@ -61,7 +61,7 @@ class ParagraphStyles:
         self.package, self.root, self.flat = package, styles, {}
 
     def isolate_indent(self, paragraph, indent):
-        """字符缩进不能靠删除直接属性取消；为冲突样式生成独立展开副本；保留字体与原样式"""
+        """字符缩进不能靠删除直接属性取消，为冲突样式生成独立展开副本，保留字体和原样式"""
         reference = paragraph.find("w:pPr/w:pStyle", NS)
         identifier = reference.get(w("val")) if reference is not None else self.default
         inherited = {}
@@ -116,7 +116,7 @@ class ParagraphStyles:
         reference.set(w("val"), self.flat[identifier])
 
     def chain(self, identifier):
-        """按父样式到子样式展开属性；循环或失效引用不会无限递归"""
+        """按父样式到子样式展开属性，循环或失效引用不会无限递归"""
         if identifier not in self.cache:
             chain, visited = [], set()
             while identifier in self.styles and identifier not in visited:
@@ -130,7 +130,7 @@ class ParagraphStyles:
         return self.cache[identifier]
 
     def properties(self, paragraph):
-        """显式段落属性优先于继承样式；没有样式引用时使用默认段落样式"""
+        """显式段落属性优先于继承样式，没有样式引用时使用默认段落样式"""
         reference = paragraph.find("w:pPr/w:pStyle", NS)
         identifier = reference.get(w("val")) if reference is not None else self.default
         if identifier not in self.cache:
@@ -139,7 +139,7 @@ class ParagraphStyles:
         return [*self.cache[identifier], *([own] if own is not None else [])]
 
     def attributes(self, paragraph, path):
-        """按属性合并缩进和开关；支持子样式只覆盖父样式的部分属性"""
+        """按属性合并缩进和开关，支持子样式只覆盖父样式的部分属性"""
         result = {}
         for properties in self.properties(paragraph):
             node = properties.find(path, NS)
@@ -148,11 +148,11 @@ class ParagraphStyles:
         return result
 
     def numbered(self, paragraph):
-        """编号来自段落或样式均算列表；显式 numId=0 则禁用继承编号"""
+        """编号来自段落或样式均算列表，显式 numId=0 则禁用继承编号"""
         return self.attributes(paragraph, "w:numPr/w:numId").get(w("val"), "0") != "0"
 
     def indent(self, paragraph):
-        """读取文字左侧基准；编号级别提供默认缩进；段落显式属性具有最高优先级"""
+        """读取文字左侧基准，编号级别提供默认缩进，段落显式属性具有最高优先级"""
         result = self.attributes(paragraph, "w:ind")
         if self.numbered(paragraph) and self.numbering is not None:
             number = self.attributes(paragraph, "w:numPr/w:numId")[w("val")]
@@ -172,12 +172,12 @@ class ParagraphStyles:
             own = paragraph.find("w:pPr/w:ind", NS)
             if own is not None:
                 result.update(own.attrib)
-        # 只统一本列的左侧基准；右侧日期制表位、段落右缩进和文字样式独立保留
+        # 只统一本列的左侧基准，右侧日期制表位、段落右缩进和文字样式独立保留
         keys = ("left", "start", "leftChars", "startChars")
         return {w(key): result[w(key)] for key in keys if w(key) in result} or {w("left"): "0"}
 
     def group(self, paragraph):
-        """只对同一容器和同一单栏节的左对齐文字归组；保留多栏、右对齐及固定文本框设计"""
+        """只对同一容器和同一单栏节的左对齐文字归组，保留多栏、右对齐及固定文本框设计"""
         alignment = self.attributes(paragraph, "w:jc").get(w("val"), "left")
         if alignment not in {"left", "start", "both", "distribute"}:
             return None
@@ -216,7 +216,7 @@ def common_indent(styles, nodes, fields):
 
 
 def apply_indent(paragraph, indent, unnumbered=False):
-    """显式覆盖可能继承的首行、悬挂及字符缩进；使文字起点一致而保留右侧排版"""
+    """显式覆盖可能继承的首行、悬挂及字符缩进，使文字起点一致而保留右侧排版"""
     properties = paragraph.find(w("pPr"))
     if properties is None:
         properties = etree.Element(w("pPr"))
@@ -248,7 +248,7 @@ def apply_indent(paragraph, indent, unnumbered=False):
 
 
 def align_record(styles, nodes, fields):
-    """每条记录分别校准标题和元信息；列表层级、正文缩进及跨列布局保持原样"""
+    """每条记录分别校准标题和元信息，列表层级、正文缩进及跨列布局保持原样"""
     groups, targets = defaultdict(list), defaultdict(set)
     for field in fields:
         node = nodes[field.node]

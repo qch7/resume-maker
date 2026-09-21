@@ -5,7 +5,7 @@ from resume_maker.infrastructure.database import dump, now, unpack
 
 
 def honor_sources(conn):
-    """返回同步和排序所需资料；工作台轮询不携带附件文本或识别原文"""
+    """返回同步和排序所需资料，工作台轮询不携带附件文本或识别原文"""
     rows = conn.execute("SELECT value_json FROM settings WHERE key LIKE 'honor:%'")
     return [
         {
@@ -18,7 +18,7 @@ def honor_sources(conn):
 
 
 def resolve_honor_document(db, document, conn=None):
-    """在给定事务内或独立读连接中取得最新荣誉且不修改原始简历对象"""
+    """在给定事务或独立读连接中取得最新荣誉"""
     if not document:
         return document
     if conn is None:
@@ -28,7 +28,7 @@ def resolve_honor_document(db, document, conn=None):
 
 
 def preserve_deleted_honor(conn, honor):
-    """删除来源前将最后核对资料留在关联简历中；历史导出文件保持原样"""
+    """删除来源前将最后核对资料留在关联简历中，历史导出文件保持原样"""
     rows = conn.execute("SELECT id,document_json FROM resumes WHERE document_json IS NOT NULL")
     for row in rows.fetchall():
         resume = unpack(row)

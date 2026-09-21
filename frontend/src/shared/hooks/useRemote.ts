@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
-/** 读取远端数据；以路径和刷新序号隔离响应并在切换时取消旧请求 */
+/** 读取远端数据，以路径和刷新序号隔离响应并在切换时取消旧请求 */
 export function useRemote<T>(path: string | null, refresh: number) {
   const [result, setResult] = useState<{
     path: string;

@@ -6,7 +6,7 @@ import AdvancedMapping from "./AdvancedMapping";
 import TemplateCanvas from "./TemplateCanvas";
 import TemplateInspector from "./TemplateInspector";
 
-/** 把常用修正放在 Word 试填旁；完整原文与范围操作按需展开 */
+/** 把常用修正放在 Word 试填旁，完整原文和范围操作按需展开 */
 export default function TemplateAdjustments({
   nodes,
   plan,
@@ -37,7 +37,7 @@ export default function TemplateAdjustments({
     [nodes, plan],
   );
   const known = groups.some(
-    /* 高级选区可能不是常用字段 */ (group) =>
+    /* 高级选区可能对应自定义位置 */ (group) =>
       group.choices.some(
         /* 查找选中位置 */ (choice) => choice.id === selected[0],
       ),
@@ -52,7 +52,7 @@ export default function TemplateAdjustments({
       onChange={onChange}
       onSelect={onLocate}
       onRange={
-        /* 保留起点；下一次原文点击决定范围 */ () => onRange(selected[0])
+        /* 保留起点，下一次原文点击决定范围 */ () => onRange(selected[0])
       }
     />
   );
@@ -77,7 +77,7 @@ export default function TemplateAdjustments({
             </option>
           )}
           {groups.map(
-            /* 每个栏目聚合到一组；无需竖排全部段落 */ (group, index) => (
+            /* 每个栏目聚合到一组，无需竖排全部段落 */ (group, index) => (
               <optgroup label={group.label} key={index}>
                 {group.choices.map(
                   /* 重复用途以原文摘要区分位置 */ (choice) => (

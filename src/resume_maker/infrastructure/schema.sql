@@ -1,4 +1,4 @@
--- 当前完整结构，仅对空数据库执行；版本由 database.py 统一登记。
+-- 当前完整结构，仅对空数据库执行，版本由 database.py 统一登记
 CREATE TABLE settings (key TEXT PRIMARY KEY, value_json TEXT NOT NULL);
 CREATE TABLE projects (
  id TEXT PRIMARY KEY, name TEXT NOT NULL, roots_json TEXT NOT NULL,
@@ -66,11 +66,11 @@ CREATE INDEX ix_conversations_project ON conversations(project_id, updated_at);
 CREATE INDEX ix_jobs_status ON jobs(status, created_at);
 CREATE INDEX ix_messages_conversation ON messages(conversation_id, created_at);
 CREATE INDEX ix_events_job ON events(job_id, id);
--- 删除方案仍保留固定引用与导出记录，阻止过期窗口重新写入。
+-- 删除方案仍保留固定引用和导出记录，阻止过期窗口重新写入
 CREATE TABLE resume_deletions (
  resume_id TEXT PRIMARY KEY REFERENCES resumes(id), deleted_at TEXT NOT NULL
 );
--- 子项目拥有独立经历和会话，这里只记录分组关系。
+-- 子项目拥有独立经历和会话，这里只记录分组关系
 CREATE TABLE project_hierarchy (
  project_id TEXT PRIMARY KEY REFERENCES projects(id),
  parent_id TEXT NOT NULL REFERENCES projects(id),

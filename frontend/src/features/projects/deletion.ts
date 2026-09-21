@@ -1,6 +1,6 @@
 import type { Job, Project, Resume } from "../../shared/types/index";
 
-/** 收集项目及全部后代；整组删除与占用检查使用相同范围 */
+/** 收集项目及全部后代，整组删除和占用检查使用相同范围 */
 export function projectDeletionIds(projects: Project[], projectId: string) {
   const ids = new Set([projectId]);
   for (const id of ids) {
@@ -11,7 +11,7 @@ export function projectDeletionIds(projects: Project[], projectId: string) {
   return ids;
 }
 
-/** 已保存简历与当前未保存组合都阻止删除；隐藏项目同样保留引用 */
+/** 已保存简历和当前未保存组合都阻止删除，隐藏项目同样保留引用 */
 export function projectDeletionBlocker(
   ids: Set<string>,
   resumes: Resume[],

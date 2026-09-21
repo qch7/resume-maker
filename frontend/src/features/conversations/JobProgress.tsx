@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { request } from "../../shared/lib/api";
 import type { Job } from "../../shared/types/index";
 
-/** 消费当前任务的 SSE 事件；展示最近进度并在卸载时取消连接 */
+/** 消费当前任务的 SSE 事件，展示最近进度并在卸载时取消连接 */
 export default function JobProgress({ job }: { job: Job }) {
   const [events, setEvents] = useState<
     {
@@ -18,7 +18,7 @@ export default function JobProgress({ job }: { job: Job }) {
   useEffect(() => {
     const controller = new AbortController();
     void (
-      /* 执行当前异步流程；保持请求结果与所属组件状态一致 */ (async () => {
+      /* 执行当前异步流程，保持请求结果和所属组件状态一致 */ (async () => {
         try {
           const response = await request(`/jobs/${job.id}/events`, {
             signal: controller.signal,

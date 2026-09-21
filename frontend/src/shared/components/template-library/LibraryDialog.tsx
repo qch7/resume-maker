@@ -28,7 +28,7 @@ import {
   type LibraryTemplate,
 } from "./library";
 
-/** 读取上次视图偏好；浏览器禁止本地存储时仍默认展示卡片 */
+/** 读取上次视图偏好，浏览器禁止本地存储时仍默认展示卡片 */
 function initialView(): "cards" | "list" {
   try {
     return localStorage.getItem("rm.template.library.view") === "list"
@@ -39,7 +39,7 @@ function initialView(): "cards" | "list" {
   }
 }
 
-/** 以原生模态层提供资源管理器布局；焦点和 Escape 不会穿透至父工作区 */
+/** 使用原生模态窗口限制焦点和 Escape 的作用范围 */
 export default function LibraryDialog({
   templates,
   value,
@@ -73,7 +73,7 @@ export default function LibraryDialog({
   const [notice, setNotice] = useState("");
   const items = libraryTemplates(templates, library);
   const activeItems = items.filter(
-    /* 回收站独立计数且不出现在正常分类中 */ (item) => !item.deleted_at,
+    /* 回收站单独计数 */ (item) => !item.deleted_at,
   );
   const visible = filterTemplates(items, folder, query, sort);
   const selected = visible.find(
@@ -84,12 +84,12 @@ export default function LibraryDialog({
   );
 
   useEffect(
-    /* 原生弹窗处理焦点约束与关闭后的焦点恢复 */ () => {
+    /* 原生弹窗处理焦点约束和关闭后的焦点恢复 */ () => {
       alive.current = true;
       const element = dialog.current!;
       element.showModal();
       search.current?.focus();
-      return /* 先关闭模态层；再回收组件 */ () => {
+      return /* 先关闭模态层，再回收组件 */ () => {
         alive.current = false;
         element.close();
       };
@@ -97,7 +97,7 @@ export default function LibraryDialog({
     [],
   );
   useEffect(
-    /* 每次打开重新读取数据库；让两个入口共享最新收藏与分类 */ () => {
+    /* 每次打开时从数据库读取最新收藏和分类 */ () => {
       const controller = new AbortController();
       setLoaded(false);
       setError("");
@@ -125,7 +125,7 @@ export default function LibraryDialog({
     [reload],
   );
 
-  /** 统一保存状态与错误提示；等待成功后更新名称、分类和 Like */
+  /** 保存成功后更新名称、分类和 Like */
   async function save(path: string, method: string, body?: unknown) {
     setPending(true);
     setError("");
@@ -144,14 +144,14 @@ export default function LibraryDialog({
       if (alive.current) setPending(false);
     }
   }
-  /** 空标识即未分类；内置模板与导入模板使用相同分类规则 */
+  /** 空标识即未分类，内置模板和导入模板使用相同分类规则 */
   function categoryName(id: string) {
     return (
       library.categories.find(/* 查找自定义分类名称 */ (item) => item.id === id)
         ?.name ?? "未分类"
     );
   }
-  /** 确认当前有效模板；取消或单击浏览不会触发此回调 */
+  /** 确认当前有效模板，取消或单击浏览不会触发此回调 */
   function confirm(id: string) {
     if (
       pending ||
@@ -165,7 +165,7 @@ export default function LibraryDialog({
     onChange(id === "builtin" ? "" : id);
     onClose();
   }
-  /** 切换视图后保留分类、搜索与选中项并记住偏好 */
+  /** 切换视图后保留分类、搜索和选中项并记住偏好 */
   function changeView(next: "cards" | "list") {
     setView(next);
     try {
@@ -174,12 +174,12 @@ export default function LibraryDialog({
       /* 存储不可用时保留本次偏好 */
     }
   }
-  /** 点击侧栏清除旧搜索；让新分类的内容完整显示 */
+  /** 切换分类时清空搜索 */
   function openFolder(id: string) {
     setFolder(id);
     setQuery("");
   }
-  /** 新建成功后进入分类；可从全部模板中把模板移入该分类 */
+  /** 新建成功后进入分类，可从全部模板中把模板移入该分类 */
   async function createCategory() {
     const state = await save("/categories", "POST", { name: categoryDraft });
     if (state && alive.current) {
@@ -188,7 +188,7 @@ export default function LibraryDialog({
       openFolder(state.categories.at(-1)!.id);
     }
   }
-  /** 仅合并 Like 字段且不覆盖模板分类 */
+  /** 仅合并模板的 Like 字段 */
   function like(item: LibraryTemplate) {
     void save(`/items/${encodeURIComponent(item.id)}`, "PATCH", {
       liked: !item.liked,
@@ -315,7 +315,7 @@ export default function LibraryDialog({
             <form
               className="library-category-form"
               onSubmit={
-                /* 提交名称且不触发页面导航 */ (event) => {
+                /* 提交名称并阻止表单导航 */ (event) => {
                   event.preventDefault();
                   void createCategory();
                 }
@@ -354,7 +354,7 @@ export default function LibraryDialog({
               className="library-add-category"
               disabled={!loaded || pending}
               onClick={
-                /* 在侧栏内创建分类；无需离开选择流程 */ () => setAdding(true)
+                /* 在侧栏内创建分类，无需离开选择流程 */ () => setAdding(true)
               }
             >
               <FolderPlus size={17} />
@@ -379,7 +379,7 @@ export default function LibraryDialog({
                       : undefined
                   }
                   onClick={
-                    /* 固定当前模板；确认前不改变列表或现有简历 */ () =>
+                    /* 固定当前模板，确认前不改变列表或现有简历 */ () =>
                       setDeleting(selected)
                   }
                 >
@@ -394,7 +394,7 @@ export default function LibraryDialog({
                   aria-label={`删除分类 ${category.name}`}
                   title="删除分类，模板将回到未分类"
                   onClick={
-                    /* 删除只解除分类且不删除模板 */ async () => {
+                    /* 删除分类后保留其中的模板 */ async () => {
                       if (await save(`/categories/${category.id}`, "DELETE"))
                         openFolder("");
                     }
@@ -506,7 +506,7 @@ export default function LibraryDialog({
                 </p>
                 <button
                   onClick={
-                    /* 空搜索清除关键词；空分类返回全部模板 */ () =>
+                    /* 空搜索清除关键词，空分类返回全部模板 */ () =>
                       query ? setQuery("") : openFolder("all")
                   }
                 >
@@ -532,7 +532,7 @@ export default function LibraryDialog({
                 editable={selected.id !== "builtin" && !selected.deleted_at}
                 pending={pending}
                 onSave={
-                  /* 改名后同步各视图；名称不再匹配搜索时清空筛选以保留选择 */ async (
+                  /* 改名后同步各视图，名称不再匹配搜索时清空筛选以保留选择 */ async (
                     name,
                   ) => {
                     const state = await save(
@@ -573,7 +573,7 @@ export default function LibraryDialog({
                   disabled={pending || !!selected.deleted_at}
                   value={selected.category_id}
                   onChange={
-                    /* 分类修改立即持久化且不改变当前简历 */ (event) =>
+                    /* 立即保存分类修改 */ (event) =>
                       void save(
                         `/items/${encodeURIComponent(selected.id)}`,
                         "PATCH",
@@ -596,7 +596,7 @@ export default function LibraryDialog({
                 aria-pressed={selected.liked}
                 disabled={pending || !!selected.deleted_at}
                 onClick={
-                  /* 详情面板与卡片共用同一个 Like 状态 */ () => like(selected)
+                  /* 详情面板和卡片共用同一个 Like 状态 */ () => like(selected)
                 }
               >
                 <Heart
@@ -632,7 +632,7 @@ export default function LibraryDialog({
             className="primary"
             disabled={!selected || !loaded || pending}
             onClick={
-              /* 回收站恢复不应用模板；正常列表选择返回工作区 */ async () => {
+              /* 回收站恢复不应用模板，正常列表选择返回工作区 */ async () => {
                 if (!selected) return;
                 if (selected.deleted_at) {
                   if (
@@ -663,9 +663,9 @@ export default function LibraryDialog({
         <DeleteTemplateDialog
           template={deleting}
           permanent={folder === "trash"}
-          onClose={/* 取消只关闭确认框；保留当前选择 */ () => setDeleting(null)}
+          onClose={/* 取消只关闭确认框，保留当前选择 */ () => setDeleting(null)}
           onDeleted={
-            /* 成功后同步所有分类计数；保留现有简历的模板引用 */ (state) => {
+            /* 成功后同步所有分类计数，保留现有简历的模板引用 */ (state) => {
               setLibrary(state);
               setSelectedId("");
               setNotice(

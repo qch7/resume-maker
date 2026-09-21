@@ -22,13 +22,13 @@ const FIELDS = HONOR_FIELDS.filter(
     field.key !== "category" && field.key !== "description",
 );
 const CATEGORY = HONOR_FIELDS.find(
-  /* 分类与个人信息使用同一份字段标签 */ (field) => field.key === "category",
+  /* 分类和个人信息使用同一份字段标签 */ (field) => field.key === "category",
 )!;
 const DESCRIPTION = HONOR_FIELDS.find(
   /* 多行说明的限制和提示保持一致 */ (field) => field.key === "description",
 )!;
 
-/** 对照原件核对识别结果；保留未保存表单并用版本号防止并发覆盖 */
+/** 对照原件核对识别结果，保留未保存表单并用版本号防止并发覆盖 */
 export default function HonorEditor({
   honor,
   onClose,
@@ -71,7 +71,7 @@ export default function HonorEditor({
     [],
   );
   useEffect(
-    /* 未编辑时跟随识别完成状态；有草稿时保留原版本以检查冲突 */ () => {
+    /* 未编辑时跟随识别完成状态，有草稿时保留原版本以检查冲突 */ () => {
       if (honor && !dirty) {
         setFields(honor.fields);
         setBaseline(honor.fields);
@@ -88,19 +88,19 @@ export default function HonorEditor({
     )
       onClose();
   }
-  /** 显隐和自定义字段只留在本次简历表单；正文沿用荣誉库字段 */
+  /** 显隐和自定义字段只留在本次简历表单，正文沿用荣誉库字段 */
   function changeEntry(value: SectionEntry) {
     setEntry(value);
     setFields(honorFieldsFromEntry(value));
   }
-  /** 保存当前表单；服务端成功前保留用户输入 */
+  /** 保存当前表单，服务端成功前保留用户输入 */
   async function save() {
     if (busy || recognizing || !fields.name.trim()) return;
     setBusy(true);
     setError("");
     let savedSource = sourceSaved;
     try {
-      // 本地条目与单独的显示设置不写来源；保存失败后重试使用已确认的新版本
+      // 本地条目和单独的显示设置不写来源，保存失败后重试使用已确认的新版本
       if (!resumeEntry || (honor && contentDirty)) {
         const saved = await api<Honor>(
           honor ? `/honors/${honor.id}` : "/honors",
@@ -259,7 +259,7 @@ export default function HonorEditor({
                     type="button"
                     disabled={recognizing || busy}
                     onClick={
-                      /* 填入后收起本次提示；下一次新识别仍可独立核对 */ () => {
+                      /* 填入后收起本次提示，下一次新识别仍可独立核对 */ () => {
                         setFields(honor.recognition!.fields);
                         setAppliedRecognitionVersion(honor.version);
                       }
@@ -286,7 +286,7 @@ export default function HonorEditor({
                       hidden={entry.visible === false}
                       disabled={busy || recognizing}
                       onToggle={
-                        /* 整条隐藏与各个字段的显示选择互不覆盖 */ () =>
+                        /* 整条隐藏和各个字段的显示选择互不覆盖 */ () =>
                           setEntry({
                             ...entry,
                             visible: entry.visible === false,
@@ -353,7 +353,7 @@ export default function HonorEditor({
                   <select
                     value={fields.category}
                     onChange={
-                      /* 分类与原件内容分开维护 */ (event) =>
+                      /* 分类和原件内容分开维护 */ (event) =>
                         setFields({
                           ...fields,
                           category: event.target
@@ -362,7 +362,7 @@ export default function HonorEditor({
                     }
                   >
                     {CATEGORIES.map(
-                      /* 列出统一的荣誉分类 */ (category) => (
+                      /* 列出荣誉分类 */ (category) => (
                         <option key={category}>{category}</option>
                       ),
                     )}

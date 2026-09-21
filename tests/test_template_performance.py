@@ -1,4 +1,4 @@
-"""验证模板缓存、增量会话及轻量活动不牺牲覆盖、隔离和取消语义"""
+"""验证缓存、增量会话和活动查询保留覆盖校验、任务隔离及取消处理"""
 
 import json
 
@@ -15,17 +15,17 @@ from resume_maker.services.templates.tasks import Templates
 
 
 class SessionProvider(RepairProvider):
-    """提供真实语义的会话事件；让下一轮可接续本任务上下文"""
+    """返回可用于下一轮续聊的会话事件"""
 
     def run_structured(self, **kwargs):
-        """每轮上报同一会话标识；首轮遗漏会触发增量修正"""
+        """每轮上报同一会话标识，首轮遗漏会触发增量修正"""
         kwargs["emit"]("thread", {"id": "template-session"})
         kwargs["emit"]("usage", {"input_tokens": 100 * (len(self.calls) + 1), "cumulative": True})
         return super().run_structured(**kwargs)
 
 
 def test_repair_reuses_only_its_own_session(catalog, tmp_path):
-    """新任务从独立会话开始；自动修正省去清单、图片与未变化的旧方案"""
+    """新任务从独立会话开始，自动修正省去清单、图片和未变化的旧方案"""
     source = tmp_path / "source.docx"
     simple_template(source)
     provider = SessionProvider()
@@ -51,7 +51,7 @@ def test_repair_reuses_only_its_own_session(catalog, tmp_path):
 
 
 def test_cache_survives_restart_but_rechecks_changed_requirements(catalog, tmp_path):
-    """资料值变化可复用；新增待填字段必须重识别；人工要求不能被缓存吞掉"""
+    """资料值变化可复用，新增待填字段必须重识别，人工要求不能被缓存吞掉"""
     source = tmp_path / "source.docx"
     simple_template(source)
     provider = TemplateProvider()
@@ -92,7 +92,7 @@ def test_corrupted_or_invalid_cache_falls_back_to_analysis(catalog, tmp_path):
 
 
 def test_compact_inventory_preserves_exact_text_and_boundaries(tmp_path):
-    """清单压缩只消除重复结构键和容器正文；保留所有段落、空位和结构约束"""
+    """清单压缩只消除重复结构键和容器正文，保留所有段落、空位和结构约束"""
     path = tmp_path / "table.docx"
     doc = Document()
     table = doc.add_table(rows=2, cols=2)
@@ -116,7 +116,7 @@ def test_compact_inventory_preserves_exact_text_and_boundaries(tmp_path):
 
 
 def test_progress_is_incremental_bounded_and_freezes_on_cancel(tmp_path, monkeypatch):
-    """进度鉴权与结果相同；游标增量不携带模板原文；取消后事件和耗时冻结"""
+    """进度鉴权和结果相同，游标增量不携带模板原文，取消后事件和耗时冻结"""
     source = tmp_path / "source.docx"
     simple_template(source)
     provider = TemplateProvider(block=True)

@@ -3,7 +3,7 @@ import type { HonorSource } from "../../shared/types/honors.ts";
 import { HONOR_FIELDS } from "./fields.ts";
 import { updateHonorField } from "./entry.ts";
 
-/** 按来源标识读取已核对荣誉；补齐旧条目并保留每份简历自己的排版设置 */
+/** 按来源标识同步已核对荣誉并保留各份简历的排版设置 */
 export function syncHonorDocument(
   document: ResumeDocument | null,
   honors: HonorSource[],
@@ -42,7 +42,7 @@ export function syncHonorDocument(
   return changed ? { ...document, sections } : document;
 }
 
-/** 当前和缓存方案使用同一同步规则；其他未保存草稿及版本号保持不变 */
+/** 按相同规则同步当前方案和缓存方案 */
 export function syncHonorResume(resume: Resume, honors: HonorSource[]): Resume {
   const document = syncHonorDocument(resume.document, honors);
   return document === resume.document ? resume : { ...resume, document };

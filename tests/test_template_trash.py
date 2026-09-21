@@ -1,4 +1,4 @@
-"""模板回收站、引用保护、到期清理与永久文件删除的完整行为"""
+"""模板回收站、引用保护、到期清理和永久文件删除的完整行为"""
 
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
@@ -17,14 +17,14 @@ from resume_maker.services.templates.library import TemplateLibrary
 
 
 def age_item(service, identifier, stamp):
-    """只修改测试夹具的回收时间且不通过等待模拟三十天"""
+    """直接修改夹具的回收时间"""
     state = service.db.setting(TEMPLATE_LIBRARY_KEY)
     state["items"][identifier]["deleted_at"] = stamp.isoformat()
     service.db.set_setting(TEMPLATE_LIBRARY_KEY, state)
 
 
 def test_recycle_restore_and_permanent_delete_api(tmp_path):
-    """取消不产生请求；移入后不可选用；恢复保留收藏；永久删除实际文件和保存记录"""
+    """取消不产生请求，移入后不可选用，恢复保留收藏，永久删除实际文件和保存记录"""
     config = Config(data_dir=tmp_path / "data", token="test")
     headers = {"x-resume-token": "test"}
     with TestClient(create_app(config)) as client:
@@ -96,7 +96,7 @@ def test_recycle_restore_and_permanent_delete_api(tmp_path):
 
 
 def test_used_templates_and_builtin_cannot_be_removed(catalog, tmp_path):
-    """所有保存方案的固定引用均受保护；包括保留历史导出的已删除方案"""
+    """所有保存方案的固定引用均受保护，包括保留历史导出的已删除方案"""
     source = register_template(catalog, tmp_path / "data")
     service = TemplateLibrary(catalog, tmp_path / "data")
     resume = catalog.save_resume("正在使用", "mapped", [], document=resume_content())
@@ -113,7 +113,7 @@ def test_used_templates_and_builtin_cannot_be_removed(catalog, tmp_path):
 
 
 def test_exact_deadline_and_restoration_cancel_cleanup(catalog, tmp_path):
-    """不足三十天不清理；到期精确清理；恢复后旧清理任务不能删除已恢复项"""
+    """不足三十天不清理，到期精确清理，恢复后旧清理任务不能删除已恢复项"""
     source = register_template(catalog, tmp_path / "data")
     service = TemplateLibrary(catalog, tmp_path / "data")
     service.delete("mapped")
@@ -132,7 +132,7 @@ def test_exact_deadline_and_restoration_cancel_cleanup(catalog, tmp_path):
 
 
 def test_restart_cleans_expired_without_opening_library(tmp_path):
-    """应用启动自动补清到期项并启动定时器；应用退出回收线程"""
+    """应用启动自动补清到期项并启动定时器，应用退出回收线程"""
     config = Config(data_dir=tmp_path / "data", token="test")
     app = create_app(config)
     source = register_template(app.state.services.catalog, config.data_dir)
@@ -146,7 +146,7 @@ def test_restart_cleans_expired_without_opening_library(tmp_path):
 
 
 def test_permanent_cleanup_keeps_shared_artifacts_and_external_source(catalog, tmp_path):
-    """永久删除清理专属识别目录、缓存和缩略图且不影响其他模板共享数据或用户原文档"""
+    """永久删除仅清理模板专属目录、缓存和缩略图"""
     root = tmp_path / "data"
     source = register_template(catalog, root)
     record = catalog.template("mapped")
@@ -192,7 +192,7 @@ def test_permanent_cleanup_keeps_shared_artifacts_and_external_source(catalog, t
 
 
 def test_failed_file_cleanup_stays_in_trash_for_retry(catalog, tmp_path, monkeypatch):
-    """文件占用不能返回假成功或删除数据库记录；解除占用后可完成重试"""
+    """文件占用不能返回假成功或删除数据库记录，解除占用后可完成重试"""
     root = tmp_path / "data"
     source = register_template(catalog, root)
     service = TemplateLibrary(catalog, root)
@@ -215,7 +215,7 @@ def test_failed_file_cleanup_stays_in_trash_for_retry(catalog, tmp_path, monkeyp
 
 
 def test_recycle_and_save_cannot_create_a_dangling_reference(catalog, tmp_path):
-    """并发保存和移入只允许一个成功；数据库不会产生引用回收站模板的简历"""
+    """并发保存和移入只允许一个成功，数据库不会产生引用回收站模板的简历"""
     register_template(catalog, tmp_path / "data")
     service = TemplateLibrary(catalog, tmp_path / "data")
     with ThreadPoolExecutor(max_workers=2) as pool:
@@ -237,7 +237,7 @@ def test_recycle_and_save_cannot_create_a_dangling_reference(catalog, tmp_path):
 
 
 def test_cleanup_refuses_paths_outside_data_before_deleting(catalog, tmp_path):
-    """异常产物索引不能删除外部文件；检查失败时模板目录也保持完整"""
+    """异常产物索引不能删除外部文件，检查失败时模板目录也保持完整"""
     root = tmp_path / "data"
     source = register_template(catalog, root)
     external = tmp_path / "keep.txt"

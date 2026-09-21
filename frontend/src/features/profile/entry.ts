@@ -17,7 +17,7 @@ export function findEntry(
     ?.entries.find(/* 定位条目 */ (entry) => entry.id === entryId);
 }
 
-/** 统一编辑窗口提交单条草稿；保留该方案其他尚未保存的资料 */
+/** 单独提交当前条目并保留其他资料草稿 */
 export function replaceEntry(
   draft: Resume,
   sectionId: string,
@@ -45,7 +45,7 @@ export function replaceEntry(
   };
 }
 
-/** 单条保存只采用该条内容；新栏目仅补入必要层级；其他资料保留服务器版本 */
+/** 单条保存时只补入必要的栏目层级 */
 export function entryComposition(
   draft: Resume,
   saved: Resume | undefined,
@@ -63,7 +63,7 @@ export function entryComposition(
   const baseline = saved ?? { ...draft, items: [], document: newDocument() };
   const document = baseline.document ?? newDocument();
   const sections = [...document.sections];
-  /** 递归补齐新栏目的父级且只保存结构且不带入其他条目草稿 */
+  /** 保存新栏目时递归补齐父级结构 */
   function ensureSection(section: ResumeSection): void {
     if (
       sections.some(

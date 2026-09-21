@@ -5,13 +5,13 @@ import type {
 } from "../../../shared/types/index.ts";
 import { matchDefaultSections } from "./sections.ts";
 
-/** 按父子层级展开栏目；同级沿用原顺序；缺失父级的栏目仍可编辑 */
+/** 按父子层级展开栏目，同级沿用原顺序，缺失父级的栏目仍可编辑 */
 function sectionOrder<T extends { id: string; parent_id?: string | null }>(
   sections: T[],
 ): T[] {
   const result: T[] = [];
   const visited = new Set<string>();
-  /** 每个栏目只进入一次；兼容旧数据中无效的父级关系 */
+  /** 每个栏目只进入一次，兼容旧数据中无效的父级关系 */
   function append(section: T) {
     if (visited.has(section.id)) return;
     visited.add(section.id);
@@ -24,7 +24,7 @@ function sectionOrder<T extends { id: string; parent_id?: string | null }>(
   return result;
 }
 
-/** 默认栏目跟随当前编排；兼容旧标识；尚未使用的默认栏目排在同级末尾 */
+/** 按当前编排排列默认栏目并将未使用的栏目放到同级末尾 */
 export function orderDefaultSections(
   definitions: DefaultSection[],
   document: ResumeDocument | null = null,
@@ -34,7 +34,7 @@ export function orderDefaultSections(
   try {
     matches = matchDefaultSections(document.sections, definitions);
   } catch {
-    // 有同名歧义时仅同步标识确定的栏目且不妨碍用户进入设置修正名称
+    // 重名时仅同步标识明确的栏目并保留设置入口
     matches = new Map(
       definitions.flatMap(
         /* 不根据含糊的名称猜测顺序 */ (definition) => {
@@ -79,7 +79,7 @@ export type DefaultSearchResult = {
   sectionTitle: string;
 };
 
-/** 按导航顺序搜索栏目及信息项；支持跨栏目的多个关键词和英文大小写 */
+/** 按导航顺序匹配栏目和信息项中的多个关键词 */
 export function searchDefaultFields(
   defaults: ResumeDefaults,
   query: string,

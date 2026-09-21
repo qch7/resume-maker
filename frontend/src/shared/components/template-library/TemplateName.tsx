@@ -1,7 +1,7 @@
 import { Check, Pencil, X } from "lucide-react";
 import { useRef, useState } from "react";
 
-/** 在详情标题内重命名；提交失败保留输入；取消不写入数据库 */
+/** 在详情标题内重命名，提交失败保留输入，取消不写入数据库 */
 export default function TemplateName({
   name,
   editable,
@@ -17,7 +17,7 @@ export default function TemplateName({
   const [draft, setDraft] = useState(name);
   const editButton = useRef<HTMLButtonElement>(null);
 
-  /** 结束编辑并恢复键盘焦点以免下一次 Escape 意外作用于旧输入框 */
+  /** 结束编辑后恢复键盘焦点 */
   function finish() {
     setEditing(false);
     requestAnimationFrame(
@@ -30,14 +30,14 @@ export default function TemplateName({
     <form
       className="library-name-editor"
       onSubmit={
-        /* 仅成功写入后关闭编辑；空白名称保持禁用 */ async (event) => {
+        /* 仅成功写入后关闭编辑，空白名称保持禁用 */ async (event) => {
           event.preventDefault();
           if (pending || !draft.trim()) return;
           if (draft.trim() === name || (await onSave(draft.trim()))) finish();
         }
       }
       onKeyDown={
-        /* Escape 只取消名称编辑且不关闭整个模板库 */ (event) => {
+        /* Escape 取消名称编辑 */ (event) => {
           if (event.key === "Escape") {
             event.preventDefault();
             event.stopPropagation();
@@ -53,7 +53,7 @@ export default function TemplateName({
         value={draft}
         disabled={pending}
         onFocus={
-          /* 全选原名称；方便直接替换 */ (event) => event.target.select()
+          /* 全选原名称，方便直接替换 */ (event) => event.target.select()
         }
         onChange={
           /* 输入仅保留在当前标题草稿中 */ (event) =>
@@ -91,7 +91,7 @@ export default function TemplateName({
           title="编辑名称"
           disabled={pending}
           onClick={
-            /* 每次开始编辑读取当前已保存名称且不沿用取消的草稿 */ () => {
+            /* 每次编辑从已保存的名称开始 */ () => {
               setDraft(name);
               setEditing(true);
             }

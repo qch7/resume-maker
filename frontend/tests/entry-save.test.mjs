@@ -9,7 +9,7 @@ import {
   replaceEntry,
 } from "../src/features/profile/entry.ts";
 
-test("modal entry saves apply only on success and retain unrelated drafts", /* 模态表单不提前污染草稿；保存时只提交本条；保留其他输入 */ () => {
+test("modal entry saves apply only on success and retain unrelated drafts", /* 模态表单不提前污染草稿，保存时只提交本条，保留其他输入 */ () => {
   const saved = baseline();
   const draft = structuredClone(saved);
   draft.document.personal.name = "未保存姓名";
@@ -64,7 +64,7 @@ function baseline() {
   };
 }
 
-test("entry saves isolate other drafts without losing pending changes", /* 保存一条时不提交其他经历、姓名、编排与项目引用 */ () => {
+test("entry saves isolate other drafts without losing pending changes", /* 保存一条时不提交其他经历、姓名、编排和项目引用 */ () => {
   const saved = baseline();
   const draft = structuredClone(saved);
   draft.name = "方案草稿";
@@ -143,7 +143,7 @@ test("entry responses preserve later typing, removals and selected resumes", /* 
   assert.equal(acceptSavedComposition(other, submitted, response), other);
 });
 
-test("new child entries save only their necessary structure and work with new or template-based resumes", /* 新栏目只补齐父级结构；空条目也能保存为只读记录 */ () => {
+test("new child entries save only their necessary structure and work with new or template-based resumes", /* 新栏目只补齐父级结构，空条目也能保存为只读记录 */ () => {
   const saved = baseline();
   const draft = structuredClone(saved);
   const entry = {
@@ -220,7 +220,7 @@ test("new child entries save only their necessary structure and work with new or
   );
 });
 
-test("entries in new project child sections save without publishing other drafts", /* 项目大栏目新增子栏目后；单条资料也能保存并保留原项目引用 */ () => {
+test("entries in new project child sections save without publishing other drafts", /* 项目大栏目新增子栏目后，单条资料也能保存并保留原项目引用 */ () => {
   const saved = baseline();
   const draft = structuredClone(saved);
   draft.document.personal.name = "未保存姓名";

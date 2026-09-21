@@ -1,4 +1,4 @@
-"""用独立构造的不同语言、列数和容器验证适配规则且不使用用户简历或固定节点编号"""
+"""使用不同语言、列数和容器构造模板以验证适配规则"""
 
 import json
 from io import BytesIO
@@ -23,7 +23,7 @@ from resume_maker.services.templates.tasks import Templates
 
 
 def mapping(package, fields=(), repeats=(), keep=()):
-    """按真实原文查找节点；额外空段落或不同字体造成的编号变化不影响测试方案"""
+    """按真实原文查找节点，额外空段落或不同字体造成的编号变化不影响测试方案"""
     ids = {
         paragraph_text(node): identifier
         for identifier, node in package.nodes.items()
@@ -48,7 +48,7 @@ def mapping(package, fields=(), repeats=(), keep=()):
 def test_explicit_columns_do_not_depend_on_email_order_or_node_numbers(
     tmp_path, columns, padding, language
 ):
-    """不同语言与列数只复用明确空列；邮箱可以在任意一行；字段顺序和编号均不是规则"""
+    """不同语言和列数的模板仅复用明确空列并允许任意字段顺序"""
     source, snapshot, output = [
         tmp_path / name for name in ("source.docx", "snapshot.docx", "output.docx")
     ]
@@ -87,7 +87,7 @@ def test_explicit_columns_do_not_depend_on_email_order_or_node_numbers(
 
 @pytest.mark.parametrize("fixed_height", [False, True])
 def test_contact_supplement_respects_table_growth_constraints(tmp_path, fixed_height):
-    """可扩展单元格内补齐资料；固定行高时移到表格后；既不裁切新字段也不改表格宽高"""
+    """可扩展单元格内补齐资料，固定行高时移到表格后，既不裁切新字段也不改表格宽高"""
     source, output = tmp_path / "source.docx", tmp_path / "filled.docx"
     doc = Document()
     table = doc.add_table(rows=1, cols=2)
@@ -120,7 +120,7 @@ def test_contact_supplement_respects_table_growth_constraints(tmp_path, fixed_he
 
 
 def test_icon_labelled_blank_contact_is_not_relocated(tmp_path):
-    """图标标识的空白城市位置是模板设计的一部分且不能仅凭缺少文字标签移动它"""
+    """保留图标标识的城市空位"""
     source = tmp_path / "source.docx"
     doc = Document()
     doc.add_picture(BytesIO(photo_bytes(40)))
@@ -149,7 +149,7 @@ def test_icon_labelled_blank_contact_is_not_relocated(tmp_path):
 def test_independent_sidebar_sections_preserve_columns_and_clear_only_their_own_content(
     tmp_path, columns, hide_first
 ):
-    """左右栏各自重复和隐藏；跨栏排序不拆散容器；长正文、装饰与不同列宽继续保留"""
+    """左右栏各自重复和隐藏，跨栏排序不拆散容器，长正文、装饰和不同列宽继续保留"""
     source, output = tmp_path / "source.docx", tmp_path / "filled.docx"
     doc = Document()
     table = doc.add_table(rows=1, cols=columns)
@@ -229,7 +229,7 @@ def test_independent_sidebar_sections_preserve_columns_and_clear_only_their_own_
 
 @pytest.mark.parametrize("relative", ["paragraph", "line"])
 def test_relative_drawing_stays_with_its_text_anchor(tmp_path, relative):
-    """相对段落或行的图形不能迁到新空段落；否则同样的坐标会产生不同的实际位置"""
+    """相对段落或行的图形不能迁到新空段落，否则同样的坐标会产生不同的实际位置"""
     wp = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
     source, output = tmp_path / "source.docx", tmp_path / "filled.docx"
     doc = Document()
@@ -257,12 +257,12 @@ def test_relative_drawing_stays_with_its_text_anchor(tmp_path, relative):
 def test_source_pages_and_structural_controls_reach_the_model_without_current_values(
     catalog, tmp_path, monkeypatch
 ):
-    """整页版式、换行与容器证据一起送入识别；附件数量有界；当前资料值不被发送"""
+    """整页版式、换行和容器证据一起送入识别，附件数量有界，当前资料值不被发送"""
     source = tmp_path / "source.docx"
     simple_template(source)
 
     def render(document, pdf):
-        """生成八页独立模板图；用来核验附件顺序与未展示页说明"""
+        """生成八页独立模板图，用来核验附件顺序和未展示页说明"""
         with pymupdf.open() as output:
             for number in range(8):
                 output.new_page().insert_text((40, 40), f"Template page {number + 1}")
@@ -292,7 +292,7 @@ def test_source_pages_and_structural_controls_reach_the_model_without_current_va
 def test_failed_structural_repair_restores_matching_best_snapshot_and_resets_model_context(
     catalog, tmp_path
 ):
-    """补齐位置改变编号后重发清单；后续失败时将最佳方案及其源快照一起恢复"""
+    """补齐位置改变编号后重发清单，后续失败时将最佳方案及其源快照一起恢复"""
     source = tmp_path / "source.docx"
     doc = Document()
     doc.add_paragraph("原姓名")
@@ -302,7 +302,7 @@ def test_failed_structural_repair_restores_matching_best_snapshot_and_resets_mod
     original_inventory = TemplatePackage(source).inventory()["nodes"]
 
     class ChangingProvider(TemplateProvider):
-        """先遗漏整段标题；再补齐但留下真实栏目冲突；最后一次修正模拟服务失败"""
+        """先遗漏整段标题，再补齐但留下真实栏目冲突，最后一次修正模拟服务失败"""
 
         def run_structured(self, **kwargs):
             """记录新会话收到的映射和节点关系以确保模型不会混用旧节点编号"""
@@ -345,7 +345,7 @@ def test_failed_structural_repair_restores_matching_best_snapshot_and_resets_mod
 
 
 def test_cached_mapping_reenters_repair_when_current_trial_fails(catalog, tmp_path, monkeypatch):
-    """缓存结构有效但当前试填失败时继续自动识别且不能直接返回不可用的缓存结果"""
+    """缓存映射在当前资料上试填失败时重新识别"""
     from resume_maker.services.templates.analysis import check_trial
 
     source = tmp_path / "source.docx"
@@ -357,7 +357,7 @@ def test_cached_mapping_reenters_repair_when_current_trial_fails(catalog, tmp_pa
     calls = []
 
     def fail_cached_trial_once(source, plan, review, document, projects):
-        """模拟只有缓存试填遇到的新限制；下一轮按正常填充器验证修正结果"""
+        """模拟只有缓存试填遇到的新限制，下一轮按正常填充器验证修正结果"""
         calls.append(plan)
         if len(calls) == 1:
             review["errors"].append("当前资料触发新的排版约束")

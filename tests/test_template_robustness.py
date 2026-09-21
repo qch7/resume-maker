@@ -1,4 +1,4 @@
-"""跨名称、节点编号、记录数量和容器验证补全；格式失败也必须有界反馈而非放行。"""
+"""验证不同模板的补全规则及格式失败时的有限重试"""
 
 import json
 import threading
@@ -21,7 +21,7 @@ from resume_maker.services.templates.analysis import analyze_plan
 
 @pytest.mark.parametrize("layout", ["body", "rows", "cells"])
 def test_project_title_alias_uses_actual_name_and_visibility(tmp_path, layout):
-    """项目重复区与标题使用同一别名时，改名和显隐仍依据真实栏目且不修改原方案。"""
+    """项目区和标题共用别名时按实际栏目处理改名和显隐"""
     source, output = tmp_path / "source.docx", tmp_path / "result.docx"
     _, plan = generic_template(source, layout)
     document, projects = generic_content()
@@ -41,7 +41,7 @@ def test_project_title_alias_uses_actual_name_and_visibility(tmp_path, layout):
 @pytest.mark.parametrize("layout", ["body", "rows", "cells"])
 @pytest.mark.parametrize("variant", range(4))
 def test_mapping_survives_run_fragmentation_renaming_and_record_changes(tmp_path, layout, variant):
-    """节点重新编号、非默认栏目名及不同数量的真实记录都不能改变填充完整性。"""
+    """节点重新编号、非默认栏目名及不同数量的真实记录都不能改变填充完整性"""
     source, output = tmp_path / "source.docx", tmp_path / "result.docx"
     package, plan = generic_template(source, layout, variant * 7)
     before = dict(package.nodes)
@@ -98,7 +98,7 @@ def test_mapping_survives_run_fragmentation_renaming_and_record_changes(tmp_path
     for project in projects:
         for key in ("title", "description", "role"):
             assert text.count(project["content"][key]) == 1
-    # 同一映射再次用于隐藏栏目和空记录；不能泄漏上一份输出的内容。
+    # 同一映射再次用于隐藏栏目和空记录，不能泄漏上一份输出的内容
     document.sections[1].visible = False
     fill_template(source, output, plan, document.model_dump(), [])
     text = visible_text(output)
@@ -110,16 +110,16 @@ def test_mapping_survives_run_fragmentation_renaming_and_record_changes(tmp_path
 @pytest.mark.parametrize("failure_count", [1, 2, 3])
 @pytest.mark.parametrize("resume", [False, True])
 def test_schema_failures_have_bounded_field_feedback(tmp_path, failure_count, resume):
-    """第一次没有合法方案也可修正；最多三轮；每轮反馈字段路径且保留完整校验。"""
+    """第一次没有合法方案也可修正，最多三轮，每轮反馈字段路径且保留完整校验"""
     source = tmp_path / "original.docx"
     simple_template(source)
     original = source.read_bytes()
 
     class InvalidFirst(TemplateProvider):
-        """模拟任意供应商忽略输出候选或返回错误字段类型。"""
+        """模拟任意供应商忽略输出候选或返回错误字段类型"""
 
         def run_structured(self, **kwargs):
-            """先返回结构错误，再返回真实方案，检查续聊和全量上下文都支持纠错。"""
+            """先返回结构错误，再返回真实方案，检查续聊和全量上下文都支持纠错"""
             if self.calls:
                 request = json.loads(kwargs["prompt"].splitlines()[-1])
                 assert request["format_validation"][0]["path"] == "photos.0"
@@ -163,16 +163,16 @@ def test_schema_failures_have_bounded_field_feedback(tmp_path, failure_count, re
 
 
 def test_cancellation_after_invalid_response_does_not_start_repair(tmp_path):
-    """格式错误与取消同时到达时，取消优先且不能多调用模型。"""
+    """格式错误和取消同时发生时优先响应取消"""
     source = tmp_path / "original.docx"
     simple_template(source)
     flag = threading.Event()
 
     class CancelInvalid(TemplateProvider):
-        """模拟请求完成前用户取消。"""
+        """模拟请求完成前用户取消"""
 
         def run_structured(self, **kwargs):
-            """置取消标记后返回无效结果。"""
+            """置取消标记后返回无效结果"""
             self.calls.append(kwargs)
             flag.set()
             raise StructuredOutputError("{}", [])

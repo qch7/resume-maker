@@ -31,7 +31,7 @@ import { experienceContent } from "./visibility";
 import { restoreBodyOrder } from "./bodyOrder";
 import { fieldChanged } from "./changes";
 
-/** 编辑经历元信息、来源和亮点；内容草稿与简历展示设置独立保存 */
+/** 编辑经历元信息、来源和亮点，内容草稿和简历展示设置独立保存 */
 export default function Editor(props: EditorProps) {
   const { detail, revisionId, run } = props;
   const current = detail.revisions.find((r) => r.id === revisionId)!;
@@ -56,7 +56,7 @@ export default function Editor(props: EditorProps) {
     "meta",
     meta,
     detail.working.drafts.find((d) => d.field === "meta")?.version ?? 0,
-    /* 基本信息与正式版本比较；排序改回原位后立即清除待提交提示 */ (value) =>
+    /* 基本信息和正式版本比较，排序改回原位后立即清除待提交提示 */ (value) =>
       fieldChanged(value, current.content, "meta", props.visibility),
   );
   const order = useField(
@@ -75,11 +75,9 @@ export default function Editor(props: EditorProps) {
   const [highlightValues, setHighlightValues] = useState<
     Record<string, Highlight>
   >({});
-  /** 收集亮点实时输入；供父级组合预览使用 */
+  /** 收集亮点实时输入，供父级组合预览使用 */
   const updateHighlightPreview = useCallback(
-    /* 收集各亮点当前输入值；使用稳定回调避免预览反馈循环 */ (
-      point: Highlight,
-    ) => {
+    /* 通过稳定回调收集亮点输入以避免预览循环更新 */ (point: Highlight) => {
       setHighlightValues(
         /* 值未变化时复用状态 */ (values) =>
           values[point.id] === point
@@ -90,7 +88,7 @@ export default function Editor(props: EditorProps) {
     [],
   );
   const orderedHighlights = useMemo(
-    /* 恢复本机尚未写入服务器的排序；新亮点仍置于顶部 */ () =>
+    /* 恢复本机尚未写入服务器的排序，新亮点仍置于顶部 */ () =>
       [...content.highlights].sort(
         /* 按工作副本顺序显示卡片 */ (a, b) =>
           order.value.indexOf(a.id) - order.value.indexOf(b.id),
@@ -98,7 +96,7 @@ export default function Editor(props: EditorProps) {
     [content.highlights, order.value],
   );
   const previewContent = useMemo(
-    /* 合并元信息、亮点输入与排序；右侧始终使用编辑区的当前值 */ () => ({
+    /* 合并元信息、亮点输入和排序，右侧始终使用编辑区的当前值 */ () => ({
       ...editor.value,
       highlights: orderedHighlights.map(
         /* 尚未挂载的条目使用已恢复的工作副本 */ (point) =>
@@ -112,7 +110,7 @@ export default function Editor(props: EditorProps) {
     experienceContent(previewContent, props.visibility) !==
     experienceContent(current.content, props.visibility);
   useEffect(
-    /* 按修订标识上报工作副本；切换项目或分支时不会串用内容 */ () =>
+    /* 按修订标识上报工作副本，切换项目或分支时不会串用内容 */ () =>
       onPreview(revisionId, previewContent),
     [onPreview, revisionId, previewContent],
   );
@@ -120,13 +118,13 @@ export default function Editor(props: EditorProps) {
   const [profile, setProfile] = useState<Profile>(() =>
     loadLocal(profileKey, detail.project.profile),
   );
-  /** 更新本人贡献信息并保存本机恢复副本；等待用户正式保存 */
+  /** 更新本人贡献信息并保存本机恢复副本，等待用户正式保存 */
   function updateProfile(key: keyof Profile, value: string) {
     const next = { ...profile, [key]: value };
     setProfile(next);
     localStorage.setItem(profileKey, JSON.stringify(next));
   }
-  /** 立即缓存排序并写入草稿；等待用户统一提交为新版本 */
+  /** 将排序缓存并保存为草稿 */
   async function move(from: number, to: number) {
     if (ordering || from === to) return;
     setOrdering(true);
@@ -168,7 +166,7 @@ export default function Editor(props: EditorProps) {
           <button
             className="text-button"
             onClick={
-              /* 确认前保留全部改动；先打开撤销确认 */ () =>
+              /* 确认前保留全部改动，先打开撤销确认 */ () =>
                 setDiscardOpen(true)
             }
           >
@@ -204,7 +202,7 @@ export default function Editor(props: EditorProps) {
           revisionId={revisionId}
           number={current.number}
           onClose={
-            /* 取消只关闭确认；草稿保持原状 */ () => setDiscardOpen(false)
+            /* 取消只关闭确认，草稿保持原状 */ () => setDiscardOpen(false)
           }
           onConfirm={props.onDiscard}
         />
@@ -215,7 +213,7 @@ export default function Editor(props: EditorProps) {
         visibility={props.visibility}
         onVisibility={props.onVisibility}
         onChange={
-          /* 排回原位还原基线表示以免旧版缺省顺序变成虚假改动 */ (value) =>
+          /* 排回原位时恢复基线表示以排除缺省顺序造成的虚假改动 */ (value) =>
             editor.update(
               restoreBodyOrder(value, current.content, props.visibility),
             )
@@ -224,7 +222,7 @@ export default function Editor(props: EditorProps) {
         conflict={editor.conflict}
         onReload={editor.reloadRemote}
         onFinish={
-          /* 完成编辑只落盘草稿；正式版本仍由统一提交按钮生成 */ async () => {
+          /* 完成编辑后保存草稿 */ async () => {
             await editor.flush();
             props.onRefresh();
           }
@@ -262,7 +260,7 @@ export default function Editor(props: EditorProps) {
       {order.conflict && (
         <button
           onClick={
-            /* 冲突时由用户选择载入远端排序；保留本机恢复副本 */ () =>
+            /* 冲突时由用户选择载入远端排序，保留本机恢复副本 */ () =>
               void order.reloadRemote()
           }
         >

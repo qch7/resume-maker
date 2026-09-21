@@ -19,14 +19,14 @@ from resume_maker.services.workspace import Workspace
 
 
 def item(project):
-    """使用项目固定版本构造简历引用；空亮点仍属于正在使用"""
+    """使用项目固定版本构造简历引用，空亮点仍属于正在使用"""
     return ResumeItem(
         project_id=project["id"], revision_id=project["head_revision"], highlight_ids=[]
     )
 
 
 def test_delete_project_api_refuses_used_project_until_removed_and_saved(tmp_path):
-    """删除接口保护任意已保存简历；移除引用并保存后才允许删除且不改源码"""
+    """所有已保存简历移除项目引用后才可删除项目并保留源码"""
     app = create_app(Config(data_dir=tmp_path / "data", token="test-token"))
     source = tmp_path / "source"
     source.mkdir()
@@ -69,7 +69,7 @@ def test_delete_project_api_refuses_used_project_until_removed_and_saved(tmp_pat
 
 
 def test_group_deletion_is_blocked_by_child_reference(catalog, tmp_path):
-    """任一子项目被引用时整组保留；已删除方案不再阻止项目删除"""
+    """任一子项目被引用时整组保留，已删除方案不再阻止项目删除"""
     parent = catalog.create_project("项目组", make_sources(tmp_path))
     subs = list(children(catalog, parent["id"]).values())
     resume = catalog.save_resume("子项目简历", None, [item(subs[0])])
@@ -85,7 +85,7 @@ def test_group_deletion_is_blocked_by_child_reference(catalog, tmp_path):
 
 
 def test_delete_child_preserves_parent_sibling_and_their_resume(catalog, tmp_path):
-    """单独删除子项目只移除该范围；父项目、同组兄弟及其简历保持原样"""
+    """单独删除子项目只移除该范围，父项目、同组兄弟及其简历保持原样"""
     parent = catalog.create_project("项目组", make_sources(tmp_path))
     first, second = children(catalog, parent["id"]).values()
     resume = catalog.save_resume("保留的简历", None, [item(parent), item(second)])
@@ -96,7 +96,7 @@ def test_delete_child_preserves_parent_sibling_and_their_resume(catalog, tmp_pat
 
 
 def test_delete_refuses_active_job_and_cleans_completed_history(catalog, project, tmp_path):
-    """运行任务不能被删除；完成后经历、分支、草稿和会话依赖能在外键约束下清理"""
+    """运行任务不能被删除，完成后经历、分支、草稿和会话依赖能在外键约束下清理"""
     conversation = catalog.db.one(
         "SELECT * FROM conversations WHERE project_id=?", (project["id"],)
     )
@@ -137,7 +137,7 @@ def test_delete_refuses_active_job_and_cleans_completed_history(catalog, project
 
 
 def test_concurrent_resume_save_cannot_reintroduce_deleted_project(catalog, project, monkeypatch):
-    """模拟引用读取完成后被另一窗口删除；保存事务重新校验并拒绝悬空引用"""
+    """模拟引用读取完成后被另一窗口删除，保存事务重新校验并拒绝悬空引用"""
     read_revision = catalog.revision
 
     def delete_after_read(*args, **kwargs):
@@ -153,14 +153,14 @@ def test_concurrent_resume_save_cannot_reintroduce_deleted_project(catalog, proj
 
 
 def test_delete_cancelled_project_keeps_job_worker_alive(catalog, project, tmp_path):
-    """取消后的进程可能迟到退出；删除其项目后仍能处理其他项目的 AI 任务"""
+    """取消后的进程可能迟到退出，删除其项目后仍能处理其他项目的 AI 任务"""
     started, release = Event(), Event()
 
     class DelayedProvider(FakeProvider):
-        """固定首个任务退出时机以覆盖取消与项目删除交错"""
+        """固定首个任务退出时机以覆盖取消和项目删除交错"""
 
         def run(self, **kw):
-            """首个任务等待项目被删除；后续任务正常响应"""
+            """首个任务等待项目被删除，后续任务正常响应"""
             if not started.is_set():
                 started.set()
                 if not release.wait(5):

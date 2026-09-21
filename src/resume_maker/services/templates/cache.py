@@ -1,4 +1,4 @@
-"""复用同模板同资料结构的成功建议；命中后仍校验当前资料覆盖"""
+"""复用同模板同资料结构的成功建议，命中后仍校验当前资料覆盖"""
 
 import json
 from pathlib import Path
@@ -10,7 +10,7 @@ from resume_maker.services.templates.analysis import INSTRUCTIONS, analysis_cont
 
 
 def cache_path(directory, package, document, projects, settings) -> Path:
-    """按模板、字段需求、映射契约和 AI 配置生成键；切换模型后重新识别"""
+    """按模板、字段需求、映射契约和 AI 配置生成键，切换模型后重新识别"""
     context = analysis_context(package, document, projects)
     context.pop("template")
     context.pop("layout")
@@ -38,7 +38,7 @@ def cache_path(directory, package, document, projects, settings) -> Path:
 
 
 def cached_plan(path, package, document, projects):
-    """只接受当前仍完整有效的缓存；损坏、失效或无缓存时走正常分析"""
+    """只接受当前仍完整有效的缓存，损坏、失效或无缓存时走正常分析"""
     try:
         plan = TemplatePlan.model_validate_json(path.read_text(encoding="utf-8"))
         review = assess_plan(package, plan, document, projects)
@@ -48,7 +48,7 @@ def cached_plan(path, package, document, projects):
 
 
 def remember_plan(path, plan):
-    """原子写入可重建的成功缓存；磁盘缓存不可用不影响已完成的分析结果"""
+    """原子写入可重建的成功缓存，磁盘缓存不可用不影响已完成的分析结果"""
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         temporary = path.with_suffix(".tmp")

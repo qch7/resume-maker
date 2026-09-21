@@ -3,7 +3,7 @@ import TemplatePicker from "../../shared/components/TemplatePicker";
 import { newDocument } from "../profile/document";
 import type { ResumeLibraryProps } from "./ResumeLibrary";
 
-/** 将名称、模板、保存和导出收拢在当前方案设置中；保留原有版本保护 */
+/** 编辑当前方案的名称和模板并提供保存和导出操作 */
 export default function ResumeSettings(props: ResumeLibraryProps) {
   const { draft, state } = props;
   const saved = state.resumes.find(
@@ -29,7 +29,7 @@ export default function ResumeSettings(props: ResumeLibraryProps) {
               disabled={busy}
               placeholder="为这份简历起个名字"
               onChange={
-                /* 名称先进入本机草稿；保存或导出时持久化 */ (event) =>
+                /* 名称先进入本机草稿，保存或导出时持久化 */ (event) =>
                   props.onChange({ ...draft, name: event.target.value })
               }
             />

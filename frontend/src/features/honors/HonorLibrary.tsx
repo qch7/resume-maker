@@ -88,11 +88,11 @@ export default function HonorLibrary({
     [],
   );
   useEffect(
-    /* 仅在荣誉区可见时轮询；顺序请求避免网络较慢时堆积 */ () => {
+    /* 荣誉区可见时串行轮询 */ () => {
       if (!active) return;
       let stopped = false;
       let timer: ReturnType<typeof setTimeout>;
-      /** 完成一轮后再安排下一轮；其他窗口的变更也能同步到列表 */
+      /** 完成一轮后再安排下一轮，其他窗口的变更也能同步到列表 */
       async function poll() {
         await reload();
         if (!stopped) timer = setTimeout(poll, pollDelay.current);
@@ -107,11 +107,11 @@ export default function HonorLibrary({
     [active, refresh, reload],
   );
 
-  /** 合并最新条目并使在途旧查询失效且不丢失当前筛选和选择 */
+  /** 合并最新条目并使旧查询失效后保留当前筛选和选择 */
   function saved(honor: Honor) {
     ++fetchSerial.current;
     setItems(
-      /* 单条保存后原位替换；新增荣誉放在前面 */ (current) => [
+      /* 单条保存后原位替换，新增荣誉放在前面 */ (current) => [
         honor,
         ...current.filter(/* 移除旧版本 */ (item) => item.id !== honor.id),
       ],
@@ -119,7 +119,7 @@ export default function HonorLibrary({
     onSaved(honor);
     setNotice("已保存，关联简历的信息已同步");
   }
-  /** 逐个上传；每个文件独立报告结果；失败文件不阻断其他证书 */
+  /** 逐个上传，每个文件独立报告结果，失败文件不阻断其他证书 */
   async function upload(files: File[]) {
     if (uploadLock.current || !files.length) return;
     uploadLock.current = true;
@@ -145,8 +145,7 @@ export default function HonorLibrary({
           /* 成功上传后立即显示条目和排队状态 */ (current) => [
             item,
             ...current.filter(
-              /* 避免轮询已经读取了同一新条目 */ (existing) =>
-                existing.id !== item.id,
+              /* 跳过轮询已读取的条目 */ (existing) => existing.id !== item.id,
             ),
           ],
         );
@@ -165,7 +164,7 @@ export default function HonorLibrary({
     setNotice(`已上传 ${success} / ${files.length} 个文件`);
     setRefresh(/* 上传完成立即重新启动较快的识别轮询 */ (value) => value + 1);
   }
-  /** 执行重试、取消或删除；错误留在荣誉库内并允许继续操作 */
+  /** 执行重试、取消或删除，错误留在荣誉库内并允许继续操作 */
   async function action(item: Honor, kind: "recognize" | "cancel" | "delete") {
     if (busy) return;
     setBusy(item.id);
@@ -203,7 +202,7 @@ export default function HonorLibrary({
       setBusy("");
     }
   }
-  /** 将选定荣誉复制到当前简历；失败时保留库与选择状态 */
+  /** 将选定荣誉复制到当前简历，失败时保留库和选择状态 */
   function add(values: Honor[]) {
     try {
       onAdd(values, target);
@@ -213,7 +212,7 @@ export default function HonorLibrary({
       setError((reason as Error).message);
     }
   }
-  /** 解除当前简历引用后保留库卡片；允许随时重新加入 */
+  /** 解除当前简历引用后保留库卡片，允许随时重新加入 */
   function remove(id: string) {
     onRemove(id);
     setError("");
@@ -280,7 +279,7 @@ export default function HonorLibrary({
       <div className="honor-content">
         <aside className="honor-sidebar" aria-label="荣誉分类">
           {["", ...CATEGORIES].map(
-            /* 每类显示完整库内的数量；搜索不会改变分类统计 */ (value) => (
+            /* 每类显示完整库内的数量，搜索不会改变分类统计 */ (value) => (
               <button
                 key={value}
                 className={category === value ? "active" : ""}
@@ -320,7 +319,7 @@ export default function HonorLibrary({
               }
             }
             onDrop={
-              /* 批量拖入与文件选择使用同一上传流程 */ (event) => {
+              /* 批量拖入和文件选择使用同一上传流程 */ (event) => {
                 event.preventDefault();
                 setDragging(false);
                 void upload(Array.from(event.dataTransfer.files));
@@ -368,7 +367,7 @@ export default function HonorLibrary({
             <div className="honor-notice error" role="alert">
               <strong>以下文件未上传成功</strong>
               {uploadErrors.map(
-                /* 单独保留失败文件；其他上传结果继续可用 */ (
+                /* 单独保留失败文件，其他上传结果继续可用 */ (
                   message,
                   index,
                 ) => (
@@ -526,7 +525,7 @@ export default function HonorLibrary({
                         className="honor-cover"
                         aria-label={`查看 ${item.fields.name || item.attachment?.name}`}
                         onClick={
-                          /* 打开原件与字段的并排核对窗口 */ () =>
+                          /* 打开原件和字段的并排核对窗口 */ () =>
                             setEditing(item.id)
                         }
                       >
@@ -606,7 +605,7 @@ export default function HonorLibrary({
                             className="text-button"
                             disabled={busy === item.id}
                             onClick={
-                              /* 识别过程允许取消；完成后允许重新识别 */ () => {
+                              /* 识别过程允许取消，完成后允许重新识别 */ () => {
                                 void action(
                                   item,
                                   recognizing ? "cancel" : "recognize",
@@ -640,7 +639,7 @@ export default function HonorLibrary({
         <HonorEditor
           key={editing}
           honor={editingItem ?? null}
-          onClose={/* 关闭后保留列表的筛选与滚动位置 */ () => setEditing(null)}
+          onClose={/* 关闭后保留列表的筛选和滚动位置 */ () => setEditing(null)}
           onSaved={saved}
         />
       )}
@@ -652,7 +651,7 @@ export default function HonorLibrary({
           </div>
           <button
             disabled={!!busy}
-            onClick={/* 放弃删除；保留原件与条目 */ () => setDeleting(null)}
+            onClick={/* 放弃删除，保留原件和条目 */ () => setDeleting(null)}
           >
             保留
           </button>

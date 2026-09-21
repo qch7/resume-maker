@@ -37,7 +37,7 @@ export function useField<T>(
   /** 串行刷新最新输入且只有写入成功后才推进已保存值和草稿版本 */
   const flush = () => {
     const next = chain.current
-      .catch(/* 上次错误已显示；恢复后续写入 */ () => {})
+      .catch(/* 上次错误已显示，恢复后续写入 */ () => {})
       .then(async () => {
         const snapshot = current.current,
           encoded = JSON.stringify(snapshot);
@@ -95,19 +95,19 @@ export function useField<T>(
     return () => {
       mounted.current = false;
       unregister();
-      void flush().catch(/* 上次错误已显示；恢复后续写入 */ () => {});
+      void flush().catch(/* 上次错误已显示，恢复后续写入 */ () => {});
     };
     // 项目、修订或服务器草稿变化时重新挂载字段以免串用旧版本状态
   }, [key]);
   useEffect(() => {
     const timer = setTimeout(
-      /* 延迟执行保存或提示清理；减少频繁更新 */ () =>
-        void flush().catch(/* 上次错误已显示；恢复后续写入 */ () => {}),
+      /* 延迟执行保存或提示清理，减少频繁更新 */ () =>
+        void flush().catch(/* 上次错误已显示，恢复后续写入 */ () => {}),
       450,
     );
     return () => clearTimeout(timer);
   }, [value]);
-  /** 立即更新编辑值和本地恢复副本；再由防抖逻辑提交服务器草稿 */
+  /** 立即更新编辑值和本地恢复副本，再由防抖逻辑提交服务器草稿 */
   function update(next: T) {
     current.current = next;
     setValue(next);
@@ -117,9 +117,9 @@ export function useField<T>(
       JSON.stringify({ value: next, version: version.current }),
     );
   }
-  /** 保留本机恢复副本后载入服务器最新草稿；重置冲突状态和版本号 */
+  /** 保留本机恢复副本后载入服务器最新草稿，重置冲突状态和版本号 */
   async function reloadRemote() {
-    await chain.current.catch(/* 上次错误已显示；恢复后续写入 */ () => {});
+    await chain.current.catch(/* 上次错误已显示，恢复后续写入 */ () => {});
     try {
       const remote = await api<ProjectDetail>(
         `/projects/${project}?revision_id=${revision}`,
@@ -135,7 +135,7 @@ export function useField<T>(
               )
             : content.highlights.find((h) => h.id === field.slice(10))
       ) as T | undefined;
-      // 覆盖冲突的本机编辑前保存恢复副本；便于用户取回未合并的内容
+      // 覆盖冲突的本机编辑前保存恢复副本，便于用户取回未合并的内容
       localStorage.setItem(`${key}.recovery`, JSON.stringify(current.current));
       current.current = next ?? initial;
       saved.current = JSON.stringify(current.current);

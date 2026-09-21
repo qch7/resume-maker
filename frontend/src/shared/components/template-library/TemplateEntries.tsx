@@ -2,7 +2,7 @@ import { Check, FileText, Heart } from "lucide-react";
 import Thumbnail from "./Thumbnail";
 import { templateDate, type LibraryTemplate } from "./library";
 
-/** 列表和卡片统一使用独立选择与 Like 按钮；键盘也可完成全部操作 */
+/** 列表和卡片共用支持键盘操作的选择及 Like 按钮 */
 export default function TemplateEntries({
   items,
   view,
@@ -66,7 +66,7 @@ export default function TemplateEntries({
               aria-pressed={selected === item.id}
               onClick={/* 列表名称支持键盘选择 */ () => onSelect(item.id)}
               onDoubleClick={
-                /* 与资源管理器的双击打开行为保持一致 */ () =>
+                /* 和资源管理器的双击打开行为保持一致 */ () =>
                   onConfirm(item.id)
               }
             >
@@ -89,7 +89,7 @@ export default function TemplateEntries({
               aria-pressed={item.liked}
               disabled={pending || !!item.deleted_at}
               onClick={
-                /* 收藏不改变当前选择；也不关闭弹窗 */ () => onLike(item)
+                /* 收藏不改变当前选择，也不关闭弹窗 */ () => onLike(item)
               }
             >
               <Heart size={17} fill={item.liked ? "currentColor" : "none"} />

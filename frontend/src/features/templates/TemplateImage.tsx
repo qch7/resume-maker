@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { request } from "../../shared/lib/api";
 
-/** 显示模板中的实际图片；便于区分证件照与装饰；回收下载的临时地址 */
+/** 显示模板内嵌图片并回收临时下载地址 */
 export default function TemplateImage({
   taskId,
   nodeId,
@@ -12,12 +12,12 @@ export default function TemplateImage({
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
   useEffect(
-    /* 只读取当前任务内嵌图片；位置变动后忽略旧响应 */ () => {
+    /* 只读取当前任务内嵌图片，位置变动后忽略旧响应 */ () => {
       const controller = new AbortController();
       let objectUrl = "";
       setUrl("");
       setError("");
-      /** 下载图片并在组件仍有效时显示且不从模板加载外部链接 */
+      /** 下载模板内嵌图片并在组件有效时显示 */
       async function read() {
         try {
           const response = await request(

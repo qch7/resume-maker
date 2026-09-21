@@ -10,12 +10,12 @@ from resume_maker.integrations.word.full_resume import displayed_entries, visibl
 
 
 def custom_text(fields) -> str:
-    """按用户顺序输出可见自定义信息且不输出空名称或空值"""
+    """按用户顺序输出名称和值均非空的可见自定义信息"""
     return "\n".join(f"{field.label}：{field.value}" for field in visible_custom_fields(fields))
 
 
 def section_records(document: ResumeDocument, title: str, projects: list[dict]) -> list[dict]:
-    """按栏目名称取可见记录；项目区始终使用用户选定的固定经历版本"""
+    """按栏目名称取可见记录，项目区始终使用用户选定的固定经历版本"""
     candidates = [
         section
         for section in document.sections
@@ -80,7 +80,7 @@ def section_records(document: ResumeDocument, title: str, projects: list[dict]) 
 
 
 def personal_values(document: ResumeDocument) -> dict[str, str]:
-    """将资料字段转为替换值；隐藏字段清空；照片由独立图片映射处理"""
+    """将资料字段转为替换值，隐藏字段清空，照片由独立图片映射处理"""
     personal = document.personal
     values = {
         f"personal.{key}": "" if key in personal.hidden_fields else value
@@ -110,7 +110,7 @@ def personal_values(document: ResumeDocument) -> dict[str, str]:
 
 
 def required_entry_fields(records: list[dict], *, project: bool) -> list[str]:
-    """为 AI 识别与覆盖校验提供同一份非空字段要求；隐藏资料已由记录整理阶段移除"""
+    """为 AI 识别和覆盖校验提供同一份非空字段要求，隐藏资料已由记录整理阶段移除"""
     fields = (
         ("title", "period", "role", "stack", "description", "highlights", "custom_fields")
         if project

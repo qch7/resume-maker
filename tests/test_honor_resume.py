@@ -13,7 +13,7 @@ from resume_maker.integrations.word.templates.values import section_records
 
 
 def test_honor_snapshot_roundtrip_and_rendering(catalog, tmp_path):
-    """前端生成的完整字段副本保存无损；内置和模板填充默认仅使用名称及日期"""
+    """前端生成的完整字段副本保存无损，内置和模板填充默认仅使用名称及日期"""
     fixture = Path(__file__).parent / "fixtures" / "honor-entry.json"
     entry = json.loads(fixture.read_text(encoding="utf-8"))
     document = ResumeDocument.model_validate(

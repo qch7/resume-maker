@@ -6,7 +6,7 @@ import {
   toggleHighlightSelection,
 } from "../src/features/resumes/composition.ts";
 
-/** 构造已固定的简历与三个可独立编辑的经历版本 */
+/** 构造已固定的简历和三个可独立编辑的经历版本 */
 function fixture() {
   const content = {
     title: "Project",
@@ -52,7 +52,7 @@ function fixture() {
   return { content, revisions, draft };
 }
 
-test("uncommitted text, metadata and ordering appear without modifying fixed revisions", /* 验证草稿即刻进入预览；正式经历与组合引用不变 */ () => {
+test("uncommitted text, metadata and ordering appear without modifying fixed revisions", /* 验证草稿即刻进入预览，正式经历和组合引用不变 */ () => {
   const { content, revisions, draft } = fixture();
   const original = structuredClone({ revisions, draft });
   const working = {
@@ -130,7 +130,7 @@ test("new draft highlights can be selected and reselected before committing", /*
   );
 });
 
-test("removing and restoring a highlight follows the working copy while retaining its selection", /* 验证草稿删除即刻消失；取消删除后恢复原来的勾选状态 */ () => {
+test("removing and restoring a highlight follows the working copy while retaining its selection", /* 验证草稿删除即刻消失，取消删除后恢复原来的勾选状态 */ () => {
   const { content, revisions, draft } = fixture();
   const removed = {
     ...content,
@@ -156,7 +156,7 @@ test("removing and restoring a highlight follows the working copy while retainin
   assert.equal(restored.changed, false);
 });
 
-test("discarding draft order after toggling highlights restores the pinned export order", /* 排序草稿中取消再勾选后撤销草稿；导出顺序仍与固定版本预览一致 */ () => {
+test("discarding draft order after toggling highlights restores the pinned export order", /* 排序草稿中取消再勾选后撤销草稿，导出顺序仍和固定版本预览一致 */ () => {
   const { content, revisions, draft } = fixture();
   const reordered = content.highlights.toReversed();
   const unchecked = toggleHighlightSelection(reordered, ["a", "b", "c"], "b");

@@ -1,4 +1,4 @@
-"""仅用于 PDF 输入的逐页版面恢复；Word 与图片来源拥有独立的识别入口"""
+"""仅用于 PDF 输入的逐页版面恢复，Word 和图片来源拥有独立的识别入口"""
 
 from threading import RLock
 
@@ -11,12 +11,12 @@ from resume_maker.integrations.word.pdf.assets import extract_assets, place_asse
 from resume_maker.integrations.word.pdf.flow import append_document, convert_flow
 from resume_maker.integrations.word.pdf.symbols import font_symbols
 
-# pdf2docx 的底层坐标矩阵是进程级状态；同进程多个工作台实例必须串行调用
+# pdf2docx 的底层坐标矩阵是进程级状态，同进程多个工作台实例必须串行调用
 LAYOUT_LOCK = RLock()
 
 
 def native_text(page):
-    """只接受可见且可靠的文字层；大面积扫描图片或损坏编码交给视觉识别"""
+    """只接受可见且可靠的文字层，大面积扫描图片或损坏编码交给视觉识别"""
     text = page.get_text().strip()
     for _, symbol in font_symbols(page):
         text = text.replace(symbol, "", 1)
@@ -36,7 +36,7 @@ def native_text(page):
 
 
 def normalized_page(document, number):
-    """在独立单页副本里统一旋转和裁切坐标；保留源文件的实际可见页面"""
+    """在独立单页副本里统一旋转和裁切坐标，保留源文件的实际可见页面"""
     result = pymupdf.open()
     source = document[number]
     page = result.new_page(width=source.rect.width, height=source.rect.height)
@@ -44,7 +44,7 @@ def normalized_page(document, number):
         with pymupdf.open() as copy:
             copy.insert_pdf(document, from_page=number, to_page=number)
             copy[0].set_rotation(0)
-            # show_pdf_page 的角度方向与 PDF 页 rotation 相反；先复位避免裁切框被旋转两次
+            # show_pdf_page 的角度方向和 PDF 页 rotation 相反，先复位避免裁切框被旋转两次
             page.show_pdf_page(page.rect, copy, 0, rotate=-source.rotation)
     for link in source.get_links():
         if link["kind"] == pymupdf.LINK_URI:
@@ -53,7 +53,7 @@ def normalized_page(document, number):
 
 
 def rebuild_pdf(pdf, output, flag, emit, fallback):
-    """逐页优先恢复结构和装饰；单页失败才视觉兜底；取消或失败不发布半份模板"""
+    """逐页恢复结构并在单页失败时改用视觉识别，全部成功后发布模板"""
     result = Document()
     notices = []
     native_count = 0

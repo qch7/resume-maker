@@ -1,4 +1,4 @@
-"""可复用的简历栏目及表单字段配置且不存储任何填写内容"""
+"""保存可复用的栏目结构和表单字段配置"""
 
 from typing import Literal
 
@@ -39,7 +39,7 @@ class DefaultSection(Model):
 
     @model_validator(mode="after")
     def validate_definition(self):
-        """校验栏目标题与对应表单所支持的内置字段"""
+        """校验栏目标题和对应表单所支持的内置字段"""
         if not self.title.strip():
             raise ValueError("栏目名称不能为空。")
         allowed = PROJECT if self.kind == "projects" else ENTRY | HONOR
@@ -48,7 +48,7 @@ class DefaultSection(Model):
 
 
 class ResumeDefaults(Model):
-    """带版本的本机默认配置；保护多个窗口的并发编辑"""
+    """带版本的本机默认配置，保护多个窗口的并发编辑"""
 
     version: int = Field(default=0, ge=0)
     personal_fields: list[DefaultField] = Field(max_length=30)

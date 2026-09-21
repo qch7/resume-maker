@@ -1,4 +1,4 @@
-"""识别字体编码的小图标；保留其实际外观以免导出时依赖缺失的图标字体"""
+"""识别字体编码的小图标，保留其实际外观以免导出时依赖缺失的图标字体"""
 
 import re
 import unicodedata
@@ -7,7 +7,7 @@ import pymupdf
 
 
 def font_symbols(page):
-    """只接受独立符号或已知图标字体的短私用字符；正文乱码仍由视觉恢复处理"""
+    """只接受独立符号或已知图标字体的短私用字符，正文乱码仍由视觉恢复处理"""
     symbols = []
     for block in page.get_text("dict", flags=0)["blocks"]:
         if block["type"] != 0:

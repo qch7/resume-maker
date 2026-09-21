@@ -1,7 +1,7 @@
 import { Eye, EyeOff } from "lucide-react";
 import type { ReactNode } from "react";
 
-/** 以睁眼和闭眼展示显隐状态；编辑时可切换；正文始终保留 */
+/** 以睁眼和闭眼展示显隐状态，编辑时可切换，正文始终保留 */
 export function VisibilityButton({
   label,
   hidden = false,
@@ -29,7 +29,7 @@ export function VisibilityButton({
   );
 }
 
-/** 将标签、输入与显隐按钮分开；点击眼睛不会触发输入框的标签行为 */
+/** 将标签、输入和显隐按钮分开，点击眼睛不会触发输入框的标签行为 */
 export default function VisibilityField({
   id,
   label,

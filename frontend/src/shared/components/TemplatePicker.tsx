@@ -3,7 +3,7 @@ import { useState } from "react";
 import type { Template } from "../types";
 import LibraryDialog from "./template-library/LibraryDialog";
 
-/** 所有模板入口共用二级浏览弹窗；确认选择后才通知所在工作区 */
+/** 所有模板入口共用二级浏览弹窗，确认选择后才通知所在工作区 */
 export default function TemplatePicker({
   templates,
   value,
@@ -39,7 +39,7 @@ export default function TemplatePicker({
         aria-label={`${label}：${name}，打开模板库`}
         aria-haspopup="dialog"
         aria-expanded={open}
-        onClick={/* 打开独立弹窗且不改变正在编辑的模板 */ () => setOpen(true)}
+        onClick={/* 打开模板选择弹窗 */ () => setOpen(true)}
       >
         <FolderOpen size={17} />
         <span>{name}</span>

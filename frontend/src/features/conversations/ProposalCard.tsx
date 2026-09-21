@@ -1,7 +1,7 @@
 import { api } from "../../shared/lib/api";
 import type { Experience, Highlight, Proposal } from "../../shared/types/index";
 
-/** 以只读形式展示 AI 提议的完整经历；供采用前核对 */
+/** 以只读形式展示 AI 提议的完整经历，供采用前核对 */
 export function ExperiencePreview({ value }: { value: Experience }) {
   return (
     <div className="experience-preview">
@@ -24,7 +24,7 @@ export function ExperiencePreview({ value }: { value: Experience }) {
   );
 }
 
-/** 展示修改前后内容与建议原因；提供采用或拒绝入口 */
+/** 展示修改前后内容和建议原因，提供采用或拒绝入口 */
 export default function ProposalCard({
   value,
   run,

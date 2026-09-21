@@ -4,7 +4,7 @@ import { getWorkflow } from "../src/features/workflow/state.ts";
 import { isCurrentExport } from "../src/features/resumes/composition.ts";
 import { newDocument, newEntry } from "../src/features/profile/document.ts";
 
-/* 构造隔离的项目、组合与导出状态；供制作流程测试复用 */ function fixture() {
+/* 构造隔离的项目、组合和导出状态，供制作流程测试复用 */ function fixture() {
   const content = {
     title: "测试项目",
     description: "已核实的项目描述",
@@ -44,7 +44,7 @@ import { newDocument, newEntry } from "../src/features/profile/document.ts";
   };
 }
 
-test("new workspace starts at template recognition", /* 整份简历从模板开始且不再只统计项目进度 */ () => {
+test("new workspace starts at template recognition", /* 从模板开始统计整份简历的制作进度 */ () => {
   const state = fixture();
   state.projectCount = 0;
   state.detail = null;
@@ -181,7 +181,7 @@ test("historical exports cannot complete a new resume or an empty composition", 
   ]);
 });
 
-test("export in progress has no invented percentage and generated Word needs no PDF to complete", /* 验证导出过程不显示虚构百分比；DOCX 可独立完成 */ () => {
+test("export in progress has no invented percentage and generated Word needs no PDF to complete", /* 验证导出过程不显示虚构百分比，DOCX 可独立完成 */ () => {
   const state = fixture();
   state.exporting = true;
   assert.match(getWorkflow(state).text, /正在生成/);
@@ -196,7 +196,7 @@ test("export in progress has no invented percentage and generated Word needs no 
   assert.match(getWorkflow(state).text, /Word 已生成/);
 });
 
-test("personal guidance locates missing basic, education and skills content", /* 姓名与联系方式就绪后；按具体栏目引导补全资料 */ () => {
+test("personal guidance locates missing basic, education and skills content", /* 姓名和联系方式就绪后，按具体栏目引导补全资料 */ () => {
   const state = fixture();
   state.draft.document = newDocument();
   assert.equal(getWorkflow(state).target, "personal-basic");
@@ -224,7 +224,7 @@ test("personal guidance locates missing basic, education and skills content", /*
   ]);
 });
 
-test("recognized honors must be selected into this resume to complete the honor step", /* 识别完成与用于当前简历是两个独立步骤 */ () => {
+test("recognized honors must be selected into this resume to complete the honor step", /* 识别完成和用于当前简历是两个独立步骤 */ () => {
   const state = fixture();
   const honors = state.draft.document.sections.find(
     (section) => section.id === "honors",
@@ -235,7 +235,7 @@ test("recognized honors must be selected into this resume to complete the honor 
   state.honors[0].reviewed = true;
   assert.equal(getWorkflow(state).target, "honor-select");
   assert.deepEqual(getWorkflow(state).substeps[3], [true, false]);
-  // 荣誉允许加入自定义栏目且不依赖默认栏目名称或位置
+  // 按来源标识识别加入自定义栏目的荣誉
   state.draft.document.sections
     .find((section) => section.id === "skills")
     .entries.push({ ...newEntry(), id: "honor:h1", title: "示例奖项" });
@@ -260,7 +260,7 @@ test("hidden and empty content cannot falsely complete a visible section", /* �
   assert.equal(getWorkflow(state).done[3], true);
 });
 
-test("personal edits invalidate saved composition and the previous export", /* 导出进度比较整份简历且不仅比较项目版本 */ () => {
+test("personal edits invalidate saved composition and the previous export", /* 导出进度比较整份简历内容 */ () => {
   const state = fixture();
   state.result = {
     resume_id: "resume",
@@ -274,7 +274,7 @@ test("personal edits invalidate saved composition and the previous export", /* �
   assert.equal(getWorkflow(state).target, "composition-save");
 });
 
-test("built-in full resume is a usable template without a template id", /* 内置版式不创建模板记录；也能完成模板步骤 */ () => {
+test("built-in full resume is a usable template without a template id", /* 内置版式不创建模板记录，也能完成模板步骤 */ () => {
   const state = fixture();
   state.draft.template_id = null;
   state.saved = structuredClone(state.draft);

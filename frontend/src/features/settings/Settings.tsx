@@ -12,7 +12,7 @@ interface Props {
   run: (work: () => Promise<void>) => void;
 }
 
-/** 管理项目导入、归档会话与 Provider 配置 */
+/** 管理项目导入、归档会话和 Provider 配置 */
 export default function Settings(props: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [tab, setTab] = useState(props.initial);
@@ -53,7 +53,7 @@ export default function Settings(props: Props) {
       })
       .catch(/* 取消后忽略迟到的错误 */ (error) => setNotice(error.message));
   }, []);
-  /** 先刷新待保存草稿再执行用户操作；将异常统一显示为页面提示 */
+  /** 等待草稿保存后执行操作并显示异常提示 */
   function run(work: () => Promise<void>) {
     props.run(async () => {
       setBusy(true);
@@ -225,7 +225,7 @@ export default function Settings(props: Props) {
             value={provider.executable}
             disabled={busy || !loaded}
             onChange={
-              /* 选择本机 CLI 启动文件；保留其他 Provider 设置 */ (value) =>
+              /* 选择本机 CLI 启动文件，保留其他 Provider 设置 */ (value) =>
                 setProvider({ ...provider, executable: value })
             }
           />

@@ -1,4 +1,4 @@
-"""项目目录定位、引用文件留存与原文证据核验"""
+"""项目目录定位、引用文件留存和原文证据核验"""
 
 import hashlib
 import os
@@ -42,12 +42,12 @@ SECRET_VALUE = re.compile(
 
 
 def digest(data: bytes) -> str:
-    """计算 SHA-256 摘要；用于输入指纹、文件完整性及导出追溯"""
+    """计算 SHA-256 摘要，用于输入指纹、文件完整性及导出追溯"""
     return hashlib.sha256(data).hexdigest()
 
 
 def git(root: Path, *args: str) -> str:
-    """在指定目录运行只读 Git 查询；非零退出码按无结果处理"""
+    """在指定目录运行只读 Git 查询，非零退出码按无结果处理"""
     result = subprocess.run(
         ["git", "-C", str(root), *args],
         capture_output=True,
@@ -65,7 +65,7 @@ def linked(path: Path) -> bool:
 
 
 def source_roots(path: Path) -> list[Path]:
-    """发现目录内的独立 Git 仓库；没有仓库时使用普通目录本身"""
+    """发现目录内的独立 Git 仓库，没有仓库时使用普通目录本身"""
     if (path / ".git").exists():
         return [path]
     repos = []
@@ -96,13 +96,13 @@ def scan_collection(path: Path) -> list[dict]:
 
 
 def redact(text: str) -> str:
-    """遮盖明显的口令和 API 密钥；降低快照与错误日志泄露敏感值的风险"""
+    """遮盖明显的口令和 API 密钥，降低快照和错误日志泄露敏感值的风险"""
     text = SECRET_VALUE.sub(r"\1<redacted>", text)
     return re.sub(r"\bsk-[A-Za-z0-9_-]{16,}\b", "<redacted>", text)
 
 
 def project_sources(project: dict) -> list[dict]:
-    """只解析当前关联目录及版本信息且不扫描或复制源码；让模型直接按需读取"""
+    """解析关联目录和版本信息供模型按需读取源码"""
     sources = []
     for index, root_name in enumerate(project["roots"]):
         root = Path(root_name).expanduser().resolve(strict=True)
@@ -125,7 +125,7 @@ def project_sources(project: dict) -> list[dict]:
 
 
 def evidence_file(sources, source, path, data_dir):
-    """仅定位本轮来源内的普通文件；拒绝越界、链接、密钥文件及应用自己的资料"""
+    """仅定位本轮来源内的普通文件，拒绝越界、链接、密钥文件及应用自己的资料"""
     relative = PurePosixPath(path.replace("\\", "/"))
     root_info = next((item for item in sources if item["id"] == source), None)
     if (
@@ -153,7 +153,7 @@ def evidence_file(sources, source, path, data_dir):
 
 
 def capture_evidence(db, data_dir, project, sources, references, cancelled=None):
-    """模型完成后仅固化被引用文件；保留历史证据格式且不把整份源码复制作为分析前提"""
+    """模型完成后按历史证据格式保存被引用的文件"""
     data_dir = data_dir.resolve()
     snapshots = data_dir / "snapshots"
     snapshots.mkdir(parents=True, exist_ok=True)
@@ -225,7 +225,7 @@ def capture_evidence(db, data_dir, project, sources, references, cancelled=None)
 
 
 def check_evidence(data_dir: Path, snapshot: dict | None, evidence: list[dict]) -> list[dict]:
-    """将行号和引文与留存原文比对；无记录或无法核实的引用降级为待确认"""
+    """将行号和引文和留存原文比对，无记录或无法核实的引用降级为待确认"""
     entries = (
         {(f["source"], f["path"]): f for f in snapshot["manifest"]["files"]} if snapshot else {}
     )
@@ -243,7 +243,7 @@ def check_evidence(data_dir: Path, snapshot: dict | None, evidence: list[dict]) 
                 valid = bool(item["quote"].strip()) and item["quote"].strip() in excerpt
             if not valid:
                 item["status"] = "unverified"
-        # 个人贡献和量化成果只能由用户本人确认；模型不能替用户作证
+        # 个人贡献和量化成果只能由用户本人确认，模型不能替用户作证
         elif item["status"] == "user":
             item["status"] = "unverified"
         result.append(item)

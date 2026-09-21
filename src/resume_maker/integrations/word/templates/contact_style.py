@@ -1,4 +1,4 @@
-"""为新增联系信息选择完整条目；分别继承标签和值的文字样式"""
+"""为新增联系信息选择完整条目，分别继承标签和值的文字样式"""
 
 import re
 from copy import deepcopy
@@ -13,7 +13,7 @@ SLOT_VERSION = "{urn:resume-maker:layout}contact-slot"
 
 
 def labelled_contact(paragraph, fields):
-    """仅把可拆分且带明确标签的个人条目作为样式样本且不借用孤立的值或装饰"""
+    """只选取可拆分且有明确标签的个人条目作为样式样本"""
     parsed = personal_items(paragraph, fields)
     if parsed is None:
         return None
@@ -25,7 +25,7 @@ def labelled_contact(paragraph, fields):
 
 
 def inherit_contact_runs(paragraph, donor, label, placeholder):
-    """根据原标签和原值的运行分别复制字体、字号和字重且不继承旧链接及字符拉伸"""
+    """分别复制标签和数值的字体、字号和字重"""
     text = paragraph_text(donor) if donor is not None else ""
     match = re.match(r"^\s*[^:：]{1,50}[:：](\s*)", text)
     if match is None:
@@ -47,7 +47,7 @@ def inherit_contact_runs(paragraph, donor, label, placeholder):
         properties = sample.find(w("rPr")) if sample is not None else None
         if properties is not None:
             properties = deepcopy(properties)
-            # 标签里的字距、字符缩放是旧词长度的微调且不能扩散到新字段
+            # 原标签的字距和字符缩放仅适用于原词长度
             for node in list(properties):
                 if node.tag in {w("spacing"), w("w"), w("position")}:
                     properties.remove(node)

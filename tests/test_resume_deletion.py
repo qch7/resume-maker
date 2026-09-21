@@ -8,7 +8,7 @@ from resume_maker.infrastructure.database import dump, now
 
 
 def test_delete_resume_preserves_projects_exports_and_other_plans(tmp_path):
-    """删除只移除目标方案；拒绝未鉴权或过期版本请求并保留已导出文件"""
+    """删除只移除目标方案，拒绝未鉴权或过期版本请求并保留已导出文件"""
     config = Config(data_dir=tmp_path / "data", token="test-token")
     app = create_app(config)
     source = tmp_path / "source"

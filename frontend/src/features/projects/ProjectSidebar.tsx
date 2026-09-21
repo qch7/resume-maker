@@ -36,7 +36,7 @@ interface Props {
   onImport: () => void;
 }
 
-/** 展示和排序项目及会话；通过回调把导航与写入交给工作台协调 */
+/** 展示和排序项目及会话，通过回调把导航和写入交给工作台协调 */
 export default function ProjectSidebar({
   onCollapse,
   sortedSidebar,
@@ -57,10 +57,10 @@ export default function ProjectSidebar({
   onDelete,
   onImport,
 }: Props) {
-  /** 按来源分组递归显示项目；整体与子项目分别持有选择状态和会话 */
+  /** 按来源分组递归显示项目，整体和子项目分别持有选择状态和会话 */
   function renderProject(p: Project) {
     const children = sortedSidebar.projects.filter(
-      /* 子项目始终留在所属整体项目下；组内沿用当前排序 */ (child) =>
+      /* 子项目始终留在所属整体项目下，组内沿用当前排序 */ (child) =>
         child.parent_id === p.id,
     );
     const collapsed = folded[p.id] ?? !!p.parent_id;

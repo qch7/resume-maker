@@ -6,7 +6,7 @@ import type {
   ResumeSection,
 } from "../../../shared/types/index.ts";
 
-/** 优先按稳定标识匹配；旧简历中唯一同名同类型栏目沿用原标识 */
+/** 优先按稳定标识匹配，旧简历中唯一同名同类型栏目沿用原标识 */
 export function matchDefaultSections(
   sections: ResumeSection[],
   definitions: DefaultSection[],
@@ -31,7 +31,7 @@ export function matchDefaultSections(
         item.id === definition.id,
     );
     const candidates = sections.filter(
-      /* 项目区按类型识别；普通栏目使用本次或上次默认名称匹配 */ (section) =>
+      /* 项目区按类型识别，普通栏目使用本次或上次默认名称匹配 */ (section) =>
         !used.has(section.id) &&
         ((section.kind === definition.kind &&
           (definition.kind === "projects" ||
@@ -52,7 +52,7 @@ export function matchDefaultSections(
   return matches;
 }
 
-/** 只清理旧合并逻辑补入的同名空默认栏目；保留所有条目及其他草稿 */
+/** 只清理旧合并逻辑补入的同名空默认栏目，保留所有条目及其他草稿 */
 export function repairDefaultDuplicates(
   document: ResumeDocument | null,
   defaults?: ResumeDefaults | null,
@@ -110,11 +110,11 @@ export function repairDefaultDuplicates(
   if (!replacements.size) return document;
   const sections = document.sections
     .filter(
-      /* 空默认栏目没有正文且不删除任何填写条目 */ (section) =>
+      /* 只删除没有正文的空默认栏目 */ (section) =>
         !replacements.has(section.id),
     )
     .map(
-      /* 重挂空栏目下的子栏目；保持条目标识和当前排列 */ (section) => {
+      /* 重挂空栏目下的子栏目，保持条目标识和当前排列 */ (section) => {
         const parent = restoredParents.get(section.id) ?? section.parent_id;
         const parent_id = parent
           ? (replacements.get(parent)?.id ?? parent)
@@ -127,7 +127,7 @@ export function repairDefaultDuplicates(
   return { ...document, sections };
 }
 
-/** 修复当前方案时保持无变化对象的引用以免轮询制造额外草稿更新 */
+/** 保留未变化对象的引用以避免轮询触发草稿更新 */
 export function repairDefaultResume(
   resume: Resume,
   defaults?: ResumeDefaults | null,

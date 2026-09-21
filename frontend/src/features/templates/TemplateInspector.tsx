@@ -28,7 +28,7 @@ interface Props {
   onRange: () => void;
 }
 
-/** 编辑画布当前选区的字段、照片用途和重复范围；所有修改仍需完整校验 */
+/** 编辑当前选区的字段、照片用途和重复范围 */
 export default function TemplateInspector({
   nodes,
   plan,
@@ -86,7 +86,7 @@ export default function TemplateInspector({
       nodes.find(/* 定位选中的节点 */ (item) => item.id === id)?.kind !==
       "image",
   );
-  /** 更新选区的字段集合；保留所有其他位置的映射 */
+  /** 更新选区的字段集合，保留所有其他位置的映射 */
   function updateFields(value: TextBinding[]) {
     if (
       region &&
@@ -123,7 +123,7 @@ export default function TemplateInspector({
       });
     } else onChange({ ...cleared, fields: [...cleared.fields, ...value] });
   }
-  /** 把选区明确分类；固定文字只能逐段确认以免整个表格掩盖遗漏信息 */
+  /** 设置选区用途并逐段确认固定文字 */
   function classify(kind: "photos" | "keep" | "remove") {
     if (
       region &&
@@ -167,7 +167,7 @@ export default function TemplateInspector({
         : cleared.repeats,
     });
   }
-  /** 以选区作为一条完整样例建立重复栏目；再按需要扩展全部示例范围 */
+  /** 以选区作为一条完整样例建立重复栏目，再按需要扩展全部示例范围 */
   function addRegion() {
     if (!available.length) return;
     const cleared = clearNodes(plan, nodes, selected);
@@ -186,7 +186,7 @@ export default function TemplateInspector({
       ],
     });
   }
-  /** 把当前同级选区写入指定栏目的重复范围或单条样本；随后由后端核验边界 */
+  /** 将同级选区设为栏目重复区或样本后交由后端校验 */
   function setRange(sample: boolean) {
     const index = selectedRegion;
     onChange({
@@ -253,7 +253,7 @@ export default function TemplateInspector({
           </p>
           <button
             onClick={
-              /* 定位真正作为样式来源的条目 */ () =>
+              /* 定位提供样式的样本条目 */ () =>
                 onSelect(plan.repeats[touched.findIndex(Boolean)].sample_start)
             }
           >
@@ -312,7 +312,7 @@ export default function TemplateInspector({
               {!region && (
                 <button
                   onClick={
-                    /* 撤回所选位置的全部分类；重新核对用途 */ () =>
+                    /* 撤回所选位置的全部分类，重新核对用途 */ () =>
                       onChange(clearNodes(plan, nodes, selected))
                   }
                 >
@@ -410,7 +410,7 @@ export default function TemplateInspector({
           {region && (
             <button
               onClick={
-                /* 取消栏目配置；原文重新进入待处理清单 */ () =>
+                /* 取消栏目配置，原文重新进入待处理清单 */ () =>
                   onChange({
                     ...plan,
                     repeats: plan.repeats.filter(

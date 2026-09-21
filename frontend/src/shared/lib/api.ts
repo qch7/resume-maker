@@ -3,7 +3,7 @@ const token =
     ?.content ?? "";
 
 export class ApiError extends Error {
-  /** 保留 HTTP 状态码；使调用方能区分冲突、鉴权和普通请求错误 */
+  /** 保留 HTTP 状态码供调用方判断错误类型 */
   constructor(
     message: string,
     public status: number,
@@ -12,7 +12,7 @@ export class ApiError extends Error {
   }
 }
 
-/** 附加实例令牌发送同源请求并将失败响应转换为统一 API 异常 */
+/** 携带实例令牌发送同源请求并将失败响应转为 API 异常 */
 export async function request(
   path: string,
   options: RequestInit = {},
@@ -40,7 +40,7 @@ export async function request(
   return response;
 }
 
-/** 序列化 JSON 请求并解码响应；同时允许调用方传入取消信号 */
+/** 序列化 JSON 请求并解码响应，同时允许调用方传入取消信号 */
 export async function api<T>(
   path: string,
   method = "GET",
@@ -55,7 +55,7 @@ export async function api<T>(
   return response.json() as Promise<T>;
 }
 
-/** 下载受令牌保护的文件；触发浏览器保存并及时回收对象 URL */
+/** 下载受令牌保护的文件，触发浏览器保存并及时回收对象 URL */
 export async function download(path: string, filename: string, method = "GET") {
   const response = await request(path, { method });
   const url = URL.createObjectURL(await response.blob());

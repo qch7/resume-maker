@@ -1,4 +1,4 @@
-/* 功能区导航、个人资料表单与层级编排 */
+/* 功能区导航、个人资料表单和层级编排 */
 .area-navigation {
   display: flex;
   align-items: center;
@@ -178,7 +178,7 @@
 .profile-card textarea {
   padding: 5px 8px;
 }
-/* 基本信息和栏目字段采用同行标签与内容；窄面板自动换为单列 */
+/* 基本信息和栏目字段采用同行标签和内容，窄面板自动换为单列 */
 .personal-fields,
 .compact-fields {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
@@ -372,7 +372,7 @@
 .project-shortcut button {
   flex-shrink: 0;
 }
-/* 仅收紧个人信息左侧编辑区；保留字号、预览和其他功能区的排版 */
+/* 仅收紧个人信息左侧编辑区，保留字号、预览和其他功能区的排版 */
 .profile-heading.personal-heading {
   padding: 10px 20px;
 }
@@ -492,7 +492,7 @@
   margin-top: 24px;
 }
 
-/* 参考简历的蓝色横幅、两列联系信息与并列大栏目 */
+/* 参考简历的蓝色横幅、两列联系信息和并列大栏目 */
 .full-resume-paper {
   --accent: #718db5;
   color: #343637;

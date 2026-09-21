@@ -1,4 +1,4 @@
-"""验证已保存模板的基本信息随当前资料自动扩展；无需重新识别"""
+"""验证已保存模板的基本信息随当前资料自动扩展，无需重新识别"""
 
 from copy import deepcopy
 
@@ -16,7 +16,7 @@ from resume_maker.integrations.word.templates.mapping import TemplatePackage, pa
 
 
 def personal_template(path, table):
-    """制作有已满联系方式行和教育栏目的模板；覆盖正文与可扩展单元格"""
+    """制作有已满联系方式行和教育栏目的模板，覆盖正文和可扩展单元格"""
     doc = Document()
     contact = (
         doc.add_table(rows=1, cols=1).cell(0, 0).paragraphs[0] if table else doc.add_paragraph()
@@ -60,7 +60,7 @@ def personal_template(path, table):
 
 @pytest.mark.parametrize("table", [False, True])
 def test_new_personal_fields_extend_existing_area_without_changing_template(tmp_path, table):
-    """新条目继承同区字体、缩进和行距；后续隐藏、清空、改名都不留下旧行"""
+    """新条目继承同区字体、缩进和行距，后续隐藏、清空、改名都不留下旧行"""
     source, output = tmp_path / "source.docx", tmp_path / "filled.docx"
     plan = personal_template(source, table)
     original, original_plan = source.read_bytes(), deepcopy(plan)
@@ -104,7 +104,7 @@ def test_new_personal_fields_extend_existing_area_without_changing_template(tmp_
         assert paragraph.runs[0].font.size == Pt(10)
     assert [paragraph.text for paragraph in filled.paragraphs[-2:]] == ["教育背景", "新学校"]
 
-    # 每次以当前资料生成；绝不把补出的行持久化到原模板中
+    # 每次以当前资料生成，绝不把补出的行持久化到原模板中
     document.personal.hidden_fields.append("website")
     document.personal.custom_fields[0].label = "工作方式"
     document.personal.custom_fields[0].value = "远程"
@@ -128,7 +128,7 @@ def test_new_personal_fields_extend_existing_area_without_changing_template(tmp_
 
 
 def test_automatic_rows_do_not_mask_missing_photo_mapping(tmp_path):
-    """个人区和栏目可扩展不会绕过未识别照片校验；也不写回模板或不完整输出"""
+    """个人区和栏目可扩展不会绕过未识别照片校验，也不写回模板或不完整输出"""
     source, output = tmp_path / "source.docx", tmp_path / "filled.docx"
     plan = personal_template(source, False)
     original = source.read_bytes()
@@ -165,7 +165,7 @@ def test_automatic_rows_do_not_mask_missing_photo_mapping(tmp_path):
     ],
 )
 def test_hidden_contacts_remove_labels_and_fill_grid_gaps(tmp_path, hidden, expected):
-    """两列混合段落隐藏整条信息；后续字段与自动新增主页连续补位且保留标签和值的样式"""
+    """两列混合段落隐藏整条信息，后续字段和自动新增主页连续补位且保留标签和值的样式"""
     source, output = tmp_path / "grid.docx", tmp_path / "filled.docx"
     doc = Document()
     contact = doc.add_paragraph()
@@ -210,7 +210,7 @@ def test_hidden_contacts_remove_labels_and_fill_grid_gaps(tmp_path, hidden, expe
         },
         sections=[ResumeSection(id="projects", title="项目经历", kind="projects")],
     )
-    # AI 的映射顺序可以乱序；补位顺序仍须来自 Word 中的实际列位置
+    # AI 的映射顺序可以乱序，补位顺序仍须来自 Word 中的实际列位置
     plan.fields.reverse()
     original, original_plan = source.read_bytes(), deepcopy(plan)
     fill_template(source, output, plan, document.model_dump(), [])
@@ -234,7 +234,7 @@ def test_hidden_contacts_remove_labels_and_fill_grid_gaps(tmp_path, hidden, expe
 
 
 def test_hidden_standalone_field_removes_its_paragraph(tmp_path):
-    """单列标签和值一起隐藏；后面的姓名段落自然上移；固定标题不被当作个人条目删除"""
+    """单列标签和值一起隐藏，后面的姓名段落自然上移，固定标题不被当作个人条目删除"""
     source, output = tmp_path / "single.docx", tmp_path / "filled.docx"
     doc = Document()
     doc.add_paragraph("邮箱：old-email")
@@ -272,7 +272,7 @@ def test_hidden_standalone_field_removes_its_paragraph(tmp_path):
 
 
 def test_hidden_table_contacts_compact_each_column_and_remove_empty_rows(tmp_path):
-    """表格个人区每列向上补齐；删去空行；隐藏全部信息后整张空表移除"""
+    """表格个人区每列向上补齐，删去空行，隐藏全部信息后整张空表移除"""
     source, output = tmp_path / "table.docx", tmp_path / "filled.docx"
     doc = Document()
     table = doc.add_table(rows=3, cols=2)
@@ -325,7 +325,7 @@ def test_hidden_table_contacts_compact_each_column_and_remove_empty_rows(tmp_pat
 
 
 def test_compaction_keeps_repeated_quote_label_separate_from_value(tmp_path):
-    """标签与旧值同字时仍按正确出现次数替换；重排不能把标签替换为邮箱地址"""
+    """标签和旧值同字时仍按正确出现次数替换，重排不能把标签替换为邮箱地址"""
     source, output = tmp_path / "repeated.docx", tmp_path / "filled.docx"
     doc = Document()
     doc.add_paragraph("邮箱：邮箱\t所在地：城市")
@@ -357,7 +357,7 @@ def test_compaction_keeps_repeated_quote_label_separate_from_value(tmp_path):
 
 
 def test_grid_inside_single_cell_keeps_its_column_positions(tmp_path):
-    """外层单元格不改变内层制表位布局；隐藏左列邮箱后右列电话仍在原列"""
+    """外层单元格不改变内层制表位布局，隐藏左列邮箱后右列电话仍在原列"""
     source, output = tmp_path / "cell.docx", tmp_path / "filled.docx"
     plan = personal_template(source, True)
     document = ResumeDocument(

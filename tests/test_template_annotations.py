@@ -1,4 +1,4 @@
-"""区分默认注释分隔线与真实注释以免误拦截或遗漏原文"""
+"""区分默认注释分隔线和真实注释以免误拦截或遗漏原文"""
 
 from zipfile import ZipFile
 
@@ -31,7 +31,7 @@ def add_annotation_part(doc, kind, content):
 
 
 def test_default_annotation_parts_allow_analysis_and_filling(tmp_path):
-    """默认分隔线和空批注部件不阻止 AI 识别及填充；导出时仍原样保留部件"""
+    """默认分隔线和空批注部件不阻止 AI 识别及填充，导出时仍原样保留部件"""
     source, output = tmp_path / "source.docx", tmp_path / "output.docx"
     doc = Document()
     doc.add_paragraph("原姓名")
@@ -76,7 +76,7 @@ def test_default_annotation_parts_allow_analysis_and_filling(tmp_path):
 @pytest.mark.parametrize("kind", ["footnote", "endnote", "comment"])
 @pytest.mark.parametrize("content", ["", "<w:p><w:r><w:t>注释中的原资料</w:t></w:r></w:p>"])
 def test_annotations_participate_in_recognition_without_blocking(tmp_path, kind, content):
-    """脚注尾注按普通文字识别；批注自动忽略；均不阻止导入"""
+    """脚注尾注按普通文字识别，批注自动忽略，均不阻止导入"""
     doc = Document()
     doc.add_paragraph("原姓名")
     add_annotation_part(doc, kind, f'<w:{kind} w:id="0">{content}</w:{kind}>')
@@ -113,7 +113,7 @@ def test_custom_separator_text_is_included(tmp_path, kind):
 
 @pytest.mark.parametrize("tag", ["footnoteReference", "endnoteReference", "commentRangeStart"])
 def test_annotation_references_without_parts_are_reported(tmp_path, tag):
-    """缺失注释部件时仍检查正文引用且不能把未处理的注释锚点放行"""
+    """注释部件缺失时仍检查正文中的注释引用"""
     doc = Document()
     reference = OxmlElement(f"w:{tag}")
     reference.set(w("id"), "1")
@@ -129,7 +129,7 @@ def test_annotation_references_without_parts_are_reported(tmp_path, tag):
 
 
 def test_malformed_annotation_xml_reports_invalid_document(tmp_path):
-    """损坏的注释 XML 转换为文档错误且不能触发未处理的解析异常"""
+    """注释 XML 损坏时返回文档错误"""
     doc = Document()
     doc.add_paragraph("原姓名")
     add_annotation_part(doc, "footnote", "<w:footnote>")

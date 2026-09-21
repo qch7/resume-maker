@@ -25,13 +25,13 @@ router = APIRouter(prefix="/api", tags=["templates"])
 
 @router.get("/template-library")
 def template_library(services: ServicesDep):
-    """读取所有入口共用的模板分类与 Like"""
+    """读取所有入口共用的模板分类和 Like"""
     return services.template_library.state()
 
 
 @router.patch("/template-library/items/{template_id}")
 def update_library_item(services: ServicesDep, template_id: str, body: TemplateLibraryItemInput):
-    """合并单个模板的组织信息且不改变其映射与内容"""
+    """更新单个模板的组织信息"""
     return services.template_library.update(template_id, body.model_dump(exclude_unset=True))
 
 
@@ -43,7 +43,7 @@ def create_template_category(services: ServicesDep, body: TemplateCategoryInput)
 
 @router.delete("/template-library/items/{template_id}")
 def delete_library_template(services: ServicesDep, template_id: str, permanent: bool = False):
-    """未引用模板先进入回收站；显式选择永久删除后清理保存数据"""
+    """未引用模板先进入回收站，显式选择永久删除后清理保存数据"""
     return services.template_library.delete(template_id, permanent=permanent)
 
 
@@ -67,13 +67,13 @@ def template_thumbnail(services: ServicesDep, template_id: str):
 
 @router.post("/templates/analyses")
 def analyze_template(services: ServicesDep, body: TemplateAnalysisInput):
-    """启动可取消的模板语义分析；立即返回独立任务标识"""
+    """启动可取消的模板分析并返回任务标识"""
     return services.templates.analyze(Path(body.path), body.document, body.items)
 
 
 @router.post("/templates/{template_id}/edit")
 def edit_template(services: ServicesDep, template_id: str, body: TemplateEditInput | None = None):
-    """按当前资料打开并补齐独立副本；保留原模板版本及其所有简历引用"""
+    """按当前资料打开并补齐独立副本，保留原模板版本及其所有简历引用"""
     return services.templates.open(
         template_id, body.document if body else None, body.items if body else None
     )
@@ -93,13 +93,13 @@ def analysis_progress(services: ServicesDep, analysis_id: str, after: int = Quer
 
 @router.post("/templates/analyses/{analysis_id}/cancel")
 def cancel_analysis(services: ServicesDep, analysis_id: str):
-    """取消模板分析；禁止迟到结果覆盖取消状态"""
+    """取消模板分析，禁止迟到结果覆盖取消状态"""
     return services.templates.cancel(analysis_id)
 
 
 @router.post("/templates/analyses/{analysis_id}/review")
 def review_mapping(services: ServicesDep, analysis_id: str, body: TemplatePreviewInput):
-    """重新验证修改后的字段与区域；返回仍需处理的具体内容"""
+    """重新验证修改后的字段和区域，返回仍需处理的具体内容"""
     return services.templates.review(analysis_id, body.plan, body.document, body.items)
 
 
@@ -113,7 +113,7 @@ def repair_mapping(services: ServicesDep, analysis_id: str, body: TemplateRepair
 
 @router.get("/templates/analyses/{analysis_id}/images/{node_id}")
 def template_image(services: ServicesDep, analysis_id: str, node_id: str):
-    """以图片响应展示内嵌 PNG/JPEG/GIF且不执行模板内的脚本或外部资源"""
+    """仅以图片响应展示模板内嵌的 PNG、JPEG 或 GIF"""
     data = TemplatePackage(services.templates.source(analysis_id)).image(node_id)
     if data.startswith(b"\x89PNG\r\n\x1a\n"):
         media_type = "image/png"
@@ -128,7 +128,7 @@ def template_image(services: ServicesDep, analysis_id: str, node_id: str):
 
 @router.post("/templates/analyses/{analysis_id}/save")
 def save_mapping(services: ServicesDep, analysis_id: str, body: AdaptiveTemplateInput):
-    """保存用户确认的完整模板版本且不改变当前简历资料"""
+    """保存用户确认的完整模板版本"""
     return services.templates.save(analysis_id, body.name, body.plan, body.document, body.items)
 
 
@@ -140,7 +140,7 @@ def preview_mapping(services: ServicesDep, analysis_id: str, body: TemplatePrevi
 
 @router.get("/templates/analyses/{analysis_id}/previews/{preview_id}/{file_name}")
 def preview_file(services: ServicesDep, analysis_id: str, preview_id: str, file_name: str):
-    """仅提供当前分析目录中的 Word、PDF 与分页图且不允许任意路径读取"""
+    """仅提供当前分析目录中的 Word、PDF 和分页图"""
     try:
         UUID(preview_id)
     except ValueError as exc:

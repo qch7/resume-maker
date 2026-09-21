@@ -6,7 +6,7 @@ interface ChoiceGroup {
   choices: { id: string; label: string }[];
 }
 
-/** 按资料用途合并同段字段且仅列出可修正内容；空白和固定原文留在高级选项 */
+/** 按用途合并同段可修正字段 */
 export function adjustmentChoices(
   nodes: TemplateNode[],
   plan: TemplatePlan,
@@ -14,7 +14,7 @@ export function adjustmentChoices(
   const available = new Set(
     nodes.map(/* 收集仍然存在的位置 */ (node) => node.id),
   );
-  /** 同一段可能同时填写姓名、性别和年龄；合并入口避免重复选项 */
+  /** 同段的姓名、性别和年龄共用一个调整入口 */
   function fields(fields: TextBinding[]) {
     const grouped = new Map<string, Set<string>>();
     for (const field of fields) {

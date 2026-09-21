@@ -6,7 +6,7 @@ import {
 } from "../../shared/components/SortableList";
 import type { Resume, Revision } from "../../shared/types";
 
-/** 在栏目编排的项目经历栏目内管理项目顺序、固定引用与编辑入口 */
+/** 在栏目编排的项目经历栏目内管理项目顺序、固定引用和编辑入口 */
 export default function ProjectOrder({
   draft,
   revisions,
@@ -59,7 +59,7 @@ export default function ProjectOrder({
                 label={`项目 ${title}`}
               >
                 {
-                  /* 将拖动手柄与键盘可用的移动按钮放在同一行 */ (handle) => (
+                  /* 将拖动手柄和键盘可用的移动按钮放在同一行 */ (handle) => (
                     <>
                       <div className="project-order-info">
                         <strong>{title}</strong>
@@ -108,7 +108,7 @@ export default function ProjectOrder({
                           className="icon-button"
                           aria-label={`移除项目 ${title}`}
                           onClick={
-                            /* 仅移除当前简历引用；保留原始经历 */ () =>
+                            /* 仅移除当前简历引用，保留原始经历 */ () =>
                               onChange({
                                 ...draft,
                                 items: draft.items.filter(

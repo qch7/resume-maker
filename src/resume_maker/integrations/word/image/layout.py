@@ -1,4 +1,4 @@
-"""将图片空间识别结果转成可流动 Word；局部素材与文字分离；禁止整页背景伪装恢复"""
+"""将图片空间识别结果转成可流动 Word，局部素材和文字分离，禁止整页背景伪装恢复"""
 
 import os
 from contextlib import contextmanager
@@ -47,7 +47,7 @@ def validate_layout(layout):
 
 
 def page_size(image):
-    """统一纸面短边；保持图片宽高比且不让截图 DPI 或像素数放大 Word 字号"""
+    """按固定纸面短边等比缩放图片"""
     scale = 595.276 / min(image.size)
     width, height = image.width * scale, image.height * scale
     if max(width, height) > 1584:
@@ -56,7 +56,7 @@ def page_size(image):
 
 
 def font_for(text):
-    """优先系统中匹配的常见字体；缺失时使用内置中文字体保证文字可编辑且不丢字"""
+    """优先使用系统匹配字体并在缺失时回退到内置中文字体"""
     fonts = Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts"
     families = {
         "等线": ("Deng.ttf", "Dengb.ttf"),
@@ -73,17 +73,17 @@ def font_for(text):
 
 
 def physical_box(box, width, height):
-    """比例矩形转换为纸面点数；所有文字和素材共用同一坐标系"""
+    """比例矩形转换为纸面点数，所有文字和素材共用同一坐标系"""
     return pymupdf.Rect(box[0] * width, box[1] * height, box[2] * width, box[3] * height)
 
 
 def color_rgb(color):
-    """解析已校验的十六进制颜色；供矢量文字和重新绘制的底色共同使用"""
+    """解析已校验的十六进制颜色，供矢量文字和重新绘制的底色共同使用"""
     return tuple(int(color[index : index + 2], 16) for index in (1, 3, 5))
 
 
 def insert_texts(page, layout):
-    """按图片文字框生成可编辑字符；字号依据字宽换算且不压缩字符或栅格化文字"""
+    """根据文字框和字宽换算字号并生成可编辑字符"""
     fonts = {}
     for text in layout.texts:
         key = text.font_name, text.bold
@@ -97,7 +97,7 @@ def insert_texts(page, layout):
             raise Problem(f"当前字体缺少文字所需字符：{text.text[:35]}，请核对字体或图标分类。")
         box = physical_box(text.box, page.rect.width, page.rect.height)
         size = box.width / max(0.1, font.text_length(text.text, fontsize=1))
-        # 比例框描述可见笔画；拒绝明显不像单行文字的框且不任意压扁字号来掩盖坏坐标
+        # 比例框表示可见笔画范围，明显偏离单行文字比例的框会被拒绝
         if not 0.45 * box.height <= size <= 2.5 * box.height or not 4 <= size <= 65:
             raise Problem(f"文字尺寸与行框不匹配：{text.text[:35]}，请重新识别紧密文字框。")
         ink_top = max(font.glyph_bbox(ord(char)).y1 for char in text.text if not char.isspace())
@@ -113,7 +113,7 @@ def insert_texts(page, layout):
 
 @contextmanager
 def text_layer(layout, width, height):
-    """构造临时几何页并核验全部识别字符；字体缺字或异常时及时关闭临时文档"""
+    """构造临时几何页并核验全部识别字符，字体缺字或异常时及时关闭临时文档"""
     with pymupdf.open() as pdf:
         page = pdf.new_page(width=width, height=height)
         insert_texts(page, layout)
@@ -124,7 +124,7 @@ def text_layer(layout, width, height):
 
 
 def asset_bytes(image, asset):
-    """仅照片和图标从原图裁剪；底块与线条重新画；绝不包含原模板文字像素"""
+    """仅照片和图标从原图裁剪，底块和线条重新画，绝不包含原模板文字像素"""
     box = physical_box(asset.box, image.width, image.height)
     if asset.kind in {"photo", "icon"}:
         result = image.crop(tuple(round(value) for value in box))
@@ -144,17 +144,17 @@ def asset_bytes(image, asset):
 
 
 def place_image_assets(image, layout, paragraphs, width, height):
-    """根据原始几何选择素材对应段落；底色、照片和图标各自保留用途及可伸展锚点"""
+    """根据原始几何选择素材对应段落，底色、照片和图标各自保留用途及可伸展锚点"""
     for asset in layout.assets:
         box = physical_box(asset.box, width, height)
 
         def distance(item, area=box, kind=asset.kind):
-            """底块优先关联内部文字；其余素材优先同高度且横向最近的段落"""
+            """底块优先关联内部文字，其余素材优先同高度且横向最近的段落"""
             _, rect, _ = item
             vertical = max(rect.y0 - area.y1, area.y0 - rect.y1, 0)
             horizontal = max(rect.x0 - area.x1, area.x0 - rect.x1, 0)
             if kind == "photo":
-                # 照片按顶边关联；不能因靠近右侧学历/日期而被挂入它们的重复条目中
+                # 照片按顶边关联，不能因靠近右侧学历/日期而被挂入它们的重复条目中
                 return abs(rect.y0 - area.y0), horizontal
             return vertical * 4 + horizontal * 0.15, abs(rect.y0 - area.y0)
 
@@ -172,9 +172,9 @@ def place_image_assets(image, layout, paragraphs, width, height):
 
 
 def image_text_styles(paragraphs):
-    """固定中文字体族并设置列表悬挂缩进；长内容换行后与正文对齐而非挤在圆点下面"""
+    """设置中文字体和列表悬挂缩进以让续行对齐正文"""
     for paragraph, _, _ in paragraphs:
-        # 图片文字行的右边缘是原句末尾且不代表容器边缘；新资料可使用所在列的剩余宽度
+        # 原文行尾以后的列内宽度仍可用于排版新资料
         paragraph.paragraph_format.right_indent = Pt(0)
         for run in paragraph.runs:
             family = FONT_NAMES.get((run.font.name or "").lower())
@@ -198,7 +198,7 @@ def image_text_styles(paragraphs):
 
 
 def build_image_document(path, layout, flag):
-    """串行调用具有全局状态的版面解析器；图片来源保留独立标记且不冒充原生 PDF"""
+    """串行调用版面解析器并标记图片来源"""
     validate_layout(layout)
     with Image.open(path) as image:
         width, height = page_size(image)

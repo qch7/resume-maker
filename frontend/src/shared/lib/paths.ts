@@ -1,6 +1,6 @@
-/** 多来源列表只追加新文件夹；保留已有顺序并忽略 Windows 路径大小写与尾部分隔符差异 */
+/** 按原顺序追加新目录并在比较时忽略 Windows 路径大小写和末尾分隔符 */
 export function appendPath(value: string, selected: string): string {
-  /** 仅用于比较目录且不改变用户填写的实际路径文本 */
+  /** 仅规范化目录比较值 */
   function key(path: string) {
     return path
       .trim()

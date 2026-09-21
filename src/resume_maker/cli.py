@@ -1,4 +1,4 @@
-"""本机服务启动与离线恢复的命令行入口"""
+"""本机服务启动和离线恢复的命令行入口"""
 
 import argparse
 import json
@@ -18,7 +18,7 @@ from .api import create_app
 
 
 def main():
-    """解析命令行；持有实例锁后启动本机服务；或执行离线备份恢复"""
+    """解析命令行，持有实例锁后启动本机服务，或执行离线备份恢复"""
     parser = argparse.ArgumentParser(description="Resume Maker 本地工作台")
     parser.add_argument("--data-dir", type=Path)
     parser.add_argument("--port", type=int, default=8765)

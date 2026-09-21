@@ -1,4 +1,4 @@
-"""个人信息与两级简历栏目；独立于项目经历的固定版本引用"""
+"""个人信息和两级简历栏目，独立于项目经历的固定版本引用"""
 
 import base64
 import binascii
@@ -22,7 +22,7 @@ EntryField = Literal["title", "subtitle", "period", "details"]
 
 
 class PersonalInfo(Model):
-    """固定展示在简历顶部的基本信息；空字段不参与排版"""
+    """固定展示在简历顶部的基本信息，空字段不参与排版"""
 
     name: str = Field(default="", max_length=100)
     job_title: str = Field(default="", max_length=200)
@@ -40,7 +40,7 @@ class PersonalInfo(Model):
 
     @model_validator(mode="after")
     def validate_photo(self):
-        """只接受大小受限的 PNG/JPEG 内嵌照片且不读取外部 URL 或本机路径"""
+        """只接受大小受限的 PNG 或 JPEG 内嵌照片"""
         validate_custom_field_ids(self.custom_fields)
         if not self.photo:
             return self
@@ -57,7 +57,7 @@ class PersonalInfo(Model):
 
 
 class SectionEntry(Model):
-    """栏目下的经历或文本条目；支持学校、专业、时间与多行正文"""
+    """栏目下的经历或文本条目，支持学校、专业、时间和多行正文"""
 
     id: str = Field(min_length=1, max_length=100)
     title: str = Field(default="", max_length=300)
@@ -71,7 +71,7 @@ class SectionEntry(Model):
 
     @model_validator(mode="after")
     def validate_custom_fields(self):
-        """校验本条经历的自定义信息标识；允许各条经历独立使用字段名称"""
+        """校验本条经历的自定义信息标识，允许各条经历独立使用字段名称"""
         validate_custom_field_ids(self.custom_fields)
         if sum(field.id not in HONOR_CUSTOM_IDS for field in self.custom_fields) > 20:
             raise ValueError("每条资料最多保留 20 项自定义信息。")
@@ -79,7 +79,7 @@ class SectionEntry(Model):
 
 
 class ResumeSection(Model):
-    """可排序、隐藏或归入大栏目的栏目；项目区使用独立版本引用"""
+    """可排序、隐藏或归入大栏目的栏目，项目区使用独立版本引用"""
 
     id: str = Field(min_length=1, max_length=100)
     title: str = Field(min_length=1, max_length=100)
@@ -91,7 +91,7 @@ class ResumeSection(Model):
 
 
 class ResumeDocument(Model):
-    """一份简历独立保存的顶部资料与栏目编排；允许大栏目加子栏目两层"""
+    """一份简历独立保存的顶部资料和栏目编排，允许大栏目加子栏目两层"""
 
     personal: PersonalInfo = Field(default_factory=PersonalInfo)
     sections: list[ResumeSection] = Field(max_length=40)
@@ -99,7 +99,7 @@ class ResumeDocument(Model):
 
     @model_validator(mode="after")
     def validate_hierarchy(self):
-        """拒绝重复标识、孤立引用、循环与超过两级的栏目；项目经历保持独立大栏目"""
+        """拒绝重复标识、孤立引用、循环和超过两级的栏目，项目经历保持独立大栏目"""
         by_id = {section.id: section for section in self.sections}
         if len(by_id) != len(self.sections):
             raise ValueError("栏目标识不能重复。")

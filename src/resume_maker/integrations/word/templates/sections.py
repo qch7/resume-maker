@@ -26,7 +26,7 @@ ENTRY_SLOT = "〔自动条目占位〕"
 
 
 def defer_empty_sections(package, plan, document):
-    """无标题、无原文的普通大栏目交给补全器创建，不能把页首留白当成栏目。"""
+    """无标题、无原文的普通大栏目交给补全器创建，不能把页首留白当成栏目"""
     if not section_headings(package, plan, document):
         return plan, []
     titles = {section.title for section in document.sections if section.kind != "projects"}
@@ -42,7 +42,7 @@ def defer_empty_sections(package, plan, document):
         if region.section not in titles - headings:
             continue
         blocks = package.region(region.start, region.end)
-        # 仅重建真正的空白/程序占位段落；真实正文、装饰、分节和表格都不能推断删除。
+        # 仅重建空白段落和程序生成的占位段落
         if any(
             block.tag != w("p")
             or paragraph_text(block).strip() not in {"", ENTRY_SLOT}
@@ -120,7 +120,7 @@ def section_headings(package, plan, document):
 
 
 def entry_donor(package, plan, target, region=None):
-    """优先沿用同栏目同字段或正文的字体；缺少时借用其他普通经历的文字样式"""
+    """优先沿用同栏目同字段或正文的字体，缺少时借用其他普通经历的文字样式"""
     regions = ([region] if region is not None else []) + [
         r for r in plan.repeats if r is not region
     ]
@@ -133,7 +133,7 @@ def entry_donor(package, plan, target, region=None):
 
 
 def entry_paragraph(package, plan, target, styles, region=None):
-    """以模板正文字体建立可换行的条目字段；标题加粗；正文不继承固定位置或分页"""
+    """以模板正文字体建立可换行的条目字段，标题加粗，正文不继承固定位置或分页"""
     paragraph = flow_paragraph(ENTRY_SLOT, entry_donor(package, plan, target, region))
     properties = paragraph.find(w("pPr"))
     for tag in ("numPr", "pBdr", "shd"):
@@ -170,7 +170,7 @@ def entry_paragraph(package, plan, target, styles, region=None):
 
 
 def entry_blocks(parent, paragraphs):
-    """普通容器使用段落；表格栏目使用跨满原列宽的一行以免生成非法表格结构"""
+    """普通容器使用段落，表格栏目使用跨满原列宽的一行以免生成非法表格结构"""
     if parent.tag != w("tbl"):
         return paragraphs
     row, cell = etree.Element(w("tr")), etree.Element(w("tc"))
@@ -184,7 +184,7 @@ def entry_blocks(parent, paragraphs):
 
 
 def cloned_heading(package, root, field, index):
-    """复制标题的全部图形与样式且仅清理身份和分节标记；返回克隆后的标题文字节点"""
+    """复制标题的全部图形和样式且仅清理身份和分节标记，返回克隆后的标题文字节点"""
     clone = deepcopy(root)
     pairs = dict(zip(root.iter(), clone.iter(), strict=True))
     title = pairs[package.node(field.node)]
@@ -200,7 +200,7 @@ def cloned_heading(package, root, field, index):
 
 
 def supplement_sections(package, plan, document, projects):
-    """在本次输出副本补齐大栏目及普通条目字段；原文件和用户保存的映射始终不变"""
+    """在本次输出副本补齐大栏目及普通条目字段，原文件和用户保存的映射始终不变"""
     records = {
         section.title: section_records(document, section.title, projects)
         for section in document.sections
@@ -251,7 +251,7 @@ def supplement_sections(package, plan, document, projects):
             paragraphs = [entry_paragraph(working, plan, key, styles, region) for key in targets]
             fields.extend(zip(paragraphs, targets, strict=True))
             blocks.extend(entry_blocks(parent, paragraphs) if paragraphs else [])
-        # 已有标题时；补充信息和时间放在标题之后；只有正文样本时才在正文前补标题信息
+        # 已有标题时，补充信息和时间放在标题之后，只有正文样本时才在正文前补标题信息
         title_nodes = [
             child_in(working.node(field.node), parent)
             for field in region.fields
@@ -285,13 +285,13 @@ def supplement_sections(package, plan, document, projects):
             headings[0],
         )
         if section.parent_id:
-            # 子栏目继承正文字体和加粗层级；不能把大标题的白字/浮动底图套到小标题上。
+            # 子栏目继承正文字体和加粗层级，不能把大标题的白字/浮动底图套到小标题上
             title_node = entry_paragraph(working, plan, "title", styles)
             heading = entry_blocks(parent, [title_node])[0]
             title_field = title_field.model_copy(update={"quote": ENTRY_SLOT, "occurrence": 1})
         else:
             heading, title_node = cloned_heading(working, root, title_field, index)
-        # 插在已知栏目尾部、固定结尾之前；随后交由统一栏目编排按当前顺序放置
+        # 插在已知栏目尾部、固定结尾之前，随后交由统一栏目编排按当前顺序放置
         anchors = [item[0] for item in headings if item[2] is parent]
         anchors.extend(
             child_in(working.node(region.end), parent)

@@ -1,4 +1,4 @@
-"""图片模板独立的空间识别契约且不改变旧 Word 扫描页和 PDF 的识别协议"""
+"""定义图片模板的空间识别数据结构"""
 
 from typing import Annotated, Literal
 
@@ -11,21 +11,21 @@ Color = Annotated[str, Field(pattern=r"^#[0-9a-fA-F]{6}$")]
 
 
 class ImageRegion(Model):
-    """页面内的比例矩形；独立于分辨率和图片不可靠的 DPI 元数据"""
+    """页面内的比例矩形，独立于分辨率和图片不可靠的 DPI 元数据"""
 
     box: list[Coordinate] = Field(min_length=4, max_length=4)
 
     @field_validator("box")
     @classmethod
     def valid_box(cls, box):
-        """拒绝空框、反向框；错误识别须重试而非静默裁掉"""
+        """拒绝空框和反向框以便重试识别"""
         if box[0] >= box[2] or box[1] >= box[3]:
             raise ValueError("文字或素材必须有正面积的位置框。")
         return box
 
 
 class ImageText(ImageRegion):
-    """单个可见文字行；保留同行不同字段的独立位置和文字样式"""
+    """单个可见文字行，保留同行不同字段的独立位置和文字样式"""
 
     text: str = Field(min_length=1, max_length=4000)
     font_name: str = Field(default="等线", min_length=1, max_length=100)
@@ -35,14 +35,14 @@ class ImageText(ImageRegion):
     @field_validator("text")
     @classmethod
     def visible_text(cls, text):
-        """只有可见单行文字才能得到可靠字宽；空白与换行须另行分行"""
+        """只有可见单行文字才能得到可靠字宽，空白和换行须另行分行"""
         if not text.strip() or "\n" in text or "\r" in text:
             raise ValueError("每个文字框必须是非空的单行文字。")
         return text
 
 
 class ImageAsset(ImageRegion):
-    """无文字裁图与重新绘制的底块分开；底块不能把旧栏目文字烘焙进图片"""
+    """无文字裁图和重新绘制的底块分开，底块不能把旧栏目文字烘焙进图片"""
 
     kind: Literal["photo", "icon", "shape", "background", "line"]
     color: Color = "#222222"
@@ -50,7 +50,7 @@ class ImageAsset(ImageRegion):
 
     @model_validator(mode="after")
     def valid_polygon(self):
-        """多边形采用页面比例坐标；必须完整落在声明区域内"""
+        """多边形采用页面比例坐标，必须完整落在声明区域内"""
         if self.polygon and (
             len(self.polygon) < 3
             or self.kind not in {"shape", "background"}
@@ -66,7 +66,7 @@ class ImageAsset(ImageRegion):
 
 
 class ImagePage(Model):
-    """可编辑文字、局部素材和显式不确定项；禁止把整页作为恢复成品"""
+    """可编辑文字、局部素材和显式不确定项，禁止把整页作为恢复成品"""
 
     texts: list[ImageText] = Field(min_length=1, max_length=1500)
     assets: list[ImageAsset] = Field(default_factory=list, max_length=300)

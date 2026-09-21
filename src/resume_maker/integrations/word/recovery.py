@@ -1,4 +1,4 @@
-"""将格式复杂或扫描形式的模板逐页恢复为可编辑内容；再交给同一映射流程"""
+"""将格式复杂或扫描形式的模板逐页恢复为可编辑内容，再交给同一映射流程"""
 
 from io import BytesIO
 from textwrap import wrap
@@ -30,7 +30,7 @@ RECOVERY_INSTRUCTIONS = """将这一页简历模板恢复为可编辑的文字�
 
 
 def readable_pdf(package, output):
-    """Word 不可用时将包内可读文字与图片送入视觉识别且不访问外部关系"""
+    """Word 不可用时使用包内文字和图片进行视觉识别"""
     with pymupdf.open() as pdf:
         texts = []
         for root in package.parts.values():
@@ -60,7 +60,7 @@ def readable_pdf(package, output):
 
 
 def append_page(document, recovered, page, number):
-    """逐段建立可编辑 Word；照片从当前页裁剪；拒绝越界或含糊的裁剪坐标"""
+    """逐段建立可编辑 Word，照片从当前页裁剪，拒绝越界或含糊的裁剪坐标"""
     notes = [f"第 {number} 页：{note}" for note in recovered.notes]
     for block in recovered.blocks:
         if block.image_box:
@@ -92,7 +92,7 @@ def append_page(document, recovered, page, number):
 
 
 def recover_page(provider, output, prompt, image, settings, flag, emit, number):
-    """页面恢复短暂失败或格式错误时自动再试一次；取消立即生效且不跳过失败页"""
+    """页面恢复失败时重试一次并响应取消，重试失败则中止"""
     for attempt in range(1, 3):
         if flag.is_set():
             raise Cancelled("模板自动整理已取消。")
@@ -119,7 +119,7 @@ def recover_page(provider, output, prompt, image, settings, flag, emit, number):
 
 
 def rebuild_pages(pdf, output, provider, settings, flag, emit, *, native_pdf=False):
-    """逐页识别避免图片数量限制；任何一页失败均保留源快照并返回实际失败原因"""
+    """逐页识别避免图片数量限制，任何一页失败均保留源快照并返回实际失败原因"""
     if native_pdf:
         from resume_maker.integrations.word.pdf.recovery import rebuild_pdf
 
@@ -169,11 +169,11 @@ def rebuild_pages(pdf, output, provider, settings, flag, emit, *, native_pdf=Fal
 
 
 def blank_template(output, document, projects):
-    """空白来源按当前资料字段建立带明确占位文字的框架且不编造真实个人经历"""
+    """为空白来源生成带占位文字的资料框架"""
     result = Document()
     values = personal_values(document)
     if values.get("personal.photo"):
-        # 照片占位图不含当前用户照片；供后续映射定位和真实试填替换
+        # 照片占位图不含当前用户照片，供后续映射定位和真实试填替换
         with pymupdf.open() as placeholder:
             page = placeholder.new_page(width=90, height=120)
             page.draw_rect(page.rect, fill=(0.92, 0.94, 0.96))
@@ -238,7 +238,7 @@ def prepare_template(source, output, provider, settings, flag, emit, document, p
 
             notices = rebuild_image(source, output, provider, settings, flag, emit)
             return TemplatePackage(output), notices
-        # PDF 和图片可直接成为识别页面；旧 Word 或损坏的 DOCX 由 Word 修复转换
+        # PDF 和图片可直接成为识别页面，旧 Word 或损坏的 DOCX 由 Word 修复转换
         try:
             with pymupdf.open(source) as input_pdf:
                 if input_pdf.needs_pass:
@@ -259,7 +259,7 @@ def prepare_template(source, output, provider, settings, flag, emit, document, p
     if flag.is_set():
         raise Cancelled("模板自动整理已取消。")
     if package is not None:
-        # 只在首次导入、尚无映射时分离段落相对锚点；不能重编号已保存的模板。
+        # 只在首次导入、尚无映射时分离段落相对锚点，不能重编号已保存的模板
         separated = [
             separate_anchors(root, paragraph_relative=True) for root in package.parts.values()
         ]

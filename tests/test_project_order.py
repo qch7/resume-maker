@@ -1,4 +1,4 @@
-"""项目正文编排在内置及映射模板中的顺序、样式、显隐与固定标题回归"""
+"""项目正文编排在内置及映射模板中的顺序、样式、显隐和固定标题回归"""
 
 from copy import deepcopy
 
@@ -21,7 +21,7 @@ ORDER = ["custom:link", "description", "highlights", "role", "custom:team", "sta
 
 
 def ordered_settings(hidden=False):
-    """隐藏和恢复不改变排序；亮点由外层组合独立选择"""
+    """隐藏和恢复不改变排序，亮点由外层组合独立选择"""
     return ProjectVisibility(
         order=ORDER,
         fields={"role": not hidden, "stack": True},
@@ -69,7 +69,7 @@ def order_template(path, layout):
 
 
 def test_order_normalizes_available_fields_without_mutating_settings():
-    """丢失字段忽略、新增字段追加；切回旧版本仍能使用原位置"""
+    """丢失字段忽略、新增字段追加，切回旧版本仍能使用原位置"""
     content = project_info()
     settings = ProjectVisibility(order=["custom:missing", "highlights", "custom:team"])
     original = settings.model_dump()
@@ -106,7 +106,7 @@ def test_order_normalizes_available_fields_without_mutating_settings():
     "order", [["title"], ["period"], ["role", "role"], ["custom:"], ["unknown"]]
 )
 def test_fixed_or_invalid_order_is_rejected(order):
-    """标题时间不能混入正文；重复和无效字段不能进入持久化数据"""
+    """标题时间不能混入正文，重复和无效字段不能进入持久化数据"""
     with pytest.raises(ValidationError):
         ProjectVisibility(order=order)
 
@@ -117,7 +117,7 @@ def test_fixed_or_invalid_order_is_rejected(order):
 )
 @pytest.mark.parametrize("hidden", [False, True])
 def test_project_body_order_across_layouts(tmp_path, layout, hidden):
-    """自定义字段可夹在元信息和亮点之间；标题时间固定顶部；每份记录独立且无内容重复"""
+    """自定义字段可夹在元信息和亮点之间，标题时间固定顶部，每份记录独立且无内容重复"""
     source, output = tmp_path / "source.docx", tmp_path / "output.docx"
     value = project_info()
     projects = [
@@ -180,7 +180,7 @@ def test_project_body_order_across_layouts(tmp_path, layout, hidden):
 
 
 def test_ordered_highlights_keep_body_weight_and_separate_label_cleanup(tmp_path):
-    """亮点正文不继承粗体标题；原独立角色标签随值一起迁移并且没有重复"""
+    """亮点正文不继承粗体标题，原独立角色标签随值一起迁移并且没有重复"""
     source, output = tmp_path / "source.docx", tmp_path / "output.docx"
     doc = Document()
     for text in ("Title", "Period", "Role:", "Role value"):

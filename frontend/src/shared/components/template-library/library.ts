@@ -15,7 +15,7 @@ export interface LibraryTemplate extends Template {
   usage_count: number;
 }
 
-/** 为内置与导入模板补上持久化组织信息；新模板默认未分类且未收藏 */
+/** 为内置和导入模板补上持久化组织信息，新模板默认未分类且未收藏 */
 export function libraryTemplates(
   templates: Template[],
   state: LibraryState,
@@ -30,7 +30,7 @@ export function libraryTemplates(
         }),
       )),
   ].map(
-    /* 所属分类已失效时回到未分类且不影响原模板 */ (template) => {
+    /* 分类失效的模板显示在未分类中 */ (template) => {
       const meta = state.items[template.id];
       return {
         ...template,
@@ -47,7 +47,7 @@ export function libraryTemplates(
   );
 }
 
-/** 在当前分类内按名称搜索与排序；两种视图共用同一批结果 */
+/** 在当前分类内按名称搜索和排序，两种视图共用同一批结果 */
 export function filterTemplates(
   templates: LibraryTemplate[],
   folder: string,
@@ -57,7 +57,7 @@ export function filterTemplates(
   const needle = query.trim().toLocaleLowerCase();
   return templates
     .filter(
-      /* 收藏视图跨分类；其他视图按分类标识筛选 */ (template) =>
+      /* 收藏视图跨分类，其他视图按分类标识筛选 */ (template) =>
         (folder === "trash" ? !!template.deleted_at : !template.deleted_at) &&
         (folder === "all" ||
           folder === "trash" ||
@@ -73,14 +73,14 @@ export function filterTemplates(
     );
 }
 
-/** 使用明确的三十天时长展示回收站截止日期；与服务端 UTC 时间比较保持一致 */
+/** 按三十天时长和服务端 UTC 时间计算回收站截止日期 */
 export function templateExpiry(deletedAt: string) {
   return new Date(
     Date.parse(deletedAt) + 30 * 24 * 60 * 60 * 1000,
   ).toLocaleString("zh-CN");
 }
 
-/** 展示保存日期；内置模板没有登记日期 */
+/** 展示保存日期，内置模板没有登记日期 */
 export function templateDate(value: string) {
   return value ? new Date(value).toLocaleDateString("zh-CN") : "内置";
 }

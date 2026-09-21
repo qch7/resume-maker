@@ -37,7 +37,7 @@ CONTACT_FIELDS = {"personal.phone", "personal.email", "personal.location", "pers
 
 
 def personal_insertion(package, plan, document):
-    """在首栏目之前沿用联系段落或可扩展单元格且不把个人资料插进重复记录和固定框"""
+    """在首栏目之前的联系段落或可扩展单元格中补个人资料"""
     body = package.parts["word/document.xml"].find(w("body"))
     blocks = list(body)
     headings = {section.title for section in document.sections} | {"项目经历"}
@@ -110,7 +110,7 @@ def personal_insertion(package, plan, document):
 
 
 def remap_plan(plan, previous, package):
-    """按原 XML 节点身份更新全部引用；新增段落不能让照片、栏目或引文指向别处"""
+    """按原 XML 节点身份更新全部引用，新增段落不能让照片、栏目或引文指向别处"""
     updated = plan.model_copy(deep=True)
     for field in updated.fields:
         field.node = package.ids[previous[field.node]]
@@ -125,7 +125,7 @@ def remap_plan(plan, previous, package):
 
 
 def loose_contact_fields(package, plan, body, donor):
-    """个人资料区内无标签空位统一回到联系方式；前后留白都不能直接输出孤立的值"""
+    """个人资料区内无标签空位统一回到联系方式，前后留白都不能直接输出孤立的值"""
     if donor is None or donor.getparent() is not body:
         return []
     if not any(
@@ -167,7 +167,7 @@ def loose_contact_fields(package, plan, body, donor):
         preceding = node.getprevious()
         label = PERSONAL_LABELS[field.target]
         if preceding is not None:
-            # 带图标或边框的空位可能是模板有意安排的资料区域且不能仅因没有文字标签移动它
+            # 保留图标或边框标识的资料空位
             if preceding.xpath(".//w:drawing | .//w:pict", namespaces=NS):
                 continue
             literal = paragraph_text(preceding).strip()
@@ -180,7 +180,7 @@ def loose_contact_fields(package, plan, body, donor):
 
 
 def vacant_contact_column(paragraph) -> bool:
-    """仅复用显式换行和完整前行共同证明的空列；支持任意列数和字段顺序"""
+    """仅复用显式换行和完整前行共同证明的空列，支持任意列数和字段顺序"""
     if paragraph is None:
         return False
     stops = paragraph.findall("w:pPr/w:tabs/w:tab", NS)
@@ -215,7 +215,7 @@ def vacant_contact_column(paragraph) -> bool:
 
 
 def append_personal_slot(body, position, donor, label, style_donor=None):
-    """沿用联系信息的空右列或段落缩进添加带标签位置且不改变照片留白和原列坐标"""
+    """在联系信息的空右列或原段落缩进处添加带标签字段"""
     paragraph = flow_paragraph(f"{label}：{PLACEHOLDER}", donor)
     inherit_contact_runs(paragraph, style_donor, label, PLACEHOLDER)
     paragraph.set(SLOT_VERSION, "1")
@@ -225,7 +225,7 @@ def append_personal_slot(body, position, donor, label, style_donor=None):
         donor.extend(paragraph.findall(w("r")))
         return donor, position
     if donor is not None and donor.getparent() is body:
-        # 新行与同一资料区域的样本沿用缩进、制表位和行距且不继承绝对定位或分节
+        # 新行只继承同一区域样本的缩进、制表位和行距
         properties = paragraph.find(w("pPr"))
         for tag in ("ind", "tabs", "spacing", "jc"):
             original = donor.find(f"w:pPr/w:{tag}", NS)
@@ -239,7 +239,7 @@ def append_personal_slot(body, position, donor, label, style_donor=None):
 
 
 def supplement_personal_fields(package, plan, document, projects, source=None):
-    """在独立副本补齐个人文字位置；识别阶段可保存快照；填充时仅在内存扩展"""
+    """在独立副本补齐个人文字位置，识别阶段可保存快照，填充时仅在内存扩展"""
     if not package.review(plan)["ready"]:
         return package, plan, []
     body, _, donor = personal_insertion(package, plan, document)
@@ -249,7 +249,7 @@ def supplement_personal_fields(package, plan, document, projects, source=None):
         for field in loose_contact_fields(package, plan, body, donor)
         if values.get(field.target)
     ]
-    # 旧版自动生成的位置有可验证的占位符；重建它们即可让已保存模板也获得样式修复
+    # 旧版自动生成的位置有可验证的占位符，重建它们即可让已保存模板也获得样式修复
     legacy = [
         field
         for field in plan.fields
@@ -270,11 +270,11 @@ def supplement_personal_fields(package, plan, document, projects, source=None):
         ]
     except Problem:
         return package, plan, []
-    # 栏目、照片等缺项继续由完整校验报告且不能阻止可独立完成的个人文字补位
+    # 先补齐个人文字位置，再由完整校验报告其他缺项
     if not missing:
         return package, plan, []
     labels = [PERSONAL_LABELS.get(target, target.partition(":")[2]) for target in missing]
-    # 先在完整副本中新增并校验；预览和导出不能修改已保存的模板及映射
+    # 先在完整副本中新增并校验，预览和导出不能修改已保存的模板及映射
     buffer = BytesIO()
     package.write(buffer)
     working = TemplatePackage(buffer)

@@ -18,13 +18,13 @@ def create_conversation(services: ServicesDep, project_id: str):
 def archived_conversations(
     services: ServicesDep,
 ):
-    """按最近更新时间列出归档会话；供设置界面恢复使用"""
+    """按最近更新时间列出归档会话，供设置界面恢复使用"""
     return services.conversations.archived_conversations()
 
 
 @router.get("/conversations/{conversation_id}")
 def get_conversation(services: ServicesDep, conversation_id: str):
-    """聚合单个会话的消息、建议和任务；保持不同会话上下文隔离"""
+    """聚合单个会话的消息、建议和任务，保持不同会话上下文隔离"""
     return services.conversations.get_conversation(conversation_id)
 
 
@@ -38,7 +38,7 @@ def patch_conversation(services: ServicesDep, conversation_id: str, body: Conver
 
 @router.post("/conversations/{conversation_id}/rebuild")
 def rebuild_conversation(services: ServicesDep, conversation_id: str):
-    """确认没有活动任务后清除模型会话标识；下轮使用保存的历史重建"""
+    """确认没有活动任务后清除模型会话标识，下轮使用保存的历史重建"""
     return services.conversations.rebuild_conversation(conversation_id)
 
 

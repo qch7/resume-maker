@@ -16,7 +16,7 @@ from resume_maker.integrations.word.templates.record_columns import (
 
 
 def fit_pdf_titles(package, fields):
-    """仅调整 PDF 标题底块和占用高度；新增栏目正文不会挤入底块；长标题可扩展或换行"""
+    """仅调整 PDF 标题底块和占用高度，新增栏目正文不会挤入底块，长标题可扩展或换行"""
     if not recovered_layout(package.parts["word/document.xml"]):
         return
     styles = ParagraphStyles(package)

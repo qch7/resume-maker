@@ -31,7 +31,7 @@ export function personalTargets(document: ResumeDocument) {
     ...PERSONAL_LABELS,
     ...Object.fromEntries(
       document.personal.custom_fields.map(
-        /* 自定义字段按名称匹配；可复用于另一份同名资料 */ (field) => [
+        /* 自定义字段按名称匹配，可复用于另一份同名资料 */ (field) => [
           `personal.custom:${field.label}`,
           field.label,
         ],
@@ -48,12 +48,12 @@ export function personalTargets(document: ResumeDocument) {
   };
 }
 
-/** 新增映射从明确的原文开始；保存前仍需校验具体字段和引文 */
+/** 新增映射从明确的原文开始，保存前仍需校验具体字段和引文 */
 export function newBinding(node: TemplateNode, target: string): TextBinding {
   return { node: node.id, quote: node.text, target, occurrence: 1 };
 }
 
-/** 位置选项只展示用户可理解的容器和原文且不暴露 XML 路径 */
+/** 位置选项展示容器名称和原文 */
 export function nodeLabel(node: TemplateNode) {
   const part = node.part.includes("header")
     ? "页眉"

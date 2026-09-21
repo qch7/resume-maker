@@ -1,4 +1,4 @@
-"""模板分析任务、确认、试填、持久导出与接口隔离的集成测试"""
+"""模板分析任务、确认、试填、持久导出和接口隔离的集成测试"""
 
 import base64
 import json
@@ -22,7 +22,7 @@ from resume_maker.services.templates.tasks import Templates
 
 
 def simple_document():
-    """创建仅填写姓名的当前资料；便于独立验证任务和接口边界"""
+    """创建仅填写姓名的当前资料，便于独立验证任务和接口边界"""
     return ResumeDocument(
         personal={"name": "新的用户资料"},
         sections=[
@@ -48,7 +48,7 @@ class TemplateProvider:
         self.calls = []
 
     def run_structured(self, **kwargs):
-        """返回模板映射；故意允许取消后的迟到结果以检验服务保护"""
+        """返回模板映射，故意允许取消后的迟到结果以检验服务保护"""
         self.calls.append(kwargs)
         self.started.set()
         if self.block:
@@ -69,16 +69,16 @@ class TemplateProvider:
 
 
 def completed(service, identifier):
-    """有界等待实际分析线程结束；返回完成或失败的任务结果"""
+    """有界等待实际分析线程结束，返回完成或失败的任务结果"""
     for thread in service.threads:
-        # 整页图片生成涉及磁盘和字体缓存；繁忙 Windows 主机上不能假设三秒内结束
+        # 整页图片生成涉及磁盘和字体缓存，繁忙 Windows 主机上不能假设三秒内结束
         thread.join(timeout=10)
         assert not thread.is_alive()
     return service.get(identifier)
 
 
 def test_analysis_snapshot_save_restart_and_export(tmp_path, monkeypatch):
-    """源文件改变不影响确认；模板和映射在重启后仍可完整替换资料"""
+    """源文件改变不影响确认，模板和映射在重启后仍可完整替换资料"""
     source = tmp_path / "source.docx"
     simple_template(source)
     provider = TemplateProvider()
@@ -158,7 +158,7 @@ def test_analysis_snapshot_save_restart_and_export(tmp_path, monkeypatch):
 
 
 def test_cancel_and_stop_discard_late_analysis(catalog, tmp_path):
-    """取消后不能保存迟到方案；也不能在旧分析线程退出前启动另一项分析"""
+    """取消后不能保存迟到方案，也不能在旧分析线程退出前启动另一项分析"""
     source = tmp_path / "source.docx"
     simple_template(source)
     provider = TemplateProvider(block=True)
@@ -179,7 +179,7 @@ def test_cancel_and_stop_discard_late_analysis(catalog, tmp_path):
 
 
 def test_reopen_saved_mapping_preserves_versions_and_checks_hash(tmp_path):
-    """重开直接恢复映射；修改另存不影响旧简历；且仍受实例隔离和文件哈希保护"""
+    """重开直接恢复映射，修改另存不影响旧简历，且仍受实例隔离和文件哈希保护"""
     source = tmp_path / "source.docx"
     simple_template(source)
     provider = TemplateProvider()
@@ -266,7 +266,7 @@ def test_preview_checks_fixed_references(catalog, project, populated, tmp_path):
 
 
 def test_template_image_preview_is_embedded_and_authenticated(tmp_path):
-    """图片核对只返回当前模板中的资源；外部地址和未知节点不能充当文件路径"""
+    """图片核对只返回当前模板中的资源，外部地址和未知节点不能充当文件路径"""
     source = tmp_path / "image.docx"
     simple_template(source)
     doc = Document(source)
@@ -300,11 +300,11 @@ def test_template_image_preview_is_embedded_and_authenticated(tmp_path):
 
 @pytest.mark.parametrize("model", [AIResult, TemplatePlan])
 def test_provider_generates_strict_schema_for_each_result(model):
-    """经历和模板共用执行器；各自结果的嵌套对象均满足严格结构化输出要求"""
+    """经历和模板共用执行器，各自结果的嵌套对象均满足严格结构化输出要求"""
     result = schema(model)
 
     def check(node):
-        """遍历 schema 中的对象；检查所有属性必填且禁止模型添加额外键"""
+        """遍历 schema 中的对象，检查所有属性必填且禁止模型添加额外键"""
         if isinstance(node, dict):
             assert "default" not in node
             if "properties" in node:

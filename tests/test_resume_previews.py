@@ -21,7 +21,7 @@ from resume_maker.services.resume_previews import ResumePreviews
 
 
 def register_template(catalog, data_dir):
-    """登记脱敏的真实完整映射且不经过 AI 或用户数据目录"""
+    """登记脱敏的完整模板映射作为预览夹具"""
     path = data_dir / "templates" / "mapped" / "template.docx"
     path.parent.mkdir(parents=True)
     _, plan = make_template(path)
@@ -41,7 +41,7 @@ def register_template(catalog, data_dir):
 
 @pytest.fixture
 def preview(catalog, tmp_path, monkeypatch):
-    """模拟排版软件的文件输出；仍使用真实 DOCX 填充器"""
+    """模拟排版软件的文件输出，仍使用真实 DOCX 填充器"""
     calls = []
 
     def render(source, output):
@@ -62,7 +62,7 @@ def preview(catalog, tmp_path, monkeypatch):
 def test_current_template_uses_unsaved_content_without_publishing(
     preview, catalog, project, populated, tmp_path
 ):
-    """未保存的个人资料和经历进入模板；正式版本、草稿、方案与导出记录均不被改写"""
+    """未保存的个人资料和经历进入模板，正式版本、草稿、方案和导出记录均不被改写"""
     service, calls = preview
     document = resume_content().model_dump()
     document["personal"]["name"] = "尚未保存的姓名"
@@ -121,11 +121,11 @@ def test_current_template_uses_unsaved_content_without_publishing(
 def test_complete_template_preview_matches_formal_export(
     preview, catalog, project, populated, tmp_path, monkeypatch, template_id
 ):
-    """完整模板的预览与正式导出具有相同内容和版式；关闭只回收临时预览"""
+    """完整模板的预览和正式导出具有相同内容和版式，关闭只回收临时预览"""
     service, _ = preview
     documents = Documents(catalog, tmp_path / "data")
     document = resume_content()
-    # 已保存模板中没有这些字段；预览和正式导出均须自动补行且不能要求再次识别
+    # 预览和正式导出均须自动补齐模板缺少的字段
     document.personal.website = "https://example.test/new-profile"
     document.personal.age = "23"
     document.personal.hidden_fields = ["phone"]
@@ -185,7 +185,7 @@ def test_complete_template_preview_matches_formal_export(
 
 
 def test_failed_render_can_download_word_and_retry(preview, monkeypatch):
-    """Word 不可用时仍提供试填文件；但失败不能缓存成永久结果"""
+    """Word 不可用时仍提供试填文件，但失败不能缓存成永久结果"""
     service, _ = preview
     renderer = resume_previews.render_word
     monkeypatch.setattr(

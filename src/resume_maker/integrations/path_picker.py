@@ -1,4 +1,4 @@
-"""通过 Windows 原生公共对话框选择本机路径且不上传文件或执行路径中的命令"""
+"""通过 Windows 原生对话框选择本机路径"""
 
 import ctypes
 import shutil
@@ -14,7 +14,7 @@ _CANCELLED = -2147023673  # HRESULT_FROM_WIN32(ERROR_CANCELLED)
 
 
 def initial_directory(value: str, kind: str) -> Path:
-    """优先打开已填路径或其所在目录；无效路径和命令名回退到可用目录"""
+    """优先打开已填路径或其所在目录，无效路径和命令名回退到可用目录"""
     value = value.strip().strip('"')
     if kind == "executable" and value:
         value = shutil.which(value) or value
@@ -33,7 +33,7 @@ def initial_directory(value: str, kind: str) -> Path:
 
 
 def pick_path(kind: str, initial_path: str = "") -> str | None:
-    """每次仅打开一个原生选择窗口；取消返回空值；错误不改变表单内容"""
+    """每次仅打开一个原生选择窗口，取消返回空值，错误不改变表单内容"""
     if sys.platform != "win32":
         raise Problem("当前系统无法打开 Windows 选择窗口，请手动填写路径。", 501)
     if not _dialog_lock.acquire(blocking=False):
@@ -58,7 +58,7 @@ def _check(result: int) -> None:
 
 
 def _call(pointer, index, types=(), *args):
-    """调用 COM 虚表方法；显式声明指针类型以兼容 64 位 Windows"""
+    """调用 COM 虚表方法，显式声明指针类型以兼容 64 位 Windows"""
     table = ctypes.cast(pointer, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
     method = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_void_p, *types)(table[index])
     return method(pointer, *args)
@@ -97,12 +97,12 @@ def _windows_dialog(kind: str, directory: Path) -> str | None:
     user.CreateWindowExW.restype = pointer
     user.DestroyWindow.argtypes = [pointer]
     user.DestroyWindow.restype = ctypes.c_int
-    _check(ole.CoInitializeEx(None, 2))  # 当前 HTTP 工作线程使用 STA；Show 自带消息循环
+    _check(ole.CoInitializeEx(None, 2))  # 当前 HTTP 工作线程使用 STA，Show 自带消息循环
     dialog, folder, result, filename = pointer(), pointer(), pointer(), pointer()
     owner = None
     try:
-        # 浏览器属于其他进程且不能直接作为所有者；当前线程的隐藏置顶所有者使
-        # 用户主动打开的选择窗口显示在浏览器前；结束时连同所有者一起释放
+        # 当前线程创建隐藏的置顶所有者窗口以让选择框显示在浏览器前
+        # 选择结束后同时释放选择框和所有者窗口
         owner = user.CreateWindowExW(
             0x88, "STATIC", "Resume Maker", 0x80000000, 0, 0, 0, 0, None, None, None, None
         )
@@ -117,7 +117,7 @@ def _windows_dialog(kind: str, directory: Path) -> str | None:
                 ctypes.byref(dialog),
             )
         )
-        # IFileDialog：SetOptions=9；强制文件系统路径、存在路径；且不更改进程工作目录
+        # SetOptions 位于虚表第 9 项并要求选择已有文件系统路径且保持工作目录
         options = 0x40 | 0x800 | 0x8 | (0x20 if kind == "folder" else 0x1000)
         _check(_call(dialog, 9, (uint,), options))
         titles = {
@@ -127,7 +127,7 @@ def _windows_dialog(kind: str, directory: Path) -> str | None:
         }
         _check(_call(dialog, 17, (wide,), titles[kind]))
         if kind != "folder":
-            # COMDLG_FILTERSPEC 是两项宽字符串指针；数组在 Show 结束前保持存活
+            # COMDLG_FILTERSPEC 是两项宽字符串指针，数组在 Show 结束前保持存活
             filters = (
                 [
                     ("简历模板 / 扫描件", "*.docx;*.doc;*.docm;*.rtf;*.pdf;*.png;*.jpg;*.jpeg"),

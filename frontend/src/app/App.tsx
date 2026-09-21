@@ -114,7 +114,7 @@ export default function App() {
   } = useWorkspaceLayout();
   const sidebarToggleRequested = useRef(false);
   useEffect(
-    /* 手动折叠或展开后；将键盘焦点交还给当前可见的切换入口 */ () => {
+    /* 手动折叠或展开后，将键盘焦点交还给当前可见的切换入口 */ () => {
       if (!sidebarToggleRequested.current) return;
       sidebarToggleRequested.current = false;
       document
@@ -139,7 +139,7 @@ export default function App() {
   const stateRequests = useRef(0);
   const [activeProject, setActiveProject] = useState("");
   const [sidebarSort, setSidebarSort] = useState(
-    /* 恢复排序偏好；使首次打开的项目与侧栏首项一致 */ () =>
+    /* 恢复排序偏好，使首次打开的项目和侧栏首项一致 */ () =>
       restoreSidebarSort(loadLocal("rm.sidebarSort", "recent")),
   );
   const sortedSidebar = useMemo(
@@ -149,7 +149,7 @@ export default function App() {
   );
   const firstProject = sortedSidebar.rootProjects[0];
   useEffect(
-    /* 记住用户选择的排序方式；供下次打开页面使用 */ () => {
+    /* 记住用户选择的排序方式，供下次打开页面使用 */ () => {
       localStorage.setItem("rm.sidebarSort", JSON.stringify(sidebarSort));
     },
     [sidebarSort],
@@ -177,12 +177,9 @@ export default function App() {
   const [workingPreviews, setWorkingPreviews] = useState<
     Record<string, Experience>
   >({});
-  /** 接收各修订的编辑副本；保持正式版本缓存不变 */
+  /** 接收各修订的编辑副本，保持正式版本缓存不变 */
   const updateWorkingPreview = useCallback(
-    /* 保留各修订的当前编辑副本；供内容预览使用且不写入正式版本缓存 */ (
-      id: string,
-      content: Experience,
-    ) => {
+    /* 各修订的编辑副本单独用于预览 */ (id: string, content: Experience) => {
       setWorkingPreviews(
         /* 相同副本不触发额外渲染 */ (values) =>
           values[id] === content ? values : { ...values, [id]: content },
@@ -194,7 +191,7 @@ export default function App() {
     navigation = useRef(0);
   const project = state.projects.find((p) => p.id === activeProject);
   const parentProject = state.projects.find(
-    /* 识别当前子项目所属的整体项目；用于范围提示与返回导航 */ (p) =>
+    /* 识别当前子项目所属的整体项目，用于范围提示和返回导航 */ (p) =>
       p.id === project?.parent_id,
   );
   const revisionId =
@@ -228,7 +225,7 @@ export default function App() {
     refresh + chatRefresh,
   );
 
-  /** 刷新工作台聚合数据；首次加载时校验并恢复本地组合 */
+  /** 刷新工作台聚合数据，首次加载时校验并恢复本地组合 */
   const reload = useCallback(async () => {
     const request = ++stateRequests.current;
     const value = await api<State>("/state");
@@ -257,7 +254,7 @@ export default function App() {
     }
   }, []);
 
-  /** 从任一入口保存荣誉后立即更新共享内容；使在途旧轮询失效 */
+  /** 从任一入口保存荣誉后立即更新共享内容，使在途旧轮询失效 */
   function honorSaved(honor: Honor) {
     ++stateRequests.current;
     const source = {
@@ -268,7 +265,7 @@ export default function App() {
       updated_at: honor.updated_at,
     };
     setState(
-      /* 只更新来源资料；简历中的排序、显隐和其他草稿由原状态保留 */ (
+      /* 只更新来源资料，简历中的排序、显隐和其他草稿由原状态保留 */ (
         current,
       ) => {
         if (
@@ -295,7 +292,7 @@ export default function App() {
     );
   }
 
-  /** 统一入口打开最新来源与当前简历草稿；取消时两者均不改动 */
+  /** 打开最新来源和当前简历草稿并在取消时保留原值 */
   async function editLinkedHonor(
     id: string,
     sectionId: string,
@@ -305,7 +302,7 @@ export default function App() {
       const items = id ? await api<Honor[]>("/honors") : [];
       const honor =
         items.find(
-          /* 按来源标识查找；重名条目互不影响 */ (item) => item.id === id,
+          /* 按来源标识查找，重名条目互不影响 */ (item) => item.id === id,
         ) ?? null;
       setEditingHonor({
         honor,
@@ -361,7 +358,7 @@ export default function App() {
   useEffect(() => {
     let stopped = false,
       timer: ReturnType<typeof setTimeout>;
-    /** 串行轮询服务器状态以免请求堆叠并在卸载后停止定时器 */
+    /** 串行轮询服务器状态并在卸载后清除定时器 */
     async function poll() {
       try {
         await reload();
@@ -377,7 +374,7 @@ export default function App() {
     };
   }, [reload]);
   useEffect(
-    /* 首次加载或当前项目被其他窗口删除后恢复有效选择；排序不打断现有编辑 */ () => {
+    /* 首次加载或当前项目被删除时选择有效项目 */ () => {
       if (!loaded || state.projects.some((item) => item.id === activeProject))
         return;
       if (firstProject) {
@@ -423,16 +420,16 @@ export default function App() {
   useEffect(() => {
     if (!toast || toast.error) return;
     const timer = setTimeout(
-      /* 延迟执行保存或提示清理；减少频繁更新 */ () => setToast(null),
+      /* 延迟执行保存或提示清理，减少频繁更新 */ () => setToast(null),
       4500,
     );
     return () => clearTimeout(timer);
   }, [toast]);
 
-  /** 先刷新待保存草稿再执行用户操作；将异常统一显示为页面提示 */
+  /** 等待草稿保存后执行操作并显示异常提示 */
   function run(work: () => Promise<void>) {
     void (
-      /* 执行当前异步流程；保持请求结果与所属组件状态一致 */ (async () => {
+      /* 执行当前异步流程，保持请求结果和所属组件状态一致 */ (async () => {
         try {
           await flushDrafts();
           await work();
@@ -442,12 +439,12 @@ export default function App() {
       })()
     );
   }
-  /** 刷新项目详情和工作台数据；由当前内容重新计算编辑状态 */
+  /** 刷新项目详情和工作台数据，由当前内容重新计算编辑状态 */
   function changed() {
     setRefresh((v) => v + 1);
     void reload();
   }
-  /** 保存待处理草稿后切换项目或会话；用序号防止旧导航覆盖新选择 */
+  /** 保存待处理草稿后切换项目或会话，用序号防止旧导航覆盖新选择 */
   function navigate(projectId: string, convId?: string) {
     const serial = ++navigation.current;
     run(async () => {
@@ -468,12 +465,12 @@ export default function App() {
           [projectId]: convId,
         }));
       setFolded(
-        /* 展开子项目和所属整体项目；让导航位置始终可见 */ (v) =>
+        /* 展开子项目和所属项目以显示导航位置 */ (v) =>
           expandProjectPath(state.projects, projectId, v),
       );
     });
   }
-  /** 防止重复创建会话；成功后仅在导航选择未变化时切换到新会话 */
+  /** 防止重复创建会话，成功后仅在导航选择未变化时切换到新会话 */
   async function newConversation(projectId: string) {
     if (conversationCreationPending.current) return;
     conversationCreationPending.current = true;
@@ -485,7 +482,7 @@ export default function App() {
         "POST",
       );
       await reload();
-      // 请求期间切换了项目时；保留用户后来的导航选择
+      // 请求期间切换了项目时，保留用户后来的导航选择
       if (serial !== navigation.current) return;
       setActiveProject(projectId);
       setSelectedConversations((v) => ({
@@ -502,7 +499,7 @@ export default function App() {
       setCreatingConversation("");
     }
   }
-  /** 归档指定会话并清除其选中状态；再刷新工作台数据 */
+  /** 归档指定会话并清除其选中状态，再刷新工作台数据 */
   async function archiveConversation(projectId: string, id: string) {
     await api(`/conversations/${id}`, "PATCH", { archived: true });
     if (selectedConversations[projectId] === id)
@@ -513,7 +510,7 @@ export default function App() {
       });
     changed();
   }
-  /** 删除前等待草稿写入；服务确认后立即移除列表和导航缓存且保留其他选择 */
+  /** 等待草稿写入并完成服务端删除后清理列表和导航缓存 */
   async function deleteProject() {
     if (!deletingProject) return;
     if (deletionBlocker) throw new Error(deletionBlocker);
@@ -534,7 +531,7 @@ export default function App() {
       branches: current.branches.filter((item) => !ids.has(item.project_id)),
       jobs: current.jobs.filter((item) => !ids.has(item.project_id)),
     }));
-    /** 清理被删除项目的导航偏好；保留其他项目当前版本和折叠状态 */
+    /** 清理被删除项目的导航偏好，保留其他项目当前版本和折叠状态 */
     const remaining = <T,>(values: Record<string, T>) =>
       Object.fromEntries(Object.entries(values).filter(([id]) => !ids.has(id)));
     setSelectedRevisions(remaining);
@@ -546,7 +543,7 @@ export default function App() {
     }
     setToast({ text: `已删除项目“${deletingProject.name}”` });
   }
-  /** 复用当前项目的会话；尚无会话时创建并返回独立标识 */
+  /** 复用当前项目的会话，尚无会话时创建并返回独立标识 */
   async function ensureConversation() {
     if (conversationId) return conversationId;
     const conv = await api<Conversation>(
@@ -567,7 +564,7 @@ export default function App() {
     setMode("chat");
     changed();
   }
-  /** 提交绑定经历版本和范围的消息；以唯一请求标识防止重复入队 */
+  /** 提交绑定经历版本和范围的消息，以唯一请求标识防止重复入队 */
   async function send(text: string, scope: string, kind = "chat") {
     const id = await ensureConversation();
     await api(`/conversations/${id}/messages`, "POST", {
@@ -580,7 +577,7 @@ export default function App() {
     setMode("chat");
     changed();
   }
-  /** 发布整个工作副本；更新本地修订缓存；简历固定引用由用户另行更新 */
+  /** 发布工作副本并更新修订缓存 */
   async function saveRevision() {
     const detail = remoteProject.data;
     if (!detail) return;
@@ -594,7 +591,7 @@ export default function App() {
     );
     clearLocalDrafts(activeProject, revisionId);
     setWorkingPreviews(
-      /* 提交成功后旧基线恢复为不可变内容以免残留草稿预览 */ (values) => {
+      /* 提交后恢复旧基线的不可变内容 */ (values) => {
         const next = { ...values };
         delete next[revisionId];
         return next;
@@ -616,7 +613,7 @@ export default function App() {
           : `已提交为 r${result.number}。点击“用于当前简历”可更新右侧组合。`,
     });
   }
-  /** 只撤销确认窗口对应版本的未提交改动；保留简历显隐及其他版本草稿 */
+  /** 只撤销确认窗口对应版本的未提交改动 */
   async function discardChanges(versions: Record<string, number>) {
     await api(`/projects/${activeProject}/drafts/discard`, "POST", {
       base_revision: revisionId,
@@ -624,7 +621,7 @@ export default function App() {
     });
     clearLocalDrafts(activeProject, revisionId);
     setWorkingPreviews(
-      /* 删除旧预览；刷新后由原版本内容重新生成 */ (values) => {
+      /* 删除旧预览，刷新后由原版本内容重新生成 */ (values) => {
         const next = { ...values };
         delete next[revisionId];
         return next;
@@ -644,7 +641,7 @@ export default function App() {
     changed();
     setToast({ text: "建议已放入草稿，可继续修改后保存。" });
   }
-  /** 根据制作指引切换到目标项目或设置；再定位到对应操作控件 */
+  /** 根据制作指引切换到目标项目或设置，再定位到对应操作控件 */
   function followGuide(target: GuideTarget, projectId?: string) {
     run(async () => {
       setPreviewFocused(false);
@@ -721,7 +718,7 @@ export default function App() {
         : element;
     if (!target.matches("button, input, select, textarea, a[href]"))
       target.tabIndex = -1;
-    // 只滚动目标所在面板以免窄屏下连同页面一起滚动；把制作步骤推到屏幕外
+    // 只滚动目标所在面板以保留窄屏顶部的制作步骤
     let scrollPanel = target.parentElement;
     while (scrollPanel && scrollPanel !== document.body) {
       if (
@@ -823,7 +820,7 @@ export default function App() {
               { id: "templates", label: "Word 模板", icon: FileScan },
             ] as const
           ).map(
-            /* 每个功能区共享当前简历草稿；切换前刷新项目编辑 */ (item) => (
+            /* 每个功能区共享当前简历草稿，切换前刷新项目编辑 */ (item) => (
               <button
                 key={item.id}
                 className={area === item.id ? "active" : ""}
@@ -851,8 +848,7 @@ export default function App() {
           aria-expanded={resumeLibraryOpen}
           title={`导出与模板 · ${draft.name || "未命名方案"}`}
           onClick={
-            /* 统一打开方案、模板选择及历史成品管理 */ () =>
-              setResumeLibraryOpen(true)
+            /* 打开方案、模板和导出历史管理 */ () => setResumeLibraryOpen(true)
           }
         >
           <FileDown size={17} />
@@ -936,7 +932,7 @@ export default function App() {
           onNavigate={followGuide}
           collapsed={layout.guideCollapsed}
           onToggle={
-            /* 处理 onToggle 回调；将变化同步到工作台状态 */ () =>
+            /* 处理 onToggle 回调，将变化同步到工作台状态 */ () =>
               resize("guideCollapsed", !layout.guideCollapsed)
           }
         />
@@ -970,16 +966,16 @@ export default function App() {
           onNavigate={navigate}
           onToggleProject={toggleProject}
           onNewConversation={
-            /* 处理 onNewConversation 回调；将变化同步到工作台状态 */ (id) =>
+            /* 新建会话后更新工作台状态 */ (id) =>
               run(() => newConversation(id))
           }
           onArchive={
-            /* 处理 onArchive 回调；将变化同步到工作台状态 */ (projectId, id) =>
+            /* 处理 onArchive 回调，将变化同步到工作台状态 */ (projectId, id) =>
               run(() => archiveConversation(projectId, id))
           }
           onDelete={setDeletingProject}
           onImport={
-            /* 处理 onImport 回调；将变化同步到工作台状态 */ () =>
+            /* 处理 onImport 回调，将变化同步到工作台状态 */ () =>
               setModal("projects")
           }
         />
@@ -1021,12 +1017,12 @@ export default function App() {
               onSaveEntry={saveSectionEntry}
               savedSections={
                 state.resumes.find(
-                  /* 各条资料与该方案的已保存内容独立比较 */ (resume) =>
+                  /* 各条资料和该方案的已保存内容独立比较 */ (resume) =>
                     resume.id === draft.id,
                 )?.document?.sections
               }
               onChange={
-                /* 完整模板随资料编辑保留；项目区模板切换为内置版式 */ (
+                /* 完整模板随资料编辑保留，项目区模板切换为内置版式 */ (
                   document,
                 ) =>
                   setDraft(
@@ -1043,7 +1039,7 @@ export default function App() {
               }
               onProjects={/* 返回项目工作台 */ () => setArea("projects")}
               onHonors={
-                /* 添加证书进入荣誉库；保留当前简历草稿 */ () =>
+                /* 添加证书进入荣誉库，保留当前简历草稿 */ () =>
                   setArea("honors")
               }
               onSortSection={
@@ -1059,13 +1055,13 @@ export default function App() {
               honors={state.honors ?? []}
               scrollTarget={structureTarget}
               onScrolled={
-                /* 消费一次定位请求；普通切换不重复跳动 */ () =>
+                /* 消费一次定位请求，普通切换不重复跳动 */ () =>
                   setStructureTarget(null)
               }
               key={draft.id}
               value={draft.document ?? newDocument(state.resume_defaults)}
               onEditHonor={
-                /* 关联来源读取最新资料；手动条目只编辑当前简历 */ (
+                /* 关联来源读取最新资料，手动条目只编辑当前简历 */ (
                   sectionId,
                   entry,
                 ) =>
@@ -1091,7 +1087,7 @@ export default function App() {
                 />
               }
               onChange={
-                /* 栏目结构与个人资料共用当前完整模板 */ (document) =>
+                /* 栏目结构和个人资料共用当前完整模板 */ (document) =>
                   setDraft(
                     /* 保留栏目编辑期间的其他简历设置 */ (current) => ({
                       ...current,
@@ -1123,7 +1119,7 @@ export default function App() {
                       className="project-parent-link"
                       title={`返回整体项目 ${parentProject.name}`}
                       onClick={
-                        /* 返回原有整体项目经历与对话 */ () =>
+                        /* 返回原有整体项目经历和对话 */ () =>
                           navigate(parentProject.id)
                       }
                     >
@@ -1234,7 +1230,7 @@ export default function App() {
                       onDiscard={discardChanges}
                       onRefresh={changed}
                       onRevision={
-                        /* 处理 onRevision 回调；将变化同步到工作台状态 */ (
+                        /* 处理 onRevision 回调，将变化同步到工作台状态 */ (
                           id,
                         ) =>
                           run(async () =>
@@ -1257,7 +1253,7 @@ export default function App() {
                     key={conversationId}
                     inputHeight={layout.chatInput}
                     onInputHeight={
-                      /* 处理 onInputHeight 回调；将变化同步到工作台状态 */ (
+                      /* 处理 onInputHeight 回调，将变化同步到工作台状态 */ (
                         value,
                       ) => resize("chatInput", value)
                     }
@@ -1321,12 +1317,12 @@ export default function App() {
           exporting={exporting}
           deleting={deleting}
           onClose={
-            /* 关闭简历库；保留当前方案和所有本机草稿 */ () =>
+            /* 关闭简历库，保留当前方案和所有本机草稿 */ () =>
               setResumeLibraryOpen(false)
           }
           onChange={setDraft}
           onChoose={
-            /* 处理 onChoose 回调；将变化同步到工作台状态 */ (id) =>
+            /* 处理 onChoose 回调，将变化同步到工作台状态 */ (id) =>
               run(async () => {
                 const resume = state.resumes.find((r) => r.id === id);
                 if (resume) {
@@ -1336,18 +1332,18 @@ export default function App() {
               })
           }
           onSave={
-            /* 处理 onSave 回调；将变化同步到工作台状态 */ () =>
+            /* 处理 onSave 回调，将变化同步到工作台状态 */ () =>
               run(async () => {
                 await saveComposition();
                 setToast({ text: "简历组合已保存，引用版本已固定。" });
               })
           }
           onExport={
-            /* 处理 onExport 回调；将变化同步到工作台状态 */ () =>
+            /* 处理 onExport 回调，将变化同步到工作台状态 */ () =>
               run(exportResume)
           }
           onNew={
-            /* 处理 onNew 回调；将变化同步到工作台状态 */ () =>
+            /* 处理 onNew 回调，将变化同步到工作台状态 */ () =>
               run(async () => {
                 const value = await api<Resume>("/resumes", "POST", {
                   name: "新简历",
@@ -1361,11 +1357,11 @@ export default function App() {
               })
           }
           onDelete={
-            /* 先刷新项目草稿；再删除用户确认的方案 */ (resume) =>
+            /* 先刷新项目草稿，再删除用户确认的方案 */ (resume) =>
               run(/* 执行方案删除及后续切换 */ () => deleteComposition(resume))
           }
           onTemplates={
-            /* 处理 onTemplates 回调；将变化同步到工作台状态 */ () =>
+            /* 处理 onTemplates 回调，将变化同步到工作台状态 */ () =>
               run(
                 /* 保存草稿后打开完整模板工作区 */ async () => {
                   setResumeLibraryOpen(false);
@@ -1382,7 +1378,7 @@ export default function App() {
         document={draft.document}
         resumeName={draft.name}
         onRemove={
-          /* 荣誉库移除入口只更新当前草稿；保留来源与其他简历 */ (id) =>
+          /* 荣誉库移除入口只更新当前草稿，保留来源和其他简历 */ (id) =>
             setDraft(
               /* 使用最新草稿以免覆盖其他未保存设置 */ (current) => ({
                 ...current,
@@ -1393,7 +1389,7 @@ export default function App() {
             )
         }
         onAdd={
-          /* 将已确认的荣誉复制到当前简历草稿；保留其他资料 */ (
+          /* 将已确认的荣誉复制到当前简历草稿，保留其他资料 */ (
             honors,
             target,
           ) => {
@@ -1420,7 +1416,7 @@ export default function App() {
           initial={state.resume_defaults}
           onClose={/* 关闭设置不修改资料 */ () => setDefaultsOpen(false)}
           onSave={
-            /* 先校验应用结果；再保存默认设置并更新当前草稿 */ async (
+            /* 先校验应用结果，再保存默认设置并更新当前草稿 */ async (
               settings,
             ) => {
               const document = applyResumeDefaults(
@@ -1456,9 +1452,7 @@ export default function App() {
           honor={editingHonor.honor}
           resumeEntry={editingHonor.entry}
           onSaveEntry={
-            /* 只提交当前荣誉条目且不带入个人信息等其他草稿 */ async (
-              entry,
-            ) => {
+            /* 只提交当前荣誉条目的草稿 */ async (entry) => {
               if (draft.id !== editingHonor.resumeId)
                 throw new Error("当前简历已切换，请关闭后重新编辑。");
               await saveSectionEntry(editingHonor.sectionId, entry.id, entry);
@@ -1468,7 +1462,7 @@ export default function App() {
             /* 关闭共享荣誉表单后返回当前资料位置 */ () => setEditingHonor(null)
           }
           onSaved={
-            /* 来源成功而简历保存失败时；表单继续使用已确认的新版本重试 */ (
+            /* 来源成功而简历保存失败时，表单继续使用已确认的新版本重试 */ (
               honor,
             ) => {
               honorSaved(honor);
@@ -1498,7 +1492,7 @@ export default function App() {
           onSelected={
             /* 将已确认的完整模板用于当前草稿 */ (id) =>
               setDraft(
-                /* 采用新模板时保留全部个人资料与项目选择 */ (current) => ({
+                /* 采用新模板时保留全部个人资料和项目选择 */ (current) => ({
                   ...current,
                   template_id: id,
                   document:
@@ -1528,10 +1522,10 @@ export default function App() {
         <Settings
           initial={modal}
           onClose={
-            /* 处理 onClose 回调；将变化同步到工作台状态 */ () => setModal(null)
+            /* 处理 onClose 回调，将变化同步到工作台状态 */ () => setModal(null)
           }
           onChanged={
-            /* 处理 onChanged 回调；将变化同步到工作台状态 */ async () => {
+            /* 处理 onChanged 回调，将变化同步到工作台状态 */ async () => {
               await reload();
               changed();
             }

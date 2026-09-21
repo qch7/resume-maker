@@ -1,4 +1,4 @@
-"""从已确认的 PDF 映射提取顶部资料条目；保留样式并绑定各自图标"""
+"""从已确认的 PDF 映射提取顶部资料条目，保留样式并绑定各自图标"""
 
 import json
 import re
@@ -16,7 +16,7 @@ NAMESPACES = {**NS, "wp": WP}
 
 
 def header_region(package, plan):
-    """只选首栏目之前且属于同一正文容器的个人区且不扁平化侧栏或混合栏目"""
+    """选取首栏目之前同一正文容器内的个人资料区"""
     body = package.parts["word/document.xml"].find(w("body"))
     boundaries = [region.start for region in plan.repeats]
     boundaries.extend(f.node for f in plan.fields if f.target.startswith("section-title:"))
@@ -53,7 +53,7 @@ def header_region(package, plan):
 
 
 def without_drawings(paragraph):
-    """复制可编辑文字样式；图标和照片另行关联以免复制片段时带入其他字段的图片"""
+    """复制可编辑文字样式，图标和照片另行关联以免复制片段时带入其他字段的图片"""
     fragment = deepcopy(paragraph)
     for node in fragment.xpath(".//w:drawing | .//w:pict | .//w:object", namespaces=NS):
         node.getparent().remove(node)
@@ -61,7 +61,7 @@ def without_drawings(paragraph):
 
 
 def field_box(paragraph, field):
-    """用来源文字片段定位字段；没有来源数据的旧快照只使用原段落归属"""
+    """用来源文字片段定位字段，没有来源数据的旧快照只使用原段落归属"""
     try:
         spans = json.loads(paragraph.get(TEXT, "[]"))
         text = "".join(value for value, _ in spans)
@@ -84,7 +84,7 @@ def field_box(paragraph, field):
 
 
 def extract_items(package, roots, fields):
-    """按映射提取完整标签和值；无法划分的混合文字明确报错以免静默丢失原文"""
+    """按映射提取完整标签和值，无法划分的混合文字明确报错以免静默丢失原文"""
     bindings = defaultdict(list)
     for field in fields:
         bindings[package.node(field.node)].append(field)
@@ -128,7 +128,7 @@ def extract_items(package, roots, fields):
 
 
 def drawing_box(anchor):
-    """兼容旧 PDF 恢复图形的坐标；以同栏的局部偏移识别重叠小图和左右照片"""
+    """兼容旧 PDF 恢复图形的坐标，以同栏的局部偏移识别重叠小图和左右照片"""
     box = rectangle(anchor)
     if box is not None:
         return box
@@ -144,7 +144,7 @@ def drawing_box(anchor):
 
 
 def icon_owner(anchor, items):
-    """优先同段落与同行右侧字段；多个字段同段时使用来源坐标区分且不按图标外观猜语义"""
+    """优先匹配同段或同行右侧字段并用来源坐标区分同段字段"""
     paragraph = next(anchor.iterancestors(w("p")), None)
     candidates = [item for item in items if item["paragraph"] is paragraph]
     box = rectangle(anchor)
@@ -155,7 +155,7 @@ def icon_owner(anchor, items):
         if positioned:
 
             def distance(item):
-                """以纵向重叠为首要条件；再按图标右侧文字的距离选择字段"""
+                """以纵向重叠为首要条件，再按图标右侧文字的距离选择字段"""
                 rect = item["box"]
                 vertical = max(rect[1] - box[3], box[1] - rect[3], 0)
                 horizontal = abs(rect[0] - box[2]) + (100 if rect[2] < box[0] else 0)
@@ -168,7 +168,7 @@ def icon_owner(anchor, items):
 
 
 def attach_header_assets(package, plan, roots, items):
-    """分开处理照片、分隔线和局部图标；隐藏字段不会留下孤立图标"""
+    """分开处理照片、分隔线和局部图标，隐藏字段不会留下孤立图标"""
     photos, lines, backgrounds = [], [], []
     photo_nodes = [package.node(key) for key in plan.photos]
     for root in roots:

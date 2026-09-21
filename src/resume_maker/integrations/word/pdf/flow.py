@@ -1,4 +1,4 @@
-"""借助版面解析器生成可编辑文字流；局部捕获段落几何而不修改全局 Word 行为"""
+"""通过版面解析器生成可编辑文字流并记录段落几何"""
 
 import re
 import unicodedata
@@ -21,7 +21,7 @@ def text_counter(text):
 
 
 def text_blocks(blocks):
-    """遍历正文及嵌套表格中的文字块；保持解析器的容器结构"""
+    """遍历正文及嵌套表格中的文字块，保持解析器的容器结构"""
     for block in blocks:
         if block.is_text_block:
             yield block
@@ -44,7 +44,7 @@ def font_family(name):
 
 
 def merge_bullet_table(block, column_left):
-    """将误识别为两列表格的列表还原为文字块以免多行正文与符号各自排版后错位"""
+    """将误识别为两列表格的列表还原为文字块以免多行正文和符号各自排版后错位"""
     from pdf2docx.text.TextBlock import TextBlock
 
     if not block.is_stream_table_block or block.num_cols != 2:
@@ -77,7 +77,7 @@ def merge_bullet_table(block, column_left):
 
 
 def separate_blocks(blocks, column_left, *, split_lines=False):
-    """大间隔、颜色变化和列表首行建立段落边界以免标题与条目被合并后无法单独排序"""
+    """大间隔、颜色变化和列表首行建立段落边界以免标题和条目被合并后无法单独排序"""
     from pdf2docx.text.TextBlock import TextBlock
 
     output = []
@@ -126,7 +126,7 @@ def separate_blocks(blocks, column_left, *, split_lines=False):
             )
             chunk.after_space = block.after_space if index == len(groups) - 1 else 0
             chunk.left_space += chunk.bbox.x0 - block.bbox.x0
-            # 原块的制表位相对旧起点；拆段后重算以免左缩进与旧制表位叠加挤窄正文
+            # 原块的制表位相对旧起点，拆段后重算以免左缩进和旧制表位叠加挤窄正文
             for line in chunk.lines:
                 line.tab_stop = 0
             chunk.lines.parse_tab_stop(5.0)
@@ -138,7 +138,7 @@ def separate_blocks(blocks, column_left, *, split_lines=False):
 
 
 def repair_hyperlinks(paragraph):
-    """规范转换器生成的嵌套超链接；把格式移到实际文字运行；保留可编辑的合法 OOXML"""
+    """规范转换器生成的嵌套超链接，把格式移到实际文字运行，保留可编辑的合法 OOXML"""
     for link in list(paragraph._p.iter(qn("w:hyperlink"))):
         run = link.getparent()
         if run.tag != qn("w:r"):
@@ -156,7 +156,7 @@ def repair_hyperlinks(paragraph):
 
 
 def capture_block(block, captured, column_left):
-    """只包装当前解析块的输出；记录它生成的段落和源坐标且不猴子补丁全局类"""
+    """包装当前解析块的输出以记录生成段落和源坐标"""
     for line in block.lines:
         for span in line.spans:
             span.font = "Arial" if span.text == "•" else font_family(span.font)
@@ -165,7 +165,7 @@ def capture_block(block, captured, column_left):
     original = block.make_docx
 
     def make(paragraph):
-        """保留原字号的行距并用悬挂缩进和制表符维持列表符号与正文间距"""
+        """保留原字号的行距并用悬挂缩进和制表符维持列表符号和正文间距"""
         original(paragraph)
         repair_hyperlinks(paragraph)
         align_bullet(paragraph, block, column_left)
@@ -176,7 +176,7 @@ def capture_block(block, captured, column_left):
 
 
 def align_bullet(paragraph, block, column_left):
-    """只处理有真实符号位置的列表首行；续行按原正文起点对齐"""
+    """只处理有真实符号位置的列表首行，续行按原正文起点对齐"""
     if not paragraph.text.startswith("•"):
         return
     spans = [span for line in block.lines for span in line.spans]
@@ -202,7 +202,7 @@ def align_bullet(paragraph, block, column_left):
 
 def convert_flow(page, bullets=(), symbols=(), *, split_lines=True):
     """在去图的 PDF 副本中保留物理行边界，防止多个样本被合成无法重复的单段"""
-    # 延迟导入；普通 DOCX 识别不加载 PDF 转换器；也不受其字体和日志初始化影响
+    # 延迟导入，普通 DOCX 识别不加载 PDF 转换器，也不受其字体和日志初始化影响
     from docx import Document
     from pdf2docx import Converter
 
@@ -215,7 +215,7 @@ def convert_flow(page, bullets=(), symbols=(), *, split_lines=True):
             clean.add_redact_annot(box, fill=None)
         if symbols:
             clean.apply_redactions(images=0, graphics=0, text=0)
-        # Redaction 会移除相交链接；即使选择保留文字；恢复原 URI 关系供后续字段替换处理
+        # Redaction 会移除相交链接，即使选择保留文字，恢复原 URI 关系供后续字段替换处理
         for link in links:
             if link["kind"] == pymupdf.LINK_URI:
                 clean.insert_link(
@@ -265,7 +265,7 @@ def convert_flow(page, bullets=(), symbols=(), *, split_lines=True):
 
 
 def append_document(target, source):
-    """合并本次生成的单页文档；重建图片关系并保留各页分节、表格和页边距"""
+    """合并本次生成的单页文档，重建图片关系并保留各页分节、表格和页边距"""
     from docx.enum.section import WD_SECTION_START
     from docx.opc.constants import RELATIONSHIP_TYPE as RT
 
@@ -293,6 +293,6 @@ def append_document(target, source):
             body.append(clone)
         else:
             body.insert(len(body) - 1, clone)
-    # 图片在不同 PDF 页中可能使用同一个绘图编号；合并后重新编号以兼容 Word
+    # 图片在不同 PDF 页中可能使用同一个绘图编号，合并后重新编号以兼容 Word
     for number, item in enumerate(target._element.iter(qn("wp:docPr")), 1):
         item.set("id", str(number))

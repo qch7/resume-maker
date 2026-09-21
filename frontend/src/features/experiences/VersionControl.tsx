@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import HistoryDialog from "./HistoryDialog";
 import type { EditorProps } from "./types";
 
-/** 将分支切换、历史树入口与版本发布放在紧凑工具栏中 */
+/** 将分支切换、历史树入口和版本发布放在紧凑工具栏中 */
 export default function VersionControl({ props }: { props: EditorProps }) {
   const { detail, revisionId, run } = props;
   const [dialog, setDialog] = useState<"history" | "create" | null>(null);
@@ -23,7 +23,7 @@ export default function VersionControl({ props }: { props: EditorProps }) {
             aria-label="当前经历分支"
             value={detail.branch.id}
             onChange={
-              /* 切到指定分支最新版本；原分支草稿先落盘 */ (event) => {
+              /* 切到指定分支最新版本，原分支草稿先落盘 */ (event) => {
                 const branch = detail.branches.find(
                   /* 查找用户选定的分支指针 */ (item) =>
                     item.id === event.target.value,
@@ -74,7 +74,7 @@ export default function VersionControl({ props }: { props: EditorProps }) {
             onClick={
               /* 用户明确确认后才把所有草稿合并提交一次 */ () =>
                 run(
-                  /* 阻止重复点击产生并行提交；失败时仍保留草稿 */ async () => {
+                  /* 阻止重复点击产生并行提交，失败时仍保留草稿 */ async () => {
                     if (submission.current) return;
                     submission.current = true;
                     setSubmitting(true);
@@ -94,8 +94,8 @@ export default function VersionControl({ props }: { props: EditorProps }) {
           <button
             data-guide="experience-use"
             onClick={
-              /* 将该保存版本用于当前简历且不移动其他分支 */ () =>
-                run(/* 保留固定版本引用语义 */ async () => props.onUseVersion())
+              /* 当前简历固定引用所选版本 */ () =>
+                run(/* 使用所选的固定版本 */ async () => props.onUseVersion())
             }
           >
             用于当前简历
@@ -112,7 +112,7 @@ export default function VersionControl({ props }: { props: EditorProps }) {
           <button
             className="text-button"
             onClick={
-              /* 回到当前分支最新版本；草稿保持各自独立 */ () =>
+              /* 回到当前分支最新版本，草稿保持各自独立 */ () =>
                 props.onRevision(detail.branch.head_revision)
             }
           >

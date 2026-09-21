@@ -1,4 +1,4 @@
-"""不同模板容器和任意栏目名共用补位流程；检查、保存及输出不会相互矛盾"""
+"""不同模板容器和任意栏目名共用补位流程，检查、保存及输出不会相互矛盾"""
 
 import base64
 import threading
@@ -28,7 +28,7 @@ from resume_maker.services.templates.cache import cache_path, cached_plan, remem
 
 
 def generic_template(path, layout="body", padding=0):
-    """独立创建正文、表格行或双栏单元格模板；按原文定位而非假设节点编号"""
+    """构造正文、表格行或双栏模板并按原文定位节点"""
     document = Document()
     for _ in range(padding):
         document.add_paragraph()
@@ -64,7 +64,7 @@ def generic_template(path, layout="body", padding=0):
         return TextBinding(node=ids[literal], quote=literal, target=target)
 
     def block(literal):
-        """表格行重复整行；其他版式只重复所属容器中的段落"""
+        """表格行重复整行，其他版式只重复所属容器中的段落"""
         node = package.node(ids[literal])
         return package.ids[next(node.iterancestors(w("tr")))] if layout == "rows" else ids[literal]
 
@@ -107,7 +107,7 @@ def generic_template(path, layout="body", padding=0):
 
 
 def generic_content():
-    """构造两个不同项目和两条普通经历；包含未来新增、可隐藏的自定义信息"""
+    """构造两个不同项目和两条普通经历，包含未来新增、可隐藏的自定义信息"""
     document = ResumeDocument.model_validate(
         {
             "personal": {"name": "Current Person", "website": "https://profile.example.test"},
@@ -154,7 +154,7 @@ def generic_content():
 
 
 def visible_text(path):
-    """提取所有容器的段落文字；检查重复记录、隐藏资料和占位符"""
+    """提取所有容器的段落文字，检查重复记录、隐藏资料和占位符"""
     return "\n".join(
         row["text"] for row in TemplatePackage(path).inventory()["nodes"] if row["kind"] == "p"
     )
@@ -163,7 +163,7 @@ def visible_text(path):
 @pytest.mark.parametrize("layout", ["body", "rows", "cells"])
 @pytest.mark.parametrize("padding", [0, 11])
 def test_mixed_fields_complete_in_unrelated_layouts(tmp_path, layout, padding):
-    """不同节点编号和容器均补齐混合缺项；反复运行不增行；显隐变化不泄露资料"""
+    """不同节点编号和容器均补齐混合缺项，反复运行不增行，显隐变化不泄露资料"""
     source, snapshot, output = [
         tmp_path / name for name in ("source.docx", "snapshot.docx", "output.docx")
     ]
@@ -210,7 +210,7 @@ def test_mixed_fields_complete_in_unrelated_layouts(tmp_path, layout, padding):
 
 
 def test_missing_photo_and_unknown_original_content_still_block(tmp_path):
-    """可补位字段不会掩盖未识别照片或原文；无法完成时仍阻止丢失信息的输出"""
+    """可补位字段不会掩盖未识别照片或原文，无法完成时仍阻止丢失信息的输出"""
     source = tmp_path / "source.docx"
     package, plan = generic_template(source)
     document, projects = generic_content()
@@ -227,7 +227,7 @@ def test_missing_photo_and_unknown_original_content_still_block(tmp_path):
 
 
 def test_cache_cannot_hide_new_field_requirements(tmp_path):
-    """相同字段的新值可复用缓存；新增可见字段会失效；旧缓存不能掩盖新增内容"""
+    """相同字段的新值可复用缓存，新增可见字段会失效，旧缓存不能掩盖新增内容"""
     package, plan = generic_template(tmp_path / "source.docx")
     document, projects = generic_content()
     document.personal.website = ""
@@ -251,7 +251,7 @@ def test_cache_cannot_hide_new_field_requirements(tmp_path):
 
 
 def test_renamed_project_heading_can_supply_new_section_style(tmp_path):
-    """仅有改名项目栏目的模板也能复用大标题样式且不依赖中文固定栏目名"""
+    """项目栏目改名后仍可复用大标题样式"""
     source = tmp_path / "source.docx"
     package, plan = generic_template(source)
     # 移除普通栏目示例且只保留一个以任意名称命名的项目栏目
@@ -271,7 +271,7 @@ def test_renamed_project_heading_can_supply_new_section_style(tmp_path):
 
 
 def test_first_analysis_completes_all_supported_missing_fields(tmp_path, monkeypatch):
-    """首轮识别完整原文后即补齐混合缺项；最终清单、源快照和方案使用同一套编号"""
+    """首轮识别完整原文后即补齐混合缺项，最终清单、源快照和方案使用同一套编号"""
     source = tmp_path / "original.docx"
     package, plan = generic_template(source, "cells", 8)
     document, projects = generic_content()
@@ -280,15 +280,15 @@ def test_first_analysis_completes_all_supported_missing_fields(tmp_path, monkeyp
     )
 
     class MappedProvider(TemplateProvider):
-        """只识别已有原文；缺少的位置必须由通用补位器处理"""
+        """只识别已有原文，缺少的位置必须由通用补位器处理"""
 
         def run_structured(self, **kwargs):
-            """返回预先核对的源模板映射且不发起外部 AI 请求"""
+            """返回预先核对的模板映射"""
             self.calls.append(kwargs)
             return plan.model_copy(deep=True)
 
     def emit(*_):
-        """测试忽略公开进度且只核验结果与实际文件"""
+        """测试忽略公开进度且只核验结果和实际文件"""
 
     provider = MappedProvider()
     mapping, review, attempts, error = analyze_plan(
@@ -304,7 +304,7 @@ def test_first_analysis_completes_all_supported_missing_fields(tmp_path, monkeyp
 
 
 def test_library_review_save_and_reopen_share_completion(tmp_path, monkeypatch):
-    """真实接口打开旧模板、资料新增后的检查、试填及保存均补齐；原版本与任务源文件不变"""
+    """真实接口打开旧模板、资料新增后的检查、试填及保存均补齐，原版本和任务源文件不变"""
     config = Config(data_dir=tmp_path / "data", token="test")
     provider = TemplateProvider(failure=True)
     app = create_app(config, provider)
@@ -351,7 +351,7 @@ def test_library_review_save_and_reopen_share_completion(tmp_path, monkeypatch):
         assert not provider.calls
         task_source = app.state.services.templates.source(opened["id"])
         assert opened["inventory"]["nodes"] == TemplatePackage(task_source).inventory()["nodes"]
-        # 打开后继续新增字段；检查和保存必须与预览使用相同的自动补位规则
+        # 打开后继续新增字段，检查和保存必须和预览使用相同的自动补位规则
         body["document"]["personal"]["phone"] = "123456789"
         body["document"]["sections"][1]["entries"][0]["subtitle"] = "New subtitle"
         body["plan"] = opened["plan"]

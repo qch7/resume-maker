@@ -3,7 +3,7 @@ import { useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import type { Resume } from "../../shared/types";
 
-/** 删除前展示方案名称和影响范围以免误删同名或带未保存修改的方案 */
+/** 删除前展示方案名称和影响范围 */
 export default function DeleteResumeDialog({
   resume,
   onClose,

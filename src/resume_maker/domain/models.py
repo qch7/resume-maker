@@ -1,4 +1,4 @@
-"""经历、来源证据、AI 建议与固定版本简历的数据契约"""
+"""经历、来源证据、AI 建议和固定版本简历的数据契约"""
 
 from typing import Annotated, Literal
 
@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 
 class Model(BaseModel):
-    """拒绝未知字段的基础模型；约束客户端与 AI 输入"""
+    """拒绝未知字段的基础模型，约束客户端和 AI 输入"""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -20,7 +20,7 @@ class DefaultField(Model):
 
 
 class CustomInfoField(Model):
-    """用户自行命名的信息项；可隐藏；空项保留为草稿但不参与排版"""
+    """用户自行命名的信息项，可隐藏，空项保留为草稿但不参与排版"""
 
     id: str = Field(min_length=1, max_length=100)
     label: str = Field(default="", max_length=50)
@@ -46,7 +46,7 @@ class Evidence(Model):
 
 
 class Highlight(Model):
-    """具有稳定标识的经历亮点；包含标题、正文与证据"""
+    """具有稳定标识的经历亮点，包含标题、正文和证据"""
 
     id: str = Field(min_length=1, max_length=100)
     title: str = Field(max_length=200)
@@ -61,7 +61,7 @@ ProjectBodyKey = Annotated[
 
 
 class ProjectVisibility(Model):
-    """一份简历独立保存的项目显隐覆盖且不改变项目原文或生成经历版本"""
+    """保存单份简历的项目显示设置"""
 
     fields: dict[ExperienceField, bool] = Field(default_factory=dict, max_length=5)
     custom_fields: dict[str, bool] = Field(default_factory=dict, max_length=200)
@@ -70,14 +70,14 @@ class ProjectVisibility(Model):
     @field_validator("order")
     @classmethod
     def unique_order(cls, value):
-        """标题和时间不参与正文排序；重复位置会导致内容重复；必须拒绝"""
+        """标题和时间不参与正文排序，重复位置会导致内容重复，必须拒绝"""
         if len(value) != len(set(value)):
             raise ValueError("项目内容顺序不能包含重复条目。")
         return value
 
 
 class Experience(Model):
-    """可发布的完整项目经历数据；修订后保持不可变"""
+    """可发布的完整项目经历数据，修订后保持不可变"""
 
     title: str = Field(max_length=200)
     period: str = Field(default="", max_length=200)
@@ -92,14 +92,14 @@ class Experience(Model):
     @field_validator("body_order")
     @classmethod
     def unique_body_order(cls, value):
-        """正文排序随经历版本保存；旧版缺省值沿用原有简历设置"""
+        """正文排序随经历版本保存，旧版缺省值沿用原有简历设置"""
         if value is not None and len(value) != len(set(value)):
             raise ValueError("项目内容顺序不能包含重复条目。")
         return value
 
     @model_validator(mode="after")
     def validate_custom_fields(self):
-        """校验项目自定义信息的稳定标识；兼容没有扩展字段的历史版本"""
+        """校验项目自定义信息的稳定标识，兼容没有扩展字段的历史版本"""
         validate_custom_field_ids(self.custom_fields)
         return self
 
@@ -127,7 +127,7 @@ AIFunction = Literal[
 
 
 class AISettings(Model):
-    """模型和思考强度覆盖；空值表示继承上一级配置"""
+    """模型和思考强度覆盖，空值表示继承上一级配置"""
 
     model: str = ""
     reasoning_effort: ReasoningEffort = ""
@@ -135,7 +135,7 @@ class AISettings(Model):
     @field_validator("model")
     @classmethod
     def trim_model(cls, value: str) -> str:
-        """清除模型名称首尾空格；使纯空白输入按继承配置处理"""
+        """清除模型名称首尾空格，使纯空白输入按继承配置处理"""
         return value.strip()
 
 
@@ -148,7 +148,7 @@ class ProviderSettings(AISettings):
     functions: dict[AIFunction, AISettings] = Field(default_factory=dict)
 
     def for_function(self, function: AIFunction) -> "ProviderSettings":
-        """逐字段合并功能覆盖与全局默认；返回独立的本次任务配置快照"""
+        """逐字段合并功能覆盖和全局默认，返回独立的本次任务配置快照"""
         override = self.functions.get(function, AISettings())
         return self.model_copy(
             update={
@@ -160,7 +160,7 @@ class ProviderSettings(AISettings):
 
 
 class SuggestedChange(Model):
-    """针对既有亮点的结构化修改建议；等待人工采用"""
+    """针对既有亮点的结构化修改建议，等待人工采用"""
 
     target: str
     title: str

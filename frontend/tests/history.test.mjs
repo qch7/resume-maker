@@ -5,7 +5,7 @@ import {
   revisionChanges,
 } from "../src/features/experiences/history.ts";
 
-test("uncommitted nodes belong to their own baseline and never consume revision numbers", /* 验证多个分支的草稿节点准确连接且不改写已保存历史 */ () => {
+test("uncommitted nodes belong to their own baseline and never consume revision numbers", /* 多个分支的草稿分别连接到对应的历史节点 */ () => {
   const revisions = [
     {
       id: "r1",
@@ -48,7 +48,7 @@ test("uncommitted nodes belong to their own baseline and never consume revision 
   ];
   const graph = historyGraph(revisions, branches, working);
   assert.deepEqual(
-    graph.nodes.map(/* 提取显示节点；草稿紧邻所属基线 */ (n) => n.revision.id),
+    graph.nodes.map(/* 提取显示节点，草稿紧邻所属基线 */ (n) => n.revision.id),
     ["working:r3", "r3", "working:r2", "r2", "r1"],
   );
   assert.deepEqual(
@@ -88,7 +88,7 @@ test("history graph follows actual parents across interleaved branches", /* 验�
   );
   assert.deepEqual(
     graph.edges.map(
-      /* 检查关系而非 SVG 字符串实现 */ (edge) => [edge.from, edge.to],
+      /* 核对版本节点的父子关系 */ (edge) => [edge.from, edge.to],
     ),
     [
       ["r5", "r3"],

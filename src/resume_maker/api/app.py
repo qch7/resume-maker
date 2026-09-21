@@ -34,7 +34,7 @@ from resume_maker.services.workspace import Workspace
 
 
 def create_app(config: Config | None = None, provider: Provider | None = None) -> FastAPI:
-    """按配置组装独立应用；后台任务由应用生命周期启动"""
+    """按配置组装独立应用，后台任务由应用生命周期启动"""
     config = config or Config()
     config.prepare()
     db = Database(config.data_dir / "resume.db")

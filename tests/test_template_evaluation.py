@@ -1,4 +1,4 @@
-"""验收脚本按真实页面核验内容，区分浮动标题导致的抽取乱序和实际漏文。"""
+"""验收脚本按真实页面核验内容，区分浮动标题导致的抽取乱序和实际漏文"""
 
 from pathlib import Path
 from runpy import run_path
@@ -12,7 +12,7 @@ from resume_maker.domain.resume import ResumeDocument
 
 @pytest.mark.parametrize("missing", [False, True])
 def test_evaluation_finds_cross_page_text_but_still_detects_missing_content(tmp_path, missing):
-    """晚写入的浮动标题不能打断跨页正文；实际少掉后半句仍必须报告。"""
+    """晚写入的浮动标题不能打断跨页正文，实际少掉后半句仍必须报告"""
     evaluation = run_path(
         str(Path(__file__).resolve().parents[1] / "scripts/evaluate_templates.py")
     )
@@ -47,7 +47,7 @@ def test_evaluation_finds_cross_page_text_but_still_detects_missing_content(tmp_
 def test_evaluation_checks_actual_project_values_without_requiring_generated_labels(
     tmp_path, missing
 ):
-    """模板可只显示原始字段值；不强制派生正文的标签，但真实角色缺失仍失败。"""
+    """模板可只显示原始字段值，不强制派生正文的标签，但真实角色缺失仍失败"""
     evaluation = run_path(
         str(Path(__file__).resolve().parents[1] / "scripts/evaluate_templates.py")
     )
@@ -82,7 +82,7 @@ def test_evaluation_checks_actual_project_values_without_requiring_generated_lab
 
 @pytest.mark.parametrize("extra", [False, True])
 def test_record_count_audit_allows_shared_values_but_detects_added_copies(tmp_path, extra):
-    """用户确实填写两条同名记录时应保留两次；第三次复制才属于多填。"""
+    """用户确实填写两条同名记录时应保留两次，第三次复制才属于多填"""
     evaluation = run_path(
         str(Path(__file__).resolve().parents[1] / "scripts/evaluate_templates.py")
     )

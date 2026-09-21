@@ -16,7 +16,7 @@ import {
   type DefaultSearchResult,
 } from "./navigation";
 
-/** 集中编辑默认栏目和条目字段；未保存的操作只存在于弹窗副本中 */
+/** 集中编辑默认栏目和条目字段，未保存的操作只存在于弹窗副本中 */
 export default function DefaultsDialog({
   initial,
   document,
@@ -48,7 +48,7 @@ export default function DefaultsDialog({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   useEffect(
-    /* 打开原生模态并读取最新版本以免使用轮询中的旧配置 */ () => {
+    /* 打开原生模态窗口并读取最新配置 */ () => {
       const element = dialog.current!;
       element.showModal();
       let active = true;
@@ -109,22 +109,22 @@ export default function DefaultsDialog({
   const locked = busy || loading;
   const builtins = builtinFields(section);
   const missing = builtins.filter(
-    /* 可恢复删除的内置项且不会生成重名语义字段 */ (field) =>
+    /* 按字段标识恢复已删除的内置项 */ (field) =>
       !fields.some(/* 比较字段标识 */ (item) => item.id === field.id),
   );
-  /** 普通导航从栏目顶部开始；清除上一次搜索定位 */
+  /** 普通导航从栏目顶部开始，清除上一次搜索定位 */
   function selectSection(id: string) {
     setSelected(id);
     setTarget(null);
     setQuery("");
   }
-  /** 搜索结果恢复完整导航并定位；重复选择同一项也会重新滚动 */
+  /** 搜索结果恢复完整导航并定位，重复选择同一项也会重新滚动 */
   function jumpTo(result: DefaultSearchResult) {
     setSelected(result.sectionId);
     setTarget({ ...result });
     setQuery("");
   }
-  /** 更新选中栏目；其他栏目和个人信息保持不变 */
+  /** 更新选中栏目，其他栏目和个人信息保持不变 */
   function updateSection(patch: Partial<DefaultSection>) {
     setValue({
       ...value,
@@ -134,12 +134,12 @@ export default function DefaultsDialog({
       ),
     });
   }
-  /** 更新当前字段组；名称和初始显隐共同保存 */
+  /** 更新当前字段组，名称和初始显隐共同保存 */
   function updateFields(next: DefaultField[]) {
     if (section) updateSection({ fields: next });
     else setValue({ ...value, personal_fields: next });
   }
-  /** 新增默认栏目使用稳定标识；后续新简历复用其结构 */
+  /** 新增默认栏目使用稳定标识，后续新简历复用其结构 */
   function addSection() {
     const item: DefaultSection = {
       id: `section:${crypto.randomUUID()}`,
@@ -154,7 +154,7 @@ export default function DefaultsDialog({
     setValue({ ...value, sections: [...value.sections, item] });
     selectSection(item.id);
   }
-  /** 删除默认栏目时将子栏目提升；当前简历内容由应用逻辑保留 */
+  /** 删除默认栏目时将子栏目提升，当前简历内容由应用逻辑保留 */
   function removeSection() {
     setValue({
       ...value,
@@ -170,13 +170,13 @@ export default function DefaultsDialog({
     });
     selectSection("personal");
   }
-  /** 保存失败时保留编辑副本；便于修正或重试 */
+  /** 保存失败时保留编辑副本，便于修正或重试 */
   function requestDelete(label: string, confirm: () => void, fieldId?: string) {
     if (defaultHasContent(document, selected, fieldId, projects, section))
       setDeletion({ label, confirm });
     else confirm();
   }
-  /** 保存失败时保留编辑副本；便于修正或重试 */
+  /** 保存失败时保留编辑副本，便于修正或重试 */
   async function save() {
     setBusy(true);
     setError("");
@@ -196,7 +196,7 @@ export default function DefaultsDialog({
         className="defaults-dialog"
         aria-labelledby="defaults-title"
         onCancel={
-          /* 保存过程中阻止关闭以免反馈丢失 */ (event) => {
+          /* 保存完成前保持窗口打开 */ (event) => {
             event.preventDefault();
             if (!busy) onClose();
           }
@@ -212,13 +212,13 @@ export default function DefaultsDialog({
               value={query}
               disabled={locked}
               onChange={
-                /* 搜索只筛选导航且不改动编辑中的定义 */ (event) => {
+                /* 按搜索词筛选导航 */ (event) => {
                   setTarget(null);
                   setQuery(event.target.value);
                 }
               }
               onKeyDown={
-                /* 回车跳到首个结果；中文输入法确认文字时不跳转 */ (event) => {
+                /* 回车跳到首个结果，中文输入法确认文字时不跳转 */ (event) => {
                   if (
                     event.key === "Enter" &&
                     !event.nativeEvent.isComposing &&
@@ -257,7 +257,7 @@ export default function DefaultsDialog({
                   {results.length ? `${results.length} 项匹配` : "无匹配结果"}
                 </span>
                 {results.map(
-                  /* 同名信息项显示所属栏目；点击精确定位 */ (result) => (
+                  /* 同名信息项显示所属栏目，点击精确定位 */ (result) => (
                     <button
                       key={`${result.sectionId}/${result.fieldId ?? ""}`}
                       className="defaults-search-result"
@@ -412,7 +412,7 @@ export default function DefaultsDialog({
               <span />
             </div>
             {fields.map(
-              /* 默认字段与自定义默认项使用相同编辑方式 */ (field, index) => (
+              /* 默认字段和自定义默认项使用相同编辑方式 */ (field, index) => (
                 <div
                   className="defaults-field-row"
                   data-search-target={
@@ -429,7 +429,7 @@ export default function DefaultsDialog({
                     disabled={locked}
                     placeholder="信息项名称"
                     onChange={
-                      /* 只改标签；既有内容仍按原标识匹配 */ (event) =>
+                      /* 只改标签，既有内容仍按原标识匹配 */ (event) =>
                         updateFields(
                           fields.map(
                             /* 更新单个字段名称 */ (item) =>
@@ -462,7 +462,7 @@ export default function DefaultsDialog({
                     aria-label={`删除默认项${field.label}`}
                     disabled={locked}
                     onClick={
-                      /* 从定义中删除；当前资料值在应用时归档隐藏 */ () =>
+                      /* 从定义中删除，当前资料值在应用时归档隐藏 */ () =>
                         requestDelete(
                           field.label,
                           /* 确认后只移除当前定义 */ () =>
@@ -512,7 +512,7 @@ export default function DefaultsDialog({
                   value=""
                   disabled={locked}
                   onChange={
-                    /* 恢复内置字段；可重新显示保留的原始值 */ (event) => {
+                    /* 恢复内置字段，可重新显示保留的原始值 */ (event) => {
                       const field = missing.find(
                         /* 查找所选内置定义 */ (item) =>
                           item.id === event.target.value,

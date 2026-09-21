@@ -29,7 +29,7 @@ interface Props {
   onRefresh: () => void;
 }
 
-/** 展示独立会话历史；维护输入草稿、讨论范围和防重复发送状态 */
+/** 展示独立会话历史，维护输入草稿、讨论范围和防重复发送状态 */
 export default function Chat(props: Props) {
   const { detail, project, run, activeJob } = props;
   const pane = useRef<HTMLDivElement>(null);
@@ -54,7 +54,7 @@ export default function Chat(props: Props) {
   /** 串行刷新最新输入且只有写入成功后才推进已保存值和草稿版本 */
   function flush() {
     const promise = chain.current
-      .catch(/* 上次错误已显示；恢复后续写入 */ () => {})
+      .catch(/* 上次错误已显示，恢复后续写入 */ () => {})
       .then(async () => {
         const value = current.current;
         if (value === saved.current) return;
@@ -74,13 +74,13 @@ export default function Chat(props: Props) {
     return () => {
       alive.current = false;
       unregister();
-      void flush().catch(/* 上次错误已显示；恢复后续写入 */ () => {});
+      void flush().catch(/* 上次错误已显示，恢复后续写入 */ () => {});
     };
-    // 组件按会话标识重新挂载；未完成的写入始终保留原会话归属
+    // 组件按会话标识重新挂载，未完成的写入始终保留原会话归属
   }, [conversation.id]);
   useEffect(() => {
     const timer = setTimeout(
-      /* 延迟执行保存或提示清理；减少频繁更新 */ () =>
+      /* 延迟执行保存或提示清理，减少频繁更新 */ () =>
         void flush().catch(
           /* 取消后忽略迟到的错误 */ (error) => setDraftStatus(error.message),
         ),
@@ -99,7 +99,7 @@ export default function Chat(props: Props) {
     latest && ["failed", "interrupted"].includes(latest.status)
       ? latest
       : undefined;
-  /** 提交绑定经历版本和范围的消息；以唯一请求标识防止重复入队 */
+  /** 提交绑定经历版本和范围的消息，以唯一请求标识防止重复入队 */
   async function send() {
     const value = current.current.trim();
     if (!value || activeJob || sendingRef.current) return;
@@ -128,7 +128,7 @@ export default function Chat(props: Props) {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             onBlur={
-              /* 处理 onBlur 回调；将变化同步到工作台状态 */ () => {
+              /* 处理 onBlur 回调，将变化同步到工作台状态 */ () => {
                 if (title.trim() && title !== conversation.title)
                   run(async () => {
                     await api(`/conversations/${conversation.id}`, "PATCH", {
@@ -139,7 +139,7 @@ export default function Chat(props: Props) {
               }
             }
             onKeyDown={
-              /* 处理方向键与边界快捷键；提供无鼠标的尺寸调整 */ (e) => {
+              /* 处理方向键和边界快捷键，提供无鼠标的尺寸调整 */ (e) => {
                 if (e.key === "Enter") e.currentTarget.blur();
               }
             }
@@ -247,7 +247,7 @@ export default function Chat(props: Props) {
         className="chat-composer"
         style={{ height: inputHeight }}
         onSubmit={
-          /* 处理 onSubmit 回调；将变化同步到工作台状态 */ (e) => {
+          /* 处理 onSubmit 回调，将变化同步到工作台状态 */ (e) => {
             e.preventDefault();
             run(send);
           }
@@ -266,7 +266,7 @@ export default function Chat(props: Props) {
             localStorage.setItem(key, JSON.stringify(e.target.value));
           }}
           onKeyDown={
-            /* 处理方向键与边界快捷键；提供无鼠标的尺寸调整 */ (e) => {
+            /* 处理方向键和边界快捷键，提供无鼠标的尺寸调整 */ (e) => {
               if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
                 e.preventDefault();
                 run(send);

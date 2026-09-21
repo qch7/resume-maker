@@ -14,7 +14,7 @@ TEXT_TAGS = {w("t"), w("tab"), w("br"), w("cr")}
 
 
 def paragraph_stream(paragraph):
-    """保留制表位与换行的字符位置；同时建立原引文到可见行列的索引"""
+    """保留制表位和换行的字符位置，同时建立原引文到可见行列的索引"""
     text, positions = "", []
     for node in paragraph.iter():
         if next(node.iterancestors(w("p")), None) is not paragraph:
@@ -29,7 +29,7 @@ def paragraph_stream(paragraph):
 
 
 def slice_paragraph(paragraph, start, end):
-    """按字符范围复制一条信息；保留标签、值各自的字体及超链接结构"""
+    """按字符范围复制一条信息，保留标签、值各自的字体及超链接结构"""
     clone, position = deepcopy(paragraph), 0
     for node in list(clone.iter()):
         if next(node.iterancestors(w("p")), None) is not clone or node.tag not in TEXT_TAGS:
@@ -40,14 +40,14 @@ def slice_paragraph(paragraph, start, end):
         else:
             node.getparent().remove(node)
         position += length
-    # 片段重组后不复制原书签与修订身份以防同一条信息出现多个 Word 锚点
+    # 片段重组后不复制原书签和修订身份以防同一条信息出现多个 Word 锚点
     for node in list(clone.iter(w("bookmarkStart"), w("bookmarkEnd"))):
         node.getparent().remove(node)
     return clone
 
 
 def personal_items(paragraph, fields):
-    """仅拆分边界明确的纯个人资料段落；混有标题、图片或复杂对象时保留原结构"""
+    """仅拆分边界明确的纯个人资料段落，混有标题、图片或复杂对象时保留原结构"""
     if not fields or any(not field.target.startswith("personal.") for field in fields):
         return None
     if paragraph.xpath(
@@ -114,7 +114,7 @@ def personal_items(paragraph, fields):
 
 
 def paragraph_style(paragraph):
-    """按显式段落样式与列坐标分组以防把页首姓名与联系方式混排"""
+    """按显式段落样式和列坐标分组以防把页首姓名和联系方式混排"""
     result = []
     for tag in ("pStyle", "ind", "tabs", "spacing", "jc", "framePr"):
         node = paragraph.find(f"w:pPr/w:{tag}", NS)
@@ -130,7 +130,7 @@ def paragraph_style(paragraph):
 
 
 def append_separator(paragraph, value):
-    """用原生制表符或换行连接条目；保留模板的列坐标和行距"""
+    """用原生制表符或换行连接条目，保留模板的列坐标和行距"""
     run = etree.SubElement(paragraph, w("r"))
     if value in {"\t", "\n"}:
         etree.SubElement(run, w("tab" if value == "\t" else "br"))
@@ -141,10 +141,10 @@ def append_separator(paragraph, value):
 
 
 class PersonalLayout:
-    """先保留完整个人条目片段；填值后只重排含隐藏或空条目的连续资料区域"""
+    """先保留完整个人条目片段，填值后只重排含隐藏或空条目的连续资料区域"""
 
     def __init__(self, package, fields, values):
-        """捕获原映射的行列和文字样式；生成独立填充片段而不修改已保存模板"""
+        """根据原映射的行列和样式生成独立填充片段"""
         self.nodes, self.fields, self.groups, self.tables = {}, [], [], []
         bindings = defaultdict(list)
         for field in fields:
@@ -193,7 +193,7 @@ class PersonalLayout:
             self.groups.append((group, self.add_fragments(items, values), columns, separator))
 
     def add_fragments(self, items, values):
-        """登记仍可见的条目；交给正式填充器替换以保留跨运行字体和链接处理"""
+        """登记仍可见的条目，交给正式填充器替换以保留跨运行字体和链接处理"""
         visible = []
         for fragment, field, column in items:
             if not values.get(field.target):
@@ -205,7 +205,7 @@ class PersonalLayout:
         return visible
 
     def apply(self):
-        """移除整条隐藏信息；后面的可见条目依原顺序补齐；整区为空时不留段落"""
+        """移除整条隐藏信息，后面的可见条目依原顺序补齐，整区为空时不留段落"""
         for rows, visible, columns in self.tables:
             parent = rows[0].getparent()
             if parent is None:
@@ -260,7 +260,7 @@ class PersonalLayout:
 
 
 def table_row_items(row, candidates):
-    """仅收紧每格都是个人条目的普通表格行；含照片、合并格或栏目标题时停止"""
+    """仅收紧每格都是个人条目的普通表格行，含照片、合并格或栏目标题时停止"""
     if row.xpath(".//w:gridSpan | .//w:vMerge | .//w:tbl", namespaces=NS):
         return None
     items = []
@@ -271,7 +271,7 @@ def table_row_items(row, candidates):
             if child in candidates:
                 fragments, width, _ = candidates[child]
                 if width > 1:
-                    # 单元格自身已有多列时；由段落规则补位且不能压成表格的一列
+                    # 已有多列的单元格按段落规则补位
                     return None
                 items.extend((fragment, field, column) for fragment, field, _ in fragments)
             elif not can_insert(child):
@@ -280,7 +280,7 @@ def table_row_items(row, candidates):
 
 
 def packed_rows(visible, columns):
-    """每列独立向上补位；保留右列坐标以免把左列主页挪入狭窄的右列"""
+    """每列独立向上补位，保留右列坐标以免把左列主页挪入狭窄的右列"""
     grouped = [[] for _ in range(columns)]
     for fragment, column in visible:
         grouped[column].append(fragment)
@@ -291,7 +291,7 @@ def packed_rows(visible, columns):
 
 
 def hidden_personal_range(text, target, start, end):
-    """混合标题段落隐藏年龄时一并移除单位且不删固定标题与其他内容"""
+    """隐藏混合标题段落中的年龄时一并移除单位"""
     if not target.startswith("personal."):
         return start, end
     if target == "personal.age":

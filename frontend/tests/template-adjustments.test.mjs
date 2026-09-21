@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { adjustmentChoices } from "../src/features/templates/adjustments.ts";
 
-/** 构造正文中的真实位置以免测试依赖用户模板 */
+/** 构造文档正文中的位置数据 */
 function node(id, text = "", kind = "p") {
   return {
     id,
@@ -15,7 +15,7 @@ function node(id, text = "", kind = "p") {
   };
 }
 
-/** 建立最小方案；按场景补充填写用途 */
+/** 建立最小方案，按场景补充填写用途 */
 function plan(overrides = {}) {
   return {
     fields: [],

@@ -29,7 +29,7 @@ import { entryComposition, findEntry } from "../src/features/profile/entry.ts";
 import { sameSectionEntry } from "../src/features/profile/comparison.ts";
 import { syncHonorDocument } from "../src/features/honors/sync.ts";
 
-test("removing a linked honor preserves same-name entries, sections and other resume data", /* 自定义栏目也可移除；原始简历、同名资料及库中来源保持不变 */ () => {
+test("removing a linked honor preserves same-name entries, sections and other resume data", /* 自定义栏目也可移除，原始简历、同名资料及库中来源保持不变 */ () => {
   const source = honor();
   const sourceBefore = structuredClone(source);
   const document = addHonors(newDocument(), [source, honor("other")], "skills");
@@ -60,14 +60,14 @@ test("removing a linked honor preserves same-name entries, sections and other re
   assert.equal(removeHonor(removed, source.id), removed);
 });
 
-test("removed honors stay absent during source sync and can be added again", /* 来源更新不恢复已移除引用；重新加入时采用最新内容 */ () => {
+test("removed honors stay absent during source sync and can be added again", /* 来源更新不恢复已移除引用，重新加入时采用最新内容 */ () => {
   const source = honor();
   const document = addHonors(newDocument(), [source]);
   const removed = removeHonor(document, source.id);
   source.fields.name = "重新核对的证书";
   assert.equal(syncHonorDocument(removed, [source]), removed);
   const section = removed.sections.find(
-    /* 移除最后一条后保留空栏目；便于重新加入 */ (item) => item.id === "honors",
+    /* 移除最后一条后保留空栏目，便于重新加入 */ (item) => item.id === "honors",
   );
   assert.deepEqual(section.entries, []);
   const added = addHonors(removed, [source]);
@@ -81,7 +81,7 @@ test("removed honors stay absent during source sync and can be added again", /* 
   assert.equal(addHonors(added, [source]), added);
 });
 
-test("unified honor editing preserves resume preferences and separates source data", /* 内容双向对应；显隐及自定义备注不进入共享荣誉 */ () => {
+test("unified honor editing preserves resume preferences and separates source data", /* 内容双向对应，显隐及自定义备注不进入共享荣誉 */ () => {
   const source = honor();
   const existing = newHonorEntry(source.fields, `honor:${source.id}`);
   existing.visible = false;
@@ -128,7 +128,7 @@ function honor(id = "sample") {
   };
 }
 
-test("adding honors keeps initial values immutable until a source update is received", /* 验证跨栏目去重及对象隔离；库更新通过专用同步入口采用 */ () => {
+test("adding honors keeps initial values immutable until a source update is received", /* 验证跨栏目去重及对象隔离，库更新通过专用同步入口采用 */ () => {
   const original = newDocument();
   const item = honor();
   const composed = addHonors(original, [item]);
@@ -151,11 +151,11 @@ test("adding honors keeps initial values immutable until a source update is rece
   );
 });
 
-test("all honor fields keep their meaning while only name and date appear by default", /* 所有库字段无损复制；奖项、级别和说明不再合并 */ () => {
+test("all honor fields keep their meaning while only name and date appear by default", /* 所有库字段无损复制，奖项、级别和说明不再合并 */ () => {
   const item = honor();
   const composed = addHonors(newDocument(), [item]);
   const section = composed.sections.find(
-    /* 读取荣誉栏目的完整保存资料与成品副本 */ (section) =>
+    /* 读取荣誉栏目的完整保存资料和成品副本 */ (section) =>
       section.id === "honors",
   );
   const entry = section.entries[0];
@@ -194,7 +194,7 @@ test("all honor fields keep their meaning while only name and date appear by def
   assert.equal(newHonorEntry(longName).details, longName.description);
 });
 
-test("manual and relocated honor entries use the same fields without changing other sections", /* 手工录入、指定其他栏目和栏目改名保持字段语义；教育和技能不受影响 */ () => {
+test("manual and relocated honor entries use the same fields without changing other sections", /* 荣誉字段在手工录入、换栏目和改名后仍能识别 */ () => {
   const sections = newDocument().sections;
   const honors = sections.find(
     /* 默认荣誉栏目 */ (section) => section.id === "honors",
@@ -218,7 +218,7 @@ test("manual and relocated honor entries use the same fields without changing ot
   assert.equal(isHonorSection({ ...honors, kind: "education" }), false);
 });
 
-test("optional honor edits and visibility survive a single-entry save without touching other drafts", /* 单条保存保留可选资料与显示选择且不串改其他草稿 */ () => {
+test("optional honor edits and visibility survive a single-entry save without touching other drafts", /* 单条保存保留可选资料、显示设置和其他草稿 */ () => {
   const saved = {
     id: "resume",
     name: "示例方案",
@@ -272,7 +272,7 @@ test("optional honor edits and visibility survive a single-entry save without to
   );
 });
 
-test("existing entries can adopt name and date display without losing text or custom data", /* 已有条目一键收起附加信息；恢复后原文仍然存在 */ () => {
+test("existing entries can adopt name and date display without losing text or custom data", /* 已有条目一键收起附加信息，恢复后原文仍然存在 */ () => {
   const existing = {
     ...newEntry(),
     id: "honor:existing",
@@ -336,8 +336,7 @@ test("honors respect explicit targets, entry limits and search fields", /* 自�
     /* 每条有独立标识 */ (_, index) => ({ id: `old-${index}` }),
   );
   assert.throws(
-    /* 加入前检查容量且不产生无法保存的简历 */ () =>
-      addHonors(original, [item]),
+    /* 加入荣誉前校验简历容量 */ () => addHonors(original, [item]),
     /100/,
   );
 });

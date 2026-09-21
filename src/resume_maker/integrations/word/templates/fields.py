@@ -1,4 +1,4 @@
-"""冻结非页码 Word 域指令；保留显示结果与样式；使复杂字段可直接填写"""
+"""冻结非页码 Word 域指令，保留显示结果和样式，使复杂字段可直接填写"""
 
 import re
 from dataclasses import dataclass, field
@@ -9,14 +9,14 @@ STORIES = {w(tag) for tag in ("txbxContent", "footnote", "endnote")}
 
 
 def field_kind(code: str) -> str:
-    """只识别域名；允许页码使用格式开关且不把地址或字段值写进提示"""
+    """仅从域指令中提取域名"""
     match = re.match(r"\s*([A-Za-z]+)\b", code)
     return match[1].upper() if match else "未知域"
 
 
 @dataclass
 class ComplexField:
-    """记录跨文字片段的完整域；保留指令和显示结果的明确边界"""
+    """记录跨文字片段的完整域，保留指令和显示结果的明确边界"""
 
     codes: list = field(default_factory=list)
     controls: list = field(default_factory=list)
@@ -67,7 +67,7 @@ def complex_fields(root) -> list[ComplexField]:
 
 
 def freeze_fields(root) -> list[str]:
-    """冻结所有非页码域及不完整域；保留已有显示结果；无缓存的位置成为可填空位"""
+    """冻结所有非页码域及不完整域，保留已有显示结果，无缓存的位置成为可填空位"""
     kinds, retained = [], set()
     for current in complex_fields(root):
         if current.kind in {"PAGE", "NUMPAGES"} and current.complete and not current.invalid:
@@ -94,7 +94,7 @@ def freeze_fields(root) -> list[str]:
 
 
 def unsupported_fields(root) -> list[str]:
-    """列出仍需处理的域类型；页码及总页数保留；未知或不完整的域不能静默放行"""
+    """列出仍需处理的域类型，页码及总页数保留，未知或不完整的域不能静默放行"""
     kinds = [field_kind(node.get(w("instr"), "")) for node in root.iter(w("fldSimple"))]
     kinds.extend(
         current.kind if current.complete and not current.invalid else "不完整的域"

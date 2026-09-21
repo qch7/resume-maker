@@ -1,10 +1,10 @@
-"""凭标题、留白和后续独立标题识别侧栏；避免把两条文字流拆成交错的表格行。"""
+"""凭标题、留白和后续独立标题识别侧栏，避免把两条文字流拆成交错的表格行"""
 
 from itertools import combinations
 
 
 def heading_style(line):
-    """提取可验证的标题样式；没有粗体或颜色证据时不猜测文字的栏目语义。"""
+    """根据粗体或颜色提取标题样式"""
     spans = [span for span in line.spans if span.text.strip()]
     if not spans:
         return None
@@ -13,7 +13,7 @@ def heading_style(line):
 
 
 def sidebar_band(column, page):
-    """要求同行双标题、连续竖向留白和单侧后续标题；普通表头或有横向网格的表格不拆。"""
+    """要求同行双标题、连续竖向留白和单侧后续标题，普通表头或有横向网格的表格不拆"""
     lines = list(column.blocks)
     if any(not hasattr(line, "spans") or not line.is_horizontal_text for line in lines):
         return None
@@ -41,7 +41,7 @@ def sidebar_band(column, page):
         gutter = min(line.bbox.x0 for line in groups[1]) - max(line.bbox.x1 for line in groups[0])
         if gutter < style[0] * 2:
             continue
-        # 表格的一排表头不足以证明独立栏目：还需一侧出现新标题，另一侧仍有普通正文。
+        # 表格的一排表头不足以证明独立栏目：还需一侧出现新标题，另一侧仍有普通正文
         independent = any(
             heading_style(line) == style
             and line.bbox.y0 > top + style[0] * 2
@@ -68,7 +68,7 @@ def sidebar_band(column, page):
 
 
 def parse_sidebar(column, page, settings):
-    """将有独立栏目证据的文字流放入两个可增长单元格；其余区域保持原解析规则。"""
+    """将有独立栏目证据的文字流放入两个可增长单元格，其余区域保持原解析规则"""
     from pdf2docx.layout.Column import Column
     from pdf2docx.table.TableBlock import TableBlock
 

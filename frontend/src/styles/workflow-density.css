@@ -1,4 +1,4 @@
-/* 按用户拖动后的实际空间调整密度；保持分隔条可继续向上、向下拖动 */
+/* 按用户拖动后的实际空间调整密度，保持分隔条可继续向上、向下拖动 */
 @container resume-guide (height < 144px) or ((width <= 760px) and (height < 236px)) {
   .workflow:not(.collapsed) {
     flex-wrap: nowrap;
@@ -50,7 +50,7 @@
   }
 }
 
-/* 最简模式保留全部六个可点击步骤；隐藏说明和子步骤且不制造纵向滚动条 */
+/* 最简模式横向保留六个可点击步骤并隐藏说明和子步骤 */
 @container resume-guide (height < 88px) {
   .workflow:not(.collapsed) .workflow-overview {
     width: auto;
@@ -61,7 +61,7 @@
   }
 }
 
-/* 窄屏优先给步骤名称留出空间；子步骤在紧凑模式下可横向滚动 */
+/* 窄屏优先给步骤名称留出空间，子步骤在紧凑模式下可横向滚动 */
 @container resume-guide (width <= 760px) and (height < 236px) {
   .workflow:not(.collapsed) {
     gap: 4px;

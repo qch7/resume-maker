@@ -1,4 +1,4 @@
-"""持久任务队列、模型上下文组装与建议发布"""
+"""持久任务队列、模型上下文组装和建议发布"""
 
 import threading
 from pathlib import Path
@@ -73,7 +73,7 @@ class Jobs:
     def __init__(
         self, db: Database, catalog: Catalog, data_dir: Path, provider: Provider | None = None
     ):
-        """保存任务依赖；创建取消信号与工作线程状态；此时不启动队列"""
+        """保存任务依赖，创建取消信号和工作线程状态，此时不启动队列"""
         self.db, self.catalog, self.data_dir = db, catalog, data_dir
         self.provider = provider or CodexProvider()
         self.stopped, self.wakeup = threading.Event(), threading.Event()
@@ -81,7 +81,7 @@ class Jobs:
         self.worker: threading.Thread | None = None
 
     def start(self):
-        """标记上次异常退出的运行任务；再启动单工作线程处理持久队列"""
+        """标记上次异常退出的运行任务，再启动单工作线程处理持久队列"""
         with self.db.transaction() as conn:
             conn.execute(
                 "UPDATE jobs SET status='interrupted',error=?,finished_at=? WHERE status='running'",
@@ -91,7 +91,7 @@ class Jobs:
         self.worker.start()
 
     def stop(self):
-        """发出停止和取消信号；唤醒队列并等待工作线程回收进程"""
+        """发出停止和取消信号，唤醒队列并等待工作线程回收进程"""
         self.stopped.set()
         for flag in list(self.cancel_flags.values()):
             flag.set()
@@ -108,7 +108,7 @@ class Jobs:
         scope: str,
         request_key: str,
     ) -> dict:
-        """校验会话与编辑范围；以幂等请求标识入队并记录用户消息"""
+        """校验会话和编辑范围，以幂等请求标识入队并记录用户消息"""
         conversation = self.catalog.conversation(conversation_id)
         if conversation["archived"]:
             raise Problem("该会话已经归档。")
@@ -179,7 +179,7 @@ class Jobs:
         return self.db.one("SELECT * FROM jobs WHERE id=?", (job_id,))
 
     def cancel(self, job_id: str):
-        """同时更新持久状态和进程取消信号；阻止任务结果继续发布"""
+        """同时更新持久状态和进程取消信号，阻止任务结果继续发布"""
         need(self.db.one("SELECT id FROM jobs WHERE id=?", (job_id,)))
         if flag := self.cancel_flags.get(job_id):
             flag.set()
@@ -191,7 +191,7 @@ class Jobs:
             )
 
     def _loop(self):
-        """依次取出最早的排队任务；空闲时等待新任务或停止信号"""
+        """依次取出最早的排队任务，空闲时等待新任务或停止信号"""
         while not self.stopped.is_set():
             job = self.db.one(
                 "SELECT * FROM jobs WHERE status='queued' ORDER BY created_at LIMIT 1"
@@ -216,7 +216,7 @@ class Jobs:
             return
 
         def emit(kind, data):
-            """持久化任务事件；收到模型会话标识时立即保存以支持后续续聊"""
+            """持久化任务事件，收到模型会话标识时立即保存以支持后续续聊"""
             self.db.event(job_id, kind, data)
             if kind == "thread":
                 with self.db.transaction() as conn:
@@ -301,7 +301,7 @@ class Jobs:
             if payload["experience"] is not None:
                 if job["kind"] != "analysis":
                     raise Problem("普通对话返回了整段覆盖结果，请使用“重新分析”生成整段建议。")
-                # 分析源码只更新经历正文；用户定义的资料与显隐设置沿用当前工作副本
+                # 分析源码只更新经历正文，用户定义的资料和显隐设置沿用当前工作副本
                 for key in ("hidden_fields", "custom_fields"):
                     payload["experience"][key] = request["content"].get(key, [])
                 payload["experience"]["body_order"] = request["content"].get("body_order")

@@ -3,7 +3,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Project } from "../../shared/types/index";
 
-/** 展示具体删除范围和占用原因；成功前保持模态层以免切换删除目标 */
+/** 固定删除目标并展示删除范围和占用原因 */
 export default function DeleteProjectDialog({
   project,
   childCount,
@@ -34,7 +34,7 @@ export default function DeleteProjectDialog({
       else document.getElementById("sidebar-collapse")?.focus();
     };
   }, []);
-  /** 防止双击重复提交；失败留在原确认框并允许修正后重试 */
+  /** 防止双击重复提交，失败留在原确认框并允许修正后重试 */
   async function remove() {
     if (submitting.current || blocker) return;
     submitting.current = true;

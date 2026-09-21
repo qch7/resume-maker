@@ -15,10 +15,10 @@ export function useWorkspaceLayout() {
   const workbench = useRef<HTMLDivElement>(null);
   const workbenchSize = useElementSize(workbench);
   const columns = columnSizes(workbenchSize.width, sidebar, layout);
-  // 内容随实际高度逐级精简；各个工作区都允许缩到单行步骤导航
+  // 内容随实际高度逐级精简，各个工作区都允许缩到单行步骤导航
   const guideMin = 40;
   const guideMax = Math.max(guideMin, Math.min(280, innerHeight - 360));
-  /** 更新单项布局偏好；尺寸边界由显示布局和分隔条统一约束 */
+  /** 更新单项布局偏好 */
   function resize(key: keyof Layout, value: number | boolean) {
     setLayout((previous) => ({ ...previous, [key]: value }));
   }
@@ -27,7 +27,7 @@ export function useWorkspaceLayout() {
   }, [layout]);
   useEffect(() => {
     if (!previewFocused) return;
-    /** 按 Esc 退出放大预览；恢复工作台的常规分栏 */
+    /** 按 Esc 退出放大预览，恢复工作台的常规分栏 */
     const leave = (event: KeyboardEvent) => {
       if (event.key === "Escape") setPreviewFocused(false);
     };

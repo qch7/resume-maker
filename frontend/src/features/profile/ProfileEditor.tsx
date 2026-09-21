@@ -39,7 +39,7 @@ const FIELDS: {
   },
 ];
 
-/** 读取并压缩上传照片；限制缓存体积；输出跨预览与 Word 共用的 JPEG */
+/** 压缩照片为预览和 Word 共用的 JPEG 并限制缓存体积 */
 async function readPhoto(file: File): Promise<string> {
   if (
     !["image/png", "image/jpeg"].includes(file.type) ||
@@ -75,7 +75,7 @@ async function readPhoto(file: File): Promise<string> {
   }
 }
 
-/** 编辑当前方案的顶部信息和各栏目资料；切换功能区后仍沿用同一份草稿 */
+/** 各功能区共用当前方案的资料草稿 */
 export default function ProfileEditor({
   value,
   onChange,
@@ -120,7 +120,7 @@ export default function ProfileEditor({
   const latest = useRef(value);
   latest.current = value;
   const photoRequest = useRef(0);
-  /** 仅更新个人字段显隐；隐藏时仍保留照片和文字原值 */
+  /** 仅更新个人字段显隐，隐藏时仍保留照片和文字原值 */
   function togglePersonalField(field: PersonalField) {
     onChange({
       ...value,
@@ -130,7 +130,7 @@ export default function ProfileEditor({
       },
     });
   }
-  /** 确认保存成功后退出编辑；出错时保留输入并在基本信息内显示原因 */
+  /** 确认保存成功后退出编辑，出错时保留输入并在基本信息内显示原因 */
   async function savePersonal() {
     if (saving || photoBusy) return;
     setSaving(true);
@@ -152,7 +152,7 @@ export default function ProfileEditor({
     },
     [],
   );
-  /** 照片加载期间保留其他刚编辑的字段；最后一次上传或移除操作生效 */
+  /** 照片加载期间保留其他刚编辑的字段，最后一次上传或移除操作生效 */
   async function uploadPhoto(file: File) {
     const serial = ++photoRequest.current;
     setPhotoBusy(true);
@@ -171,7 +171,7 @@ export default function ProfileEditor({
       if (serial === photoRequest.current) setPhotoBusy(false);
     }
   }
-  /** 更新单个栏目；保留同一方案中的基本信息与其他栏目 */
+  /** 更新单个栏目，保留同一方案中的基本信息和其他栏目 */
   function updateSection(section: ResumeSection) {
     onChange({
       ...value,
@@ -236,7 +236,7 @@ export default function ProfileEditor({
                       accept="image/png,image/jpeg"
                       disabled={!editing || photoBusy || saving}
                       onChange={
-                        /* 读取本次选择且不保留原始文件对象 */ (event) => {
+                        /* 读取本次选择的文件 */ (event) => {
                           const file = event.target.files?.[0];
                           event.target.value = "";
                           if (file) void uploadPhoto(file);
@@ -267,7 +267,7 @@ export default function ProfileEditor({
                     hidden={value.personal.hidden_fields.includes("photo")}
                     disabled={!editing || saving || photoBusy}
                     onToggle={
-                      /* 照片显隐与移除照片分开；便于恢复 */ () =>
+                      /* 照片显隐和移除照片分开，便于恢复 */ () =>
                         togglePersonalField("photo")
                     }
                   />
@@ -390,7 +390,7 @@ export default function ProfileEditor({
               editing={editing}
               disabled={saving}
               onChange={
-                /* 自定义信息与固定基本信息使用同一保存流程 */ (
+                /* 自定义信息和固定基本信息使用同一保存流程 */ (
                   custom_fields,
                 ) =>
                   onChange({

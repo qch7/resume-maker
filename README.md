@@ -58,6 +58,7 @@ Codex 复用当前用户的 CLI 配置，包括自定义 Provider；设置中的
 
 | 文档 | 内容 |
 | --- | --- |
+| [Agent 开发约定](AGENTS.md) | 项目功能、代码规则、注释写法、分支流程和验证要求 |
 | [使用指南](docs/user-guide.md) | 编辑、独立会话、模板、主题、布局和数据恢复 |
 | [开发指南](docs/development.md) | 环境、检查命令、构建包和常见问题 |
 | [架构说明](docs/architecture.md) | 目录职责、依赖方向、数据流和扩展位置 |

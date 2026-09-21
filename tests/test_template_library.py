@@ -17,7 +17,7 @@ from resume_maker.services.workspace import Workspace
 
 
 def test_only_complete_templates_can_be_selected(catalog, tmp_path):
-    """缺少完整映射的记录不进入模板库；相关操作提示重新识别且不改写原记录"""
+    """缺少完整映射的记录保留原数据并提示重新识别"""
     data = tmp_path / "data"
     register_template(catalog, data)
     with catalog.db.transaction() as conn:
@@ -48,7 +48,7 @@ def test_only_complete_templates_can_be_selected(catalog, tmp_path):
 
 
 def test_manual_import_routes_are_removed(tmp_path):
-    """模板仅通过完整识别流程导入；旧的段落区间接口不再接受写入"""
+    """模板仅通过完整识别流程导入，旧的段落区间接口不再接受写入"""
     app = create_app(Config(data_dir=tmp_path, token="test"))
     with TestClient(app) as client:
         for route in ("/api/templates", "/api/templates/inspect"):
@@ -58,13 +58,13 @@ def test_manual_import_routes_are_removed(tmp_path):
 
 
 def test_saved_recognition_history_survives_restart_and_resave(tmp_path):
-    """保存并重启后保留真实活动、轮次、耗时与用量；人工另存不会清空历史或再调用 AI"""
+    """保存并重启后保留真实活动、轮次、耗时和用量，人工另存不会清空历史或再调用 AI"""
 
     class RecordedProvider(TemplateProvider):
-        """为真实分析流程提供确定的公开活动与统计"""
+        """为真实分析流程提供确定的公开活动和统计"""
 
         def run_structured(self, **kwargs):
-            """发出可识别的活动；再沿用脱敏模板的结构化建议"""
+            """发出可识别的活动，再沿用脱敏模板的结构化建议"""
             kwargs["emit"]("activity", {"text": "已定位姓名与联系方式 api_key=private"})
             kwargs["emit"](
                 "usage", {"input_tokens": 321, "cached_input_tokens": 120, "output_tokens": 65}

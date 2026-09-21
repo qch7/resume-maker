@@ -6,7 +6,7 @@ export interface TemplateProblem {
   nodes: string[];
 }
 
-/** 合并全部阻止使用的问题；保留定位信息以免空 issues 隐藏试填错误 */
+/** 合并全部阻止使用的问题并保留定位信息 */
 export function reviewProblems(
   review: MappingReview | null,
 ): TemplateProblem[] {
@@ -34,7 +34,7 @@ export function reviewProblems(
     : [{ message: "模板检查尚未通过，请让 AI 继续检查并修复", nodes: [] }];
 }
 
-/** 在固定操作区展示首个具体原因；多项问题引导用户查看完整列表 */
+/** 在固定操作区展示首个具体原因，多项问题引导用户查看完整列表 */
 export function reviewProblemSummary(problems: TemplateProblem[]) {
   if (!problems.length) return "";
   return `${problems[0].message}${problems.length > 1 ? `（共 ${problems.length} 项问题）` : ""}`;

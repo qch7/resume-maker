@@ -5,7 +5,7 @@ import { api } from "../../shared/lib/api";
 import { flushDrafts } from "../../shared/lib/draftRegistry";
 import type { ProjectDetail } from "../../shared/types";
 
-/** 撤销前二次确认；锁定完整草稿集合；取消或并发冲突时保留原有输入 */
+/** 撤销时核对已确认的草稿集合并在取消或冲突时保留输入 */
 export default function DiscardChangesDialog({
   projectId,
   revisionId,
@@ -27,13 +27,13 @@ export default function DiscardChangesDialog({
   const [busy, setBusy] = useState(false);
   const submitting = useRef(false);
   useEffect(
-    /* 模态期间禁止继续编辑；先写完防抖草稿再读取确认基线 */ () => {
+    /* 模态期间禁止继续编辑，先写完防抖草稿再读取确认基线 */ () => {
       const element = dialog.current!;
       const trigger = document.activeElement;
       let active = true;
       element.showModal();
       void (
-        /* 确认只针对本次读取的版本；其他窗口后续修改会触发冲突 */ (async () => {
+        /* 确认只针对本次读取的版本，其他窗口后续修改会触发冲突 */ (async () => {
           try {
             await flushDrafts();
             const detail = await api<ProjectDetail>(
@@ -43,7 +43,7 @@ export default function DiscardChangesDialog({
               setVersions(
                 Object.fromEntries(
                   detail.working.drafts.map(
-                    /* 记录全部字段草稿的版本；新增或删除也必须参与校验 */ (
+                    /* 记录全部字段草稿的版本，新增或删除也必须参与校验 */ (
                       draft,
                     ) => [draft.field, draft.version],
                   ),
@@ -54,7 +54,7 @@ export default function DiscardChangesDialog({
           }
         })()
       );
-      return /* 关闭时不改写草稿；归还操作焦点 */ () => {
+      return /* 关闭时不改写草稿，归还操作焦点 */ () => {
         active = false;
         element.close();
         if (trigger instanceof HTMLElement && trigger.isConnected)
@@ -63,7 +63,7 @@ export default function DiscardChangesDialog({
     },
     [projectId, revisionId],
   );
-  /** 仅在用户二次确认后执行撤销；失败仍保留窗口和全部改动 */
+  /** 仅在用户二次确认后执行撤销，失败仍保留窗口和全部改动 */
   async function confirm() {
     if (!versions || submitting.current) return;
     submitting.current = true;

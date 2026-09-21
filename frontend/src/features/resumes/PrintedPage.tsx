@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { request } from "../../shared/lib/api";
-/** 加载受鉴权保护的实际分页图片；在卸载时回收浏览器对象 URL */
+/** 加载受鉴权保护的实际分页图片，在卸载时回收浏览器对象 URL */
 export default function PrintedPage({
   exportId,
   path,

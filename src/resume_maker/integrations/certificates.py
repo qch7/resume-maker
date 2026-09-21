@@ -1,4 +1,4 @@
-"""校验证书文件；生成本地分页预览和供视觉识别使用的图片"""
+"""校验证书文件，生成本地分页预览和供视觉识别使用的图片"""
 
 from io import BytesIO
 from pathlib import Path
@@ -15,7 +15,7 @@ IMAGE_FORMATS = {"PNG", "JPEG", "WEBP", "BMP", "TIFF"}
 
 
 def prepare_certificate(raw: bytes, filename: str, directory: Path) -> dict:
-    """按实际内容解码文件；限制页数与像素；原件和预览均使用固定文件名"""
+    """按实际内容解码文件，限制页数和像素，原件和预览均使用固定文件名"""
     suffix = Path(filename).suffix.lower()
     if suffix not in EXTENSIONS:
         raise Problem("支持 PDF、PNG、JPG、WebP、BMP 和 TIFF 文件。", 415)

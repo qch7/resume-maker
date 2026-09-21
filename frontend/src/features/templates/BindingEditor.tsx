@@ -2,7 +2,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { newBinding, nodeLabel } from "./mapping";
 import type { TemplateNode, TextBinding } from "./types";
 
-/** 核对原文和目标资料；位置调整收在详情中；常用流程不需要手选段落 */
+/** 核对原文和目标资料并在详情中调整位置 */
 export default function BindingEditor({
   fields,
   nodes,
@@ -19,10 +19,10 @@ export default function BindingEditor({
   advanced?: boolean;
 }) {
   const paragraphs = nodes.filter(
-    /* 仅真正空白的段落可补字段；照片容器不能作为空位 */ (node) =>
+    /* 只允许在没有照片等对象的空段落中补字段 */ (node) =>
       node.kind === "p" && (node.text || node.can_insert),
   );
-  /** 原位更新一条映射；保持其余字段的引文和顺序 */
+  /** 原位更新一条映射，保持其余字段的引文和顺序 */
   function update(index: number, value: TextBinding) {
     onChange(
       fields.map(

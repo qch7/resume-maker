@@ -21,12 +21,12 @@ from resume_maker.services.jobs import Jobs
 
 
 def body_text(path):
-    """按段落拼接文字；标签与内容允许分属不同字重的文字运行"""
+    """按段落拼接文字，标签和内容允许分属不同字重的文字运行"""
     return "\n".join(paragraph_text(node) for node in Document(path).element.body.iter(w("p")))
 
 
 def project_info():
-    """固定项和自定义项各含可见与隐藏内容；便于验证恢复不丢原值"""
+    """固定项和自定义项各含可见和隐藏内容，便于验证恢复不丢原值"""
     return {
         **experience("项目标题原值"),
         "period": "2025.01–2026.02",
@@ -46,7 +46,7 @@ def project_info():
 
 
 def test_project_info_drafts_publish_and_preserve_pinned_versions(catalog, project, populated):
-    """资料随版本发布并在重启后保留；简历引用的旧版本及隐藏原文不改变"""
+    """资料随版本发布并在重启后保留，简历引用的旧版本及隐藏原文不改变"""
     base, identifier = populated["id"], project["id"]
     pinned = catalog.save_resume(
         "旧引用", None, [ResumeItem(project_id=identifier, revision_id=base, highlight_ids=["one"])]
@@ -74,7 +74,7 @@ def test_project_info_drafts_publish_and_preserve_pinned_versions(catalog, proje
 
 
 def test_project_info_validation_and_old_revision_defaults():
-    """旧版本自动获得空设置；未知显隐字段和重复自定义标识必须拒绝"""
+    """旧版本自动获得空设置，未知显隐字段和重复自定义标识必须拒绝"""
     old = Experience.model_validate(experience())
     assert old.custom_fields == old.hidden_fields == []
     with pytest.raises(ValidationError):
@@ -87,7 +87,7 @@ def test_project_info_validation_and_old_revision_defaults():
 @pytest.mark.parametrize("layout", ["builtin", "body", "cell", "row", "details"])
 @pytest.mark.parametrize("hide_all", [False, True])
 def test_project_info_export_visibility_and_custom_fallback(tmp_path, layout, hide_all):
-    """内置、综合正文和独立字段模板都保留新增项；隐藏字段不泄漏且原始资料不变"""
+    """内置、综合正文和独立字段模板都保留新增项，隐藏字段不泄漏且原始资料不变"""
     source, output = tmp_path / "source.docx", tmp_path / "result.docx"
     value = project_info()
     if hide_all:
@@ -138,7 +138,7 @@ class ResettingProvider(FakeProvider):
     """模拟重新分析时未返回用户新增字段或显隐设置的模型"""
 
     def run(self, **kwargs):
-        """正常产生分析建议后清空扩展资料；验证服务会保留用户设置"""
+        """正常产生分析建议后清空扩展资料，验证服务会保留用户设置"""
         result = super().run(**kwargs)
         result.experience.hidden_fields = []
         result.experience.custom_fields = []
@@ -146,7 +146,7 @@ class ResettingProvider(FakeProvider):
 
 
 def test_reanalysis_preserves_user_defined_project_info(catalog, project, populated, tmp_path):
-    """采用 AI 整段建议时新增条目与显隐设置不被模型默认值覆盖"""
+    """采用 AI 整段建议时新增条目和显隐设置不被模型默认值覆盖"""
     base, identifier = populated["id"], project["id"]
     value = project_info()
     value["body_order"] = ["custom:link", "highlights", "role"]

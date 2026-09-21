@@ -7,7 +7,7 @@ from resume_maker.integrations.word.rendering import render_pages
 
 
 def test_vector_pages_preserve_page_sizes_and_outline_text(tmp_path):
-    """不同尺寸的 PDF 页面生成矢量轮廓以免字体替换且不把文字栅格化"""
+    """将不同尺寸的 PDF 页面转为矢量轮廓以避免字体替换"""
     pdf = tmp_path / "resume.pdf"
     with pymupdf.open() as document:
         for width, height in [(595, 842), (842, 595)]:

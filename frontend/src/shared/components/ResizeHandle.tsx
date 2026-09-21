@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { clamp } from "../lib/layout";
 
-/** 提供指针和键盘可访问的分隔条；限制尺寸范围并支持复位 */
+/** 提供指针和键盘可访问的分隔条，限制尺寸范围并支持复位 */
 export default function ResizeHandle({
   label,
   axis,
@@ -67,7 +67,7 @@ export default function ResizeHandle({
         }
       }
       onPointerUp={
-        /* 释放本次指针捕获；由捕获结束事件清理拖动状态 */ (event) => {
+        /* 释放本次指针捕获，由捕获结束事件清理拖动状态 */ (event) => {
           if (event.currentTarget.hasPointerCapture(event.pointerId))
             event.currentTarget.releasePointerCapture(event.pointerId);
         }
@@ -79,7 +79,7 @@ export default function ResizeHandle({
         }
       }
       onKeyDown={
-        /* 处理方向键与边界快捷键；提供无鼠标的尺寸调整 */ (event) => {
+        /* 处理方向键和边界快捷键，提供无鼠标的尺寸调整 */ (event) => {
           const increase = axis === "x" ? "ArrowRight" : "ArrowDown";
           const decrease = axis === "x" ? "ArrowLeft" : "ArrowUp";
           if (![increase, decrease, "Home", "End", "Enter"].includes(event.key))

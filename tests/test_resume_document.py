@@ -1,4 +1,4 @@
-"""完整简历资料的持久化、层级校验、完整保存与 Word 排版行为"""
+"""完整简历资料的持久化、层级校验、完整保存和 Word 排版行为"""
 
 from copy import deepcopy
 from zipfile import ZipFile
@@ -22,7 +22,7 @@ from resume_maker.services.documents import Documents
 
 
 def document_data():
-    """生成不含用户真实资料的完整简历；覆盖父栏目、子栏目与空栏目"""
+    """生成不含用户真实资料的完整简历，覆盖父栏目、子栏目和空栏目"""
     return {
         "personal": {
             "name": "测试同学",
@@ -64,7 +64,7 @@ def document_data():
 
 
 def test_profile_persists_across_restart_and_backup(catalog, tmp_path):
-    """完整资料可重启、备份恢复；保存时仍检查方案版本"""
+    """完整资料可重启、备份恢复，保存时仍检查方案版本"""
     content = ResumeDocument.model_validate(document_data())
     resume = catalog.save_resume("完整简历", None, [], document=content)
     restarted = Catalog(Database(catalog.db.path))
@@ -84,7 +84,7 @@ def test_profile_persists_across_restart_and_backup(catalog, tmp_path):
 
 
 def test_resume_save_replaces_document_instead_of_retaining_previous_fields(catalog):
-    """完整替换方案时按请求保存资料；空资料不会隐式保留上一次内容"""
+    """完整替换方案时按请求保存资料，空资料不会隐式保留上一次内容"""
     content = ResumeDocument.model_validate(document_data())
     resume = catalog.save_resume("完整简历", None, [], document=content)
     saved = catalog.save_resume("项目组合", None, [], resume["id"], resume["version"], None)
@@ -121,9 +121,9 @@ def test_invalid_hierarchy_is_rejected(change):
 def test_full_word_follows_sections_and_preserves_pinned_projects(
     catalog, project, populated, tmp_path, monkeypatch
 ):
-    """真实 DOCX 包包含抬头、分层资料及选中亮点；且排序、隐藏按方案生效"""
+    """真实 DOCX 包包含抬头、分层资料及选中亮点，且排序、隐藏按方案生效"""
     content = ResumeDocument.model_validate(document_data())
-    # 将专业技能放在教育背景之前且不改变教育下课程的归属
+    # 将专业技能移到教育背景前并保留课程归属
     content.sections.insert(0, content.sections.pop(3))
     resume = catalog.save_resume(
         "完整简历",
@@ -158,7 +158,7 @@ def test_full_word_follows_sections_and_preserves_pinned_projects(
 
 
 def test_profile_http_roundtrip_and_invalid_updates(tmp_path):
-    """通过真实 HTTP 请求保存和更新资料；拒绝坏层级且不覆盖原始方案"""
+    """通过 HTTP 保存资料并在层级无效时拒绝覆盖原方案"""
     headers = {"x-resume-token": "test-token"}
     with TestClient(create_app(Config(data_dir=tmp_path, token="test-token"))) as client:
         response = client.post(
@@ -196,7 +196,7 @@ def test_profile_http_roundtrip_and_invalid_updates(tmp_path):
         state = client.get("/api/state", headers=headers).json()
         assert state["resumes"][0]["document"]["personal"]["phone"] == "20000000000"
         assert state["resumes"][0]["document"]["sections"][1]["parent_id"] == "education"
-    # 重启后字段和整条显隐仍在；隐藏的资料原值保持可恢复
+    # 重启后字段和整条显隐仍在，隐藏的资料原值保持可恢复
     with TestClient(create_app(Config(data_dir=tmp_path, token="test-token"))) as client:
         data = client.get("/api/state", headers=headers).json()["resumes"][0]["document"]
         assert data["personal"]["hidden_fields"] == ["phone"]
@@ -217,7 +217,7 @@ def test_profile_http_roundtrip_and_invalid_updates(tmp_path):
 def test_project_children_persist_and_export_after_project_content(
     catalog, tmp_path, with_projects
 ):
-    """项目区也允许两级资料；空项目仍展示子栏目；父级隐藏时一并省略"""
+    """项目区也允许两级资料，空项目仍展示子栏目，父级隐藏时一并省略"""
     data = document_data()
     data["sections"][1]["parent_id"] = "projects"
     content = ResumeDocument.model_validate(data)
@@ -259,7 +259,7 @@ def test_project_children_persist_and_export_after_project_content(
 
 @pytest.mark.parametrize("parent_id", ["education", None])
 def test_word_deduplicates_course_titles_at_both_levels(tmp_path, parent_id):
-    """同名条目标题在子栏目和大栏目都不会重复；独立条目名称仍完整显示"""
+    """同名条目标题在子栏目和大栏目都不会重复，独立条目名称仍完整显示"""
     data = document_data()
     courses = data["sections"][1]
     courses["parent_id"] = parent_id
@@ -277,7 +277,7 @@ def test_word_deduplicates_course_titles_at_both_levels(tmp_path, parent_id):
 
 
 def test_word_omits_hidden_fields_rows_photos_and_empty_headings(tmp_path):
-    """真实 Word 文件不含隐藏文字与照片；全部隐藏的栏目不留下空标题"""
+    """真实 Word 文件不含隐藏文字和照片，全部隐藏的栏目不留下空标题"""
     data = document_data()
     personal = data["personal"]
     personal.update(job_title="隐藏的岗位", location="隐藏的城市", website="hidden.example.com")
@@ -308,7 +308,7 @@ def test_word_omits_hidden_fields_rows_photos_and_empty_headings(tmp_path):
 
 @pytest.mark.parametrize("target,field", [("personal", "unknown"), ("entry", "visible")])
 def test_visibility_rejects_unknown_field_names(target, field):
-    """显隐配置只能指向资料字段且不能借此覆盖条目标识或其他元数据"""
+    """显示设置只允许引用资料字段"""
     data = document_data()
     item = data["personal"] if target == "personal" else data["sections"][0]["entries"][0]
     item["hidden_fields"] = [field]
@@ -317,7 +317,7 @@ def test_visibility_rejects_unknown_field_names(target, field):
 
 
 def test_word_includes_custom_information_and_omits_empty_hidden_items(tmp_path):
-    """自定义信息可独立形成栏目正文；导出只使用可见完整项且保留原始资料"""
+    """自定义信息可独立形成栏目正文，导出只使用可见完整项且保留原始资料"""
     data = document_data()
     data["personal"]["custom_fields"] = [
         {"id": "city", "label": " 籍贯 ", "value": " 杭州 ", "visible": True},

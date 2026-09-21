@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 def data_directory() -> Path:
-    """源码运行默认使用项目 data 目录；安装包回退到用户目录；允许环境变量覆盖"""
+    """源码运行默认使用项目 data 目录，安装包回退到用户目录，允许环境变量覆盖"""
     if override := os.environ.get("RESUME_MAKER_DATA_DIR"):
         return Path(override).expanduser().resolve()
     source = Path(__file__).resolve().parents[2]
@@ -18,7 +18,7 @@ def data_directory() -> Path:
 
 
 def frontend_directory() -> Path:
-    """优先使用显式资源目录；其次使用 wheel 内资源；开发时回退到仓库构建目录"""
+    """优先使用显式资源目录，其次使用 wheel 内资源，开发时回退到仓库构建目录"""
     if override := os.environ.get("RESUME_MAKER_FRONTEND_DIR"):
         return Path(override).expanduser().resolve()
     package = Path(__file__).resolve().parents[1] / "web"
@@ -29,7 +29,7 @@ def frontend_directory() -> Path:
 
 @dataclass
 class Config:
-    """运行配置：目录与令牌按实例生成；个人数据目录不纳入 Git"""
+    """运行配置：目录和令牌按实例生成，个人数据目录不纳入 Git"""
 
     data_dir: Path = field(default_factory=data_directory)
     token: str = field(default_factory=lambda: secrets.token_urlsafe(32))

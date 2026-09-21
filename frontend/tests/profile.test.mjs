@@ -17,7 +17,7 @@ import {
   acceptSavedComposition,
 } from "../src/features/resumes/composition.ts";
 
-test("saving preserves newer typing and never switches away from another resume", /* 验证保存请求期间继续输入与切换方案不会被迟到的服务器响应覆盖 */ () => {
+test("saving preserves newer typing and never switches away from another resume", /* 验证保存请求期间继续输入和切换方案不会被迟到的服务器响应覆盖 */ () => {
   const submitted = {
     id: "",
     name: "简历",
@@ -39,7 +39,7 @@ test("saving preserves newer typing and never switches away from another resume"
   assert.equal(acceptSavedComposition(other, submitted, saved), other);
 });
 
-test("custom information filters empty and hidden items without modifying stored values", /* 验证自定义信息按顺序参与排版；空项和隐藏项保留在草稿中 */ () => {
+test("custom information filters empty and hidden items without modifying stored values", /* 验证自定义信息按顺序参与排版，空项和隐藏项保留在草稿中 */ () => {
   const fields = [
     { id: "city", label: " 籍贯 ", value: " 杭州 ", visible: true },
     { id: "empty-name", label: " ", value: "不显示", visible: true },
@@ -57,7 +57,7 @@ test("custom information filters empty and hidden items without modifying stored
   assert.equal(visibleCustomFields(fields)[1].value, "保留原文");
 });
 
-test("custom-only entry content participates in section visibility", /* 验证只填自定义项的资料不会丢失；隐藏整条经历时也会隐藏其扩展内容 */ () => {
+test("custom-only entry content participates in section visibility", /* 仅填写自定义项时保留条目并随整条显隐控制扩展内容 */ () => {
   const { sections } = newDocument();
   const entry = {
     visible: true,
@@ -85,10 +85,10 @@ test("custom-only entry content participates in section visibility", /* 验证�
   assert.equal(entry.custom_fields[0].value, "智能系统");
 });
 
-test("personal visibility preserves values and restores them without retyping", /* 验证所有个人字段可隐藏恢复；字段原文保持不变 */ () => {
+test("personal visibility preserves values and restores them without retyping", /* 验证所有个人字段可隐藏恢复，字段原文保持不变 */ () => {
   const original = newDocument().personal;
   const fields = Object.keys(original).filter(
-    /* 只操作文本字段；显隐和自定义信息是独立元数据 */ (key) =>
+    /* 只操作文本字段，显隐和自定义信息是独立元数据 */ (key) =>
       typeof original[key] === "string",
   );
   for (const key of fields) original[key] = `value-${key}`;
@@ -104,7 +104,7 @@ test("personal visibility preserves values and restores them without retyping", 
   assert.equal(displayedPersonal(hidden).email, "");
 });
 
-test("course headings are deduplicated in both levels without changing stored titles", /* 验证子栏目与大栏目都只保留一层同名标题且不误删不同条目标题 */ () => {
+test("course headings are deduplicated in both levels without changing stored titles", /* 子栏目和大栏目各保留一层同名标题并保留不同的条目标题 */ () => {
   const section = newDocument().sections[1];
   section.entries = [
     {
@@ -141,7 +141,7 @@ test("course headings are deduplicated in both levels without changing stored ti
   );
 });
 
-test("hidden entry fields and rows never leave orphan headings", /* 验证条目与字段显隐可组合；全部隐藏时连同空父子栏目标题省略 */ () => {
+test("hidden entry fields and rows never leave orphan headings", /* 验证条目和字段显隐可组合，全部隐藏时连同空父子栏目标题省略 */ () => {
   const { sections } = newDocument();
   const course = {
     visible: true,
@@ -174,7 +174,7 @@ test("hidden entry fields and rows never leave orphan headings", /* 验证条目
   assert.equal(filledEntries(sections[1]).length, 2);
 });
 
-test("reordering a major section carries its children without changing their content", /* 验证大栏目排序与子栏目归属独立并保持原数据不变 */ () => {
+test("reordering a major section carries its children without changing their content", /* 验证大栏目排序和子栏目归属独立并保持原数据不变 */ () => {
   const original = newDocument();
   const sections = moveSection(original.sections, null, 0, 2);
   assert.deepEqual(
@@ -186,7 +186,7 @@ test("reordering a major section carries its children without changing their con
   assert.equal(moveSection(sections, null, -1, 1), sections);
 });
 
-test("removing a parent keeps child data and the projects section can only be hidden", /* 验证父栏目删除不连带丢失课程资料；项目区不能被删除 */ () => {
+test("removing a parent keeps child data and the projects section can only be hidden", /* 验证父栏目删除不连带丢失课程资料，项目区不能被删除 */ () => {
   const original = newDocument().sections;
   original[1].entries.push({
     visible: true,
@@ -207,7 +207,7 @@ test("removing a parent keeps child data and the projects section can only be hi
   assert.equal(removeSection(sections, "projects").length, sections.length);
 });
 
-test("project sections include child content even without selected projects", /* 所有大栏目都允许子栏目；项目区空白、显隐和排序仍遵循同样规则 */ () => {
+test("project sections include child content even without selected projects", /* 所有大栏目都允许子栏目，项目区空白、显隐和排序仍遵循同样规则 */ () => {
   const { sections } = newDocument();
   const project = sections[2];
   const child = sections[1];
@@ -236,7 +236,7 @@ test("project sections include child content even without selected projects", /*
   assert.equal(hasSectionContent(project, sections, 1), false);
 });
 
-test("hidden and empty fields do not leave orphan headings in the preview", /* 验证空白、子栏目内容与父级显隐共同决定成品内容 */ () => {
+test("hidden and empty fields do not leave orphan headings in the preview", /* 验证空白、子栏目内容和父级显隐共同决定成品内容 */ () => {
   const { sections } = newDocument();
   assert.equal(hasSectionContent(sections[0], sections, 0), false);
   sections[1].entries.push({
@@ -254,7 +254,7 @@ test("hidden and empty fields do not leave orphan headings in the preview", /* �
   assert.equal(hasSectionContent(sections[0], sections, 0), false);
 });
 
-test("profile and hierarchy edits invalidate saved state and the previous export", /* 验证只改资料或栏目顺序也必须重新保存与导出；旧方案仍可比较 */ () => {
+test("profile and hierarchy edits invalidate saved state and the previous export", /* 验证只改资料或栏目顺序也必须重新保存和导出，旧方案仍可比较 */ () => {
   const base = {
     id: "resume",
     name: "简历",

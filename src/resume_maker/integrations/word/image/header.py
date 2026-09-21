@@ -1,4 +1,4 @@
-"""检查图片恢复中资料区与重复栏目是否共用容器以免通过映射检查却跳过顶部重排"""
+"""检查图片恢复中资料区和重复栏目是否共用容器以免通过映射检查却跳过顶部重排"""
 
 from resume_maker.core.errors import Problem
 from resume_maker.integrations.word.ooxml import w
@@ -6,7 +6,7 @@ from resume_maker.integrations.word.templates.layout import child_in
 
 
 def check_image_header(package, plan):
-    """独立页首表格不与经历重复区混用；带栏目标题的真正双栏容器继续保留原结构"""
+    """独立页首表格单独处理并保留含栏目标题的双栏结构"""
     body = package.parts["word/document.xml"].find(w("body"))
     titles = [
         package.node(field.node)

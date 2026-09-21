@@ -1,4 +1,4 @@
-"""重复样本须表示一条记录；标量字段多位置不能悄悄复制整条内容。"""
+"""重复样本须表示一条记录，标量字段多位置不能悄悄复制整条内容"""
 
 import json
 import threading
@@ -16,7 +16,7 @@ from resume_maker.services.templates.analysis import analyze_plan
 
 
 def repeated_sample(path, layout, target):
-    """构造两条独立样例被误选为一条的段落、单元格或整行模板。"""
+    """构造两条独立样例被误选为一条的段落、单元格或整行模板"""
     doc = Document()
     doc.add_paragraph("Research capabilities")
     if layout == "rows":
@@ -75,7 +75,7 @@ def repeated_sample(path, layout, target):
 @pytest.mark.parametrize("layout", ["body", "cell", "rows"])
 @pytest.mark.parametrize("target", ["details", "title"])
 def test_duplicate_scalar_record_fields_block_export(tmp_path, layout, target):
-    """多条样例合并后会让每条新记录出现两次，须在试填和导出前拒绝。"""
+    """多条样例合并后会让每条新记录出现两次，须在试填和导出前拒绝"""
     source, output = tmp_path / "original.docx", tmp_path / "filled.docx"
     package, plan, document = repeated_sample(source, layout, target)
     review = package.review(plan)
@@ -87,14 +87,14 @@ def test_duplicate_scalar_record_fields_block_export(tmp_path, layout, target):
 
 
 def test_multiple_paragraphs_with_distinct_fields_remain_valid(tmp_path):
-    """一条记录本来可含标题和正文，不能仅因样本占多个段落就拒绝。"""
+    """一条记录本来可含标题和正文，不能仅因样本占多个段落就拒绝"""
     package, plan, _ = repeated_sample(tmp_path / "original.docx", "body", "title")
     plan.repeats[0].fields[1].target = "details"
     assert package.review(plan)["ready"]
 
 
 def test_repeated_personal_fields_are_not_record_slots(tmp_path):
-    """个人信息在正文和页眉重复显示不属于重复记录的错误边界。"""
+    """个人信息在正文和页眉重复显示不属于重复记录的错误边界"""
     source = tmp_path / "original.docx"
     doc = Document()
     doc.add_paragraph("Old name")
@@ -112,7 +112,7 @@ def test_repeated_personal_fields_are_not_record_slots(tmp_path):
 @pytest.mark.parametrize("repair", [True, False])
 @pytest.mark.parametrize("invalid", ["duplicate", "quote"])
 def test_duplicate_record_feedback_is_bounded_and_reusable(tmp_path, monkeypatch, repair, invalid):
-    """反馈明确后可缩小样本；持续返回错误方案时不得接受或无限重试。"""
+    """反馈明确后可缩小样本，持续返回错误方案时不得接受或无限重试"""
     source = tmp_path / "original.docx"
     package, bad, document = repeated_sample(source, "body", "details")
     good = bad.model_copy(deep=True)
@@ -126,14 +126,14 @@ def test_duplicate_record_feedback_is_bounded_and_reusable(tmp_path, monkeypatch
     )
 
     class Provider:
-        """模拟先错误选择样本，再根据同一契约返回映射。"""
+        """模拟先错误选择样本，再根据同一契约返回映射"""
 
         def __init__(self):
-            """记录实际请求而不调用任何网络供应商。"""
+            """记录模拟请求"""
             self.calls = []
 
         def run_structured(self, **kwargs):
-            """验证后续请求携带具体错误，其他映射保持原样。"""
+            """验证后续请求携带具体错误，其他映射保持原样"""
             request = json.loads(kwargs["prompt"].splitlines()[-1])
             if self.calls:
                 expected_error = "同一条记录" if invalid == "duplicate" else "找不到引文"

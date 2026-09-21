@@ -9,7 +9,7 @@ export interface HonorField {
   max: number;
 }
 
-// 荣誉库和个人信息共用字段说明；名称与奖项保持独立
+// 荣誉库和个人信息共用字段说明，名称和奖项保持独立
 export const HONOR_FIELDS: HonorField[] = [
   {
     key: "name",

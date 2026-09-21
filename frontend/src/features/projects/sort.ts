@@ -5,15 +5,15 @@ const names = new Intl.Collator("zh-CN", {
   numeric: true,
   sensitivity: "base",
 });
-/** 把有效日期转换为排序时间戳；缺失或无效日期按零处理 */
+/** 把有效日期转换为排序时间戳，缺失或无效日期按零处理 */
 const timestamp = (value?: string) => Date.parse(value ?? "") || 0;
 
-/** 校验缓存的排序模式；未知值回退为最近修改 */
+/** 校验缓存的排序模式，未知值回退为最近修改 */
 export function restoreSidebarSort(value: unknown): SidebarSort {
   return value === "asc" || value === "desc" ? value : "recent";
 }
 
-/** 导航到子项目时展开其祖先分组；保留其他项目的折叠偏好 */
+/** 导航到子项目时展开其祖先分组，保留其他项目的折叠偏好 */
 export function expandProjectPath(
   projects: Project[],
   id: string,
@@ -32,7 +32,7 @@ export function expandProjectPath(
   return next;
 }
 
-/** 聚合项目与会话活动时间；按最近修改或自然名称稳定排序 */
+/** 聚合项目和会话活动时间，按最近修改或自然名称稳定排序 */
 export function sortSidebar(
   projects: Project[],
   conversations: Conversation[],
@@ -55,7 +55,7 @@ export function sortSidebar(
   }
   const byId = new Map(
     projects.map(
-      /* 建立父子查找表；使整体项目继承子项目的最近活动时间 */ (p) => [p.id, p],
+      /* 建立父子查找表，使整体项目继承子项目的最近活动时间 */ (p) => [p.id, p],
     ),
   );
   for (const project of projects) {
@@ -70,7 +70,7 @@ export function sortSidebar(
       parentId = byId.get(parentId)?.parent_id;
     }
   }
-  /** 按所选模式比较条目；同名同时间时以稳定标识保证顺序确定 */
+  /** 按所选模式比较条目，同名同时间时以稳定标识保证顺序确定 */
   function compare(
     a: { id: string },
     b: { id: string },
@@ -86,7 +86,7 @@ export function sortSidebar(
     );
   }
   const sortedProjects = [...projects].sort(
-    /* 使用稳定比较规则排列条目以免修改输入列表 */ (a, b) =>
+    /* 复制列表后稳定排序 */ (a, b) =>
       compare(
         a,
         b,
@@ -99,11 +99,11 @@ export function sortSidebar(
   return {
     projects: sortedProjects,
     rootProjects: sortedProjects.filter(
-      /* 缺失父项的项目也保留顶层入口；导航与默认选择共用此顺序 */ (p) =>
+      /* 缺失父项的项目也保留顶层入口，导航和默认选择共用此顺序 */ (p) =>
         !p.parent_id || !byId.has(p.parent_id),
     ),
     conversations: [...conversations].sort(
-      /* 使用稳定比较规则排列条目以免修改输入列表 */ (a, b) =>
+      /* 复制列表后稳定排序 */ (a, b) =>
         compare(
           a,
           b,

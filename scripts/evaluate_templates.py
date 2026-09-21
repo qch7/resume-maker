@@ -1,7 +1,7 @@
-"""显式授权后，用 CC Switch 中指定供应商评测模板；配置、会话与产物完全隔离。
+"""显式授权后，用 CC Switch 中指定供应商评测模板，配置、会话和产物完全隔离。
 
 密钥只传入 CLI 子进程环境，不保存到报告、命令行或测试配置。
-正式 SQLite 数据库以只读方式打开，模型不共享会话或映射缓存。
+正式 SQLite 数据库以只读方式打开，模型不共享会话或映射缓存
 """
 
 import argparse
@@ -30,17 +30,17 @@ from resume_maker.services.templates.analysis import analyze_plan
 
 
 def save(path, value):
-    """保存不含供应商认证的评测数据。"""
+    """保存不含供应商认证的评测数据"""
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def readonly(path):
-    """以 SQLite 只读连接保护正式数据库。"""
+    """以 SQLite 只读连接保护正式数据库"""
     return sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)
 
 
 def profile(path, resume_id):
-    """取得当前简历、固定项目版本及同步荣誉的只读快照。"""
+    """取得当前简历、固定项目版本及同步荣誉的只读快照"""
     with readonly(path) as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute(
@@ -68,7 +68,7 @@ def profile(path, resume_id):
 
 
 def isolated_provider(database, name, directory):
-    """只读提取指定配置；不执行 CC Switch 切换，也不复制插件、钩子或全局认证。"""
+    """从 CC Switch 只读提取指定供应商配置"""
     with readonly(database) as conn:
         rows = conn.execute(
             "SELECT settings_config FROM providers WHERE app_type='codex' AND name=?", (name,)
@@ -89,7 +89,7 @@ def isolated_provider(database, name, directory):
         reasoning_effort=config.get("model_reasoning_effort", ""),
         timeout_seconds=600,
     )
-    # JSON 字符串的引号与转义可用于此处的 TOML 基本字符串，不经过 shell。
+    # JSON 字符串的引号和转义可用于此处的 TOML 基本字符串，不经过 shell
     quote = json.dumps
     lines = [
         'model_provider = "evaluation"',
@@ -104,7 +104,7 @@ def isolated_provider(database, name, directory):
         catalog_source = Path.home() / ".codex" / catalog_source
     if config.get("model_catalog_json") and catalog_source.is_file():
         catalog = home / "models.json"
-        # modelCatalog 是 CC Switch 编辑表单；CLI 使用它生成的完整模型目录。
+        # CLI 读取根据 modelCatalog 表单生成的完整模型目录
         save(catalog, json.loads(catalog_source.read_text(encoding="utf-8")))
         lines.append(f"model_catalog_json = {quote(str(catalog))}")
     lines.extend(
@@ -122,15 +122,15 @@ def isolated_provider(database, name, directory):
 
 
 class RecordedProvider(CodexProvider):
-    """记录实际发给模型的证据和原始映射，便于区分模型错误和程序补全。"""
+    """记录实际发给模型的证据和原始映射，便于区分模型错误和程序补全"""
 
     def __init__(self, environment, directory):
-        """配置仅属于本次模型和模板的独立会话目录。"""
+        """配置仅属于本次模型和模板的独立会话目录"""
         super().__init__(environment=environment)
         self.directory, self.calls = directory, 0
 
     def run_structured(self, **kwargs):
-        """保存每轮输入输出并通过同一生产 Provider 调用模型。"""
+        """保存每轮输入输出并通过同一生产 Provider 调用模型"""
         self.calls += 1
         number = self.calls
         snapshot = kwargs["workspace"] / "original.docx"
@@ -158,14 +158,14 @@ class RecordedProvider(CodexProvider):
 
 
 def normalized(text):
-    """去除排版换行和空格以核验真实文本。"""
+    """去除排版换行和空格以核验真实文本"""
     return "".join(text.split())
 
 
 def inspect_output(pdf, document, projects):
-    """内容检查独立于映射的 ready；记录页面与姓名/栏目位置供视觉验收。"""
+    """独立检查试填内容并记录页码、姓名和栏目位置"""
     with pymupdf.open(pdf) as rendered:
-        # 原生浮动标题可能最后写入 PDF 内容流，跨页正文须同时按页面阅读顺序检查。
+        # 原生浮动标题可能最后写入 PDF 内容流，跨页正文须同时按页面阅读顺序检查
         combined = [
             normalized("\n".join(page.get_text(sort=sort) for page in rendered))
             for sort in (False, True)
@@ -193,7 +193,7 @@ def inspect_output(pdf, document, projects):
                     "highlights",
                     "custom_fields",
                 ):
-                    # 项目 details 是带程序标签的派生串；各原始字段已分别检查，标签可由模板决定。
+                    # details 包含可变标签，因此按原始字段分别检查内容
                     if section.kind == "projects" and key == "details":
                         continue
                     value = record.get(key)
@@ -229,7 +229,7 @@ def inspect_output(pdf, document, projects):
 
 
 def inspect_record_counts(path, document, projects):
-    """按资料允许的总出现次数检查记录标识；不同条目共用同一值不属于多填。"""
+    """按资料允许的总出现次数检查记录标识，不同条目共用同一值不属于多填"""
     values = [
         value
         for key, value in personal_values(document).items()
@@ -280,7 +280,7 @@ def inspect_record_counts(path, document, projects):
 
 
 def accepted_output(report):
-    """只有实际渲染并通过独立内容检查的映射才算成功；ready 本身不足以验收。"""
+    """只有实际渲染并通过独立内容检查的映射才算成功，ready 本身不足以验收"""
     check = report.get("content_check", {})
     return bool(
         report.get("ready")
@@ -296,7 +296,7 @@ def accepted_output(report):
 
 
 def evaluate(args, supplier, source, document, projects):
-    """完成单份模板的真实识别、生成、渲染和独立内容检查。"""
+    """完成单份模板的真实识别、生成、渲染和独立内容检查"""
     directory = args.output / supplier / source.stem
     directory.mkdir(parents=True, exist_ok=False)
     environment, settings = isolated_provider(args.cc_switch_db, supplier, directory)
@@ -306,7 +306,7 @@ def evaluate(args, supplier, source, document, projects):
     started = time.monotonic()
 
     def emit(kind, data):
-        """记录公开事件且不记录供应商环境或认证。"""
+        """仅记录公开事件"""
         if kind in {"activity", "metrics", "usage", "thread"}:
             events.append(
                 {"kind": kind, "data": data, "seconds": round(time.monotonic() - started, 2)}
@@ -353,7 +353,7 @@ def evaluate(args, supplier, source, document, projects):
                     directory / "resume.pdf", document, projects
                 )
     except Exception as exc:
-        # 不记录进程环境、配置或请求头；异常可能含认证值时替换后再落盘。
+        # 不记录进程环境、配置或请求头，异常可能含认证值时替换后再落盘
         report["error"] = str(exc).replace(environment["RESUME_EVALUATION_API_KEY"], "[redacted]")
     report.update(
         seconds=round(time.monotonic() - started, 2),
@@ -367,7 +367,7 @@ def evaluate(args, supplier, source, document, projects):
 
 
 def main():
-    """显式指定输入、供应商和产物目录后启动评测矩阵。"""
+    """显式指定输入、供应商和产物目录后启动评测矩阵"""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cc-switch-db", type=Path, required=True)
     parser.add_argument("--data-db", type=Path, required=True)

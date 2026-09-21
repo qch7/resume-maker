@@ -1,4 +1,4 @@
-"""模板分析、映射核对、试填与登记；复用现有 Provider 并支持取消"""
+"""模板分析、映射核对、试填和登记，复用现有 Provider 并支持取消"""
 
 import threading
 import time
@@ -25,10 +25,10 @@ from resume_maker.services.templates.cache import cache_path, cached_plan, remem
 
 
 class Templates:
-    """管理独立模板分析；分析结果经核对后才进入已保存模板列表"""
+    """管理独立模板分析，分析结果经核对后才进入已保存模板列表"""
 
     def __init__(self, catalog: Catalog, data_dir: Path, provider: Provider):
-        """保存实例依赖和受锁保护的任务状态且不在导入时启动线程"""
+        """初始化实例依赖和受锁保护的任务状态"""
         self.catalog, self.db, self.data_dir, self.provider = (
             catalog,
             catalog.db,
@@ -45,12 +45,12 @@ class Templates:
     def analyze(
         self, path: Path, document: ResumeDocument, items: list[ResumeItem] | None = None
     ) -> dict:
-        """先复制源文档为受控快照；再异步分析；源文件后续变化不影响确认结果"""
+        """先复制源文档为受控快照，再异步分析，源文件后续变化不影响确认结果"""
         path = path.expanduser().resolve(strict=True)
         return self._start(None, path.name, document, items or [], raw=path.read_bytes())
 
     def repair(self, identifier, plan, document, items, feedback=""):
-        """基于当前人工方案另开修正任务；原建议仍保留且不会被失败覆盖"""
+        """根据当前人工方案新建独立修正任务"""
         with self.lock:
             task = self._start(
                 TemplatePackage(self.source(identifier)),
@@ -64,7 +64,7 @@ class Templates:
             return task
 
     def _start(self, package, file_name, document, items, initial=None, feedback="", raw=None):
-        """统一准备分析副本与异步任务；校验项目引用后才调用模型"""
+        """统一准备分析副本和异步任务，校验项目引用后才调用模型"""
         inventory = package.inventory() if package else {"nodes": [], "warnings": [], "notices": []}
         projects = self.projects(items)
         with self.lock:
@@ -114,10 +114,10 @@ class Templates:
     def _analyze(
         self, identifier, directory, document, projects, settings, flag, initial, feedback
     ):
-        """执行一次受超时控制的模型分析；取消或失败均不能登记模板"""
+        """执行一次受超时控制的模型分析，取消或失败均不能登记模板"""
 
         def emit(kind, data):
-            """记录有界的公开活动和计量；取消后不再接受迟到事件"""
+            """记录有界的公开活动和计量，取消后不再接受迟到事件"""
             with self.lock:
                 task = self.tasks[identifier]
                 if task["status"] != "running" or flag.is_set():
@@ -180,7 +180,7 @@ class Templates:
                 plan, review = hit
                 review = check_trial(source, plan, review, document, projects)
                 if not review["ready"]:
-                    # 同字段的新资料仍可能触发排版约束；旧缓存失败时必须进入自动修正
+                    # 同字段的新资料仍可能触发排版约束，旧缓存失败时必须进入自动修正
                     initial, hit = plan, None
                     emit(
                         "activity",
@@ -207,7 +207,7 @@ class Templates:
                     feedback,
                 )
             review = check_trial(source, plan, review, document, projects)
-            # 自动补位置会重新编号；结果清单必须读取同一份新快照；旧源文件不能复用新编号缓存
+            # 自动补位置会重新编号，结果清单必须读取同一份新快照，旧源文件不能复用新编号缓存
             inventory = TemplatePackage(source).inventory()
             with self.lock:
                 if flag.is_set():
@@ -248,13 +248,13 @@ class Templates:
                 )
 
     def get(self, identifier: str) -> dict:
-        """读取当前实例的分析结果；关闭应用后需重新分析；已登记模板不受影响"""
+        """读取当前实例的分析结果，关闭应用后需重新分析，已登记模板不受影响"""
         with self.lock:
             task = need(self.tasks.get(identifier), "模板分析已不存在，请重新分析。")
             return {**deepcopy(task), "elapsed_ms": self._elapsed(task)}
 
     def _elapsed(self, task):
-        """运行时使用单调时钟；完成或取消后冻结耗时；调用方持有状态锁"""
+        """运行时使用单调时钟，完成或取消后冻结耗时，调用方持有状态锁"""
         return (
             round((time.monotonic() - self.started[task["id"]]) * 1000)
             if task["status"] == "running"
@@ -262,7 +262,7 @@ class Templates:
         )
 
     def progress(self, identifier, after=0):
-        """仅返回轻量进度与游标之后的活动且不复制或传输模板清单和映射"""
+        """仅返回任务进度和游标之后的活动"""
         with self.lock:
             task = need(self.tasks.get(identifier), "模板分析已不存在，请重新分析。")
             value = {
@@ -286,12 +286,12 @@ class Templates:
             return value
 
     def open(self, template_id: str, document=None, items=None) -> dict:
-        """按当前资料补齐独立编辑快照且不调用 AI；也不修改原版本及简历引用"""
+        """按当前资料补齐独立编辑快照"""
         with self.lock:
             return self._open(template_id, document, items)
 
     def _open(self, template_id, document, items):
-        """持有产物锁时打开模板以免永久清理与编辑副本创建交错"""
+        """持有产物锁时打开模板以免永久清理和编辑副本创建交错"""
         template = self.catalog.template(template_id)
         mapping = template["mapping"]
         source = self.data_dir / "templates" / template["id"] / "template.docx"
@@ -317,7 +317,7 @@ class Templates:
             identifier = uid()
             directory = self.data_dir / "workspaces" / f"template-{identifier}"
             directory.mkdir(parents=True)
-            # 写回经过哈希核验的字节；之后的人工调整仅作用于这个副本
+            # 写回经过哈希核验的字节，之后的人工调整仅作用于这个副本
             (directory / "original.docx").write_bytes(data)
             task = {
                 **new_progress(),
@@ -343,7 +343,7 @@ class Templates:
             return deepcopy(task)
 
     def cancel(self, identifier: str) -> dict:
-        """取消尚未结束的分析；迟到的模型结果不能重新发布"""
+        """取消尚未结束的分析，迟到的模型结果不能重新发布"""
         with self.lock:
             task = need(self.tasks.get(identifier), "模板分析不存在。")
             if task["status"] == "running":
@@ -353,7 +353,7 @@ class Templates:
         return self.get(identifier)
 
     def source(self, identifier: str) -> Path:
-        """确认任务属于当前实例且分析完成；再取得内部快照路径"""
+        """确认任务属于当前实例且分析完成，再取得内部快照路径"""
         if self.get(identifier)["status"] != "completed":
             raise Problem("请先完成模板分析。", 409)
         return self.data_dir / "workspaces" / f"template-{identifier}" / "original.docx"
@@ -365,7 +365,7 @@ class Templates:
         document: ResumeDocument | None = None,
         items: list[ResumeItem] | None = None,
     ) -> dict:
-        """在内存副本按导出规则补位后校验且不改任务源文件或用户正在编辑的映射"""
+        """在内存副本中按导出规则补位并校验"""
         package = TemplatePackage(self.source(identifier))
         if document is None:
             return package.review(plan)
@@ -383,12 +383,12 @@ class Templates:
         document: ResumeDocument,
         items: list[ResumeItem],
     ) -> dict:
-        """登记核对过的完整模板；原文件和映射一并保留供重复导出与备份"""
+        """登记核对过的完整模板，原文件和映射一并保留供重复导出和备份"""
         with self.lock:
             return self._save(identifier, name, plan, document, items)
 
     def _save(self, identifier, name, plan, document, items):
-        """保存期间持有产物锁并登记识别缓存与工作目录供回收站精确清理"""
+        """保存期间持有产物锁并登记识别缓存和工作目录供回收站精确清理"""
         source = self.source(identifier)
         projects = self.projects(items)
         package, plan, _ = complete_template(TemplatePackage(source), plan, document, projects)
@@ -429,15 +429,15 @@ class Templates:
     def preview(
         self, identifier: str, plan: TemplatePlan, document: ResumeDocument, items: list[ResumeItem]
     ) -> dict:
-        """使用当前资料试填；校验固定引用与选择后生成 Word 和可用的分页预览"""
+        """使用当前资料试填，校验固定引用和选择后生成 Word 和可用的分页预览"""
         with self.lock:
             return self._preview(identifier, plan, document, items)
 
     def _preview(self, identifier, plan, document, items):
-        """试填与永久清理串行以防删除后迟到的预览重新创建产物"""
+        """试填和永久清理串行以防删除后迟到的预览重新创建产物"""
         source = self.source(identifier)
         projects = self.projects(items)
-        # 预览文件使用独立标识；迟到响应或新预览不会覆盖正在查看的文件
+        # 预览文件使用独立标识，迟到响应或新预览不会覆盖正在查看的文件
         preview_id = uid()
         directory = source.parent / preview_id
         directory.mkdir()
@@ -452,7 +452,7 @@ class Templates:
         return {"id": preview_id, "pages": pages, "render_error": error}
 
     def projects(self, items: list[ResumeItem]) -> list[dict]:
-        """校验固定项目和亮点引用；保存与试填使用同一份资料覆盖规则"""
+        """校验固定项目和亮点引用，保存和试填使用同一份资料覆盖规则"""
         if len({item.project_id for item in items}) != len(items):
             raise Problem("项目引用不能重复。")
         projects = []
@@ -477,7 +477,7 @@ class Templates:
 
 
 def new_progress():
-    """为每个任务分配独立进度容器以免共享活动列表与统计"""
+    """为每个任务分配独立进度容器以免共享活动列表和统计"""
     return {
         "phase": "prepare",
         "round": 0,
@@ -492,7 +492,7 @@ def new_progress():
 
 
 def analysis_record(task):
-    """只保存有界的公开活动与识别统计且不复制临时标识、模板原文或当前个人资料"""
+    """限量保存公开活动和识别统计"""
     return {
         key: deepcopy(task[key])
         for key in (*new_progress(), "attempts", "repair_error")

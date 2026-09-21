@@ -13,7 +13,7 @@ from resume_maker.services.templates.library import TemplateLibrary
 
 
 def test_library_persists_and_category_deletion_keeps_likes(tmp_path):
-    """收藏和分类跨实例保留；删除分类不删除模板或取消收藏"""
+    """收藏和分类跨实例保留，删除分类不删除模板或取消收藏"""
     config = Config(data_dir=tmp_path / "data", token="test")
     headers = {"x-resume-token": "test"}
     with TestClient(create_app(config)) as client:
@@ -46,7 +46,7 @@ def test_library_persists_and_category_deletion_keeps_likes(tmp_path):
 
 
 def test_library_validation_and_independent_updates(catalog, tmp_path):
-    """新分类校验空白与重名并发修改分类和收藏互不覆盖"""
+    """新分类校验空白和重名并发修改分类和收藏互不覆盖"""
     service = TemplateLibrary(catalog, tmp_path / "data")
     category = service.create_category(" 技术 ")["categories"][0]["id"]
     for name in (" ", "技术", "未分类", "全部模板", "我的喜欢", "回收站"):
@@ -67,7 +67,7 @@ def test_library_validation_and_independent_updates(catalog, tmp_path):
 
 
 def test_template_rename_persists_without_changing_references(tmp_path):
-    """已使用模板可改名；名称跨重启保留；模板文件、映射与所有简历数据不变"""
+    """已使用模板可改名，名称跨重启保留，模板文件、映射和所有简历数据不变"""
     config = Config(data_dir=tmp_path / "data", token="test")
     headers = {"x-resume-token": "test"}
     with TestClient(create_app(config)) as client:
@@ -113,7 +113,7 @@ def test_template_rename_persists_without_changing_references(tmp_path):
 
 
 def test_template_rename_validation_is_atomic(tmp_path):
-    """非法名称、内置模板及回收站拒绝改名；联合修改失败时不部分保存"""
+    """非法名称、内置模板及回收站拒绝改名，联合修改失败时不部分保存"""
     config = Config(data_dir=tmp_path / "data", token="test")
     headers = {"x-resume-token": "test"}
     with TestClient(create_app(config)) as client:
@@ -143,7 +143,7 @@ def test_template_rename_validation_is_atomic(tmp_path):
 
 
 def test_thumbnail_cache_and_original_are_isolated(catalog, tmp_path, monkeypatch):
-    """重复及并发读取只渲染一次；原始文件和数据库模板映射不变"""
+    """重复及并发读取只渲染一次，原始文件和数据库模板映射不变"""
     data_dir = tmp_path / "data"
     source = register_template(catalog, data_dir)
     original = source.read_bytes()
@@ -151,7 +151,7 @@ def test_thumbnail_cache_and_original_are_isolated(catalog, tmp_path, monkeypatc
     calls = []
 
     def render(path, pdf):
-        """只模拟排版输出；同时检查传入的是独立源模板快照"""
+        """只模拟排版输出，同时检查传入的是独立源模板快照"""
         assert path != source and path.read_bytes() == original
         calls.append(path)
         (pdf.parent / "page-1.png").write_bytes(b"thumbnail")
@@ -172,13 +172,13 @@ def test_thumbnail_cache_and_original_are_isolated(catalog, tmp_path, monkeypatc
 
 
 def test_thumbnail_failure_can_retry_and_builtin_is_real_docx(catalog, tmp_path, monkeypatch):
-    """渲染失败允许重试；内置模板也用实际 DOCX 排版器生成示例预览"""
+    """渲染失败允许重试，内置模板也用实际 DOCX 排版器生成示例预览"""
     from docx import Document
 
     calls = []
 
     def render(path, pdf):
-        """首次模拟失败；重试验证真实示例文档后提供图片"""
+        """首次模拟失败，重试验证真实示例文档后提供图片"""
         calls.append(path)
         assert "你的姓名" in "".join(
             p.text

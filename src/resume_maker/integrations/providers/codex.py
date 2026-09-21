@@ -20,7 +20,7 @@ from resume_maker.integrations.sources import redact
 
 
 def structured_text(message: str) -> str:
-    """只解开唯一完整 JSON 代码块；多个结果、块外数据和截断回复仍交由严格校验拒绝。"""
+    """只解开唯一完整 JSON 代码块，多个结果、块外数据和截断回复仍交由严格校验拒绝"""
     if message.count("```") != 2:
         return message
     fenced = re.search(r"```(?:json)?[ \t]*\r?\n(.*?)\r?\n```", message, flags=re.DOTALL)
@@ -30,7 +30,7 @@ def structured_text(message: str) -> str:
 
 
 def schema(result_model: type[Model]) -> dict:
-    """把结果模型转换为严格 JSON Schema；使输出字段完整且禁止额外键"""
+    """把结果模型转换为严格 JSON Schema，使输出字段完整且禁止额外键"""
     value = result_model.model_json_schema()
 
     def strict(node):
@@ -51,7 +51,7 @@ def schema(result_model: type[Model]) -> dict:
 
 
 def terminate_tree(process: subprocess.Popen):
-    """终止本次请求的子进程树；忽略已经退出的进程"""
+    """终止本次请求的子进程树，忽略已经退出的进程"""
     try:
         parent = psutil.Process(process.pid)
         children = parent.children(recursive=True)
@@ -70,19 +70,19 @@ class CodexProvider:
     """将统一 AI 请求适配为当前用户配置下的 Codex CLI 调用"""
 
     def __init__(self, *, environment: dict[str, str] | None = None):
-        """允许测试启动独立 CLI 配置；环境仅传给子进程，不修改当前进程。"""
+        """允许测试启动独立 CLI 配置，环境仅传给子进程，不修改当前进程"""
         self.environment = dict(environment or {})
 
     @staticmethod
     def executable(settings: ProviderSettings) -> str:
-        """解析用户配置的 Codex 可执行文件路径；缺失时给出设置提示"""
+        """解析用户配置的 Codex 可执行文件路径，缺失时给出设置提示"""
         candidate = shutil.which(settings.executable)
         if not candidate:
             raise ProviderError("找不到 Codex CLI，请在设置中填写已安装的 codex 可执行文件路径。")
         return candidate
 
     def inspect(self, settings: ProviderSettings) -> dict:
-        """读取 CLI 版本以判断程序是否可执行；实际鉴权由连接测试确认"""
+        """读取 CLI 版本以判断程序是否可执行，实际鉴权由连接测试确认"""
         try:
             executable = self.executable(settings)
             result = subprocess.run(
@@ -135,7 +135,7 @@ class CodexProvider:
         emit: Callable[[str, dict], None],
         images: list[Path] | None = None,
     ) -> T:
-        """以只读沙箱调用 Codex；解析 JSON 事件并处理超时、取消和进程回收"""
+        """以只读沙箱调用 Codex，解析 JSON 事件并处理超时、取消和进程回收"""
         workspace.mkdir(parents=True, exist_ok=True)
         schema_path = workspace / "response-schema.json"
         schema_path.write_text(json.dumps(schema(result_model)), encoding="utf-8")
@@ -158,14 +158,14 @@ class CodexProvider:
         if settings.profile:
             command += ["--profile", settings.profile]
         if settings.reasoning_effort:
-            # 新请求及续聊均使用提交时的功能配置且不写回用户的 CLI 配置文件
+            # 每次请求通过参数传入提交时的功能配置
             command += ["--config", f'model_reasoning_effort="{settings.reasoning_effort}"']
         for image in images or []:
             command += ["--image", str(image)]
         if thread_id:
             command += ["resume", thread_id]
         command.append("-")
-        # 继承当前用户的配置和鉴权；CLI 登录状态无法代表自定义 Provider 的实际连通性
+        # 继承当前用户的配置和鉴权，CLI 登录状态无法代表自定义 Provider 的实际连通性
         process = subprocess.Popen(
             command,
             stdin=subprocess.PIPE,
@@ -198,7 +198,7 @@ class CodexProvider:
                 process.stdin.write(prompt)
                 process.stdin.close()
             except BrokenPipeError:
-                # CLI 配置错误可能先于读取提示词退出；仍读取 stderr 才能给出真正原因。
+                # CLI 可能在读取提示词前退出，因此仍需读取 stderr 获取配置错误
                 pass
             while len(finished) < 2:
                 if cancelled.is_set():
@@ -228,9 +228,9 @@ class CodexProvider:
                 elif kind == "turn.started":
                     emit("activity", {"type": "working", "text": "Codex 已开始处理请求"})
                 elif kind == "turn.completed":
-                    # CLI 重连可能先报告 error；成功完成后旧传输错误不应否定有效结果。
+                    # CLI 重连可能先报告 error，成功完成后旧传输错误不应否定有效结果
                     errors.clear()
-                    # exec resume 返回整个会话累计值；调用方据此避免重复累加旧轮次
+                    # exec resume 返回整个会话累计值，调用方据此避免重复累加旧轮次
                     emit("usage", {**event.get("usage", {}), "cumulative": True})
                 elif kind in {"turn.failed", "error"}:
                     detail = event.get("error", event.get("message", event))
@@ -240,7 +240,7 @@ class CodexProvider:
                     item_type = item.get("type")
                     if item_type == "agent_message" and kind == "item.completed":
                         last_message = item.get("text", "")
-                        # 仅展示公开文字消息；最终结构化结果交给调用方且不显示映射原文
+                        # 只展示公开文字消息并将结构化结果交给调用方
                         try:
                             json.loads(structured_text(last_message))
                         except ValueError:
@@ -248,7 +248,7 @@ class CodexProvider:
                                 "activity", {"type": "message", "text": redact(last_message)[:1000]}
                             )
                     elif item_type == "reasoning":
-                        # 只报告真实执行状态且不转发推理内容
+                        # 只报告公开的执行状态
                         emit("activity", {"type": "working", "text": "Codex 正在分析"})
                     elif item_type in {"command_execution", "mcp_tool_call", "web_search"}:
                         label = {

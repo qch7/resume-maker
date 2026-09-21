@@ -1,4 +1,4 @@
-"""模板加载、识别、检查、保存与导出共用的资料补位入口"""
+"""模板加载、识别、检查、保存和导出共用的资料补位入口"""
 
 from pydantic import ValidationError
 
@@ -13,8 +13,8 @@ from resume_maker.integrations.word.templates.values import missing_targets
 
 
 def complete_template(package, plan, document, projects, source=None):
-    """仅扩展已确认结构的独立副本；需要落盘时将新节点与映射一并保存到任务快照"""
-    # projects 是重复区的公开别名；模型也可能用它标识标题，需统一到实际栏目名称。
+    """仅扩展已确认结构的独立副本，需要落盘时将新节点和映射一并保存到任务快照"""
+    # projects 是重复区的公开别名，模型也可能用它标识标题，需统一到实际栏目名称
     if not any(section.title == "projects" for section in document.sections):
         project_title = next(
             section.title for section in document.sections if section.kind == "projects"
@@ -30,7 +30,7 @@ def complete_template(package, plan, document, projects, source=None):
     try:
         missing_targets(document, plan, projects)
     except Problem:
-        # 重名栏目等语义冲突仍交给正式校验报告且不能在补位阶段猜测所属记录
+        # 重名栏目等冲突留给正式校验处理
         return package, plan, []
     plan, notices = defer_empty_sections(package, plan, document)
     package, plan, section_notices = supplement_sections(package, plan, document, projects)

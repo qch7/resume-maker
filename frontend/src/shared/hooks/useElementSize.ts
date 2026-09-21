@@ -1,5 +1,5 @@
 import { useLayoutEffect, useState, type RefObject } from "react";
-/** 观察元素尺寸变化；可按需包含内边距和边框；卸载时解除观察 */
+/** 观察元素尺寸变化，可按需包含内边距和边框，卸载时解除观察 */
 export function useElementSize(
   ref: RefObject<HTMLElement | null>,
   box: "content-box" | "border-box" = "content-box",

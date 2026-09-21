@@ -1,4 +1,4 @@
-"""栏目编排必须同时控制 Word 标题、记录、层级与显隐且不能只重排前端列表"""
+"""栏目编排同步控制 Word 标题、记录、层级和显隐"""
 
 from zipfile import ZipFile
 
@@ -15,12 +15,12 @@ from resume_maker.integrations.word.templates.mapping import TemplatePackage, pa
 
 
 def body_text(path):
-    """读取文档正文顺序；包含表格与图形内的文字"""
+    """读取文档正文顺序，包含表格和图形内的文字"""
     return "\n".join(Document(path).element.body.xpath(".//w:t/text()"))
 
 
 def simple_template(path, table=False):
-    """生成三个独立栏目；使用精确标题映射和可重复的条目样本"""
+    """生成三个独立栏目，使用精确标题映射和可重复的条目样本"""
     doc = Document()
     doc.add_paragraph("固定开头")
     container = doc.add_table(rows=0, cols=1) if table else doc
@@ -67,7 +67,7 @@ def simple_template(path, table=False):
 
 
 def layout_content():
-    """生成大栏目和子栏目的资料；刻意将子栏目放在数组前面检验层级展开"""
+    """生成大栏目和子栏目的资料，刻意将子栏目放在数组前面检验层级展开"""
     return ResumeDocument.model_validate(
         {
             "sections": [
@@ -109,7 +109,7 @@ def minimal_projects():
 
 
 def test_move_complete_sections_preserves_templates_and_fixed_content(tmp_path):
-    """把项目移到教育前面时；其标题和全部项目一起移动；模板资源及首尾资料保留"""
+    """把项目移到教育前面时，其标题和全部项目一起移动，模板资源及首尾资料保留"""
     source, output = tmp_path / "source.docx", tmp_path / "result.docx"
     _, plan = make_template(source)
     content = resume_content()
@@ -128,7 +128,7 @@ def test_move_complete_sections_preserves_templates_and_fixed_content(tmp_path):
 
 
 def test_children_follow_parent_order_and_can_be_promoted(tmp_path):
-    """子栏目跟随父栏目；提升为大栏目后遵循新的独立顺序"""
+    """子栏目跟随父栏目，提升为大栏目后遵循新的独立顺序"""
     source, output = tmp_path / "source.docx", tmp_path / "result.docx"
     plan = simple_template(source)
     content = layout_content()
@@ -150,7 +150,7 @@ def test_children_follow_parent_order_and_can_be_promoted(tmp_path):
 
 
 def test_hidden_or_empty_sections_remove_headings_with_their_records(tmp_path):
-    """隐藏父栏目同时隐藏子栏目；项目为空时不留下项目标题"""
+    """隐藏父栏目同时隐藏子栏目，项目为空时不留下项目标题"""
     source, output = tmp_path / "source.docx", tmp_path / "result.docx"
     plan = simple_template(source)
     content = layout_content()
@@ -160,7 +160,7 @@ def test_hidden_or_empty_sections_remove_headings_with_their_records(tmp_path):
 
 
 def test_sections_inside_one_table_move_as_complete_rows(tmp_path):
-    """整张表格中的栏目按行移动；表格结构、记录数量和首尾固定内容保持完整"""
+    """整张表格中的栏目按行移动，表格结构、记录数量和首尾固定内容保持完整"""
     source, output = tmp_path / "source.docx", tmp_path / "result.docx"
     plan = simple_template(source, table=True)
     fill_template(source, output, plan, layout_content().model_dump(), minimal_projects())
@@ -171,7 +171,7 @@ def test_sections_inside_one_table_move_as_complete_rows(tmp_path):
 
 
 def test_floating_heading_moves_inline_without_losing_its_graphic(tmp_path):
-    """浮动标题以嵌入图形占据排版高度；标题不会被下一条正文覆盖"""
+    """浮动标题以嵌入图形占据排版高度，标题不会被下一条正文覆盖"""
     from resume_maker.integrations.word.templates.layout import WP, inline_heading
 
     document = Document()
@@ -196,7 +196,7 @@ def test_floating_heading_moves_inline_without_losing_its_graphic(tmp_path):
 
 
 def shared_heading_template(path):
-    """模拟课程标题与 GPA 共用段落、课程正文先于标题且位于文本框的模板"""
+    """模拟课程标题和 GPA 共用段落、课程正文先于标题且位于文本框的模板"""
     doc = Document()
     opening = doc.add_paragraph("固定开头")
     section = etree.SubElement(opening._p.get_or_add_pPr(), w("sectPr"))
@@ -216,7 +216,7 @@ def shared_heading_template(path):
     doc.add_paragraph("旧学校")
     doc.add_paragraph("项目经历")
     doc.add_paragraph("旧项目")
-    # 正文的分栏属性会被文本框的查找命中；但不能在文本框内生成分节符
+    # 正文的分栏属性会被文本框的查找命中，但不能在文本框内生成分节符
     final = doc.sections[-1]._sectPr
     etree.SubElement(final, w("type")).set(w("val"), "continuous")
     final.find(w("cols")).set(w("num"), "2")
@@ -263,7 +263,7 @@ def shared_heading_template(path):
 @pytest.mark.parametrize("courses", [True, False])
 @pytest.mark.parametrize("school", [True, False])
 def test_shared_course_heading_keeps_gpa_and_valid_section_boundaries(tmp_path, courses, school):
-    """父子栏目重排或清空时 GPA 保留；课程标题在正文前；文本框不产生非法分节符"""
+    """父子栏目重排或清空时 GPA 保留，课程标题在正文前，文本框不产生非法分节符"""
     source, output = tmp_path / "source.docx", tmp_path / "result.docx"
     plan = shared_heading_template(source)
     content = layout_content()

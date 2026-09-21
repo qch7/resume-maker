@@ -12,7 +12,7 @@ import ResizeHandle from "../../shared/components/ResizeHandle";
 import type { MappingReview, TemplateProgressData } from "./types";
 import { reviewProblems } from "./review";
 
-/** 将真实累计时间显示为便于阅读的分秒且不推测完成百分比 */
+/** 将实际耗时显示为分秒 */
 export function duration(milliseconds: number) {
   const seconds = Math.floor(milliseconds / 1000);
   return seconds >= 60
@@ -20,7 +20,7 @@ export function duration(milliseconds: number) {
     : `${seconds} 秒`;
 }
 
-/** 用紧凑状态栏展示当前动态或已保存的识别记录；展开后允许调整记录区高度 */
+/** 显示当前识别动态并允许展开历史记录 */
 export default function TemplateProgress({
   data,
   review,
@@ -100,7 +100,7 @@ export default function TemplateProgress({
             className="template-progress-toggle"
             aria-expanded={showEvents}
             onClick={
-              /* 展开状态独立于轮询更新；保留用户主动收起的选择 */ () =>
+              /* 展开状态独立于轮询更新，保留用户主动收起的选择 */ () =>
                 setExpanded(!showEvents)
             }
           >
@@ -132,7 +132,7 @@ export default function TemplateProgress({
             )}
             <ol className="template-live-events" aria-label="执行记录">
               {[...data.events].reverse().map(
-                /* 最新活动优先展示；编号与原识别时的耗时保持不变 */ (
+                /* 最新活动优先展示，编号和原识别时的耗时保持不变 */ (
                   event,
                 ) => (
                   <li key={event.id}>

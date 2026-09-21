@@ -3,7 +3,7 @@ import { useState } from "react";
 import { getWorkflow, type GuideTarget } from "./state";
 import { WORKFLOW_STEPS as steps } from "./steps";
 
-/** 展示当前制作步骤和下一步操作；支持折叠与目标定位 */
+/** 展示当前制作步骤和下一步操作，支持折叠和目标定位 */
 export default function Workflow({
   value,
   activeStep,
@@ -81,7 +81,7 @@ export default function Workflow({
             aria-label={`${current.title}子步骤`}
           >
             {current.substeps.map(
-              /* 子步骤可直接定位表单；跨步骤入口明确显示目的地 */ (
+              /* 子步骤可直接定位表单，跨步骤入口明确显示目的地 */ (
                 item,
                 index,
               ) => (
@@ -92,7 +92,7 @@ export default function Workflow({
                       activeTarget === item.target ? "step" : undefined
                     }
                     onClick={
-                      /* 保留当前子步骤选择；实际导航由工作台统一保存草稿后执行 */ () => {
+                      /* 保留子步骤选择并在工作台保存草稿后导航 */ () => {
                         setSelection({ step: activeStep, target: item.target });
                         onNavigate(item.target);
                       }

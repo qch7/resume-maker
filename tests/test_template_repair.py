@@ -1,4 +1,4 @@
-"""自动修正、错误隔离与人工方案保护的行为回归"""
+"""自动修正、错误隔离和人工方案保护的行为回归"""
 
 import json
 
@@ -17,15 +17,15 @@ from resume_maker.services.templates.tasks import Templates
 
 
 class RepairProvider(TemplateProvider):
-    """首轮故意遗漏姓名；后续可修正、失败或返回退步方案"""
+    """首轮故意遗漏姓名，后续可修正、失败或返回退步方案"""
 
     def __init__(self, outcome="complete"):
-        """记录修正策略及每次调用；使用同一份无个人信息模板"""
+        """记录修正策略及每次调用，使用同一份无个人信息模板"""
         super().__init__()
         self.outcome = outcome
 
     def run_structured(self, **kwargs):
-        """模拟模型通过反馈修正且不让测试依赖真实模型服务"""
+        """模拟模型根据反馈修正映射"""
         plan = super().run_structured(**kwargs)
         if len(self.calls) == 1 or self.outcome == "unchanged":
             plan.fields = []
@@ -37,7 +37,7 @@ class RepairProvider(TemplateProvider):
 
 
 def test_ai_repairs_its_own_missing_fields(catalog, tmp_path):
-    """首轮遗漏会自动反馈给 AI；完整结果才显示为可试填并不传当前资料值"""
+    """首轮遗漏会自动反馈给 AI，完整结果才显示为可试填并不传当前资料值"""
     source = tmp_path / "source.docx"
     simple_template(source)
     provider = RepairProvider()
@@ -52,7 +52,7 @@ def test_ai_repairs_its_own_missing_fields(catalog, tmp_path):
 
 @pytest.mark.parametrize("outcome", ["failure", "worse", "unchanged"])
 def test_repair_preserves_best_result_and_is_bounded(catalog, tmp_path, outcome):
-    """修正失败、退步或停滞均保留已有结果且不能无限重试或假装完成"""
+    """修正失败、退步或停滞时结束重试并保留已有结果"""
     source = tmp_path / "source.docx"
     simple_template(source)
     provider = RepairProvider(outcome)
@@ -65,7 +65,7 @@ def test_repair_preserves_best_result_and_is_bounded(catalog, tmp_path, outcome)
 
 
 def test_one_bad_region_does_not_mark_other_mappings_unresolved(tmp_path):
-    """一处样本字段错误只产生可定位的问题；后面的照片、栏目及固定文字仍被统计"""
+    """一处样本字段错误只产生可定位的问题，后面的照片、栏目及固定文字仍被统计"""
     package, plan = make_template(tmp_path / "source.docx")
     assert package.review(plan)["ready"]
     plan.repeats[0].fields[0].node = plan.fields[0].node
@@ -76,7 +76,7 @@ def test_one_bad_region_does_not_mark_other_mappings_unresolved(tmp_path):
 
 
 def test_only_known_empty_labels_are_completed(tmp_path):
-    """自动补齐固定标签；未知人名、经历和电话号码仍交给 AI 或用户判断"""
+    """自动补齐固定标签，未知人名、经历和电话号码仍交给 AI 或用户判断"""
     source = tmp_path / "source.docx"
     doc = Document()
     for text in ("项目名称：", "张测试", "13800000000", "独立完成研发工作"):

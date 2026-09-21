@@ -10,7 +10,7 @@ import {
   personalTargets,
 } from "./mapping";
 
-/** 提供完整映射清单与精确边界编辑；补充画布中的选区操作 */
+/** 提供完整映射清单和精确边界编辑，补充画布中的选区操作 */
 export default function AdvancedMapping({
   nodes,
   plan,
@@ -27,7 +27,7 @@ export default function AdvancedMapping({
   onLocate: (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  /** 调整指定重复区域；保留其他字段和区域的配置 */
+  /** 调整指定重复区域，保留其他字段和区域的配置 */
   function changeRegion(index: number, region: RepeatBinding) {
     edit({
       ...plan,
@@ -157,7 +157,7 @@ export default function AdvancedMapping({
                 </details>
                 <button
                   onClick={
-                    /* 删除区域配置；原文会重新进入待处理清单 */ () =>
+                    /* 删除区域配置，原文会重新进入待处理清单 */ () =>
                       edit({
                         ...plan,
                         repeats: plan.repeats.filter(

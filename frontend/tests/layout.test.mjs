@@ -8,7 +8,7 @@ import {
   templateSizes,
 } from "../src/shared/lib/layout.ts";
 
-test("layout restoration rejects corrupt sizes and preserves valid preferences", /* 验证损坏的布局值被忽略；有效偏好得到保留 */ () => {
+test("layout restoration rejects corrupt sizes and preserves valid preferences", /* 验证损坏的布局值被忽略，有效偏好得到保留 */ () => {
   assert.deepEqual(restoreLayout(null), DEFAULT_LAYOUT);
   const layout = restoreLayout({
     sidebar: "wide",
@@ -39,7 +39,7 @@ test("oversized saved columns fit a smaller desktop without hiding the editor", 
   assert.equal(layout.composer, 1600);
 });
 
-test("collapsed sidebar releases its width and narrow screens retain a usable workspace", /* 验证侧栏收起或窄屏时释放宽度；工作区仍可使用 */ () => {
+test("collapsed sidebar releases its width and narrow screens retain a usable workspace", /* 验证侧栏收起或窄屏时释放宽度，工作区仍可使用 */ () => {
   const hidden = columnSizes(1100, false, {
     ...DEFAULT_LAYOUT,
     composer: 2000,
@@ -57,7 +57,7 @@ test("drag boundaries keep settings and preview visible", /* 验证分隔条边�
   assert.equal(clamp(254, 80, 420), 254);
 });
 
-test("template layout preferences survive storage and fit a smaller window", /* 保留拖动偏好；缩窗时给预览留出空间；重新放大后恢复用户尺寸 */ () => {
+test("template layout preferences survive storage and fit a smaller window", /* 保留拖动偏好，缩窗时给预览留出空间，重新放大后恢复用户尺寸 */ () => {
   const stored = {
     ...DEFAULT_LAYOUT,
     templateInspector: 900,

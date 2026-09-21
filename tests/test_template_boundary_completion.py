@@ -1,4 +1,4 @@
-"""错误的页首补位不能拖动姓名；缺项由程序补齐而非依赖模型规划版式。"""
+"""程序补齐模板缺项时保留姓名位置"""
 
 from copy import deepcopy
 
@@ -19,7 +19,7 @@ from resume_maker.services.templates.schema import plan_schema
 
 
 def test_model_schema_only_accepts_actual_nodes_and_known_sections(tmp_path):
-    """模型不能把原文写入节点字段，也不能发明一个不存在的栏目。"""
+    """模型不能把原文写入节点字段，也不能发明一个不存在的栏目"""
     package, plan = generic_template(tmp_path / "source.docx")
     content, _ = generic_content()
     model = plan_schema(package, content)
@@ -38,7 +38,7 @@ def test_model_schema_only_accepts_actual_nodes_and_known_sections(tmp_path):
 def test_redundant_nested_deletions_are_reduced_without_hiding_real_conflicts(
     tmp_path, conflicting
 ):
-    """父块删除自动覆盖其子段落；父块包含实际填写字段时仍拒绝。"""
+    """父块删除自动覆盖其子段落，父块包含实际填写字段时仍拒绝"""
     path = tmp_path / "source.docx"
     doc = Document()
     doc.add_table(rows=1, cols=1).cell(0, 0).text = "Old person"
@@ -66,7 +66,7 @@ def test_redundant_nested_deletions_are_reduced_without_hiding_real_conflicts(
 
 @pytest.mark.parametrize("layout", ["body", "rows", "columns"])
 def test_missing_child_section_is_inserted_after_parent_and_can_be_hidden(tmp_path, layout):
-    """原稿没有子栏目时程序补齐其标题和记录；父级隐藏也隐藏子栏目。"""
+    """原稿没有子栏目时程序补齐其标题和记录，父级隐藏也隐藏子栏目"""
     source, output = tmp_path / "source.docx", tmp_path / "output.docx"
     package, plan = generic_template(source, layout)
     content, projects = generic_content()
@@ -106,7 +106,7 @@ def test_missing_child_section_is_inserted_after_parent_and_can_be_hidden(tmp_pa
 @pytest.mark.parametrize("blank", [True, False])
 @pytest.mark.parametrize("table", [True, False])
 def test_section_before_personal_header_cannot_move_header(tmp_path, blank, table):
-    """模拟无标题荣誉位于姓名前；真实荣誉也不能把其后的独立个人区吸入。"""
+    """模拟无标题荣誉位于姓名前，真实荣誉也不能把其后的独立个人区吸入"""
     source, output = tmp_path / "source.docx", tmp_path / "output.docx"
     doc = Document()
     doc.add_paragraph("" if blank else "Old award")
@@ -183,12 +183,12 @@ def test_section_before_personal_header_cannot_move_header(tmp_path, blank, tabl
 
 
 def test_missing_project_body_is_completed_without_model_slots(tmp_path):
-    """只有项目名称的映射也可补入全部真实正文，并保留每个项目的不同值。"""
+    """只有项目名称的映射也可补入全部真实正文，并保留每个项目的不同值"""
     source, output = tmp_path / "source.docx", tmp_path / "output.docx"
     package, plan = generic_template(source)
     region = plan.repeats[0]
     removed = [field for field in region.fields if field.target != "title"]
-    # 旧示例仍须明确清理，缺少新字段不能成为保留旧正文的借口。
+    # 旧示例仍须明确清理，缺少新字段不能成为保留旧正文的借口
     for field in removed:
         package.node(field.node).getparent().remove(package.node(field.node))
     previous = dict(package.nodes)

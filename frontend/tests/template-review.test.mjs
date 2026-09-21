@@ -6,7 +6,7 @@ import {
   reviewProblemSummary,
 } from "../src/features/templates/review.ts";
 
-/** 构造没有结构错误的检查结果；按用例加入实际阻止使用的原因 */
+/** 构造没有结构错误的检查结果，按用例加入实际阻止使用的原因 */
 function review(overrides = {}) {
   return {
     ready: false,
@@ -74,7 +74,7 @@ test("空定位列表不会隐藏试填错误，重复错误保留调整入口",
   );
 });
 
-test("未归类原文和图片全部计入问题数量并可定位", /* 不让相同原文或图片问题藏在折叠列表里 */ () => {
+test("未归类原文和图片全部计入问题数量并可定位", /* 默认展开重复原文和图片问题 */ () => {
   const problems = reviewProblems(
     review({
       missing: ["personal.custom:语言"],
@@ -94,7 +94,7 @@ test("未归类原文和图片全部计入问题数量并可定位", /* 不让�
   );
 });
 
-test("普通排版提醒不会阻止已通过的模板，没有原因时仍解释状态", /* 检查中的状态与真正阻止使用的问题分开呈现 */ () => {
+test("普通排版提醒不会阻止已通过的模板，没有原因时仍解释状态", /* 分别显示检查进度和阻止使用的问题 */ () => {
   assert.deepEqual(reviewProblems(null), []);
   assert.deepEqual(
     reviewProblems(review({ ready: true, notices: ["字体按原文估计"] })),

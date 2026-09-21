@@ -12,7 +12,7 @@ import {
 import { buildLivePreview } from "../src/features/resumes/livePreview.ts";
 import { newDocument } from "../src/features/profile/document.ts";
 
-/** 包含核实证据、自定义信息和两条亮点；覆盖多个编辑器共同变化 */
+/** 包含核实证据、自定义信息和两条亮点，覆盖多个编辑器共同变化 */
 function fixture() {
   return {
     title: "项目",
@@ -44,7 +44,7 @@ function fixture() {
   };
 }
 
-test("默认、版本和旧简历顺序调回原位后均无改动", /* 真实位移需要提交；往返移动恢复原始表示；预览无需提交 */ () => {
+test("默认、版本和旧简历顺序调回原位后均无改动", /* 真实位移需要提交，往返移动恢复原始表示，预览无需提交 */ () => {
   for (const kind of ["default", "version", "legacy"]) {
     const base = fixture();
     const settings =
@@ -109,7 +109,7 @@ test("默认、版本和旧简历顺序调回原位后均无改动", /* 真实�
   }
 });
 
-test("基本信息、自定义信息、亮点正文和顺序都按当前值比较", /* 改回一项只消除该项差异；其他未还原输入仍须提交 */ () => {
+test("基本信息、自定义信息、亮点正文和顺序都按当前值比较", /* 改回一项只消除该项差异，其他未还原输入仍须提交 */ () => {
   const base = fixture();
   for (const key of ["title", "period", "role", "description"]) {
     assert.equal(

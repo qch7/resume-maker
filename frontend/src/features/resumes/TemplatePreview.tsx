@@ -9,7 +9,7 @@ interface PreviewResult {
   render_error: string | null;
 }
 
-/** 使用正式导出填充器展示所选模板；自动排版不保存组合或发布经历 */
+/** 使用正式导出填充器展示所选模板，自动排版不保存组合或发布经历 */
 export default function TemplatePreview({
   input,
   templateId,
@@ -33,7 +33,7 @@ export default function TemplatePreview({
   useEffect(
     /* 队列跨资料及模板切换保留以防重复启动 Word */ () => {
       const current = createPreviewQueue(
-        /* 仅发送预览快照且不调用保存或正式导出接口 */ (key, signal) =>
+        /* 发送临时预览快照 */ (key, signal) =>
           api<PreviewResult>(
             "/resume-previews",
             "POST",
@@ -51,7 +51,7 @@ export default function TemplatePreview({
     [],
   );
   useEffect(
-    /* 输入变化交给单请求队列合并且不因每个按键取消在途渲染 */ () => {
+    /* 队列合并连续输入并等待当前渲染完成 */ () => {
       queue.current?.submit(input);
     },
     [input],
@@ -133,7 +133,7 @@ export default function TemplatePreview({
         >
           {Array.from(
             { length: result.pages },
-            /* 以矢量页面呈现真实分页；放大时保持文字清晰 */ (_, index) => (
+            /* 以矢量页面呈现真实分页，放大时保持文字清晰 */ (_, index) => (
               <PrintedPage
                 key={`${result.id}.${index}`}
                 path={`/resume-previews/${result.id}/page-${index + 1}.svg`}

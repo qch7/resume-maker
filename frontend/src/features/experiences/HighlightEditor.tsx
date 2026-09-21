@@ -7,7 +7,7 @@ import { useField } from "./useField";
 import EvidenceDialog from "./EvidenceDialog";
 import { editHighlightText, fieldChanged } from "./changes";
 import { VisibilityButton } from "../profile/VisibilityField";
-/** 编辑亮点及证据；增删改只写草稿；统一由版本工具栏提交 */
+/** 编辑亮点和证据并将增删改暂存为草稿 */
 export default function HighlightEditor({
   item,
   draftVersion,
@@ -37,7 +37,7 @@ export default function HighlightEditor({
   const [showEvidence, setShowEvidence] = useState(false);
   const { value } = editor;
   useEffect(
-    /* 输入和本机草稿恢复立即进入实时预览；无需等待网络防抖保存 */ () =>
+    /* 输入和本机草稿恢复立即进入实时预览，无需等待网络防抖保存 */ () =>
       onPreview(value),
     [value, onPreview],
   );
@@ -54,7 +54,7 @@ export default function HighlightEditor({
             label={`亮点 ${value.title || "新亮点"}`}
             hidden={!props.included.includes(item.id)}
             onToggle={
-              /* 仅切换当前简历中的亮点显示；原文及项目版本不变 */ () =>
+              /* 仅切换当前简历中的亮点显示，原文及项目版本不变 */ () =>
                 props.onToggle(item.id)
             }
           />
@@ -93,7 +93,7 @@ export default function HighlightEditor({
             onClick={
               /* 保存删除操作前刷新草稿并读取最新版本以免覆盖并发编辑 */ () =>
                 run(
-                  /* 将删除保留在工作副本中且不创建正式版本 */ async () => {
+                  /* 删除结果暂存于工作副本 */ async () => {
                     await editor.flush();
                     const fresh = await api<ProjectDetail>(
                       `/projects/${detail.project.id}?revision_id=${revisionId}`,

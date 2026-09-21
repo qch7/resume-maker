@@ -67,16 +67,15 @@ export function useResumeComposition({
     loadLocal("rm.resume.v2.last", NEW_RESUME),
   );
   const draft = useMemo(
-    /* 固定组合与编辑区分别维护顺序以保证取消草稿后预览和导出一致 */ () =>
+    /* 固定组合和编辑区分别维护顺序以保证取消草稿后预览和导出一致 */ () =>
       orderCompositionHighlights(
         syncHonorResume(
           repairDefaultResume(
             storedDraft,
             state.resume_defaults,
             state.resumes.find(
-              /* 原方案只用于恢复误提升的栏目父级且不覆盖任何填写内容 */ (
-                resume,
-              ) => resume.id === storedDraft.id,
+              /* 仅从原方案恢复误提升的栏目父级 */ (resume) =>
+                resume.id === storedDraft.id,
             ),
           ),
           state.honors ?? [],
@@ -92,9 +91,9 @@ export function useResumeComposition({
     ],
   );
   useEffect(
-    /* 将最新核对资料保留到草稿；来源删除后仍保留最后看到的内容 */ () => {
+    /* 将最新核对资料保留到草稿，来源删除后仍保留最后看到的内容 */ () => {
       setDraft(
-        /* 只替换荣誉内容；保留期间输入的姓名、编排和显隐 */ (current) =>
+        /* 只替换荣誉内容，保留期间输入的姓名、编排和显隐 */ (current) =>
           syncHonorResume(
             repairDefaultResume(
               current,
@@ -113,7 +112,7 @@ export function useResumeComposition({
   const currentDraft = useRef(draft);
   currentDraft.current = draft;
   const { sources: previewSources, changed: previewChanged } = useMemo(
-    /* 工作副本只覆盖预览层；仍由用户明确提交和更新简历引用 */ () =>
+    /* 工作副本只覆盖预览层，仍由用户明确提交和更新简历引用 */ () =>
       buildLivePreview(
         draft,
         revisionCache,
@@ -173,7 +172,7 @@ export function useResumeComposition({
   /** 更新当前简历的项目显隐 */
   function changeProjectVisibility(visibility: ProjectVisibility) {
     setDraft(
-      /* 显隐只进入当前简历草稿；保留所有版本引用及其他资料输入 */ (
+      /* 显隐只进入当前简历草稿，保留所有版本引用及其他资料输入 */ (
         current,
       ) => {
         const document = current.document ?? newDocument(state.resume_defaults);
@@ -226,7 +225,7 @@ export function useResumeComposition({
         : [...draft.items, item],
     });
   }
-  /** 切换项目是否加入简历；新增时读取并固定其当前已保存版本 */
+  /** 切换项目是否加入简历，新增时读取并固定其当前已保存版本 */
   function toggleProject(id: string) {
     run(async () => {
       if (draft.items.some((i) => i.project_id === id)) {
@@ -265,7 +264,7 @@ export function useResumeComposition({
       );
     });
   }
-  /** 在实时工作副本中切换亮点；新增草稿条目可以先预览；提交后再保存组合 */
+  /** 在工作副本中切换亮点并预览新增草稿条目 */
   function toggleHighlight(id: string) {
     const current = draft.items.find((i) => i.project_id === activeProject);
     if (!current) {
@@ -320,7 +319,7 @@ export function useResumeComposition({
         body,
       );
       setDraft(
-        /* 保存期间的新输入继续留在草稿；切换方案后不抢回焦点 */ (current) =>
+        /* 保存期间的新输入继续留在草稿，切换方案后不抢回焦点 */ (current) =>
           acceptSavedComposition(current, draft, saved),
       );
       await reload();
@@ -329,7 +328,7 @@ export function useResumeComposition({
       savingResume.current = false;
     }
   }
-  /** 单独保存顶部资料；以方案版本检查并发并保留其他栏目的本机草稿 */
+  /** 单独保存顶部资料，以方案版本检查并发并保留其他栏目的本机草稿 */
   async function savePersonalInfo() {
     if (savingResume.current) throw new Error("简历资料正在保存，请稍候。");
     if (exporting || deleting)
@@ -355,7 +354,7 @@ export function useResumeComposition({
         },
       );
       setDraft(
-        /* 基本信息独立采用保存结果；保留其他栏目与请求后的新输入 */ (
+        /* 基本信息独立采用保存结果，保留其他栏目和请求后的新输入 */ (
           current,
         ) => acceptSavedComposition(current, submitted, saved),
       );
@@ -364,7 +363,7 @@ export function useResumeComposition({
       savingResume.current = false;
     }
   }
-  /** 单独保存栏目中的一条经历且不提交其他资料草稿；所有保存共用并发保护 */
+  /** 通过并发校验后单独保存栏目中的一条经历 */
   async function saveSectionEntry(
     sectionId: string,
     entryId: string,
@@ -395,7 +394,7 @@ export function useResumeComposition({
         },
       );
       setDraft(
-        /* 模态表单保存成功才应用本条；其他资料和后续输入继续保留 */ (
+        /* 模态表单保存成功才应用本条，其他资料和后续输入继续保留 */ (
           current,
         ) =>
           acceptSavedComposition(
@@ -411,7 +410,7 @@ export function useResumeComposition({
       savingResume.current = false;
     }
   }
-  /** 删除指定方案并清理本地草稿；选择剩余方案或回到空白组合 */
+  /** 删除指定方案并清理本地草稿，选择剩余方案或回到空白组合 */
   async function deleteComposition(resume: Resume) {
     if (!resume.id || deleting || exporting || savingResume.current) return;
     setDeleting(true);
@@ -426,11 +425,11 @@ export function useResumeComposition({
         ? loadLocal(`rm.resume.v2.${remaining.id}`, remaining)
         : { ...NEW_RESUME, document: newDocument(state.resume_defaults) };
       setDraft(
-        /* 删除期间若已经切换方案；保留用户当前选择 */ (current) =>
+        /* 删除期间若已经切换方案，保留用户当前选择 */ (current) =>
           current.id === resume.id ? next : current,
       );
       setExported(
-        /* 清除被删除方案的预览且不覆盖其他方案的导出 */ (current) =>
+        /* 清除已删除方案的预览 */ (current) =>
           current?.resume_id === resume.id ? null : current,
       );
       await reload();
@@ -439,7 +438,7 @@ export function useResumeComposition({
       setDeleting(false);
     }
   }
-  /** 先保存组合再导出文档；始终在完成或失败后清除导出中状态 */
+  /** 先保存组合再导出文档，始终在完成或失败后清除导出中状态 */
   async function exportResume() {
     setExporting(true);
     try {

@@ -1,4 +1,4 @@
-"""按项目字段语义安置无原文示例的空位；保留模板明确设计的字段位置"""
+"""根据项目字段含义安排空位并保留模板已有的字段位置"""
 
 from copy import deepcopy
 
@@ -33,7 +33,7 @@ PLACEHOLDER = "〔待填写〕"
 
 
 def explicit_slot(node, nodes, keep):
-    """带标签、图标或固定装饰的空位属于原版设计且不能当作任意留白重新安置"""
+    """保留带标签、图标或固定装饰的字段空位"""
     if node.xpath("w:pPr/w:framePr | w:pPr/w:pBdr | w:pPr/w:shd | w:pPr/w:numPr", namespaces=NS):
         return True
     previous = node.getprevious()
@@ -47,7 +47,7 @@ def explicit_slot(node, nodes, keep):
 
 
 def run_style(paragraph, offset):
-    """按引文字符位置继承真实文字运行样式；区分标签与值的字重及字体"""
+    """按引文字符位置继承真实文字运行样式，区分标签和值的字重及字体"""
     position = 0
     for text in paragraph_texts(paragraph):
         position += len(text.text or "")
@@ -59,7 +59,7 @@ def run_style(paragraph, offset):
 
 
 def labelled_slot(donor, binding, label):
-    """沿用相邻正文的缩进、行距和字体建立带标签段落且不复制图形、制表位或分节"""
+    """只继承相邻正文的缩进、行距和字体来创建带标签段落"""
     paragraph = etree.Element(w("p"))
     properties = donor.find(w("pPr"))
     properties = deepcopy(properties) if properties is not None else etree.Element(w("pPr"))
@@ -78,7 +78,7 @@ def labelled_slot(donor, binding, label):
 
 
 def prepare_project_slots(nodes, fields, values, keep):
-    """只规范项目样本内无标签的空白元信息位置；返回本条克隆的映射和可清理空段落"""
+    """只规范项目样本内无标签的空白元信息位置，返回本条克隆的映射和可清理空段落"""
     if "_highlight_items" not in values:
         return fields, []
     updated, empty = list(fields), []
@@ -113,7 +113,7 @@ def prepare_project_slots(nodes, fields, values, keep):
             raise Problem(
                 f"未标注的“{METADATA[field.target]}”空位跨越分节，无法可靠安排到项目基本信息区，请调整该字段映射。"
             )
-        # 前面的补位已经改变段落顺序且不能再用源节点编号决定本次插入位置
+        # 补位后根据当前段落顺序确定插入位置
         order = {node: index for index, node in enumerate(slot.getparent())}
         later = [other for other in candidates if ORDER[other.target] > ORDER[field.target]]
         anchor = (
@@ -129,7 +129,7 @@ def prepare_project_slots(nodes, fields, values, keep):
             donor.addnext(paragraph)
             section = donor.find("w:pPr/w:sectPr", NS)
             if section is not None:
-                # 新元信息仍属于原节；将结束标记顺延且不能让它落入下一节
+                # 将节结束标记移到新元信息之后以保留其所属节
                 paragraph.find(w("pPr")).append(section)
         nodes[field.node] = paragraph
         updated[updated.index(field)] = field.model_copy(update={"quote": PLACEHOLDER})

@@ -1,4 +1,4 @@
-"""提取模板的稳定节点清单；校验精确引文、重复区域与完整覆盖"""
+"""提取模板的稳定节点清单，校验精确引文、重复区域和完整覆盖"""
 
 import posixpath
 from io import BytesIO
@@ -42,7 +42,7 @@ ENTRY_TARGETS = {
 
 
 def paragraph_texts(paragraph):
-    """仅读取本段文字；文本框中的内层段落独立编号和替换"""
+    """仅读取本段文字，文本框中的内层段落独立编号和替换"""
     return [
         node
         for node in paragraph.iter(w("t"))
@@ -51,12 +51,12 @@ def paragraph_texts(paragraph):
 
 
 def paragraph_text(paragraph) -> str:
-    """合并可跨样式片段的段落文字；保持与 AI 引文定位一致"""
+    """合并可跨样式片段的段落文字，保持和 AI 引文定位一致"""
     return "".join(node.text or "" for node in paragraph_texts(paragraph))
 
 
 def image_container(node):
-    """定位单张图片的叶子图形；组合中的背景和文字不属于照片操作范围"""
+    """定位单张图片的叶子图形，组合中的背景和文字不属于照片操作范围"""
     leaf = None
     grouped = False
     for parent in node.iterancestors():
@@ -72,13 +72,13 @@ def image_container(node):
         ):
             leaf = parent
         if parent.tag in {w("drawing"), w("pict")}:
-            # 独立图片需要移除完整绘图且不能留下 Word 无法打开的空 graphicData
+            # 删除独立图片时移除完整绘图以避免留下空 graphicData
             return leaf if grouped and leaf is not None else parent
     return node
 
 
 def can_insert(paragraph) -> bool:
-    """仅真正空白的段落能补入字段；含照片、文本框或域的无文字段落不是空位"""
+    """只允许在没有文字、照片、文本框或域的段落中补字段"""
     if paragraph.tag != w("p") or paragraph_text(paragraph):
         return False
     for child in paragraph:
@@ -90,7 +90,7 @@ def can_insert(paragraph) -> bool:
 
 
 def quote_range(text: str, binding: TextBinding) -> tuple[int, int]:
-    """定位指定次出现的精确引文；拒绝猜测或模糊匹配"""
+    """定位指定次出现的精确引文，拒绝猜测或模糊匹配"""
     if not binding.quote:
         if text or binding.occurrence != 1:
             raise Problem("空引文只能填入原本没有文字的段落，且出现次数必须为 1。")
@@ -104,10 +104,10 @@ def quote_range(text: str, binding: TextBinding) -> tuple[int, int]:
 
 
 class TemplatePackage:
-    """读取所有可排版文字部件；保留未修改的包资源与 XML 属性"""
+    """读取所有可排版文字部件，保留未修改的包资源和 XML 属性"""
 
     def __init__(self, path: Path | BytesIO):
-        """限制包大小并禁用 XML 外部实体；给结构和图片分配稳定标识"""
+        """限制包大小并禁用 XML 外部实体，给结构和图片分配稳定标识"""
         self.parts, self.nodes, self.locations, self.ids = {}, {}, {}, {}
         self.notices = []
         try:
@@ -134,7 +134,7 @@ class TemplatePackage:
             raise Problem("文件不是有效的 Word DOCX 模板。") from exc
 
     def reindex(self):
-        """结构变动后按序重建编号；顺序与写回后重新读取完全一致"""
+        """结构变动后按序重建编号，顺序和写回后重新读取完全一致"""
         self.nodes, self.locations, self.ids = {}, {}, {}
         for name, root in sorted(self.parts.items()):
             for node in root.iter():
@@ -148,7 +148,7 @@ class TemplatePackage:
                 self.locations[identifier] = name
 
     def inventory(self) -> dict:
-        """列出正文、表格、文本框、页眉页脚及图片；报告不能自动处理的对象"""
+        """列出正文、表格、文本框、页眉页脚及图片，报告不能自动处理的对象"""
         rows, warnings = [], []
         for identifier, node in self.nodes.items():
             if node.tag not in BLOCK_TAGS | IMAGE_TAGS:
@@ -216,13 +216,13 @@ class TemplatePackage:
         return {"nodes": rows, "warnings": list(dict.fromkeys(warnings)), "notices": self.notices}
 
     def node(self, identifier: str):
-        """只解析清单中实际存在的节点；拒绝模型生成的路径或外部引用"""
+        """只解析清单中实际存在的节点，拒绝模型生成的路径或外部引用"""
         if identifier not in self.nodes:
             raise Problem(f"模板节点不存在：{identifier}")
         return self.nodes[identifier]
 
     def image(self, identifier: str) -> bytes:
-        """仅读取此模板内嵌图片供人工核对且不跟随外部链接或读取包外文件"""
+        """只读取模板内嵌图片供人工核对"""
         node = self.node(identifier)
         if node.tag not in IMAGE_TAGS:
             raise Problem("该位置不是图片。", 404)
@@ -242,7 +242,7 @@ class TemplatePackage:
         return self.files[target]
 
     def region(self, start: str, end: str) -> list:
-        """重复区使用同一父节点的闭区间；支持段落、完整表格和表格行"""
+        """重复区使用同一父节点的闭区间，支持段落、完整表格和表格行"""
         first, last = self.node(start), self.node(end)
         parent = first.getparent()
         if parent is None or parent is not last.getparent():
@@ -262,7 +262,7 @@ class TemplatePackage:
         return nodes
 
     def descendants(self, nodes: list) -> set[str]:
-        """收集区域内全部节点标识；供嵌套冲突和覆盖检查使用"""
+        """收集区域内全部节点标识，供嵌套冲突和覆盖检查使用"""
         return {self.ids[child] for node in nodes for child in node.iter()}
 
     def validate_fields(self, fields: list[TextBinding], *, local: bool = False) -> set[str]:
@@ -302,14 +302,14 @@ class TemplatePackage:
         return set(intervals)
 
     def review(self, plan: TemplatePlan) -> dict:
-        """逐项检查全部映射；单处错误不影响其他区域的覆盖统计和定位"""
+        """逐项检查全部映射，单处错误不影响其他区域的覆盖统计和定位"""
         inventory = self.inventory()
         errors = list(inventory["warnings"])
         issues = [{"message": message, "nodes": []} for message in errors]
         covered, occupied = set(), set()
 
         def report(message, identifiers):
-            """记录可定位的问题；继续检查其他独立映射"""
+            """记录可定位的问题，继续检查其他独立映射"""
             errors.append(message)
             issues.append(
                 {"message": message, "nodes": [i for i in identifiers if i in self.nodes]}
@@ -321,7 +321,7 @@ class TemplatePackage:
         conflicts = set(plan.keep) & (set(plan.photos) | set(plan.remove))
         if conflicts:
             report("同一位置不能同时保留和替换或删除。", conflicts)
-        # 已声明的区域即使需要修正；也不重复统计为尚未识别；错误仍会阻止导出
+        # 已声明的区域即使需要修正，也不重复统计为尚未识别，错误仍会阻止导出
         covered.update(field.node for field in plan.fields if field.node in self.nodes)
         try:
             self.validate_fields(plan.fields)
@@ -406,7 +406,7 @@ class TemplatePackage:
         }
 
     def write(self, output: Path):
-        """重写已修改的 XML 部件；其他样式、页设置和资源保持原样"""
+        """重写已修改的 XML 部件，其他样式、页设置和资源保持原样"""
         files = dict(self.files)
         for name, root in self.parts.items():
             files[name] = etree.tostring(
@@ -418,11 +418,11 @@ class TemplatePackage:
 
 
 def relationship_part(part: str) -> str:
-    """取得当前 Word 部件的关系文件位置且不接受用户路径"""
+    """根据当前 Word 部件定位关系文件"""
     parent, name = posixpath.split(part)
     return f"{parent}/_rels/{name}.rels"
 
 
 def relationship_target(part: str, target: str) -> str:
-    """按 OPC 包内 URI 解析图片位置；支持绝对部件名和带空格的编码文件名"""
+    """按 OPC 包内 URI 解析图片位置，支持绝对部件名和带空格的编码文件名"""
     return posixpath.normpath(posixpath.join(posixpath.dirname(part), unquote(target))).lstrip("/")

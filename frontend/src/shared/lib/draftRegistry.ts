@@ -6,6 +6,6 @@ export function registerDraft(key: string, flush: () => Promise<void>) {
     pending.delete(key);
   };
 }
-/** 等待所有当前登记的草稿写入；任一失败都会阻止后续页面操作 */
+/** 等待所有当前登记的草稿写入，任一失败都会阻止后续页面操作 */
 export const flushDrafts = () =>
   Promise.all([...pending.values()].map((flush) => flush()));

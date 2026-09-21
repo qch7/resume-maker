@@ -1,4 +1,4 @@
-"""AI 适配器契约：返回结构化建议且不能直接修改经历版本"""
+"""定义返回结构化建议的 AI 适配器接口"""
 
 import threading
 from collections.abc import Callable
@@ -15,16 +15,16 @@ class ProviderError(Exception):
 
 
 class Cancelled(ProviderError):
-    """任务被主动取消；调用方应停止发布其结果"""
+    """任务被主动取消，调用方应停止发布其结果"""
 
     pass
 
 
 class StructuredOutputError(ProviderError):
-    """模型已返回但结构不合法；保留有界字段反馈供调用方重试，不能当作有效结果。"""
+    """模型已返回但结构不合法，保留有界字段反馈供调用方重试，不能当作有效结果"""
 
     def __init__(self, response, errors):
-        """只提取路径、错误类别和有限片段，避免把整个嵌套方案放进每条反馈。"""
+        """只提取路径、错误类别和有限片段，避免把整个嵌套方案放进每条反馈"""
         super().__init__("Codex 返回的数据不符合要求的格式，原有内容未被修改。")
         self.response = response
         self.issues = [
@@ -39,7 +39,7 @@ class StructuredOutputError(ProviderError):
 
 
 class Provider(Protocol):
-    """可注入的 AI 执行接口；隔离模型调用与经历持久化"""
+    """可注入的 AI 执行接口，隔离模型调用和经历持久化"""
 
     def run(
         self,
@@ -66,5 +66,5 @@ class Provider(Protocol):
         emit: Callable[[str, dict], None],
         images: list[Path] | None = None,
     ) -> T:
-        """复用同一 AI 配置生成指定领域模型；用于模板映射等独立分析"""
+        """复用同一 AI 配置生成指定领域模型，用于模板映射等独立分析"""
         ...

@@ -10,7 +10,7 @@ from resume_maker.infrastructure.database import SCHEMA_VERSION, Database
 
 
 def test_initialize_complete_schema_and_reopen(tmp_path):
-    """空库一次建立全部结构；重开不会重建表或覆盖已存配置"""
+    """空库一次建立全部结构，重开不会重建表或覆盖已存配置"""
     path = tmp_path / "resume.db"
     db = Database(path)
     db.set_setting("test", {"saved": True})
@@ -33,7 +33,7 @@ def test_initialize_complete_schema_and_reopen(tmp_path):
 
 @pytest.mark.parametrize("version", [0, 1, 2, 3, 4, 5, SCHEMA_VERSION + 1])
 def test_unsupported_database_is_rejected_without_modification(tmp_path, version):
-    """未标版本的非空库和不匹配版本均被拒绝；原文件不被升级或重建"""
+    """未标版本的非空库和不匹配版本均被拒绝，原文件不被升级或重建"""
     path = tmp_path / "unsupported.db"
     with closing(sqlite3.connect(path)) as conn, conn:
         conn.execute("CREATE TABLE preserved (value TEXT)")
@@ -46,7 +46,7 @@ def test_unsupported_database_is_rejected_without_modification(tmp_path, version
 
 
 def test_failed_initialization_rolls_back_all_tables(tmp_path, monkeypatch):
-    """建库途中失败时回滚全部结构；修正后可从空库重新初始化"""
+    """建库途中失败时回滚全部结构，修正后可从空库重新初始化"""
     path = tmp_path / "resume.db"
     with monkeypatch.context() as patch:
         patch.setattr(database, "SCHEMA", database.SCHEMA + "INVALID SQL;")

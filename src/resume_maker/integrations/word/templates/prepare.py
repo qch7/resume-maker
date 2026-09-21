@@ -1,4 +1,4 @@
-"""在模板副本中整理动态域、修订、绑定、绘图与批注；保留当前文字供识别"""
+"""在模板副本中整理动态域、修订、绑定、绘图和批注，保留当前文字供识别"""
 
 from lxml import etree
 
@@ -12,7 +12,7 @@ MC = "http://schemas.openxmlformats.org/markup-compatibility/2006"
 
 
 def normalize_document_kind(files):
-    """将 DOCM/DOTX 等包规范为不含宏的 DOCX 副本以免后续扩展名与内容类型不匹配"""
+    """将 DOCM/DOTX 等包规范为不含宏的 DOCX 副本以免后续扩展名和内容类型不匹配"""
     changed = False
     for name in list(files):
         if name.startswith(("word/vba", "word/_rels/vba")):
@@ -49,7 +49,7 @@ def normalize_document_kind(files):
 
 
 def prepare_parts(files: dict[str, bytes]) -> list[str]:
-    """副本中选择实际绘图、冻结动态域、接受修订和解除绑定且不改动原文件"""
+    """在副本中选择绘图、冻结动态域、接受修订并解除绑定"""
     normalized_kind = normalize_document_kind(files)
     removed = {
         name
@@ -98,7 +98,7 @@ def prepare_parts(files: dict[str, bytes]) -> list[str]:
                 parent.remove(alternate)
                 dirty = True
         dirty |= separate_anchors(root)
-        # 接受当前修订：保留插入与移入；移除已删除内容及旧属性快照
+        # 接受当前修订：保留插入和移入，移除已删除内容及旧属性快照
         for node in list(root.iter()):
             if node.getparent() is None:
                 continue
@@ -191,7 +191,7 @@ def prepare_parts(files: dict[str, bytes]) -> list[str]:
 
 
 def system_note(node) -> bool:
-    """只跳过没有文字或图片的系统分隔线；用户编写的脚注尾注仍参与识别"""
+    """只跳过没有文字或图片的系统分隔线，用户编写的脚注尾注仍参与识别"""
     return (
         node.tag in {w("footnote"), w("endnote")}
         and node.get(w("type")) in {"separator", "continuationSeparator"}

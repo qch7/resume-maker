@@ -1,4 +1,4 @@
-/* 窄屏适配、放大预览和无障碍动效偏好；置后以覆盖基础布局 */
+/* 窄屏适配、放大预览和无障碍动效偏好，置后以覆盖基础布局 */
 .sidebar-hidden .workbench {
   grid-template-columns: minmax(320px, 1fr) 8px var(--composer-width);
 }

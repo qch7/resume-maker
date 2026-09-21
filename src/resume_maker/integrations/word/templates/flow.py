@@ -8,13 +8,13 @@ from resume_maker.integrations.word.ooxml import NS, w
 
 
 def effective_section(node):
-    """取得当前位置实际使用的节属性；Word 将它保存在当前节的结束位置"""
+    """取得当前位置实际使用的节属性，Word 将它保存在当前节的结束位置"""
     sections = node.xpath(".//w:sectPr | following::w:sectPr[1]", namespaces=NS)
     return sections[0] if sections else None
 
 
 def continuous_section(properties):
-    """栏目使用连续分节；保留纸张、页边距和列宽且仅取消另起页的默认行为"""
+    """栏目使用连续分节，保留纸张、页边距和列宽且仅取消另起页的默认行为"""
     kind = properties.find(w("type"))
     if kind is None:
         kind = etree.Element(w("type"))
@@ -24,7 +24,7 @@ def continuous_section(properties):
 
 
 def continuous_block(block):
-    """栏目顺接前文；覆盖段落样式的段前分页并清除硬分页；保留普通换行和分栏"""
+    """栏目顺接前文，覆盖段落样式的段前分页并清除硬分页，保留普通换行和分栏"""
     for paragraph in block.iter(w("p")):
         properties = paragraph.find(w("pPr"))
         if properties is None:
@@ -44,14 +44,14 @@ def continuous_block(block):
         node.getparent().remove(node)
     for properties in block.iter(w("sectPr")):
         continuous_section(properties)
-    # 文档末尾的 sectPr 也定义最后一节如何开始；未指定 type 时 Word 默认另起一页
+    # 文档末尾的 sectPr 也定义最后一节如何开始，未指定 type 时 Word 默认另起一页
     properties = effective_section(block)
     if properties is not None:
         continuous_section(properties)
 
 
 def flow_paragraph(text, donor, align="left"):
-    """继承样本字体和文字样式；清除绝对段落定位；允许内容自然换行"""
+    """继承样本字体和文字样式，清除绝对段落定位，允许内容自然换行"""
     paragraph = etree.Element(w("p"))
     properties = donor.find(w("pPr")) if donor is not None else None
     properties = deepcopy(properties) if properties is not None else etree.Element(w("pPr"))

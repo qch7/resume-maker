@@ -1,4 +1,4 @@
-/** 检查函数中文说明和前端依赖边界；供本机验证与 CI 共用 */
+/** 检查函数中文说明和前端依赖边界，供本机验证和 CI 共用 */
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,7 +10,7 @@ const root = path.resolve(
 );
 const chinese = /[\u4e00-\u9fff]/;
 
-/** 递归收集应用源码且不遍历构建产物和 node_modules */
+/** 递归收集应用源码 */
 function sourceFiles(directory) {
   const result = [];
   for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
@@ -21,7 +21,7 @@ function sourceFiles(directory) {
   return result;
 }
 
-/** 找到函数说明所在的声明；命名箭头函数的说明放在变量声明前 */
+/** 找到函数说明所在的声明，命名箭头函数的说明放在变量声明前 */
 function documentationAnchor(node) {
   if (ts.isParenthesizedExpression(node.parent)) return node.parent;
   if (ts.isVariableDeclaration(node.parent)) return node.parent.parent.parent;

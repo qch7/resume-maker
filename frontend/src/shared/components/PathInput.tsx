@@ -13,7 +13,7 @@ interface Props {
   multiline?: boolean;
 }
 
-/** 统一路径填写与 Windows 原生选择；取消、卸载或表单切换不会覆盖原值 */
+/** 支持手动填写路径和 Windows 原生选择 */
 export default function PathInput({
   label,
   value,
@@ -31,7 +31,7 @@ export default function PathInput({
   latest.current = { value, onChange, disabled };
   useEffect(
     /* 关闭表单后忽略尚未返回的选择以免修改别的项目或简历 */ () => {
-      return /* 中止前端订阅；原生窗口仍可通过自身取消按钮关闭 */ () =>
+      return /* 中止前端订阅，原生窗口仍可通过自身取消按钮关闭 */ () =>
         pending.current?.abort();
     },
     [],

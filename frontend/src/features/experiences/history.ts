@@ -17,17 +17,17 @@ export const BRANCH_COLORS = [
   "#6aa8a1",
 ];
 
-/** 按真实父修订构建图坐标且不以保存时间猜测版本关系 */
+/** 根据父修订关系计算历史图坐标 */
 export function historyGraph(
   revisions: Revision[],
   branches: Branch[],
   working: UncommittedRevision[] = [],
 ) {
   const saved = [...revisions].sort(
-    /* 新版本排在上方；序号在项目内唯一 */ (a, b) => b.number - a.number,
+    /* 新版本排在上方，序号在项目内唯一 */ (a, b) => b.number - a.number,
   );
   const ordered: HistoryRevision[] = saved.flatMap(
-    /* 草稿紧邻自己的基线版本且不占用正式版本编号或移动分支指针 */ (base) => {
+    /* 草稿放在基线版本旁边并独立编号 */ (base) => {
       const draft = working.find(
         /* 将每份未提交工作副本连接到准确的基线 */ (item) =>
           item.base_revision === base.id,
@@ -65,7 +65,7 @@ export function historyGraph(
   );
   const byId = new Map(
     nodes.map(
-      /* 以标识查找父节点；支持历史存在分叉 */ (node) => [
+      /* 以标识查找父节点，支持历史存在分叉 */ (node) => [
         node.revision.id,
         node,
       ],
@@ -112,7 +112,7 @@ export function revisionOrigin(origin: string) {
   );
 }
 
-/** 概括相对于父版本的内容变更；分支起点允许只有关系变化 */
+/** 概括相对于父版本的内容变更，分支起点允许只有关系变化 */
 export function revisionChanges(revision: Revision, parent?: Revision) {
   if (!parent) return ["初始经历"];
   const labels = {

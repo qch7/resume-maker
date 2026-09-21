@@ -30,7 +30,7 @@ def add_complex(paragraph, codes, text, *, separate=True, close=True):
 @pytest.mark.parametrize("simple", [True, False])
 @pytest.mark.parametrize("part", ["body", "header", "footer"])
 def test_hyperlink_fields_preserve_display_style_and_allow_filling(tmp_path, simple, part):
-    """邮箱域在各文字部件可直接识别填充；原文件、相邻文字、字体和页码仍保留"""
+    """邮箱域在各文字部件可直接识别填充，原文件、相邻文字、字体和页码仍保留"""
     source, normalized, output = [
         tmp_path / name for name in ("source.docx", "copy.docx", "out.docx")
     ]
@@ -89,7 +89,7 @@ def test_hyperlink_fields_preserve_display_style_and_allow_filling(tmp_path, sim
 
 
 def test_hyperlink_import_reaches_analysis_and_keeps_snapshot_ids(catalog, tmp_path):
-    """链接域无需人工修改即可进入识别；保存的归一化副本与映射节点编号一致"""
+    """链接域无需人工修改即可进入识别，保存的归一化副本和映射节点编号一致"""
     source = tmp_path / "hyperlink.docx"
     doc = Document()
     add_complex(doc.add_paragraph(), [' HYPERLINK "https://example.test" '], "原姓名")
@@ -112,7 +112,7 @@ def test_hyperlink_import_reaches_analysis_and_keeps_snapshot_ids(catalog, tmp_p
     "text,separate,close", [("", True, True), ("旧邮箱", False, True), ("旧邮箱", True, False)]
 )
 def test_incomplete_fields_keep_text_and_become_editable(tmp_path, text, separate, close):
-    """不完整域保留可见文字并变为可编辑内容且不再因缺少指令边界阻止识别"""
+    """不完整域保留显示文字并转为可编辑内容"""
     source = tmp_path / "incomplete.docx"
     doc = Document()
     add_complex(
@@ -131,7 +131,7 @@ def test_incomplete_fields_keep_text_and_become_editable(tmp_path, text, separat
 
 
 def test_split_page_fields_and_nested_dynamic_fields_are_distinguished(tmp_path):
-    """拼接页码指令并接受格式开关；嵌套的其他域都冻结为原有显示结果"""
+    """拼接页码指令并接受格式开关，嵌套的其他域都冻结为原有显示结果"""
     source = tmp_path / "nested.docx"
     doc = Document()
     paragraph = doc.add_paragraph()

@@ -2,7 +2,7 @@ import { FileImage, RotateCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { request } from "../../lib/api";
 
-/** 进入可见范围后获取真实首屏；切换分类或关闭弹窗时中止下载并释放图片 */
+/** 进入视口后下载首屏图并在离开时中止下载和释放图片 */
 export default function Thumbnail({ id, name }: { id: string; name: string }) {
   const element = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
@@ -10,7 +10,7 @@ export default function Thumbnail({ id, name }: { id: string; name: string }) {
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
   useEffect(
-    /* 避免一次性为屏幕外的整个模板库启动排版 */ () => {
+    /* 只为可见模板请求排版 */ () => {
       const observer = new IntersectionObserver(
         /* 预加载即将滚入视口的卡片 */ (entries) => {
           if (
@@ -30,13 +30,13 @@ export default function Thumbnail({ id, name }: { id: string; name: string }) {
     [],
   );
   useEffect(
-    /* 模板切换时隔离迟到响应；失败可显式重试 */ () => {
+    /* 模板切换时隔离迟到响应，失败可显式重试 */ () => {
       if (!visible) return;
       const controller = new AbortController();
       let objectUrl = "";
       setUrl("");
       setError("");
-      /** 通过实例令牌读取模板图片且不执行模板中的外部资源 */
+      /** 携带实例令牌读取模板内嵌图片 */
       async function read() {
         try {
           const response = await request(

@@ -35,7 +35,7 @@ def defaults():
 
 
 def test_defaults_persist_across_application_restarts_and_reject_stale_writes(tmp_path):
-    """设置随数据库持久化；多窗口不能覆盖较新的设置"""
+    """设置随数据库持久化，多窗口不能覆盖较新的设置"""
     config = Config(data_dir=tmp_path, token="test")
     headers = {"x-resume-token": "test"}
     with TestClient(create_app(config)) as client:
@@ -57,7 +57,7 @@ def test_defaults_persist_across_application_restarts_and_reject_stale_writes(tm
 
 @pytest.mark.parametrize("case", ["duplicate", "unknown", "blank", "projects", "cycle", "capacity"])
 def test_invalid_default_definitions_are_rejected_without_saving(tmp_path, case):
-    """校验字段和层级；失败不会留下部分配置"""
+    """校验字段和层级，失败不会留下部分配置"""
     body = defaults()
     if case == "duplicate":
         body["personal_fields"].append(body["personal_fields"][0])
@@ -81,7 +81,7 @@ def test_invalid_default_definitions_are_rejected_without_saving(tmp_path, case)
 
 
 def test_removed_project_defaults_stay_hidden_in_export_without_changing_revision():
-    """已删除的默认项不能被历史显隐覆盖打开；排版副本不修改项目版本"""
+    """已删除的默认项不能被历史显隐覆盖打开，排版副本不修改项目版本"""
     original = {
         "title": "项目",
         "period": "2026",

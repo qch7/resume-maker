@@ -80,7 +80,7 @@ def test_reveal_rejects_unlisted_or_escaping_paths(catalog, project, tmp_path, m
 
 
 def test_reveal_reports_missing_source_file(catalog, project, tmp_path, monkeypatch):
-    """文件移走后报告明确错误且不退回其他同名仓库或打开不存在的位置"""
+    """来源文件移走后返回文件不存在的错误"""
     snapshot = record_source_files(catalog.db, tmp_path / "data", project)
     (Path(project["roots"][0]) / "README.md").unlink()
     opened = []
@@ -95,7 +95,7 @@ def test_reveal_reports_missing_source_file(catalog, project, tmp_path, monkeypa
     [("win32", ["explorer.exe", "/select,"]), ("darwin", ["open", "-R"]), ("linux", ["xdg-open"])],
 )
 def test_file_manager_keeps_paths_as_single_arguments(tmp_path, monkeypatch, platform, command):
-    """各平台通过参数数组调用文件管理器；含空格的文件路径不会作为命令解析"""
+    """各平台通过参数数组调用文件管理器，含空格的文件路径不会作为命令解析"""
     path = tmp_path / "源码 文件.py"
     calls = []
     monkeypatch.setattr(desktop.sys, "platform", platform)

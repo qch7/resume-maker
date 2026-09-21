@@ -14,14 +14,14 @@ from resume_maker.services.honor_links import resolve_honor_document
 
 
 class Documents:
-    """使用内置版式或完整模板；将固定版本简历导出为 Word"""
+    """使用内置版式或完整模板，将固定版本简历导出为 Word"""
 
     def __init__(self, catalog: Catalog, data_dir: Path):
-        """保存当前模块所需依赖；供后续业务操作共享使用"""
+        """保存当前模块所需依赖，供后续业务操作共享使用"""
         self.catalog, self.db, self.data_dir = catalog, catalog.db, data_dir
 
     def export(self, resume_id: str) -> dict:
-        """读取固定资料及项目引用；按所选完整模板或内置版式生成文件和清单"""
+        """读取固定资料及项目引用，按所选完整模板或内置版式生成文件和清单"""
         resume = need(
             self.db.one(
                 "SELECT * FROM resumes WHERE id=? AND id NOT IN "
