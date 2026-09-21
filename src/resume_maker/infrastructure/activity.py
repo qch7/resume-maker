@@ -342,6 +342,7 @@ class ActivityLog:
                     row,
                     created_at=stamp,
                     source="history",
+                    level="error" if event in {"error", "failed"} else "info",
                     origin_key=key,
                     job_id=row.get("job_id") or "",
                     conversation_id=row.get("conversation_id") or "",

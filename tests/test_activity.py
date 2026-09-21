@@ -209,6 +209,18 @@ def test_history_import_is_dated_idempotent_and_survives_message_deletion(
         conn.execute("DELETE FROM messages")
     assert log.detail(1)["payload"]["text"] == "旧消息"
 
+    job_id = uid()
+    with catalog.db.transaction() as conn:
+        conn.execute(
+            "INSERT INTO jobs(id,project_id,conversation_id,kind,status,request_json,"
+            "created_at,request_key) VALUES (?,?,?,'chat','failed','{}',?,?)",
+            (job_id, project["id"], conversation["id"], now(), uid()),
+        )
+    catalog.db.event(job_id, "error", {"text": "历史工具调用失败"})
+    imported = ActivityLog(tmp_path / "historical-error.sqlite")
+    imported.import_history(catalog.db)
+    assert imported.page(level="error")["events"][0]["job_id"] == job_id
+
 
 def test_concurrent_instances_retention_and_write_failure(tmp_path, monkeypatch):
     """并发活动不串实例，过期清理保持游标，日志写失败仍允许业务继续"""
