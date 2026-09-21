@@ -1,11 +1,9 @@
 """验证外发请求不含已知身份值，模型不能通过附件、会话或工具绕过出口"""
 
-import asyncio
 import json
 import threading
 from pathlib import Path
 
-import httpx
 import pytest
 from fastapi.testclient import TestClient
 
@@ -26,35 +24,14 @@ def reply(text="完成"):
     return {"reply": text, "experience": None, "changes": [], "questions": []}
 
 
-def response(value, **extra):
-    """构造 Responses 的完成消息，所有内容均为测试数据"""
-    return {
-        "status": "completed",
-        "output": [
-            {
-                "type": "message",
-                "content": [{"type": "output_text", "text": json.dumps(value, ensure_ascii=False)}],
-            }
-        ],
-        **extra,
-    }
-
-
 def provider_at(tmp_path, handler, db=None):
-    """建立独立连接配置和模拟网络，避免使用用户凭据或真实供应商"""
-    home = tmp_path / "test-codex"
-    home.mkdir(exist_ok=True)
-    (home / "config.toml").write_text(
-        'model="synthetic-model"\nmodel_provider="test"\n'
-        '[model_providers.test]\nbase_url="https://provider.invalid/v1"\n'
-        'env_key="TEST_MODEL_KEY"\nwire_api="responses"\n',
-        encoding="utf-8",
-    )
-    return CodexProvider(
-        environment={"CODEX_HOME": str(home), "TEST_MODEL_KEY": "synthetic-key"},
-        privacy=PrivacyStore(db),
-        transport=httpx.MockTransport(handler),
-    )
+    """注入只接收安全材料的 CLI 替身，不访问用户配置或真实模型"""
+
+    def runner(payload, settings, environment, cancelled, emit):
+        """回显可控的结构化结果以检查本机还原"""
+        return json.dumps(handler(payload), ensure_ascii=False)
+
+    return CodexProvider(privacy=PrivacyStore(db), runner=runner)
 
 
 def run(provider, tmp_path, prompt, **options):
@@ -78,16 +55,15 @@ def test_actual_request_masks_context_schema_and_restores_locally(tmp_path, cata
 
     def handle(request):
         """检查真实 HTTP 正文及鉴权，回显脱敏文字用于验证本地还原"""
-        body = json.loads(request.content)
+        body = request
         seen.append(body)
         serialized = json.dumps(body, ensure_ascii=False)
         assert all(
             value not in serialized
             for value in [*values, "old-private-session", "private-workspace"]
         )
-        assert request.headers["authorization"] == "Bearer synthetic-key"
-        assert body["store"] is False and body["tools"] == [] and body["tool_choice"] == "none"
-        return httpx.Response(200, json=response(reply(body["input"])))
+        assert body["transport"] == "codex-cli-sandbox" and "schema" in body
+        return reply(body["input"])
 
     provider = provider_at(tmp_path, handle, catalog.db)
     prompt = " / ".join(values)
@@ -108,8 +84,8 @@ def test_saved_and_unsaved_documents_supply_sensitive_values(tmp_path, catalog):
 
     def handle(request):
         """核对未持久化的个人字段只以占位符发出"""
-        seen.append(json.loads(request.content))
-        return httpx.Response(200, json=response(reply()))
+        seen.append(request)
+        return reply()
 
     base = provider_at(tmp_path, handle, catalog.db)
     provider = base.with_private_data(
@@ -188,10 +164,13 @@ def test_connection_inherits_profile_effort_and_overrides_without_executing_tool
         encoding="utf-8",
     )
     env = {"CODEX_HOME": str(tmp_path), "OPENAI_API_KEY": "synthetic-key"}
-    assert connection(ProviderSettings(profile="test"), env)[2:] == ("profile", "high")
-    assert connection(
+    values, _ = connection(ProviderSettings(profile="test"), env)
+    assert (values["model"], values["model_reasoning_effort"]) == ("profile", "high")
+    assert "mcp_servers" not in values
+    values, _ = connection(
         ProviderSettings(profile="test", model="override", reasoning_effort="low"), env
-    )[2:] == ("override", "low")
+    )
+    assert (values["model"], values["model_reasoning_effort"]) == ("override", "low")
 
 
 @pytest.mark.parametrize("input_text", ["data:image/png;base64,AAAA", "A" * 600, "[[RM_fake]]"])
@@ -201,24 +180,10 @@ def test_encoded_payloads_and_forged_tokens_fail_closed(input_text):
         Redactor().prompt(input_text)
 
 
-def test_original_images_block_before_credentials_or_network(tmp_path):
-    """原始图片在连接配置读取前即被拒绝，文件也不需要被打开"""
-    with pytest.raises(ProviderError, match="原始图片"):
-        run(CodexProvider(), tmp_path, "识别", images=[tmp_path / "private.png"])
-
-
-@pytest.mark.parametrize(
-    "output",
-    [
-        {"status": "incomplete", "output": []},
-        {"status": "completed", "output": [{"type": "function_call", "name": "read_file"}]},
-        response(reply("[[RM_aaaaaaaaaaaa_99]]")),
-        response(reply("[[RM_broken]]")),
-    ],
-)
-def test_incomplete_tool_and_unknown_token_responses_are_rejected(tmp_path, output):
-    """禁止执行工具，未知或损坏的映射不能污染本机简历"""
-    provider = provider_at(tmp_path, lambda _: httpx.Response(200, json=output))
+@pytest.mark.parametrize("text", ["[[RM_aaaaaaaaaaaa_99]]", "[[RM_broken]]"])
+def test_unknown_token_responses_are_rejected(tmp_path, text):
+    """未知或损坏的占位符不能污染本机简历"""
+    provider = provider_at(tmp_path, lambda _: reply(text))
     with pytest.raises(ProviderError):
         run(provider, tmp_path, "测试")
 
@@ -228,8 +193,8 @@ def test_validation_feedback_is_local_and_can_be_redacted_again(tmp_path):
 
     def handle(request):
         """返回错误字段类型，使错误信息含本轮占位符"""
-        token = TOKEN.search(json.loads(request.content)["input"])[0]
-        return httpx.Response(200, json=response({**reply(), "reply": [token]}))
+        token = TOKEN.search(request["input"])[0]
+        return {**reply(), "reply": [token]}
 
     provider = provider_at(tmp_path, handle).with_private_data({"personal": {"name": "测试甲"}})
     with pytest.raises(StructuredOutputError) as caught:
@@ -240,51 +205,30 @@ def test_validation_feedback_is_local_and_can_be_redacted_again(tmp_path):
     assert "测试甲" not in safe
 
 
-def test_cancellation_closes_transport_and_marks_audit(tmp_path, catalog):
-    """取消正在等待的供应商连接，任务不发布迟到结果"""
+def test_cancelled_cli_marks_audit_without_publishing_result(tmp_path, catalog):
+    """CLI 取消后只保存取消状态，不发布任何结果"""
     flag = threading.Event()
-    closed = []
 
-    async def handle(request):
-        """模拟供应商延迟并在取消时释放等待"""
+    def runner(*args):
+        """模拟 CLI 等待期间用户发出取消"""
         flag.set()
-        try:
-            await asyncio.sleep(10)
-        finally:
-            closed.append(True)
-        return httpx.Response(200, json=response(reply()))
+        raise Cancelled("取消")
 
-    provider = provider_at(tmp_path, handle, catalog.db)
+    provider = CodexProvider(privacy=PrivacyStore(catalog.db), runner=runner)
     with pytest.raises(Cancelled):
         run(provider, tmp_path, "测试", cancelled=flag)
-    assert closed and catalog.db.setting("privacy_audit")[0]["status"] == "cancelled"
+    assert catalog.db.setting("privacy_audit")[0]["status"] == "cancelled"
 
 
-@pytest.mark.parametrize("status", [302, 401, 500])
-def test_redirect_and_error_bodies_never_leak_or_retry(tmp_path, status):
-    """错误正文不进入日志，也不会带着鉴权跟随重定向或重新发送原文"""
-    seen = []
-
-    def handle(request):
-        """错误中故意包含敏感文字，调用方只应收到状态码"""
-        seen.append(request)
-        return httpx.Response(
-            status, text="private-error-body", headers={"location": "https://other.invalid"}
-        )
-
-    provider = provider_at(tmp_path, handle)
-    with pytest.raises(ProviderError) as caught:
-        run(provider, tmp_path, "测试")
-    assert str(status) in str(caught.value) and "private-error-body" not in str(caught.value)
-    assert len(seen) == 1
-
-
-def test_subscription_only_connection_and_insecure_remote_endpoint_block(tmp_path):
-    """不将订阅令牌误作 API 密钥，也不通过远程明文连接发送"""
+def test_subscription_login_is_preserved_and_credentials_are_not_arguments(tmp_path):
+    """订阅鉴权留给 CLI，供应商令牌只进入父进程环境"""
     (tmp_path / "config.toml").write_text('model="test"', encoding="utf-8")
     (tmp_path / "auth.json").write_text(json.dumps({"tokens": {"access_token": "private-token"}}))
-    with pytest.raises(ProviderError, match="API 密钥"):
-        connection(ProviderSettings(), {"CODEX_HOME": str(tmp_path), "OPENAI_API_KEY": ""})
+    values, env = connection(
+        ProviderSettings(), {"CODEX_HOME": str(tmp_path), "OPENAI_API_KEY": ""}
+    )
+    assert values["model"] == "test" and env["CODEX_HOME"] == str(tmp_path.resolve())
+    assert "private-token" not in json.dumps([values, env])
     (tmp_path / "config.toml").write_text(
         'model="test"\n[model_providers.openai]\nbase_url="http://remote.invalid/v1"'
     )

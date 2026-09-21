@@ -37,8 +37,16 @@ def privacy(services: ServicesDep):
     }
     return {
         "enabled": True,
-        "transport": "responses-no-tools",
-        "images": "blocked",
+        "transport": "codex-cli-sandbox",
+        "isolation": "read-only-material-tools",
+        "images": "local-ocr",
+        "ocr": {
+            "engine": "RapidOCR / PP-OCRv4 mobile",
+            "device": "CPU",
+            "threads": 2,
+            "base_side": 960,
+            "retry_side": 2000,
+        },
         "terms": saved.get("privacy_terms", []),
         "version": saved.get("privacy_terms_version", 0),
     }

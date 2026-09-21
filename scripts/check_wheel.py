@@ -32,7 +32,12 @@ from resume_maker.api import create_app
 from resume_maker.core.config import Config
 from resume_maker.infrastructure.database import SCHEMA_VERSION
 from resume_maker.services.templates.analysis import INSTRUCTIONS
+from resume_maker.integrations import local_ocr
+from resume_maker.integrations.providers import material_server
 assert "name: resume-template-mapping" in INSTRUCTIONS
+assert Path(material_server.__file__).is_relative_to(Path.cwd() / "package")
+assert len(material_server.TOOLS) == 2
+assert local_ocr.engine() is not None
 config = Config(data_dir=Path.cwd() / "data")
 assert config.frontend == (Path.cwd() / "package/resume_maker/web").resolve(), config.frontend
 assert (config.frontend / "index.html").is_file()
@@ -40,7 +45,7 @@ assert list((config.frontend / "assets").glob("*.js"))
 app = create_app(config)
 assert app.state.services.db.one("PRAGMA user_version")["user_version"] == SCHEMA_VERSION
 assert "/api/state" in app.openapi()["paths"]
-print("Wheel 验证通过：应用可导入，静态资源和数据库初始结构完整。")
+print("Wheel 验证通过：应用、静态资源、数据库、只读材料服务和本地 OCR 模型完整。")
 """
         # 隔离模式忽略 PYTHONUTF8，因此通过解释器参数启用 UTF-8
         subprocess.run([sys.executable, "-I", "-X", "utf8", "-c", script], cwd=target, check=True)

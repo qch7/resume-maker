@@ -9,7 +9,7 @@ interface RequestRecord {
   payload: unknown;
 }
 
-/** 管理本机敏感词并检查实际外发的脱敏请求 */
+/** 管理本机敏感词并检查交给 CLI 的脱敏材料 */
 export default function Privacy() {
   const [terms, setTerms] = useState("");
   const [version, setVersion] = useState(0);
@@ -53,11 +53,16 @@ export default function Privacy() {
       <h3>隐私保护 · 已开启</h3>
       <p className="subtle">
         每轮发送前替换已知个人信息和常见敏感格式，真实值只在本机还原。
-        原始图片和扫描件不会发送；模板按文字结构识别，证书可手动录入。
+        原图先在本机提取文字，CLI
+        通过专用只读工具访问脱敏副本，无法运行任意命令。
       </p>
       <p className="subtle">
-        自动检测可能遗漏未登记的姓名、单位或特殊格式，请补充敏感词。 AI 使用 API
-        凭据，无法使用仅订阅登录的连接；不接入旧模型会话。
+        自动检测可能遗漏未登记的姓名、单位或特殊格式，请补充敏感词。 复用 CLI
+        登录和供应商配置，每轮新建隔离会话；版本不兼容或工具服务启动失败时停止请求。
+      </p>
+      <p className="subtle">
+        OCR 使用本地中英文轻量模型和 CPU，可靠 PDF 文字层直接提取，
+        扫描页和图片按需识别，低置信度页面最多复核一次。请核对错字、漏字和照片位置。
       </p>
       <label>
         补充敏感词（每行一个，如姓名、学校、单位、住址）
@@ -122,10 +127,10 @@ export default function Privacy() {
         )}
       </details>
       <details>
-        <summary>最近模型请求（最多 10 条）</summary>
+        <summary>最近脱敏材料包（最多 10 条）</summary>
         <p className="subtle">
-          显示实际发送的请求体，不包含 API
-          密钥或还原表。记录仍可能含业务内容，可随时清除。
+          显示准备交给 CLI 的脱敏文字和输出契约，不包含鉴权或还原表。 这不是 CLI
+          的完整网络抓包，记录仍可能含业务内容，可随时清除。
         </p>
         <button
           disabled={busy}

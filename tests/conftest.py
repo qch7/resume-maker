@@ -18,6 +18,12 @@ def isolate_model_network(monkeypatch, tmp_path):
 
     monkeypatch.setattr(httpx.AsyncHTTPTransport, "handle_async_request", blocked)
 
+    def blocked_cli(*args, **kwargs):
+        """默认禁止真实 CLI 模型请求，单测必须显式注入执行替身"""
+        pytest.fail("测试禁止启动真实模型会话，请注入 CLI runner")
+
+    monkeypatch.setattr("resume_maker.integrations.providers.codex.run_cli", blocked_cli)
+
 
 @pytest.fixture(autouse=True)
 def isolate_template_visual_renderer(monkeypatch):

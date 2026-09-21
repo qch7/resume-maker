@@ -46,7 +46,7 @@ npm --prefix frontend run build
 
 ## 真实模板与供应商对照
 
-隐私保护使用无工具 Responses API，评测同样经过文字脱敏和图片拦截。仅订阅登录不适用；本地评测输出仍可能包含原件和还原结果。
+隐私保护保留 Windows 原生 CLI，固定 0.154.0，以只读材料服务提供脱敏副本。评测同样经过本地 OCR 和脱敏，原始像素不外发；支持文件登录。本地输出仍可能包含原件和还原结果。OCR 合成评测运行 `uv run python scripts/benchmark_ocr.py`，非 Windows 环境通过 `--font` 指定本机中文字体。真实 CLI 边界验收见 [隐私保护](privacy.md)。
 
 用户授权发送模板后，可从 CC Switch 只读加载指定的 Codex 供应商：
 

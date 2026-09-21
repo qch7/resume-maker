@@ -228,7 +228,11 @@ class Honors:
                 workspace.mkdir(parents=True)
                 images = []
                 allow_images = getattr(self.provider, "supports_images", True)
-                if not allow_images and not item["attachment"]["text"].strip():
+                local_ocr = getattr(self.provider, "preprocess_images", False)
+                if local_ocr:
+                    source, _ = self.file(identifier)
+                    images.append(source)
+                if not allow_images and not local_ocr and not item["attachment"]["text"].strip():
                     raise Problem(
                         "隐私保护未发送证书图片。此文件没有可提取的文字，请对照原件手动录入。"
                     )

@@ -2,13 +2,12 @@
 
 import json
 
-import httpx
 import pymupdf
 from docx import Document
 from fastapi.testclient import TestClient
 from test_honors import certificate_bytes, wait_honor
 from test_jobs import wait_job
-from test_privacy import provider_at, reply, response
+from test_privacy import provider_at, reply
 from test_template_analysis import completed, simple_document
 
 from resume_maker.api import create_app
@@ -30,7 +29,7 @@ def test_masked_source_paths_and_quotes_are_restored_before_evidence_validation(
 
     def handle(request):
         """依据收到的安全片段构造真实行号的源码证据"""
-        body = json.loads(request.content)
+        body = request
         seen.append(body)
         context = json.loads(body["input"].split("本轮上下文数据：\n")[1])
         file = context["source_materials"]["files"][0]
@@ -51,7 +50,7 @@ def test_masked_source_paths_and_quotes_are_restored_before_evidence_validation(
                 ],
             },
         }
-        return httpx.Response(200, json=response(result))
+        return result
 
     provider = provider_at(tmp_path, handle, catalog.db)
     jobs = Jobs(catalog.db, catalog, tmp_path / "data", provider)
@@ -85,7 +84,7 @@ def test_template_quote_restored_and_original_images_never_sent(tmp_path, catalo
 
     def handle(request):
         """只根据安全节点清单返回姓名映射，不读取任何本机文件"""
-        body = json.loads(request.content)
+        body = request
         seen.append(body)
         context = json.loads(body["input"].splitlines()[-1])
         rows = [row for part in context["template"]["parts"].values() for row in part]
@@ -99,7 +98,7 @@ def test_template_quote_restored_and_original_images_never_sent(tmp_path, catalo
             "remove": [],
             "warnings": [],
         }
-        return httpx.Response(200, json=response(plan))
+        return plan
 
     provider = provider_at(tmp_path, handle, catalog.db)
     service = Templates(catalog, tmp_path / "data", provider)
@@ -113,7 +112,7 @@ def test_template_quote_restored_and_original_images_never_sent(tmp_path, catalo
     assert Document(source).paragraphs[0].text == "姓名：测试甲"
 
 
-def test_certificate_image_blocked_and_pdf_text_masked(tmp_path):
+def test_blank_certificate_stays_local_and_pdf_text_is_masked(tmp_path):
     """荣誉上传不把原件发给模型，PDF 文字中的获奖人本地还原"""
     config = Config(data_dir=tmp_path / "data", token="test")
     app = create_app(config)
@@ -121,20 +120,15 @@ def test_certificate_image_blocked_and_pdf_text_masked(tmp_path):
 
     def handle(request):
         """供应商只接收 PDF 的脱敏文字"""
-        body = json.loads(request.content)
+        body = request
         seen.append(body)
-        context = json.loads(body["input"].splitlines()[-1])
+        context = json.loads(body["input"].split("\n本地 OCR")[0].splitlines()[-1])
         token = TOKEN.search(context["pdf_text"])[0]
-        return httpx.Response(
-            200,
-            json=response(
-                {
-                    "fields": {"name": "Synthetic Award", "recipient": token},
-                    "text": token,
-                    "warnings": [],
-                }
-            ),
-        )
+        return {
+            "fields": {"name": "Synthetic Award", "recipient": token},
+            "text": token,
+            "warnings": [],
+        }
 
     provider = provider_at(tmp_path, handle, app.state.services.db)
     app.state.services.honors.provider = provider
@@ -143,7 +137,7 @@ def test_certificate_image_blocked_and_pdf_text_masked(tmp_path):
             "/api/honors/upload?filename=certificate.png", content=certificate_bytes()
         ).json()
         blocked = wait_honor(client, image["id"], "failed")
-        assert "隐私保护" in blocked["error"] and not seen
+        assert "本地 OCR" in blocked["error"] and not seen
         assert client.get(f"/api/honors/{image['id']}/original").status_code == 200
         with pymupdf.open() as pdf:
             page = pdf.new_page()

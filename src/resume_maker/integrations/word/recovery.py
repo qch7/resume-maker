@@ -93,6 +93,13 @@ def append_page(document, recovered, page, number):
 
 def recover_page(provider, output, prompt, image, settings, flag, emit, number):
     """页面恢复失败时重试一次并响应取消，重试失败则中止"""
+    if getattr(provider, "preprocess_images", False):
+        from resume_maker.integrations.local_ocr import read_document
+
+        result = read_document(image, flag)
+        if hasattr(provider, "register_ocr"):
+            provider.register_ocr(result)
+        return ocr_page(result["pages"][0])
     for attempt in range(1, 3):
         if flag.is_set():
             raise Cancelled("模板自动整理已取消。")
@@ -118,13 +125,31 @@ def recover_page(provider, output, prompt, image, settings, flag, emit, number):
             prompt += "\n上次恢复未成功，请重新识别本页，并检查文字与照片坐标是否符合格式。"
 
 
+def ocr_page(page):
+    """将本地 OCR 行转成可编辑段落，原始像素不参与模型恢复"""
+    return RecoveredPage(
+        blocks=[{"text": row["text"]} for row in page["blocks"]],
+        notes=["由本地 OCR 恢复文字，照片、装饰、字体及识别错字需人工核对。"],
+    )
+
+
 def rebuild_pages(pdf, output, provider, settings, flag, emit, *, native_pdf=False):
     """逐页识别避免图片数量限制，任何一页失败均保留源快照并返回实际失败原因"""
     if native_pdf:
+        local = None
+        if getattr(provider, "preprocess_images", False):
+            from resume_maker.integrations.local_ocr import read_document
+
+            emit("activity", {"type": "prepare", "text": "正在本机预处理 PDF 文字层和扫描页面"})
+            local = read_document(pdf, flag)
+            if hasattr(provider, "register_ocr"):
+                provider.register_ocr(local)
         from resume_maker.integrations.word.pdf.recovery import rebuild_pdf
 
         def fallback(document, page, number):
             """只把缺少可靠文字层或版面转换失败的 PDF 页交给现有视觉恢复器"""
+            if local is not None:
+                return append_page(document, ocr_page(local["pages"][number - 1]), page, number)
             image = output.parent / f"recovery-page-{number}.png"
             page.get_pixmap(matrix=pymupdf.Matrix(1.6, 1.6)).save(image)
             prompt = RECOVERY_INSTRUCTIONS + "\n辅助原文：\n" + page.get_text(sort=True)

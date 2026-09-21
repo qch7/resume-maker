@@ -25,6 +25,20 @@ def recognize_image(provider, image, output, settings, flag, emit):
 
     from resume_maker.integrations.word.image.layout import page_size, text_layer, validate_layout
 
+    if getattr(provider, "preprocess_images", False):
+        from resume_maker.integrations.local_ocr import read_document
+
+        local = read_document(image, flag)
+        if hasattr(provider, "register_ocr"):
+            provider.register_ocr(local)
+        return ImagePage(
+            texts=[{"text": row["text"], "box": row["box"]} for row in local["pages"][0]["blocks"]],
+            assets=[],
+            notes=[
+                "文字和位置由本地 OCR 恢复，字体采用默认样式，照片、图标及装饰需人工补充。",
+                "OCR 文字可能误认，请对照原件核对。",
+            ],
+        )
     prompt = IMAGE_INSTRUCTIONS
     for attempt in range(2):
         if flag.is_set():
@@ -88,7 +102,9 @@ def rebuild_image(source, output, provider, settings, flag, emit):
     finally:
         temporary.unlink(missing_ok=True)
     return [
-        "已按图片位置重建可编辑模板：保留同行关系、文字样式、局部图标和照片；"
+        "已通过本地 OCR 恢复文字布局，照片、字体及装饰需人工核对。"
+        if getattr(provider, "preprocess_images", False)
+        else "已按图片位置重建可编辑模板：保留同行关系、文字样式、局部图标和照片；"
         "标题底块独立绘制，填入资料后随文字排版。",
         *recovered.notes,
     ]

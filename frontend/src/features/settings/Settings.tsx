@@ -219,10 +219,11 @@ export default function Settings(props: Props) {
           <Privacy />
           <h3>模型连接配置</h3>
           <p className="subtle">
-            从 CLI 配置读取模型和供应商 API 凭据，以脱敏文字调用 Responses API。
+            复用 CLI 文件登录和供应商配置，通过专用只读工具分析脱敏副本，无需
+            WSL。
           </p>
           <PathInput
-            label="可执行文件（仅用于版本检查）"
+            label="Codex 可执行文件（已验证 0.154.0）"
             kind="executable"
             value={provider.executable}
             disabled={busy || !loaded}

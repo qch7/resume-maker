@@ -21,7 +21,7 @@ PATTERNS = [
 ]
 LABEL = re.compile(
     r"(?im)(?:姓名|获奖人|持有人|联系人|身份证号?|证书编号|学号|住址|家庭地址|"
-    r"出生日期|生日|毕业院校|就读学校|工作单位|name|recipient|address)"
+    r"出生日期|生日|毕业院校|就读学校|工作单位|联系电话|电话|手机|邮箱|name|recipient|address)"
     r"[ \t]*[:：=][ \t]*([^\r\n，,；;|<>]{1,120})"
 )
 NAMED_PERSON = re.compile(

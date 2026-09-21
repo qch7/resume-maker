@@ -331,8 +331,8 @@ export default function HonorLibrary({
               <h2>{uploading || "拖入证书，提取可用文字"}</h2>
               <p>PDF / 图片 · 支持批量 · 单文件 ≤20 MB · PDF ≤12 页</p>
               <p>
-                可提取文字的 PDF
-                经脱敏后识别；图片和扫描件保留在本机，请手动录入。
+                图片和 PDF 先在本机提取文字，再脱敏识别。
+                原图不外发，识别结果需对照原件核对。
               </p>
             </div>
             <button
