@@ -46,6 +46,7 @@ class Database:
     def __init__(self, path: Path):
         """为空库一次性建立完整结构，已有数据库必须使用当前结构版本"""
         self.path = path
+        self.activity = None
         path.parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as conn:
             version = conn.execute("PRAGMA user_version").fetchone()[0]

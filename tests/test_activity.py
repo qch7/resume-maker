@@ -1,0 +1,307 @@
+"""统一系统日志的可观测行为、隔离和有界读取回归"""
+
+import json
+import sqlite3
+import threading
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
+
+import pytest
+from fastapi.testclient import TestClient
+from test_jobs import FakeProvider, wait_job
+
+from resume_maker.api import create_app
+from resume_maker.core.config import Config
+from resume_maker.infrastructure.activity import MAX_DETAIL, ActivityLog
+from resume_maker.infrastructure.database import now, uid
+from resume_maker.infrastructure.observability import activity_scope, record
+
+
+def test_http_activity_captures_success_denial_validation_and_exceptions(tmp_path):
+    """所有业务 API 状态可定位到请求，读取日志本身不增加新记录"""
+    app = create_app(Config(data_dir=tmp_path, token="instance-secret"))
+
+    @app.get("/api/test-crash")
+    def crash():
+        """构造未捕获异常以验证服务故障不会遗漏"""
+        raise RuntimeError("synthetic failure")
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+        headers = {"x-resume-token": "instance-secret"}
+        response = client.get(
+            "/api/state?api_key=encoded%2Dcanary&tag=one&tag=two", headers=headers
+        )
+        assert response.status_code == 200
+        trace = response.headers["x-request-id"]
+        assert client.get("/api/state").status_code == 401
+        assert (
+            client.get(
+                "/api/state", headers={**headers, "origin": "https://example.invalid"}
+            ).status_code
+            == 403
+        )
+        assert client.post("/api/projects", json={}, headers=headers).status_code == 422
+        assert client.get("/api/test-crash", headers=headers).status_code == 500
+        assert client.get("/api/activity").status_code == 401
+        first = client.get("/api/activity", headers=headers).json()
+        second = client.get("/api/activity", headers=headers).json()
+        assert first["cursor"] == second["cursor"]
+        assert not first["write_failures"]
+        related = client.get("/api/activity", params={"trace_id": trace}, headers=headers).json()
+        assert {event["category"] for event in related["events"]} >= {"api", "service"}
+        request_event = next(event for event in related["events"] if event["event"] == "request")
+        request_detail = app.state.services.db.activity.detail(request_event["id"])
+        assert request_detail["payload"]["query"]["tag"] == ["one", "two"]
+        responses = [
+            app.state.services.db.activity.detail(event["id"])
+            for event in first["events"]
+            if event["event"] == "response"
+        ]
+        assert {event["payload"]["status"] for event in responses} >= {200, 401, 403, 422, 500}
+        crash_event = next(event for event in responses if event["payload"]["status"] == 500)
+        assert "synthetic failure" in crash_event["payload"]["error"]["traceback"]
+        assert all(event["duration_ms"] >= 0 for event in responses)
+        exported = client.get("/api/activity/export", headers=headers)
+        assert exported.status_code == 200 and "instance-secret" not in exported.text
+        assert "encoded-canary" not in exported.text
+        assert all(json.loads(line)["id"] for line in exported.text.splitlines())
+
+
+def test_activity_cursor_filter_search_export_and_restart(tmp_path):
+    """分页和筛选在新事件插入后不漏条，字面搜索及重启后详情保持一致"""
+    path = tmp_path / "activity.sqlite"
+    log = ActivityLog(path)
+    for number in range(6):
+        log.write(
+            "tool" if number % 2 else "api", "done", f"event-{number}", {"text": "100%_literal"}
+        )
+    latest = log.page(limit=2)
+    first_increment = log.page(after=0, limit=2)
+    assert [event["id"] for event in first_increment["events"]] == [1, 2]
+    assert first_increment["cursor"] == 2 and first_increment["has_more"]
+    assert [event["id"] for event in latest["events"]] == [5, 6]
+    older = log.page(before=latest["oldest"], limit=2)
+    assert [event["id"] for event in older["events"]] == [3, 4]
+    log.write("tool", "done", "new")
+    incremental = log.page(after=2, limit=2)
+    assert incremental["cursor"] == 4 and incremental["has_more"]
+    assert [event["id"] for event in log.page(after=incremental["cursor"])["events"]] == [5, 6, 7]
+    empty = log.page(after=6, category="ai")
+    assert empty["cursor"] == 7 and not empty["events"]
+    assert log.page(q="%_")["total"] == 6
+    assert log.page(q="not-present")["total"] == 0
+    exported = [json.loads(line) for line in log.export(category="tool")]
+    assert len(exported) == 4 and all(row["category"] == "tool" for row in exported)
+    restarted = ActivityLog(path)
+    assert restarted.detail(5)["title"] == "event-4"
+
+
+def test_sensitive_values_binary_and_large_details_are_bounded(tmp_path):
+    """嵌套密钥、文本鉴权、编码查询和大型内容不泄漏到列表详情及导出"""
+    log = ActivityLog(tmp_path / "log.sqlite")
+    log.write(
+        "ai",
+        "message",
+        "Bearer bearer-canary",
+        {
+            "nested": {"api_key": "key-canary", "password": "password-canary"},
+            "text": 'Authorization: Bearer header-canary\napi_key="key with spaces"\n'
+            "https://name:password-in-url@example.invalid/\n"
+            '"token": "token-canary"',
+            "bytes": b"BINARY-CANARY",
+            "usage": {"input_tokens": 124},
+        },
+    )
+    text = "".join(log.export())
+    for secret in (
+        "bearer-canary",
+        "key-canary",
+        "password-canary",
+        "header-canary",
+        "key with spaces",
+        "password-in-url",
+        "token-canary",
+        "BINARY-CANARY",
+    ):
+        assert secret not in text
+    assert log.detail(1)["payload"]["usage"]["input_tokens"] == 124
+    log.write("ai", "context", "large", {"text": "x" * (MAX_DETAIL + 100)})
+    assert log.detail(2)["payload"]["_truncated"]
+    assert "payload" not in log.page()["events"][0]
+    known = ActivityLog(tmp_path / "known.sqlite", secrets=("t", "12345678"))
+    known.write("ai", "context", "test", {"text": "12345678", "value": 12345678, "ok": True})
+    assert known.detail(1)["payload"] == {"text": "[已遮盖]", "value": 12345678, "ok": True}
+
+
+def test_job_messages_and_tool_events_share_request_trace(tmp_path):
+    """后台模型消息及工具结果保留提交请求、会话和项目的关联"""
+
+    class Provider(FakeProvider):
+        """在可控回复前模拟本机 CLI 的工具活动"""
+
+        def run(self, **kwargs):
+            """提供确定的工具参数和结果，避免调用真实供应商"""
+            record("tool", "item.started", "read_source", {"arguments": {"path": "README.md"}})
+            record("tool", "item.completed", "read_source", {"result": "synthetic source"})
+            return super().run(**kwargs)
+
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "README.md").write_text("synthetic", encoding="utf-8")
+    app = create_app(Config(data_dir=tmp_path / "data", token="synthetic-token"), Provider())
+    with TestClient(app) as client:
+        catalog = app.state.services.catalog
+        project = catalog.create_project("Example", [str(source)])
+        conversation = catalog.db.all("SELECT * FROM conversations")[0]
+        log = catalog.db.activity
+        with activity_scope(log, trace_id="submit-trace"):
+            job = app.state.services.jobs.submit(
+                conversation["id"], "整理源码", "chat", project["head_revision"], "all", uid()
+            )
+        assert wait_job(catalog, job["id"])["status"] == "completed"
+        app.state.services.jobs.stop()
+        events = log.page(job_id=job["id"], limit=500)["events"]
+        assert {event["event"] for event in events} >= {
+            "user",
+            "assistant",
+            "item.started",
+            "item.completed",
+        }
+        assert all(event["trace_id"] == "submit-trace" for event in events)
+        assert all(event["conversation_id"] == conversation["id"] for event in events)
+        assert all(event["project_id"] == project["id"] for event in events)
+        headers = {"x-resume-token": "synthetic-token"}
+        assert (
+            client.post(
+                "/api/activity/client",
+                headers=headers,
+                json={
+                    "event": "uncaught_error",
+                    "message": "browser failure",
+                    "stack": "synthetic stack",
+                },
+            ).status_code
+            == 200
+        )
+        assert log.page(category="client")["total"] == 1
+        app.state.services.conversations.rebuild_conversation(conversation["id"])
+        system = log.page(category="ai", conversation_id=conversation["id"], q="重建模型上下文")
+        assert any(event["event"] == "system" for event in system["events"])
+
+
+def test_history_import_is_dated_idempotent_and_survives_message_deletion(
+    catalog, project, tmp_path
+):
+    """补录按原时间排序，重启不重复且后续删除会话不会删除调试记录"""
+    conversation = catalog.db.all("SELECT * FROM conversations")[0]
+    stamp = now()
+    with catalog.db.transaction() as conn:
+        conn.execute(
+            "INSERT INTO messages VALUES (?,?,NULL,'user',?,?)",
+            (uid(), conversation["id"], "旧消息", stamp),
+        )
+    log = ActivityLog(tmp_path / "activity.sqlite")
+    log.import_history(catalog.db)
+    log.import_history(catalog.db)
+    assert log.page()["total"] == 1
+    assert log.detail(1)["created_at"] == stamp
+    with catalog.db.transaction() as conn:
+        conn.execute("DELETE FROM messages")
+    assert log.detail(1)["payload"]["text"] == "旧消息"
+
+
+def test_concurrent_instances_retention_and_write_failure(tmp_path, monkeypatch):
+    """并发活动不串实例，过期清理保持游标，日志写失败仍允许业务继续"""
+    left = ActivityLog(tmp_path / "left.sqlite", max_records=3)
+    right = ActivityLog(tmp_path / "right.sqlite")
+
+    def worker(log, label):
+        """在线程内建立独立上下文以验证日志不会跨请求混用"""
+        with activity_scope(log, trace_id=label):
+            for index in range(6):
+                record("system", "test", f"{label}-{index}")
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        list(pool.map(lambda pair: worker(*pair), ((left, "left"), (right, "right"))))
+    assert [event["id"] for event in left.page()["events"]] == [4, 5, 6]
+    assert right.page()["total"] == 6
+    assert {event["trace_id"] for event in left.page()["events"]} == {"left"}
+    with closing(left.connect()) as conn, conn:
+        conn.execute("UPDATE activity SET created_at='2000-01-01T00:00:00.000+00:00'")
+    assert ActivityLog(left.path).page()["total"] == 0
+
+    def fail():
+        """模拟磁盘故障而不接触真实用户目录"""
+        raise sqlite3.OperationalError("disk full")
+
+    monkeypatch.setattr(left, "connect", fail)
+    left.write("api", "completed", "business succeeded")
+    assert left.write_failures == 1
+    assert "disk full" in left.last_error
+
+
+def test_cli_trace_records_tool_arguments_result_and_agent_message(tmp_path, monkeypatch):
+    """CLI 事件完整写入本机轨迹，原进度回调仍保持简要文本协议"""
+    from contextlib import contextmanager
+
+    from resume_maker.domain.models import ProviderSettings
+    from resume_maker.integrations.providers import cli
+
+    @contextmanager
+    def credentials(root, env, flag):
+        """测试不访问本机登录信息"""
+        yield env
+
+    def execute(command, **kwargs):
+        """以真实 CLI JSON 结构模拟受限工具调用和回复"""
+        if "--version" in command:
+            return "codex-cli 0.154.0"
+        emit = kwargs["event"]
+        item = {
+            "id": "call-1",
+            "type": "mcp_tool_call",
+            "server": "resume_materials",
+            "tool": "read_material",
+            "arguments": {"file": "context.txt"},
+        }
+        emit({"type": "item.started", "item": item})
+        emit({"type": "item.completed", "item": {**item, "result": {"text": "tool-result"}}})
+        emit(
+            {
+                "type": "item.completed",
+                "item": {"type": "agent_message", "text": '{"reply":"hello"}'},
+            }
+        )
+        emit({"type": "turn.completed", "usage": {"input_tokens": 12, "output_tokens": 3}})
+
+    monkeypatch.setattr(cli, "connection", lambda *_: ({}, {}))
+    monkeypatch.setattr(cli, "isolated_credentials", credentials)
+    monkeypatch.setattr(cli, "native_executable", lambda *_: "synthetic-cli")
+    monkeypatch.setattr(cli, "write_catalog", lambda root, selected: str(root / "catalog.json"))
+    monkeypatch.setattr(cli, "execute", execute)
+    log = ActivityLog(tmp_path / "log.sqlite")
+    with activity_scope(log, trace_id="cli-test"):
+        reply = cli.run_cli(
+            {"input": "synthetic context", "schema": {}},
+            ProviderSettings(),
+            {},
+            threading.Event(),
+            lambda *_: None,
+        )
+    assert json.loads(reply)["reply"] == "hello"
+    events = [json.loads(line) for line in log.export(category="tool")]
+    assert len(events) == 2
+    assert events[0]["payload"]["item"]["arguments"]["file"] == "context.txt"
+    assert events[1]["payload"]["item"]["result"]["text"] == "tool-result"
+    assert log.page(category="ai", q="hello")["total"] == 1
+
+
+@pytest.mark.parametrize("params", [{"limit": 501}, {"after": -1}, {"q": "x" * 501}])
+def test_log_query_limits_are_enforced(tmp_path, params):
+    """拒绝无界日志查询，避免浏览器误操作读取全部详情"""
+    app = create_app(Config(data_dir=tmp_path, token="synthetic-token"))
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/activity", params=params, headers={"x-resume-token": "synthetic-token"}
+        )
+        assert response.status_code == 422

@@ -11,6 +11,7 @@ from resume_maker.domain.models import ProviderSettings, ResumeItem
 from resume_maker.domain.resume import ResumeDocument
 from resume_maker.domain.templates import TemplatePlan
 from resume_maker.infrastructure.database import dump, now, uid
+from resume_maker.infrastructure.observability import record, record_event, remember_task
 from resume_maker.integrations.providers.base import Cancelled, Provider
 from resume_maker.integrations.sources import digest, redact
 from resume_maker.integrations.word.recovery import prepare_template
@@ -101,6 +102,8 @@ class Templates:
             settings = ProviderSettings.model_validate(
                 self.db.setting("provider", {})
             ).for_function("template_repair" if initial is not None else "template_analysis")
+            if self.catalog.db.activity:
+                remember_task(self.catalog.db.activity, identifier)
             thread = threading.Thread(
                 target=self._analyze,
                 args=(identifier, directory, document, projects, settings, flag, initial, feedback),
@@ -118,6 +121,7 @@ class Templates:
 
         def emit(kind, data):
             """记录有界的公开活动和计量，取消后不再接受迟到事件"""
+            record_event(kind, data)
             with self.lock:
                 task = self.tasks[identifier]
                 if task["status"] != "running" or flag.is_set():
@@ -242,7 +246,15 @@ class Templates:
                     attempts=attempts,
                     repair_error=redact(repair_error)[:2000] if repair_error else None,
                 )
+            record("task", "completed", "模板分析完成", {"review": review, "attempts": attempts})
         except Exception as exc:
+            record(
+                "task",
+                "cancelled" if flag.is_set() else "failed",
+                str(exc),
+                {"error": str(exc)},
+                level="warning" if flag.is_set() else "error",
+            )
             with self.lock:
                 task = self.tasks[identifier]
                 task["elapsed_ms"] = self._elapsed(task)

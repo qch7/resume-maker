@@ -10,6 +10,10 @@ Resume Maker 是单用户本机应用，仅监听 `127.0.0.1`，通过 Host、Or
 
 DOCX 导出仅操作登记区域。Windows 的 Word 预览会启动独立进程并禁用宏自动化执行，按进程身份回收；模板仍应来自可信来源。
 
+## 本机系统日志
+
+“系统日志”仅通过同一组本机认证接口提供，保存在数据目录的 `logs/activity.sqlite`。日志包含本机 AI 输入、回复、业务参数和工具结果，仍属于个人资料；鉴权头、Cookie、常见密钥及当前连接凭据在写入前遮盖，二进制文件只记录元信息。日志不会成为模型材料，也不会随资料 ZIP 备份发送；用户可以在日志区域主动导出筛选后的 JSONL。详情尺寸及保留策略见 [系统日志](docs/system-activity.md)。
+
 ## 报告问题
 
 请勿在公开 Issue 中发布令牌、真实简历、源码秘密或可直接访问个人文件的详细利用信息。优先通过仓库的 [Security advisories](https://github.com/qch7/resume-maker/security/advisories) 页面报告；若私密报告入口不可用，请先创建不含敏感细节的 Issue，请维护者提供私密沟通方式。

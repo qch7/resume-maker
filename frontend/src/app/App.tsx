@@ -14,6 +14,7 @@ import {
   PanelsTopLeft,
   ListTree,
   Award,
+  Activity as ActivityIcon,
 } from "lucide-react";
 import {
   useCallback,
@@ -24,6 +25,7 @@ import {
   type CSSProperties,
 } from "react";
 import Chat from "../features/conversations/Chat";
+import Activity from "../features/activity/Activity";
 import Editor from "../features/experiences/Editor";
 import { clearLocalDrafts } from "../features/experiences/useField";
 import { experienceContent } from "../features/experiences/visibility";
@@ -94,7 +96,7 @@ const EMPTY: State = {
 /** 组装工作台并协调项目导航、经历发布、会话和简历组合之间的状态 */
 export default function App() {
   const [area, setArea] = useState<
-    "projects" | "personal" | "structure" | "templates" | "honors"
+    "projects" | "personal" | "structure" | "templates" | "honors" | "activity"
   >("projects");
   const [defaultsOpen, setDefaultsOpen] = useState(false);
   const [resumeLibraryOpen, setResumeLibraryOpen] = useState(false);
@@ -771,7 +773,7 @@ export default function App() {
   const error = remoteProject.error || remoteChat.error;
   return (
     <div
-      className={`app-shell ${sidebar && area === "projects" ? "" : "sidebar-hidden"} ${previewFocused ? "preview-focused" : ""} ${area === "honors" ? "honor-area" : area === "templates" ? "template-area" : area !== "projects" ? "profile-area" : ""}`}
+      className={`app-shell ${area === "activity" ? "activity-area" : ""} ${sidebar && area === "projects" ? "" : "sidebar-hidden"} ${previewFocused ? "preview-focused" : ""} ${area === "honors" ? "honor-area" : area === "templates" ? "template-area" : area !== "projects" ? "profile-area" : ""}`}
       style={
         {
           "--sidebar-width": `${columns.sidebar}px`,
@@ -818,6 +820,7 @@ export default function App() {
               },
               { id: "honors", label: "荣誉证书", icon: Award },
               { id: "templates", label: "Word 模板", icon: FileScan },
+              { id: "activity", label: "系统日志", icon: ActivityIcon },
             ] as const
           ).map(
             /* 每个功能区共享当前简历草稿，切换前刷新项目编辑 */ (item) => (
@@ -1306,6 +1309,7 @@ export default function App() {
           run={run}
         />
       </div>
+      {area === "activity" && <Activity />}
       {resumeLibraryOpen && (
         <ResumeLibrary
           notice={toast}

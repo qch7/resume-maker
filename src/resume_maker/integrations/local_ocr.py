@@ -9,6 +9,7 @@ from pathlib import Path
 import pymupdf
 from PIL import Image, ImageOps
 
+from resume_maker.infrastructure.observability import operation
 from resume_maker.integrations.providers.base import Cancelled, ProviderError
 
 LOCK = threading.Lock()
@@ -168,6 +169,7 @@ def pdf_page(page, cancelled):
     return result
 
 
+@operation("ocr.read_document", "system")
 def read_document(path, cancelled):
     """统一处理本地 PDF 和图片，限制页数、字数和文件大小且不返回原始像素"""
     path = Path(path)
