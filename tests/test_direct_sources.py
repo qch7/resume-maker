@@ -59,21 +59,19 @@ def test_jobs_read_all_current_roots_and_only_archive_cited_files(catalog, tmp_p
     calls = []
 
     class ReadingProvider:
-        """从收到的绝对路径实际读文件，模拟模型仅引用末尾子项目的功能"""
+        """只消费本轮提供的源码文字包并引用末尾子项目"""
 
         def run(self, **kw):
             """在返回之前确认未采集新文件，再按当前路径生成回复和一次经历建议"""
             context = json.loads(kw["prompt"].split("本轮上下文数据：\n")[1])
-            assert context["source_access"] == "direct-read-only"
+            assert context["source_access"] == "provided-text-only"
             assert "snapshot_directory" not in context
             assert "fingerprint" not in context
             assert len(catalog.db.all("SELECT id FROM snapshots")) == (1 if not calls else 2)
-            values = [
-                (Path(item["path"]) / "README.md").read_text(encoding="utf-8")
-                for item in context["source_directories"]
-            ]
-            cited = Path(context["source_directories"][-1]["path"]) / "feature.custom"
-            quote = cited.read_text(encoding="utf-8")
+            files = context["source_materials"]["files"]
+            values = [item["text"] for item in files if item["path"] == "README.md"]
+            quote = next(item["text"] for item in files if item["path"] == "feature.custom")
+            assert all("path" not in item for item in context["source_directories"])
             calls.append((values, quote))
             kw["emit"]("thread", {"id": kw["thread_id"] or uid()})
             content = None

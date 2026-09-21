@@ -34,7 +34,7 @@ const functions: { id: AIFunction; title: string; description: string }[] = [
   {
     id: "honor_recognition",
     title: "证书识别",
-    description: "从 PDF 或证书图片提取荣誉资料（需支持图片的模型）",
+    description: "从脱敏后的 PDF 文字提取荣誉资料；图片和扫描件手动录入",
   },
   {
     id: "connection_check",

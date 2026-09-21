@@ -39,7 +39,7 @@ class StructuredOutputError(ProviderError):
 
 
 class Provider(Protocol):
-    """可注入的 AI 执行接口，隔离模型调用和经历持久化"""
+    """可注入的 AI 执行接口，生产出口负责脱敏及禁用工具"""
 
     def run(
         self,

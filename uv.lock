@@ -707,6 +707,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "lxml" },
     { name = "pdf2docx" },
     { name = "pillow" },
@@ -728,6 +729,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.115,<1" },
+    { name = "httpx", specifier = ">=0.28,<1" },
     { name = "lxml", specifier = ">=5,<7" },
     { name = "pdf2docx", specifier = ">=0.5.8,<0.6" },
     { name = "pillow", specifier = ">=11,<13" },

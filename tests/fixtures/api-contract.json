@@ -2524,6 +2524,114 @@
         }
       }
     },
+    "/api/privacy": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/privacy/terms": {
+      "put": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrivacyTerms"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/privacy/preview": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrivacyPreview"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/privacy/requests": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/": {
       "get": {
         "responses": {
@@ -2566,7 +2674,7 @@
       "additionalProperties": false,
       "type": "object",
       "title": "AISettings",
-      "description": "模型和思考强度覆盖；空值表示继承上一级配置。"
+      "description": "模型和思考强度覆盖，空值表示继承上一级配置"
     },
     "AdaptiveTemplateInput": {
       "properties": {
@@ -2599,7 +2707,7 @@
         "items"
       ],
       "title": "AdaptiveTemplateInput",
-      "description": "将分析快照及核对后的映射登记为可复用模板。"
+      "description": "将分析快照及核对后的映射登记为可复用模板"
     },
     "BranchInput": {
       "properties": {
@@ -2626,7 +2734,7 @@
         "base_revision"
       ],
       "title": "BranchInput",
-      "description": "从指定版本创建命名分支，可独立复制其未发布草稿。"
+      "description": "从指定版本创建命名分支，可独立复制其未发布草稿"
     },
     "ConversationInput": {
       "properties": {
@@ -2680,7 +2788,7 @@
       "additionalProperties": false,
       "type": "object",
       "title": "ConversationInput",
-      "description": "会话可修改字段的白名单，空值表示不修改该字段。"
+      "description": "会话可修改字段的白名单，空值表示不修改该字段"
     },
     "CustomInfoField": {
       "properties": {
@@ -2714,7 +2822,7 @@
         "id"
       ],
       "title": "CustomInfoField",
-      "description": "用户自行命名的信息项；可隐藏，空项保留为草稿但不参与排版。"
+      "description": "用户自行命名的信息项，可隐藏，空项保留为草稿但不参与排版"
     },
     "DefaultField": {
       "properties": {
@@ -2743,7 +2851,7 @@
         "label"
       ],
       "title": "DefaultField",
-      "description": "默认表单字段的稳定标识、名称和初始显隐。"
+      "description": "默认表单字段的稳定标识、名称和初始显隐"
     },
     "DefaultSection": {
       "properties": {
@@ -2802,7 +2910,7 @@
         "fields"
       ],
       "title": "DefaultSection",
-      "description": "新简历的栏目及其新增条目所用的字段定义。"
+      "description": "新简历的栏目及其新增条目所用的字段定义"
     },
     "DiscardDraftsInput": {
       "properties": {
@@ -2825,7 +2933,7 @@
         "versions"
       ],
       "title": "DiscardDraftsInput",
-      "description": "撤销单个基线版本的全部草稿，要求确认时的完整草稿版本集合一致。"
+      "description": "撤销单个基线版本的全部草稿，要求确认时的完整草稿版本集合一致"
     },
     "DraftInput": {
       "properties": {
@@ -2854,7 +2962,7 @@
         "field"
       ],
       "title": "DraftInput",
-      "description": "带基础修订和草稿版本号的字段编辑请求。"
+      "description": "带基础修订和草稿版本号的字段编辑请求"
     },
     "Evidence": {
       "properties": {
@@ -2900,7 +3008,7 @@
       "additionalProperties": false,
       "type": "object",
       "title": "Evidence",
-      "description": "来源文件、行号和引文组成的证据及其核验状态。"
+      "description": "来源文件、行号和引文组成的证据及其核验状态"
     },
     "Experience": {
       "properties": {
@@ -2989,7 +3097,7 @@
         "title"
       ],
       "title": "Experience",
-      "description": "可发布的完整项目经历数据，修订后保持不可变。"
+      "description": "可发布的完整项目经历数据，修订后保持不可变"
     },
     "HTTPValidationError": {
       "properties": {
@@ -3039,7 +3147,7 @@
         "text"
       ],
       "title": "Highlight",
-      "description": "具有稳定标识的经历亮点，包含标题、正文与证据。"
+      "description": "具有稳定标识的经历亮点，包含标题、正文和证据"
     },
     "HonorFields": {
       "properties": {
@@ -3107,7 +3215,7 @@
       "additionalProperties": false,
       "type": "object",
       "title": "HonorFields",
-      "description": "可核对和复用的证书资料；无法确认的信息保持空白。"
+      "description": "可核对和复用的证书资料，无法确认的信息保持空白"
     },
     "HonorSave": {
       "properties": {
@@ -3127,7 +3235,7 @@
         "fields"
       ],
       "title": "HonorSave",
-      "description": "用户确认的资料和乐观并发版本。"
+      "description": "用户确认的资料和乐观并发版本"
     },
     "MessageInput": {
       "properties": {
@@ -3166,7 +3274,7 @@
         "request_key"
       ],
       "title": "MessageInput",
-      "description": "绑定经历版本、讨论范围与幂等标识的会话请求。"
+      "description": "绑定经历版本、讨论范围和幂等标识的会话请求"
     },
     "PathInput": {
       "properties": {
@@ -3181,7 +3289,7 @@
         "path"
       ],
       "title": "PathInput",
-      "description": "需要由后端校验并读取的本机路径。"
+      "description": "需要由后端校验并读取的本机路径"
     },
     "PathPickerInput": {
       "properties": {
@@ -3207,7 +3315,7 @@
         "kind"
       ],
       "title": "PathPickerInput",
-      "description": "选择本机文件或文件夹，已有路径仅用于设置窗口初始位置。"
+      "description": "选择本机文件或文件夹，已有路径仅用于设置窗口初始位置"
     },
     "PersonalInfo": {
       "properties": {
@@ -3318,7 +3426,7 @@
       "additionalProperties": false,
       "type": "object",
       "title": "PersonalInfo",
-      "description": "固定展示在简历顶部的基本信息；空字段不参与排版。"
+      "description": "固定展示在简历顶部的基本信息，空字段不参与排版"
     },
     "PreviewProject": {
       "properties": {
@@ -3356,7 +3464,48 @@
         "highlight_ids"
       ],
       "title": "PreviewProject",
-      "description": "预览可覆盖经历工作副本，但固定修订仍必须属于对应项目。"
+      "description": "预览可覆盖经历工作副本，但固定修订仍必须属于对应项目"
+    },
+    "PrivacyPreview": {
+      "properties": {
+        "text": {
+          "type": "string",
+          "maxLength": 30000,
+          "title": "Text"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "text"
+      ],
+      "title": "PrivacyPreview",
+      "description": "只在本机检测一段文字，不触发任何供应商请求"
+    },
+    "PrivacyTerms": {
+      "properties": {
+        "terms": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 300,
+          "title": "Terms"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 0.0,
+          "title": "Version",
+          "default": 0
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "terms"
+      ],
+      "title": "PrivacyTerms",
+      "description": "用户补充的准确敏感值，只保存在当前实例的本机数据库"
     },
     "ProjectInput": {
       "properties": {
@@ -3383,7 +3532,7 @@
         "roots"
       ],
       "title": "ProjectInput",
-      "description": "项目登记或来源重绑请求，限制名称和来源数量。"
+      "description": "项目登记或来源重绑请求，限制名称和来源数量"
     },
     "ProjectProfile": {
       "properties": {
@@ -3416,7 +3565,7 @@
       "additionalProperties": false,
       "type": "object",
       "title": "ProjectProfile",
-      "description": "由用户本人补充和确认的角色、日期、贡献及成果。"
+      "description": "由用户本人补充和确认的角色、日期、贡献及成果"
     },
     "ProjectVisibility": {
       "properties": {
@@ -3458,7 +3607,7 @@
       "additionalProperties": false,
       "type": "object",
       "title": "ProjectVisibility",
-      "description": "一份简历独立保存的项目显隐覆盖，不改变项目原文或生成经历版本。"
+      "description": "保存单份简历的项目显示设置"
     },
     "ProviderSettings": {
       "properties": {
@@ -3519,7 +3668,7 @@
       "additionalProperties": false,
       "type": "object",
       "title": "ProviderSettings",
-      "description": "CLI 连接、全局默认值和各 AI 功能的可保存配置。"
+      "description": "CLI 连接、全局默认值和各 AI 功能的可保存配置"
     },
     "RepeatBinding": {
       "properties": {
@@ -3564,7 +3713,7 @@
         "fields"
       ],
       "title": "RepeatBinding",
-      "description": "以一个条目为样式样本，替换同级节点范围内的全部示例条目。"
+      "description": "以一个条目为样式样本，替换同级节点范围内的全部示例条目"
     },
     "ResumeDefaults": {
       "properties": {
@@ -3598,7 +3747,7 @@
         "sections"
       ],
       "title": "ResumeDefaults",
-      "description": "带版本的本机默认配置，保护多个窗口的并发编辑。"
+      "description": "带版本的本机默认配置，保护多个窗口的并发编辑"
     },
     "ResumeDocument": {
       "properties": {
@@ -3628,7 +3777,7 @@
         "sections"
       ],
       "title": "ResumeDocument",
-      "description": "一份简历独立保存的顶部资料与栏目编排，允许大栏目加子栏目两层。"
+      "description": "一份简历独立保存的顶部资料和栏目编排，允许大栏目加子栏目两层"
     },
     "ResumeInput": {
       "properties": {
@@ -3679,7 +3828,7 @@
         "items"
       ],
       "title": "ResumeInput",
-      "description": "包含模板、固定版本条目及乐观锁版本的简历请求。"
+      "description": "包含模板、固定版本条目及乐观锁版本的简历请求"
     },
     "ResumeItem": {
       "properties": {
@@ -3707,7 +3856,7 @@
         "highlight_ids"
       ],
       "title": "ResumeItem",
-      "description": "简历对特定项目版本及其亮点的固定引用。"
+      "description": "简历对特定项目版本及其亮点的固定引用"
     },
     "ResumePreviewInput": {
       "properties": {
@@ -3740,7 +3889,7 @@
         "items"
       ],
       "title": "ResumePreviewInput",
-      "description": "当前模板和未保存资料的临时排版请求，不带简历保存或发布操作。"
+      "description": "当前模板和未保存资料的临时预览请求"
     },
     "ResumeSection": {
       "properties": {
@@ -3813,7 +3962,7 @@
         "title"
       ],
       "title": "ResumeSection",
-      "description": "可排序、隐藏或归入大栏目的栏目；项目区使用独立版本引用。"
+      "description": "可排序、隐藏或归入大栏目的栏目，项目区使用独立版本引用"
     },
     "RevealSourceInput": {
       "properties": {
@@ -3841,7 +3990,7 @@
         "path"
       ],
       "title": "RevealSourceInput",
-      "description": "用项目快照和来源相对路径定位文件，不接受任意本机绝对路径。"
+      "description": "通过项目快照和来源相对路径定位文件"
     },
     "SaveInput": {
       "properties": {
@@ -3861,7 +4010,7 @@
         "expected_head"
       ],
       "title": "SaveInput",
-      "description": "发布或恢复经历的请求，携带所属分支预期头版本防止并发覆盖。"
+      "description": "发布或恢复经历的请求，携带所属分支预期头版本防止并发覆盖"
     },
     "SectionEntry": {
       "properties": {
@@ -3944,7 +4093,7 @@
         "id"
       ],
       "title": "SectionEntry",
-      "description": "栏目下的经历或文本条目，支持学校、专业、时间与多行正文。"
+      "description": "栏目下的经历或文本条目，支持学校、专业、时间和多行正文"
     },
     "TemplateAnalysisInput": {
       "properties": {
@@ -3970,7 +4119,7 @@
         "document"
       ],
       "title": "TemplateAnalysisInput",
-      "description": "分析本机模板，同时提供当前栏目的名称供语义匹配，不发送个人字段值。"
+      "description": "分析本机模板时只发送栏目名称"
     },
     "TemplateCategoryInput": {
       "properties": {
@@ -3987,7 +4136,7 @@
         "name"
       ],
       "title": "TemplateCategoryInput",
-      "description": "新分类的展示名称，空白与重名由业务层校验。"
+      "description": "新分类的展示名称，空白和重名由业务层校验"
     },
     "TemplateEditInput": {
       "properties": {
@@ -4008,7 +4157,7 @@
         "document"
       ],
       "title": "TemplateEditInput",
-      "description": "打开已保存模板时提供当前资料，以便在编辑副本中自动补齐可用位置。"
+      "description": "打开已保存模板时提供当前资料，以便在编辑副本中自动补齐可用位置"
     },
     "TemplateLibraryItemInput": {
       "properties": {
@@ -4034,7 +4183,7 @@
       "additionalProperties": false,
       "type": "object",
       "title": "TemplateLibraryItemInput",
-      "description": "只修改显式提交的模板名称、分类或收藏。"
+      "description": "只修改显式提交的模板名称、分类或收藏"
     },
     "TemplatePlan": {
       "properties": {
@@ -4104,7 +4253,7 @@
         "warnings"
       ],
       "title": "TemplatePlan",
-      "description": "待用户核对的字段、重复区、照片、固定文字和删除项。"
+      "description": "待用户核对的字段、重复区、照片、固定文字和删除项"
     },
     "TemplatePreviewInput": {
       "properties": {
@@ -4130,7 +4279,7 @@
         "items"
       ],
       "title": "TemplatePreviewInput",
-      "description": "用当前资料及固定项目引用试填，预览不会保存简历组合。"
+      "description": "用当前资料及固定项目引用试填，预览不会保存简历组合"
     },
     "TemplateRepairInput": {
       "properties": {
@@ -4162,7 +4311,7 @@
         "items"
       ],
       "title": "TemplateRepairInput",
-      "description": "基于当前方案与用户说明重新补全映射，保留原分析副本。"
+      "description": "基于当前方案和用户说明重新补全映射，保留原分析副本"
     },
     "TextBinding": {
       "properties": {
@@ -4195,7 +4344,7 @@
         "target"
       ],
       "title": "TextBinding",
-      "description": "以精确引文定位段落中的值，可跨多个 Word 文本片段。"
+      "description": "以精确引文定位段落中的值，可跨多个 Word 文本片段"
     },
     "ValidationError": {
       "properties": {

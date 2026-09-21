@@ -1,0 +1,334 @@
+"""验证外发请求不含已知身份值，模型不能通过附件、会话或工具绕过出口"""
+
+import asyncio
+import json
+import threading
+from pathlib import Path
+
+import httpx
+import pytest
+from fastapi.testclient import TestClient
+
+from resume_maker.api import create_app
+from resume_maker.core.config import Config
+from resume_maker.domain.models import ProviderSettings
+from resume_maker.integrations.privacy import TOKEN, Redactor
+from resume_maker.integrations.privacy_store import PrivacyStore
+from resume_maker.integrations.providers.base import Cancelled, ProviderError, StructuredOutputError
+from resume_maker.integrations.providers.codex import CodexProvider
+from resume_maker.integrations.providers.connection import connection
+from resume_maker.integrations.source_context import source_context
+from resume_maker.integrations.sources import project_sources
+
+
+def reply(text="完成"):
+    """构造不含额外行为的合成模型结果"""
+    return {"reply": text, "experience": None, "changes": [], "questions": []}
+
+
+def response(value, **extra):
+    """构造 Responses 的完成消息，所有内容均为测试数据"""
+    return {
+        "status": "completed",
+        "output": [
+            {
+                "type": "message",
+                "content": [{"type": "output_text", "text": json.dumps(value, ensure_ascii=False)}],
+            }
+        ],
+        **extra,
+    }
+
+
+def provider_at(tmp_path, handler, db=None):
+    """建立独立连接配置和模拟网络，避免使用用户凭据或真实供应商"""
+    home = tmp_path / "test-codex"
+    home.mkdir(exist_ok=True)
+    (home / "config.toml").write_text(
+        'model="synthetic-model"\nmodel_provider="test"\n'
+        '[model_providers.test]\nbase_url="https://provider.invalid/v1"\n'
+        'env_key="TEST_MODEL_KEY"\nwire_api="responses"\n',
+        encoding="utf-8",
+    )
+    return CodexProvider(
+        environment={"CODEX_HOME": str(home), "TEST_MODEL_KEY": "synthetic-key"},
+        privacy=PrivacyStore(db),
+        transport=httpx.MockTransport(handler),
+    )
+
+
+def run(provider, tmp_path, prompt, **options):
+    """调用真实隐私出口并使用可控的取消信号"""
+    return provider.run(
+        workspace=tmp_path / "private-workspace",
+        prompt=prompt,
+        thread_id="old-private-session",
+        settings=ProviderSettings(),
+        cancelled=options.pop("cancelled", threading.Event()),
+        emit=lambda *_: None,
+        **options,
+    )
+
+
+def test_actual_request_masks_context_schema_and_restores_locally(tmp_path, catalog):
+    """模拟供应商只看到占位符，输出和本地发送审计各自符合隐私边界"""
+    values = ["测试甲", "13812345678", "person@example.invalid", "测试住宅甲"]
+    catalog.db.set_setting("privacy_terms", values)
+    seen = []
+
+    def handle(request):
+        """检查真实 HTTP 正文及鉴权，回显脱敏文字用于验证本地还原"""
+        body = json.loads(request.content)
+        seen.append(body)
+        serialized = json.dumps(body, ensure_ascii=False)
+        assert all(
+            value not in serialized
+            for value in [*values, "old-private-session", "private-workspace"]
+        )
+        assert request.headers["authorization"] == "Bearer synthetic-key"
+        assert body["store"] is False and body["tools"] == [] and body["tool_choice"] == "none"
+        return httpx.Response(200, json=response(reply(body["input"])))
+
+    provider = provider_at(tmp_path, handle, catalog.db)
+    prompt = " / ".join(values)
+    assert run(provider, tmp_path, prompt).reply == prompt
+    assert len(seen) == 1
+    audit = catalog.db.setting("privacy_audit")
+    assert audit[0]["payload"] == seen[0] and audit[0]["status"] == "completed"
+    assert "synthetic-key" not in json.dumps(audit)
+    assert not (tmp_path / "private-workspace").exists()
+
+
+def test_saved_and_unsaved_documents_supply_sensitive_values(tmp_path, catalog):
+    """尚未保存的表单和已保存的荣誉隐藏字段仍能保护自由聊天中的真实值"""
+    catalog.db.set_setting(
+        "honor:test", {"fields": {"recipient": "合成获奖人", "certificate_number": "HONOR-PRIVATE"}}
+    )
+    seen = []
+
+    def handle(request):
+        """核对未持久化的个人字段只以占位符发出"""
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, json=response(reply()))
+
+    base = provider_at(tmp_path, handle, catalog.db)
+    provider = base.with_private_data(
+        {
+            "personal": {
+                "name": "合成姓名",
+                "hidden_fields": ["name"],
+                "custom_fields": [{"value": "合成单位"}],
+            }
+        }
+    )
+    run(provider, tmp_path, "合成姓名 合成单位 合成获奖人 HONOR-PRIVATE")
+    assert all(
+        value not in seen[0]["input"]
+        for value in ("合成姓名", "合成单位", "合成获奖人", "HONOR-PRIVATE")
+    )
+    assert base.sensitive_values == set()
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "user@example.invalid",
+        "138 1234 5678",
+        "11010120000101123X",
+        "姓名：测试甲",
+        "证书编号：XYZ-123",
+        "测试甲同学",
+        "https://example.invalid/private",
+        r"C:\Users\Private\data.txt",
+        "/home/private/file",
+        "192.168.9.11",
+    ],
+)
+def test_unknown_common_identity_patterns_are_masked(value):
+    """材料中新出现的常见身份格式不依赖已保存的资料"""
+    redactor = Redactor()
+    safe = redactor.prompt(value)
+    assert safe != value and TOKEN.search(safe)
+    assert redactor.restore(safe) == value
+
+
+def test_escaped_values_secrets_and_structured_keys():
+    """JSON 转义、字典键和凭据不能绕过脱敏，凭据永不通过占位符还原"""
+    redactor = Redactor(["测试甲", "example-secret"])
+    value = {
+        "测试甲": "测试甲",
+        "source": r'"\u6d4b\u8bd5\u7532"',
+        "password": "example-secret",
+        "notes": "example-secret",
+    }
+    safe = redactor.prompt("任务\n" + json.dumps(value))
+    assert "测试甲" not in safe and "example-secret" not in safe
+    assert "\\u6d4b" not in safe
+    restored = redactor.restore(json.loads(safe.split("\n", 1)[1]))
+    assert restored["测试甲"] == "测试甲"
+    assert restored["password"] == restored["notes"] == "[凭据已移除]"
+
+
+def test_structured_names_and_multiline_values(tmp_path):
+    """无标签结构字段和跨行自定义值脱敏后仍能准确还原"""
+    redactor = Redactor(["第一行\n第二行"])
+    safe = redactor.prompt(json.dumps({"Name": "Synthetic Person", "notes": "第一行\n第二行"}))
+    assert "Synthetic Person" not in safe
+    restored = redactor.restore(json.loads(safe))
+    assert restored["Name"] == "Synthetic Person" and restored["notes"] == "第一行\n第二行"
+    assert json.loads(safe)["notes"].count("\n") == 1
+
+
+def test_connection_inherits_profile_effort_and_overrides_without_executing_tools(tmp_path):
+    """配置档继承的模型参数可显式覆盖，工具配置不会进入连接结果"""
+    (tmp_path / "config.toml").write_text(
+        'model="base"\nmodel_reasoning_effort="medium"\n'
+        '[profiles.test]\nmodel="profile"\nmodel_reasoning_effort="high"\n'
+        '[mcp_servers.private]\ncommand="never-execute"\n',
+        encoding="utf-8",
+    )
+    env = {"CODEX_HOME": str(tmp_path), "OPENAI_API_KEY": "synthetic-key"}
+    assert connection(ProviderSettings(profile="test"), env)[2:] == ("profile", "high")
+    assert connection(
+        ProviderSettings(profile="test", model="override", reasoning_effort="low"), env
+    )[2:] == ("override", "low")
+
+
+@pytest.mark.parametrize("input_text", ["data:image/png;base64,AAAA", "A" * 600, "[[RM_fake]]"])
+def test_encoded_payloads_and_forged_tokens_fail_closed(input_text):
+    """图片编码和手工伪造的占位符不能伪装成普通文本外发"""
+    with pytest.raises(ProviderError):
+        Redactor().prompt(input_text)
+
+
+def test_original_images_block_before_credentials_or_network(tmp_path):
+    """原始图片在连接配置读取前即被拒绝，文件也不需要被打开"""
+    with pytest.raises(ProviderError, match="原始图片"):
+        run(CodexProvider(), tmp_path, "识别", images=[tmp_path / "private.png"])
+
+
+@pytest.mark.parametrize(
+    "output",
+    [
+        {"status": "incomplete", "output": []},
+        {"status": "completed", "output": [{"type": "function_call", "name": "read_file"}]},
+        response(reply("[[RM_aaaaaaaaaaaa_99]]")),
+        response(reply("[[RM_broken]]")),
+    ],
+)
+def test_incomplete_tool_and_unknown_token_responses_are_rejected(tmp_path, output):
+    """禁止执行工具，未知或损坏的映射不能污染本机简历"""
+    provider = provider_at(tmp_path, lambda _: httpx.Response(200, json=output))
+    with pytest.raises(ProviderError):
+        run(provider, tmp_path, "测试")
+
+
+def test_validation_feedback_is_local_and_can_be_redacted_again(tmp_path):
+    """格式错误反馈还原到本机后，下轮会重新脱敏而不会复用旧占位符"""
+
+    def handle(request):
+        """返回错误字段类型，使错误信息含本轮占位符"""
+        token = TOKEN.search(json.loads(request.content)["input"])[0]
+        return httpx.Response(200, json=response({**reply(), "reply": [token]}))
+
+    provider = provider_at(tmp_path, handle).with_private_data({"personal": {"name": "测试甲"}})
+    with pytest.raises(StructuredOutputError) as caught:
+        run(provider, tmp_path, "测试甲")
+    assert "测试甲" in caught.value.response
+    assert "[[RM_" not in json.dumps(caught.value.issues)
+    safe = Redactor(["测试甲"]).prompt(json.dumps(caught.value.issues, ensure_ascii=False))
+    assert "测试甲" not in safe
+
+
+def test_cancellation_closes_transport_and_marks_audit(tmp_path, catalog):
+    """取消正在等待的供应商连接，任务不发布迟到结果"""
+    flag = threading.Event()
+    closed = []
+
+    async def handle(request):
+        """模拟供应商延迟并在取消时释放等待"""
+        flag.set()
+        try:
+            await asyncio.sleep(10)
+        finally:
+            closed.append(True)
+        return httpx.Response(200, json=response(reply()))
+
+    provider = provider_at(tmp_path, handle, catalog.db)
+    with pytest.raises(Cancelled):
+        run(provider, tmp_path, "测试", cancelled=flag)
+    assert closed and catalog.db.setting("privacy_audit")[0]["status"] == "cancelled"
+
+
+@pytest.mark.parametrize("status", [302, 401, 500])
+def test_redirect_and_error_bodies_never_leak_or_retry(tmp_path, status):
+    """错误正文不进入日志，也不会带着鉴权跟随重定向或重新发送原文"""
+    seen = []
+
+    def handle(request):
+        """错误中故意包含敏感文字，调用方只应收到状态码"""
+        seen.append(request)
+        return httpx.Response(
+            status, text="private-error-body", headers={"location": "https://other.invalid"}
+        )
+
+    provider = provider_at(tmp_path, handle)
+    with pytest.raises(ProviderError) as caught:
+        run(provider, tmp_path, "测试")
+    assert str(status) in str(caught.value) and "private-error-body" not in str(caught.value)
+    assert len(seen) == 1
+
+
+def test_subscription_only_connection_and_insecure_remote_endpoint_block(tmp_path):
+    """不将订阅令牌误作 API 密钥，也不通过远程明文连接发送"""
+    (tmp_path / "config.toml").write_text('model="test"', encoding="utf-8")
+    (tmp_path / "auth.json").write_text(json.dumps({"tokens": {"access_token": "private-token"}}))
+    with pytest.raises(ProviderError, match="API 密钥"):
+        connection(ProviderSettings(), {"CODEX_HOME": str(tmp_path), "OPENAI_API_KEY": ""})
+    (tmp_path / "config.toml").write_text(
+        'model="test"\n[model_providers.openai]\nbase_url="http://remote.invalid/v1"'
+    )
+    with pytest.raises(ProviderError, match="HTTPS"):
+        connection(ProviderSettings(), {"CODEX_HOME": str(tmp_path), "OPENAI_API_KEY": "test"})
+
+
+def test_source_bundle_excludes_private_files_and_preserves_line_numbers(
+    tmp_path, catalog, project
+):
+    """本地采集不读取密钥或自身数据库，引用路径和行号仍对应原始源码"""
+    root = Path(project["roots"][0])
+    (root / ".env").write_text("SECRET=private")
+    (root / "private.pem").write_text("private")
+    (root / "main.py").write_text("# test\nprint('hello')\n")
+    (root / "oversize.py").write_text("x" * 128001)
+    (root / "data").mkdir()
+    (root / "data" / "resume.txt").write_text("private")
+    value = source_context(project_sources(project), tmp_path / "data", threading.Event())
+    assert {row["path"] for row in value["files"]} == {"README.md", "main.py"}
+    assert (
+        next(row for row in value["files"] if row["path"] == "main.py")["text"].splitlines()[1]
+        == "print('hello')"
+    )
+    assert str(root) not in json.dumps(value)
+
+
+def test_privacy_api_requires_token_and_preview_does_not_store_raw_text(tmp_path):
+    """本地检测不外发、不落盘，保存规则后重开实例仍然生效"""
+    config = Config(data_dir=tmp_path, token="test")
+    app = create_app(config)
+    with TestClient(app) as client:
+        assert client.get("/api/privacy").status_code == 401
+        client.headers["x-resume-token"] = "test"
+        assert client.put("/api/privacy/terms", json={"terms": ["测试甲"]}).status_code == 200
+        assert client.put("/api/privacy/terms", json={"terms": []}).status_code == 409
+        assert client.get("/api/privacy").json()["terms"] == ["测试甲"]
+        preview = client.post("/api/privacy/preview", json={"text": "测试甲负责解析"}).json()
+        assert "测试甲" not in preview["text"]
+        assert client.get("/api/privacy/requests").json() == []
+        store = PrivacyStore(app.state.services.db)
+        for index in range(12):
+            store.record({"input": str(index)}, 0)
+        assert len(client.get("/api/privacy/requests").json()) == 10
+        assert client.delete("/api/privacy/requests").status_code == 200
+        assert client.get("/api/privacy/requests").json() == []
+    assert create_app(config).state.services.db.setting("privacy_terms") == ["测试甲"]
