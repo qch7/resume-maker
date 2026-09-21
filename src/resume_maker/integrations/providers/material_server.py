@@ -1,5 +1,6 @@
 """只通过固定文件编号提供脱敏文字，不接受任意路径或可执行命令"""
 
+import http.client
 import json
 import re
 import sys
@@ -36,6 +37,87 @@ TOOLS = [
         },
     },
 ]
+
+SOURCE_TOOLS = [
+    {
+        "name": "list_source_files",
+        "description": "列出授权来源的文件名，不读取正文。"
+        "source 留空表示所有来源，glob 匹配相对路径。"
+        "结果 complete=false 时用 next_cursor 和相同条件继续，空 results 不表示结束。",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "source": {"type": "string"},
+                "glob": {"type": "string"},
+                "cursor": {"type": "string"},
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "search_sources",
+        "description": "在授权来源的脱敏源码中搜索普通文字，忽略大小写，"
+        "可用 source 和 glob 缩小范围。"
+        "全部文件均可继续搜索；complete=false 时以 next_cursor 和相同条件继续，即使本页没有命中。",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string"},
+                "source": {"type": "string"},
+                "glob": {"type": "string"},
+                "cursor": {"type": "string"},
+            },
+            "required": ["query"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "read_source",
+        "description": "按 source 编号和相对 path 读取脱敏源码，支持列出或搜索返回的脱敏路径。"
+        "行号对应原件，列号对应脱敏行，均从 1 开始；有 next 时用其中坐标继续，文件大小不限制访问。",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "source": {"type": "string"},
+                "path": {"type": "string"},
+                "start_line": {"type": "integer", "minimum": 1},
+                "start_column": {"type": "integer", "minimum": 1},
+                "line_count": {"type": "integer", "minimum": 1, "maximum": 200},
+            },
+            "required": ["source", "path"],
+            "additionalProperties": False,
+        },
+    },
+]
+
+
+def source_call(endpoint, name, arguments):
+    """仅访问本轮本机网关，通道凭据不作为工具参数或结果返回"""
+    if endpoint is None:
+        raise ValueError("当前任务没有授权源码来源")
+    connection = http.client.HTTPConnection("127.0.0.1", endpoint["port"], timeout=60)
+    try:
+        connection.request(
+            "POST",
+            "/materials",
+            body=json.dumps({"name": name, "arguments": arguments}).encode("utf-8"),
+            headers={
+                "Authorization": "Bearer " + endpoint["token"],
+                "Content-Type": "application/json",
+            },
+        )
+        response = connection.getresponse()
+        raw = response.read(MAX_MESSAGE + 1)
+        if response.status != 200 or len(raw) > MAX_MESSAGE:
+            raise ValueError("源码网关返回异常")
+        value = json.loads(raw)
+        if "error" in value:
+            raise ValueError("源码读取被拒绝")
+        return json.dumps(value["result"], ensure_ascii=False)
+    except (OSError, http.client.HTTPException) as exc:
+        raise ValueError("源码通道已关闭或读取被拒绝") from exc
+    finally:
+        connection.close()
 
 
 def contents(root, name):
@@ -120,7 +202,7 @@ def call(root, name, args):
     return "[" + ", ".join(rows) + "]"
 
 
-def dispatch(root, request):
+def dispatch(root, request, endpoint=None):
     """实现必要的 MCP 方法，所有未知方法均显式拒绝"""
     method = request.get("method")
     if method == "initialize":
@@ -132,13 +214,18 @@ def dispatch(root, request):
     if method == "ping":
         return {}
     if method == "tools/list":
-        return {"tools": TOOLS}
+        return {"tools": TOOLS + (SOURCE_TOOLS if endpoint else [])}
     if method == "tools/call":
         params = request.get("params", {})
         try:
-            text = call(root, params.get("name"), params.get("arguments", {}))
+            name, arguments = params.get("name"), params.get("arguments", {})
+            text = (
+                source_call(endpoint, name, arguments)
+                if name in {tool["name"] for tool in SOURCE_TOOLS}
+                else call(root, name, arguments)
+            )
             return {"content": [{"type": "text", "text": text}]}
-        except (OSError, ValueError, TypeError, AttributeError):
+        except (OSError, ValueError, TypeError, AttributeError, http.client.HTTPException):
             return {
                 "isError": True,
                 "content": [
@@ -156,7 +243,17 @@ def main():
     root = Path(sys.argv[1])
     if root.is_symlink() or root.absolute() != root.resolve() or not root.is_dir():
         raise SystemExit(1)
-    for _ in range(500):
+    endpoint = None
+    if len(sys.argv) == 3:
+        config = Path(sys.argv[2])
+        if (
+            config.is_symlink()
+            or config.resolve().parent != root.parent / "control"
+            or config.stat().st_nlink != 1
+        ):
+            raise SystemExit(1)
+        endpoint = json.loads(config.read_text(encoding="utf-8"))
+    while True:
         line = sys.stdin.buffer.readline(MAX_MESSAGE + 1)
         if not line or len(line) > MAX_MESSAGE:
             return
@@ -164,7 +261,11 @@ def main():
             request = json.loads(line)
             if not isinstance(request, dict) or "id" not in request:
                 continue
-            reply = {"jsonrpc": "2.0", "id": request["id"], "result": dispatch(root, request)}
+            reply = {
+                "jsonrpc": "2.0",
+                "id": request["id"],
+                "result": dispatch(root, request, endpoint),
+            }
         except (ValueError, TypeError, AttributeError):
             reply = {
                 "jsonrpc": "2.0",

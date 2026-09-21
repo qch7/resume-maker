@@ -15,6 +15,7 @@ from resume_maker.integrations.privacy_store import PrivacyStore
 from resume_maker.integrations.providers.base import Cancelled, ProviderError, StructuredOutputError
 from resume_maker.integrations.providers.codex import CodexProvider
 from resume_maker.integrations.providers.connection import connection
+from resume_maker.integrations.source_access import SourceAccess
 from resume_maker.integrations.source_context import source_context
 from resume_maker.integrations.sources import project_sources
 
@@ -24,12 +25,13 @@ def reply(text="完成"):
     return {"reply": text, "experience": None, "changes": [], "questions": []}
 
 
-def provider_at(tmp_path, handler, db=None):
+def provider_at(tmp_path, handler, db=None, *, source_handler=None):
     """注入只接收安全材料的 CLI 替身，不访问用户配置或真实模型"""
 
-    def runner(payload, settings, environment, cancelled, emit):
+    def runner(payload, settings, environment, cancelled, emit, *, source_access=None):
         """回显可控的结构化结果以检查本机还原"""
-        return json.dumps(handler(payload), ensure_ascii=False)
+        result = source_handler(payload, source_access) if source_handler else handler(payload)
+        return json.dumps(result, ensure_ascii=False)
 
     return CodexProvider(privacy=PrivacyStore(db), runner=runner)
 
@@ -244,15 +246,16 @@ def test_source_bundle_excludes_private_files_and_preserves_line_numbers(
     (root / ".env").write_text("SECRET=private")
     (root / "private.pem").write_text("private")
     (root / "main.py").write_text("# test\nprint('hello')\n")
-    (root / "oversize.py").write_text("x" * 128001)
+    (root / "oversize.py").write_text("x = 1\n" * 22000)
     (root / "data").mkdir()
     (root / "data" / "resume.txt").write_text("private")
-    value = source_context(project_sources(project), tmp_path / "data", threading.Event())
-    assert {row["path"] for row in value["files"]} == {"README.md", "main.py"}
-    assert (
-        next(row for row in value["files"] if row["path"] == "main.py")["text"].splitlines()[1]
-        == "print('hello')"
-    )
+    sources = project_sources(project)
+    value = source_context(sources, root / "data", threading.Event())
+    with SourceAccess(sources, root / "data", Redactor(), threading.Event()) as access:
+        rows = access.call("list_source_files", {})["results"]
+        assert {row["path"] for row in rows} == {"README.md", "main.py", "oversize.py"}
+        result = access.call("read_source", {"source": "source-0", "path": "main.py"})
+        assert result["lines"][1] == {"line": 2, "text": "print('hello')"}
     assert str(root) not in json.dumps(value)
 
 
@@ -276,3 +279,34 @@ def test_privacy_api_requires_token_and_preview_does_not_store_raw_text(tmp_path
         assert client.delete("/api/privacy/requests").status_code == 200
         assert client.get("/api/privacy/requests").json() == []
     assert create_app(config).state.services.db.setting("privacy_terms") == ["测试甲"]
+
+
+def test_source_audit_retention_does_not_limit_reading(tmp_path, catalog):
+    """超过审计保留数量仍可读取，动态占位符在最终结果中准确还原"""
+    root = tmp_path / "source"
+    root.mkdir()
+    (root / "main.py").write_text("late@example.invalid", encoding="utf-8")
+    caches = []
+
+    def handle(payload, access):
+        """持续请求相同材料以跨过记录保留边界，不额外引入模型额度"""
+        assert "late@example.invalid" not in payload["input"]
+        caches.append(Path(access.directory.name))
+        for _ in range(25):
+            result = access.call("read_source", {"source": "source-0", "path": "main.py"})
+        return reply(result["lines"][0]["text"])
+
+    provider = provider_at(tmp_path, None, catalog.db, source_handler=handle)
+    result = run(
+        provider,
+        tmp_path,
+        "分析",
+        sources=[{"id": "source-0", "path": str(root)}],
+        data_dir=tmp_path / "data",
+    )
+    assert result.reply == "late@example.invalid"
+    audit = catalog.db.setting("privacy_audit")[0]
+    assert audit["payload"]["source_tool_calls"] == 25
+    assert len(audit["payload"]["source_tools"]) == 20
+    assert "late@example.invalid" not in json.dumps(audit)
+    assert all(not path.exists() for path in caches)

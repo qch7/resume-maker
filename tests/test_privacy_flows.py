@@ -22,23 +22,37 @@ def test_masked_source_paths_and_quotes_are_restored_before_evidence_validation(
     """模型只引用脱敏路径和正文，最终源码证据仍核对原始文件"""
     root = tmp_path / "original-private-source"
     root.mkdir()
-    (root / "测试甲.py").write_text("print('测试甲')\n", encoding="utf-8")
+    for index in range(205):
+        (root / f"part-{index:03}.py").write_text("# ordinary source\n" * 120, encoding="utf-8")
+    original = "# source\n" * 16000 + "print('测试甲', 'late@example.invalid')\n"
+    (root / "测试甲.py").write_text(original, encoding="utf-8")
     project = catalog.create_project("例子", [str(root)])
     catalog.db.set_setting("privacy_terms", ["测试甲"])
     seen = []
 
-    def handle(request):
+    def handle(request, access):
         """依据收到的安全片段构造真实行号的源码证据"""
         body = request
         seen.append(body)
         context = json.loads(body["input"].split("本轮上下文数据：\n")[1])
-        file = context["source_materials"]["files"][0]
+        rows, args = [], {}
+        while True:
+            page = access.call("list_source_files", args)
+            seen.append(page)
+            rows.extend(page["results"])
+            if page["complete"]:
+                break
+            args["cursor"] = page["next_cursor"]
+        assert len(rows) == 206
+        row = next(row for row in rows if "[[RM_" in row["path"])
+        file = access.call("read_source", {**row, "start_line": 16001})
+        seen.append(file)
         evidence = {
             "source": file["source"],
             "path": file["path"],
-            "line_start": 1,
-            "line_end": 1,
-            "quote": file["text"].strip(),
+            "line_start": 16001,
+            "line_end": 16001,
+            "quote": file["lines"][0]["text"],
             "status": "code",
         }
         result = {
@@ -52,7 +66,7 @@ def test_masked_source_paths_and_quotes_are_restored_before_evidence_validation(
         }
         return result
 
-    provider = provider_at(tmp_path, handle, catalog.db)
+    provider = provider_at(tmp_path, None, catalog.db, source_handler=handle)
     jobs = Jobs(catalog.db, catalog, tmp_path / "data", provider)
     conversation = catalog.db.one(
         "SELECT id FROM conversations WHERE project_id=?", (project["id"],)
@@ -68,10 +82,15 @@ def test_masked_source_paths_and_quotes_are_restored_before_evidence_validation(
         jobs.stop()
     serialized = json.dumps(seen, ensure_ascii=False)
     assert "测试甲" not in serialized and "original-private-source" not in serialized
+    assert "late@example.invalid" not in serialized
     proposal = catalog.db.one("SELECT after_json FROM proposals WHERE job_id=?", (job["id"],))
     evidence = proposal["after"]["highlights"][0]["evidence"][0]
     assert evidence["status"] == "code" and evidence["path"] == "测试甲.py"
-    assert evidence["quote"] == "print('测试甲')"
+    assert evidence["quote"] == "print('测试甲', 'late@example.invalid')"
+    audit = catalog.db.setting("privacy_audit")[0]
+    assert audit["status"] == "completed" and audit["payload"]["source_tool_calls"] == 4
+    assert "测试甲" not in json.dumps(audit, ensure_ascii=False)
+    assert (root / "测试甲.py").read_text(encoding="utf-8") == original
 
 
 def test_template_quote_restored_and_original_images_never_sent(tmp_path, catalog):

@@ -11,7 +11,9 @@ from test_jobs import wait_job
 from resume_maker.domain.models import AIResult
 from resume_maker.infrastructure.database import uid
 from resume_maker.integrations import sources
+from resume_maker.integrations.privacy import Redactor
 from resume_maker.integrations.providers.base import Cancelled
+from resume_maker.integrations.source_access import SourceAccess
 from resume_maker.services.jobs import Jobs
 from resume_maker.services.projects import Projects
 
@@ -59,18 +61,25 @@ def test_jobs_read_all_current_roots_and_only_archive_cited_files(catalog, tmp_p
     calls = []
 
     class ReadingProvider:
-        """只消费本轮提供的源码文字包并引用末尾子项目"""
+        """通过本轮只读网关访问当前源码并引用末尾子项目"""
 
         def run(self, **kw):
             """在返回之前确认未采集新文件，再按当前路径生成回复和一次经历建议"""
             context = json.loads(kw["prompt"].split("本轮上下文数据：\n")[1])
-            assert context["source_access"] == "provided-text-only"
+            assert context["source_access"] == "on-demand-redacted"
             assert "snapshot_directory" not in context
             assert "fingerprint" not in context
             assert len(catalog.db.all("SELECT id FROM snapshots")) == (1 if not calls else 2)
-            files = context["source_materials"]["files"]
-            values = [item["text"] for item in files if item["path"] == "README.md"]
-            quote = next(item["text"] for item in files if item["path"] == "feature.custom")
+            with SourceAccess(kw["sources"], data_dir, Redactor(), kw["cancelled"]) as access:
+                values = [
+                    access.call("read_source", {"source": row["id"], "path": "README.md"})["lines"][
+                        0
+                    ]["text"]
+                    for row in kw["sources"]
+                ]
+                quote = access.call(
+                    "read_source", {"source": "source-4", "path": "feature.custom"}
+                )["lines"][0]["text"]
             assert all("path" not in item for item in context["source_directories"])
             calls.append((values, quote))
             kw["emit"]("thread", {"id": kw["thread_id"] or uid()})

@@ -34,9 +34,26 @@ from resume_maker.infrastructure.database import SCHEMA_VERSION
 from resume_maker.services.templates.analysis import INSTRUCTIONS
 from resume_maker.integrations import local_ocr
 from resume_maker.integrations.providers import material_server
+from resume_maker.integrations.providers.source_broker import source_broker
+from resume_maker.integrations.source_access import SourceAccess
+from resume_maker.integrations.privacy import Redactor
+import json
+import threading
 assert "name: resume-template-mapping" in INSTRUCTIONS
 assert Path(material_server.__file__).is_relative_to(Path.cwd() / "package")
 assert len(material_server.TOOLS) == 2
+assert len(material_server.SOURCE_TOOLS) == 3
+source = Path.cwd() / "synthetic-source"
+source.mkdir()
+(source / "main.py").write_text("print('合成身份')", encoding="utf-8")
+with SourceAccess([{"id": "source-0", "path": str(source)}], Path.cwd() / "data",
+                  Redactor(["合成身份"]), threading.Event()) as access:
+    with source_broker(access) as endpoint:
+        result = material_server.source_call(endpoint, "read_source",
+                                             {"source": "source-0", "path": "main.py"})
+        assert "合成身份" not in result and "[[RM_" in result
+        restored = access.redactor.restore(json.loads(result))
+        assert restored["lines"][0]["text"] == "print('合成身份')"
 assert local_ocr.engine() is not None
 config = Config(data_dir=Path.cwd() / "data")
 assert config.frontend == (Path.cwd() / "package/resume_maker/web").resolve(), config.frontend

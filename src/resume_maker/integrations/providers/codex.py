@@ -4,6 +4,7 @@ import json
 import os
 import re
 import subprocess
+from contextlib import nullcontext
 from copy import copy
 
 from pydantic import ValidationError
@@ -14,6 +15,7 @@ from resume_maker.integrations.privacy_store import PrivacyStore
 from resume_maker.integrations.providers.base import Cancelled, ProviderError, StructuredOutputError
 from resume_maker.integrations.providers.cli import run_cli
 from resume_maker.integrations.providers.sandbox import native_executable
+from resume_maker.integrations.source_access import SourceAccess
 
 
 def structured_text(message: str) -> str:
@@ -124,6 +126,8 @@ class CodexProvider:
         emit,
         images=None,
         sensitive_values=(),
+        sources=None,
+        data_dir=None,
     ):
         """原图只供本机 OCR，脱敏后的文字进入独立 CLI 沙箱"""
         if cancelled.is_set():
@@ -158,7 +162,20 @@ class CodexProvider:
         identifier = self.privacy.record(payload, redactor.count)
         emit("status", {"text": f"隐私保护已处理 {redactor.count} 处内容，正在发送文字请求"})
         try:
-            raw = self.runner(payload, settings, self.environment, cancelled, emit)
+
+            def audit(name, result, count):
+                """记录有界的脱敏工具结果，原始路径和还原表始终留在内存"""
+                self.privacy.material(identifier, name, result, count)
+
+            with (
+                SourceAccess(sources, data_dir, redactor, cancelled, audit)
+                if sources
+                else nullcontext(None)
+            ) as access:
+                options = {"source_access": access} if access is not None else {}
+                raw = self.runner(payload, settings, self.environment, cancelled, emit, **options)
+            if cancelled.is_set():
+                raise Cancelled("请求已取消。")
             try:
                 restored = redactor.restore(json.loads(structured_text(raw)))
                 result = result_model.model_validate(restored)

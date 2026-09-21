@@ -129,8 +129,8 @@ export default function Privacy() {
       <details>
         <summary>最近脱敏材料包（最多 10 条）</summary>
         <p className="subtle">
-          显示准备交给 CLI 的脱敏文字和输出契约，不包含鉴权或还原表。 这不是 CLI
-          的完整网络抓包，记录仍可能含业务内容，可随时清除。
+          显示初始脱敏材料、输出契约及最近 20 次源码工具结果，较早结果不保留。
+          不包含鉴权或还原表，也不是完整网络抓包；记录仍可能含业务内容，可随时清除。
         </p>
         <button
           disabled={busy}

@@ -194,8 +194,26 @@ def test_fast_exit_waits_for_job_assignment(tmp_path, monkeypatch):
 )
 @pytest.mark.parametrize("model", ["test-model", "gpt-5.5", "gpt-6-astra"])
 def test_native_cli_tool_boundary(tmp_path, model):
-    """以本机假模型验证禁用 shell、正确读取副本、拒绝穿越和配置污染"""
+    """真实 CLI 按需读取大文件尾部并还原新身份值，同时拒绝越界及配置污染"""
     requests = []
+    root = tmp_path / "PRIVATE-SOURCE-ROOT"
+    root.mkdir()
+    original = "# ordinary source\n" * 12000 + "TAIL_FEATURE late4726@example.invalid\n"
+    (root / "main.py").write_text(original, encoding="utf-8")
+    (root / "feature.py").write_text("SEARCH_FEATURE", encoding="utf-8")
+    (root / ".env").write_text("SOURCE-SECRET-CANARY", encoding="utf-8")
+    calls = [
+        ("exec_command", {"cmd": "echo SHOULD_NOT_RUN"}),
+        ("apply_patch", {"patch": "SHOULD_NOT_RUN"}),
+        ("read_material", {"file": "context.txt"}),
+        ("read_material", {"file": "../control/auth.json"}),
+        ("list_source_files", {}),
+        ("search_sources", {"query": "SEARCH_FEATURE", "glob": "feature.py"}),
+        ("read_source", {"source": "source-0", "path": "main.py", "start_line": 12001}),
+        ("read_source", {"source": "source-0", "path": "../config.toml"}),
+        ("read_source", {"source": "source-0", "path": ".env"}),
+        ("read_material", {"file": "../control/source-access.json"}),
+    ]
 
     class Handler(BaseHTTPRequestHandler):
         """仅返回合成工具调用的本机 Responses 服务"""
@@ -208,36 +226,41 @@ def test_native_cli_tool_boundary(tmp_path, model):
             payload = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             requests.append(payload)
             number = len(requests)
-            if number < 5:
+            if number <= len(calls):
                 item = {
                     "id": f"fc_{number}",
                     "type": "function_call",
                     "call_id": f"call_{number}",
-                    "name": (
-                        "exec_command"
-                        if number == 1
-                        else "apply_patch"
-                        if number == 2
-                        else "read_material"
-                    ),
-                    "arguments": json.dumps(
-                        {"cmd": "echo SHOULD_NOT_RUN"}
-                        if number == 1
-                        else {"patch": "SHOULD_NOT_RUN"}
-                        if number == 2
-                        else {"file": "context.txt" if number == 3 else "../control/auth.json"}
-                    ),
+                    "name": calls[number - 1][0],
+                    "arguments": json.dumps(calls[number - 1][1]),
                 }
                 if number > 2:
                     item["namespace"] = "mcp__resume_materials"
             else:
+                output = next(
+                    item["output"]
+                    for item in payload["input"]
+                    if item.get("call_id") == "call_7" and item["type"] == "function_call_output"
+                )
+                content = json.loads(output) if isinstance(output, str) else output
+                answer = json.dumps(content, ensure_ascii=False)
+                for block in content:
+                    try:
+                        answer = json.loads(block.get("text", ""))["lines"][0]["text"]
+                        break
+                    except (ValueError, KeyError):
+                        continue
                 item = {
                     "id": "msg_1",
                     "type": "message",
                     "role": "assistant",
                     "status": "completed",
                     "content": [
-                        {"type": "output_text", "text": '{"answer":"done"}', "annotations": []}
+                        {
+                            "type": "output_text",
+                            "text": json.dumps({"answer": answer}),
+                            "annotations": [],
+                        }
                     ],
                 }
             self.send_response(200)
@@ -288,15 +311,18 @@ def test_native_cli_tool_boundary(tmp_path, model):
             prompt="SAFE-MATERIAL\n姓名：合成测试甲\n电话：13800004726\n"
             "邮箱：synthetic4726@example.invalid\n颁发单位\n合成测试委员会",
             thread_id="PRIVATE-OLD-SESSION",
-            settings=ProviderSettings(timeout_seconds=30),
+            settings=ProviderSettings(timeout_seconds=60),
             cancelled=threading.Event(),
             emit=lambda *_: None,
+            sources=[{"id": "source-0", "path": str(root)}],
+            data_dir=tmp_path / "data",
         )
     finally:
         server.shutdown()
         server.server_close()
         thread.join(timeout=2)
-    assert result.answer == "done"
+    assert result.answer == "TAIL_FEATURE late4726@example.invalid"
+    assert (root / "main.py").read_text(encoding="utf-8") == original
     wire = json.dumps(requests, ensure_ascii=False)
     assert all(value not in wire for value in ("CONFIG-CANARY", "RULES-CANARY", "SECRET-CANARY"))
     assert all(
@@ -307,12 +333,16 @@ def test_native_cli_tool_boundary(tmp_path, model):
             "synthetic4726@example.invalid",
             "合成测试委员会",
             "PRIVATE-OLD-SESSION",
+            "PRIVATE-SOURCE-ROOT",
+            "SOURCE-SECRET-CANARY",
+            "late4726@example.invalid",
         )
     )
     assert "[[RM_" in wire
     assert "unsupported call: exec_command" in wire
     assert "unsupported call: apply_patch" in wire
     assert "读取被拒绝" in wire
+    assert "SEARCH_FEATURE" in wire and "main.py" in wire
     assert any(
         "SAFE-MATERIAL" in str(item.get("output", ""))
         for req in requests

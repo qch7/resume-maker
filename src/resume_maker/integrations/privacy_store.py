@@ -59,3 +59,25 @@ class PrivacyStore:
                 conn.execute(
                     "INSERT OR REPLACE INTO settings VALUES (?,?)", ("privacy_audit", dump(history))
                 )
+
+    def material(self, identifier, name, result, count):
+        """只保存最近二十次脱敏工具结果及总次数，审计上限不限制源码访问"""
+        if self.db:
+            with self.db.transaction() as conn:
+                row = conn.execute(
+                    "SELECT value_json FROM settings WHERE key='privacy_audit'"
+                ).fetchone()
+                history = json.loads(row[0]) if row else []
+                for entry in history:
+                    if entry["id"] != identifier:
+                        continue
+                    payload = entry["payload"]
+                    payload["source_tool_calls"] = payload.get("source_tool_calls", 0) + 1
+                    payload["source_tools"] = [
+                        *payload.get("source_tools", []),
+                        {"tool": name, "result": result},
+                    ][-20:]
+                    entry["replacements"] = count
+                conn.execute(
+                    "INSERT OR REPLACE INTO settings VALUES (?,?)", ("privacy_audit", dump(history))
+                )

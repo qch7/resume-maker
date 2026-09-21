@@ -203,12 +203,21 @@ class Redactor:
             source = context["source_materials"]
             # 仅保留本机材料清单的固定路由字段，路径、正文及未知字典键继续脱敏
             protected["source_materials"] = self.protect(
-                source, fixed_keys={"files", "limited", "omitted", "notice"}
+                source, fixed_keys={"files", "limited", "omitted", "notice", "mode", "sources"}
             )
-            protected["source_materials"]["files"] = [
-                self.protect(row, fixed_keys={"source", "path", "line_start", "text"})
-                for row in source.get("files", [])
-            ]
+            if source.get("mode") == "on-demand":
+                protected["source_materials"]["mode"] = "on-demand"
+                protected["source_materials"]["sources"] = [
+                    identifier
+                    if isinstance(identifier, str) and re.fullmatch(r"source-\d+", identifier)
+                    else self.protect(identifier)
+                    for identifier in source.get("sources", [])
+                ]
+            if "files" in source:
+                protected["source_materials"]["files"] = [
+                    self.protect(row, fixed_keys={"source", "path", "line_start", "text"})
+                    for row in source["files"]
+                ]
         if isinstance(context, dict) and isinstance(context.get("output_schema"), dict):
             protected["output_schema"] = self.protect_schema(context["output_schema"])
         return self.text(head) + separator + json.dumps(protected, ensure_ascii=False)

@@ -99,8 +99,8 @@ def test_identity_matching_material_keys_keeps_sources_readable(tmp_path, identi
 
 
 @pytest.mark.parametrize("size", [20, 100000])
-def test_source_budget_keeps_later_linked_repository(tmp_path, size):
-    """第一个仓库触及文件或文字预算时，后续关联仓库仍有可引用材料"""
+def test_source_manifest_preserves_all_linked_repositories(tmp_path, size):
+    """第一个仓库超过旧文件或文字预算时，各来源仍保留按需访问入口"""
     roots = [tmp_path / "large", tmp_path / "small"]
     for root in roots:
         root.mkdir()
@@ -109,10 +109,9 @@ def test_source_budget_keeps_later_linked_repository(tmp_path, size):
     (roots[1] / "feature.py").write_text("print('later repository')\n", encoding="utf-8")
     sources = [{"id": f"source-{i}", "path": str(root)} for i, root in enumerate(roots)]
     bundle = source_context(sources, tmp_path / "data", threading.Event())
-    assert any(row["source"] == "source-1" for row in bundle["files"])
-    assert bundle["limited"]
-    assert len(bundle["files"]) <= 200
-    assert sum(len(row["text"]) for row in bundle["files"]) <= 350000
+    assert bundle["sources"] == ["source-0", "source-1"]
+    assert bundle["mode"] == "on-demand"
+    assert "files" not in bundle and "limited" not in bundle
 
 
 @pytest.mark.parametrize("pages", [1, 13])

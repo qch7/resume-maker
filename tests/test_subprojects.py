@@ -135,16 +135,15 @@ def test_parent_and_subproject_jobs_use_separate_sources_histories_and_threads(c
             )
             assert wait_job(catalog, job["id"])["status"] == "completed"
             context = provider.calls[-1]["context"]
-            assert context["source_access"] == "provided-text-only"
+            assert context["source_access"] == "on-demand-redacted"
             assert "snapshot_directory" not in context
             assert len(context["source_directories"]) == len(project["roots"])
             assert all("path" not in source for source in context["source_directories"])
-            expected_files = (
-                {"agent.py", "rag.py"}
-                if project["id"] == parent["id"]
-                else {f"{project['name']}.py"}
-            )
-            assert {item["path"] for item in context["source_materials"]["files"]} == expected_files
+            assert [row["path"] for row in provider.calls[-1]["sources"]] == project["roots"]
+            assert context["source_materials"]["sources"] == [
+                row["id"] for row in provider.calls[-1]["sources"]
+            ]
+            assert "files" not in context["source_materials"]
             assert not catalog.db.all("SELECT id FROM snapshots")
             assert context["current_experience"]["title"] == project["name"]
             assert context["recent_messages"] == [
