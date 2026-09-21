@@ -158,7 +158,11 @@ def test_cancel_reaps_child_even_after_leader_exit(tmp_path):
     finally:
         thread.join(timeout=6)
     pid = int(pidfile.read_text())
-    assert not psutil.pid_exists(pid) or psutil.Process(pid).status() == psutil.STATUS_ZOMBIE
+    try:
+        assert psutil.Process(pid).status() == psutil.STATUS_ZOMBIE
+    except psutil.NoSuchProcess:
+        # 查询期间退出的进程同样已完成回收
+        pass
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows 进程挂起和 Job Object 边界")
