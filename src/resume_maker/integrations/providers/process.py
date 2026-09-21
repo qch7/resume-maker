@@ -33,11 +33,12 @@ def terminate(process):
 
 
 def windows_job(process):
-    """将 CLI 和已有子进程纳入任务对象，关闭时统一终止未来后代"""
+    """将尚未执行的进程纳入任务对象后恢复主线程，后代自动继承回收边界"""
     if os.name != "nt":
         return None
     import win32api
     import win32job
+    import win32process
 
     job = win32job.CreateJobObject(None, "")
     info = win32job.QueryInformationJobObject(job, win32job.JobObjectExtendedLimitInformation)
@@ -45,15 +46,15 @@ def windows_job(process):
     win32job.SetInformationJobObject(job, win32job.JobObjectExtendedLimitInformation, info)
     try:
         win32job.AssignProcessToJobObject(job, int(process._handle))
-        for child in psutil.Process(process.pid).children(recursive=True):
-            try:
-                handle = win32api.OpenProcess(0x101 | 0x1000, False, child.pid)
-                try:
-                    win32job.AssignProcessToJobObject(job, handle)
-                finally:
-                    handle.Close()
-            except (psutil.NoSuchProcess, OSError):
-                pass
+        threads = psutil.Process(process.pid).threads()
+        if len(threads) != 1:
+            raise ProviderError("CLI 启动状态异常，已停止本次请求。")
+        thread = win32api.OpenThread(0x0002, False, threads[0].id)
+        try:
+            if win32process.ResumeThread(thread) != 1:
+                raise ProviderError("CLI 主线程未处于预期挂起状态，已停止本次请求。")
+        finally:
+            thread.Close()
         return job
     except Exception:
         job.Close()
@@ -72,10 +73,17 @@ def execute(command, *, cwd, env, timeout, cancelled, stdin="", event=None):
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        creationflags=0x08000200 if os.name == "nt" else 0,
+        creationflags=0x08000204 if os.name == "nt" else 0,
         start_new_session=os.name != "nt",
     )
-    job = windows_job(process)
+    try:
+        job = windows_job(process)
+    except Exception as exc:
+        terminate(process)
+        process.wait(timeout=2)
+        for stream in (process.stdin, process.stdout, process.stderr):
+            stream.close()
+        raise ProviderError("无法建立 CLI 进程回收边界，已停止本次请求。") from exc
     lines, stopped = queue.Queue(maxsize=16), threading.Event()
 
     def enqueue(value):

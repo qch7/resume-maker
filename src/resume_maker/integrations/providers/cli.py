@@ -8,6 +8,7 @@ from pathlib import Path
 from resume_maker.integrations.providers.base import ProviderError
 from resume_maker.integrations.providers.connection import connection
 from resume_maker.integrations.providers.credentials import isolated_credentials
+from resume_maker.integrations.providers.model_catalog import write_catalog
 from resume_maker.integrations.providers.process import execute
 from resume_maker.integrations.providers.sandbox import (
     arguments,
@@ -32,6 +33,7 @@ DISABLED = (
     "multi_agent_v2",
     "code_mode",
     "code_mode_host",
+    "code_mode_only",
     "view_image",
     "image_generation",
     "shell_snapshot",
@@ -102,6 +104,7 @@ def run_cli(payload, settings, environment, cancelled, emit):
             Path(__file__).with_name("material_server.py"), root / "control/material-server.py"
         )
         values = safety_settings(root, selected)
+        values["model_catalog_json"] = write_catalog(root, selected)
         env["TEMP"] = env["TMP"] = str(root / "control")
         version = execute(
             [executable, "--version"], cwd=root, env=env, timeout=15, cancelled=cancelled

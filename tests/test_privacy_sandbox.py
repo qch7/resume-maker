@@ -12,16 +12,24 @@ from pathlib import Path
 import psutil
 import pytest
 
-from resume_maker.domain.models import ProviderSettings
+from resume_maker.domain.models import Model, ProviderSettings
 from resume_maker.integrations.providers.base import Cancelled
 from resume_maker.integrations.providers.cli import run_cli
+from resume_maker.integrations.providers.codex import CodexProvider
 from resume_maker.integrations.providers.credentials import isolated_credentials
 from resume_maker.integrations.providers.material_server import call, dispatch
 from resume_maker.integrations.providers.process import execute
 from resume_maker.integrations.providers.sandbox import materials
 
 
-def test_material_boundaries_and_line_numbers(tmp_path):
+class BoundaryReply(Model):
+    """真实 CLI 边界验收所用的最小输出契约"""
+
+    answer: str
+
+
+@pytest.mark.parametrize("newline", ["\n", "\r\n", "\r"])
+def test_material_boundaries_and_line_numbers(tmp_path, newline):
     """仅生成的文件编号可读，路径穿越、命令、凭据文件和链接全部被拒绝"""
     root = tmp_path / "materials"
     root.mkdir()
@@ -33,7 +41,11 @@ def test_material_boundaries_and_line_numbers(tmp_path):
             {
                 "source_materials": {
                     "files": [
-                        {"source": "source-0", "path": "src/test.py", "text": "first\nneedle\nlast"}
+                        {
+                            "source": "source-0",
+                            "path": "src/test.py",
+                            "text": newline.join(["first", "needle", "last"]),
+                        }
                     ]
                 }
             }
@@ -149,11 +161,35 @@ def test_cancel_reaps_child_even_after_leader_exit(tmp_path):
     assert not psutil.pid_exists(pid) or psutil.Process(pid).status() == psutil.STATUS_ZOMBIE
 
 
+@pytest.mark.skipif(os.name != "nt", reason="Windows 进程挂起和 Job Object 边界")
+def test_fast_exit_waits_for_job_assignment(tmp_path, monkeypatch):
+    """模拟繁忙机器延迟绑定任务对象，快速退出命令仍正常完成且不逃逸"""
+    from resume_maker.integrations.providers import process as module
+
+    original = module.windows_job
+
+    def delayed(process):
+        """让子进程获得足够时间以暴露未挂起启动的退出竞态"""
+        time.sleep(0.2)
+        return original(process)
+
+    monkeypatch.setattr(module, "windows_job", delayed)
+    result = execute(
+        [sys.executable, "-c", "print('FAST-COMPLETED')"],
+        cwd=tmp_path,
+        env=os.environ.copy(),
+        timeout=5,
+        cancelled=threading.Event(),
+    )
+    assert result.strip() == "FAST-COMPLETED"
+
+
 @pytest.mark.skipif(
     os.environ.get("RESUME_MAKER_TEST_NATIVE_CLI") != "1",
     reason="显式启用后使用真实 CLI 连接本机合成服务，不访问供应商",
 )
-def test_native_cli_tool_boundary(tmp_path):
+@pytest.mark.parametrize("model", ["test-model", "gpt-5.5", "gpt-6-astra"])
+def test_native_cli_tool_boundary(tmp_path, model):
     """以本机假模型验证禁用 shell、正确读取副本、拒绝穿越和配置污染"""
     requests = []
 
@@ -168,19 +204,27 @@ def test_native_cli_tool_boundary(tmp_path):
             payload = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             requests.append(payload)
             number = len(requests)
-            if number < 4:
+            if number < 5:
                 item = {
                     "id": f"fc_{number}",
                     "type": "function_call",
                     "call_id": f"call_{number}",
-                    "name": "exec_command" if number == 1 else "read_material",
+                    "name": (
+                        "exec_command"
+                        if number == 1
+                        else "apply_patch"
+                        if number == 2
+                        else "read_material"
+                    ),
                     "arguments": json.dumps(
                         {"cmd": "echo SHOULD_NOT_RUN"}
                         if number == 1
-                        else {"file": "context.txt" if number == 2 else "../control/auth.json"}
+                        else {"patch": "SHOULD_NOT_RUN"}
+                        if number == 2
+                        else {"file": "context.txt" if number == 3 else "../control/auth.json"}
                     ),
                 }
-                if number > 1:
+                if number > 2:
                     item["namespace"] = "mcp__resume_materials"
             else:
                 item = {
@@ -223,36 +267,47 @@ def test_native_cli_tool_boundary(tmp_path):
     thread.start()
     (tmp_path / "AGENTS.md").write_text("RULES-CANARY", encoding="utf-8")
     (tmp_path / "config.toml").write_text(
-        'model="test-model"\nmodel_provider="test"\ndeveloper_instructions="CONFIG-CANARY"\n'
+        f'model="{model}"\nmodel_provider="test"\ndeveloper_instructions="CONFIG-CANARY"\n'
         '[mcp_servers.untrusted]\ncommand="SHOULD-NOT-START"\n'
         '[model_providers.test]\nname="test"\nwire_api="responses"\nenv_key="SYNTHETIC_KEY"\n'
         f'base_url="http://127.0.0.1:{server.server_port}/v1"\n',
         encoding="utf-8",
     )
     try:
-        result = run_cli(
-            {
-                "input": "SAFE-MATERIAL",
-                "schema": {
-                    "type": "object",
-                    "properties": {"answer": {"type": "string"}},
-                    "required": ["answer"],
-                    "additionalProperties": False,
-                },
-            },
-            ProviderSettings(timeout_seconds=30),
-            {"CODEX_HOME": str(tmp_path), "SYNTHETIC_KEY": "SECRET-CANARY"},
-            threading.Event(),
-            lambda *_: None,
+        provider = CodexProvider(
+            environment={"CODEX_HOME": str(tmp_path), "SYNTHETIC_KEY": "SECRET-CANARY"},
+            runner=run_cli,
+        ).with_private_data({"personal": {"name": "合成测试甲"}})
+        result = provider.run_structured(
+            result_model=BoundaryReply,
+            workspace=tmp_path,
+            prompt="SAFE-MATERIAL\n姓名：合成测试甲\n电话：13800004726\n"
+            "邮箱：synthetic4726@example.invalid\n颁发单位\n合成测试委员会",
+            thread_id="PRIVATE-OLD-SESSION",
+            settings=ProviderSettings(timeout_seconds=30),
+            cancelled=threading.Event(),
+            emit=lambda *_: None,
         )
     finally:
         server.shutdown()
         server.server_close()
         thread.join(timeout=2)
-    assert json.loads(result) == {"answer": "done"}
+    assert result.answer == "done"
     wire = json.dumps(requests, ensure_ascii=False)
     assert all(value not in wire for value in ("CONFIG-CANARY", "RULES-CANARY", "SECRET-CANARY"))
+    assert all(
+        value not in wire
+        for value in (
+            "合成测试甲",
+            "13800004726",
+            "synthetic4726@example.invalid",
+            "合成测试委员会",
+            "PRIVATE-OLD-SESSION",
+        )
+    )
+    assert "[[RM_" in wire
     assert "unsupported call: exec_command" in wire
+    assert "unsupported call: apply_patch" in wire
     assert "读取被拒绝" in wire
     assert any(
         "SAFE-MATERIAL" in str(item.get("output", ""))

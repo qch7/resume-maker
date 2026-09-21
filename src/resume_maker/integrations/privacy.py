@@ -5,6 +5,7 @@ import re
 import secrets
 from urllib.parse import quote
 
+from resume_maker.integrations.privacy_text import formatted_values, known_variants, labeled_values
 from resume_maker.integrations.providers.base import ProviderError
 
 TOKEN = re.compile(r"\[\[RM_[a-f0-9]{12}_\d+\]\]")
@@ -21,8 +22,11 @@ PATTERNS = [
 ]
 LABEL = re.compile(
     r"(?im)(?:姓名|获奖人|持有人|联系人|身份证号?|证书编号|学号|住址|家庭地址|"
-    r"出生日期|生日|毕业院校|就读学校|工作单位|联系电话|电话|手机|邮箱|name|recipient|address)"
-    r"[ \t]*[:：=][ \t]*([^\r\n，,；;|<>]{1,120})"
+    r"出生日期|生日|毕业院校|就读学校|学校|院校|工作单位|颁发单位|颁发机构|发证机构|"
+    r"联系电话|电话|手机|邮箱|name|recipient|address|issuer|issued[ \t]+by|school|"
+    r"certificate[ _]?(?:number|no\.?))"
+    r"[ \t]*(?:[:：=][ \t]*(?:\r?\n[ \t]*)?|\r?\n[ \t]*)"
+    r"([^\r\n，,；;|<>]{1,120})"
 )
 NAMED_PERSON = re.compile(
     r"(?:我叫|本人(?:是)?|获奖人(?:为)?)[ \t]*([\u4e00-\u9fff]{2,4})(?=[，。\s]|$)|"
@@ -99,8 +103,7 @@ class Redactor:
         elif isinstance(value, str):
             for match in SECRET.finditer(value):
                 self.secrets.add(match[2].strip().strip("\"'"))
-            for match in LABEL.finditer(value):
-                self.values.add(match[1].strip().strip("\"'"))
+            self.values.update(labeled_values(value, LABEL))
             for match in NAMED_PERSON.finditer(value):
                 self.values.add(next(group for group in match.groups() if group))
 
@@ -138,11 +141,11 @@ class Redactor:
             if secret_value:
                 value = value.replace(secret_value, "[凭据已移除]")
         candidates = set(self.values)
+        candidates.update(known_variants(value, self.values))
         for candidate in self.values:
             candidates.add(json.dumps(candidate, ensure_ascii=True)[1:-1])
             candidates.add(quote(candidate, safe=""))
-        for pattern in PATTERNS:
-            candidates.update(match[0] for match in pattern.finditer(value))
+        candidates.update(formatted_values(value, PATTERNS))
         if not candidates:
             return value
         pattern = re.compile(

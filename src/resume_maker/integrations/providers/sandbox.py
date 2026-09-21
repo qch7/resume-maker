@@ -1,4 +1,4 @@
-"""创建仅含脱敏材料的目录，并用 CLI 原生沙箱校验读取边界"""
+"""创建脱敏材料和控制文件分离的临时目录并限制其他账户访问"""
 
 import json
 import os
@@ -123,9 +123,9 @@ def materials(root, prompt, schema):
         files = context.get("source_materials", {}).get("files", [])
         for index, item in enumerate(files):
             filename = f"source-{index + 1:04}.txt"
-            (work / filename).write_text(item.pop("text"), encoding="utf-8")
+            (work / filename).write_text(item.pop("text"), encoding="utf-8", newline="")
             item["material_file"] = filename
         prompt = head + sep + json.dumps(context, ensure_ascii=False)
-    (work / "context.txt").write_text(prompt, encoding="utf-8")
+    (work / "context.txt").write_text(prompt, encoding="utf-8", newline="")
     (work / "schema.json").write_text(json.dumps(schema, ensure_ascii=False), encoding="utf-8")
     return prompt
