@@ -5,6 +5,7 @@ from io import BytesIO
 import pymupdf
 from docx.oxml import OxmlElement
 from docx.shared import Pt
+from docx.text.paragraph import Paragraph
 
 from resume_maker.integrations.word.pdf.geometry import BOX, ROLE
 
@@ -193,6 +194,18 @@ def place_assets(assets, paragraphs):
             return vertical * 4 + horizontal * 0.15, abs(rect.y0 - area.y0)
 
         paragraph, rect, column_left = min(paragraphs, key=distance)
+        top = rect.y0
+        if photo:
+            # 照片只借用几何位置，不属于附近的旧文字；给它独立锚点以允许删除旧摘要。
+            before = paragraph.paragraph_format.space_before
+            top -= before.pt if before is not None else 0
+            holder = OxmlElement("w:p")
+            paragraph._p.addprevious(holder)
+            paragraph = Paragraph(holder, paragraph._parent)
+            style = paragraph.paragraph_format
+            style.space_before = style.space_after = Pt(0)
+            style.line_spacing = Pt(0.05)
+            style.keep_with_next = True
         label = (
             "PDF 页面底色"
             if photo is None
@@ -201,4 +214,4 @@ def place_assets(assets, paragraphs):
             else "PDF 固定装饰（图标、底色或线条）"
         )
         layer = 0 if photo is None else 2 if photo else 1
-        attach_asset(paragraph, raw, box, rect.y0, column_left, label, layer)
+        attach_asset(paragraph, raw, box, top, column_left, label, layer)

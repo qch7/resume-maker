@@ -44,6 +44,32 @@ npm --prefix frontend run build
 
 后端测试使用 pytest 临时目录和可控 Provider，不需要真实 CLI 鉴权或 Microsoft Word。文档测试使用 DOCX 内容对比验证区域保留，并替换渲染器；真实 Word 排版和真实 Provider 连通性须在有对应环境的本机另行验收。Windows 和 Ubuntu 的 CI 均执行核心测试与安装包检查。
 
+## 真实模板与供应商对照
+
+用户授权发送模板后，可从 CC Switch 只读加载指定的 Codex 供应商：
+
+```sh
+uv run python scripts/evaluate_templates.py --cc-switch-db <cc-switch.db> --data-db <resume.db> --templates <模板目录> --output output/template-evaluation/run-1 --providers <供应商名称> <另一供应商名称>
+```
+
+可用 `--resume-id` 指定试填资料；缺省选最近更新的未删除简历。供应商名称必须与 CC Switch 一致。每个组合使用独立的 CLI 配置和会话，密钥仅通过子进程环境传递，不修改当前 Codex 配置、CC Switch 选中项或正式简历。脚本不会复用映射缓存，也不手工修正某个模型的结果。
+
+`--templates` 也接受单个 DOCX/PDF 文件，便于修复后只复测受影响的输入。
+
+输出包括每轮请求及其对应 DOCX 快照、原始模型映射、最终映射、校验报告与真实 Word 渲染。`content_check` 检查可见资料、栏目标题、姓名页码和占位符；`record_count_check` 按输入资料允许的总次数核对记录标题或正文，拦截重复填写，允许用户确实填写的同值记录。它们不能替代逐页视觉检查。`passed` 还要求真实渲染成功、原文件未变；任一组合失败时脚本以非零状态退出。比较时同时记录自动修正轮次和版式结果，不能只以 `ready` 作为成功标准。生成目录包含模板及简历资料，仅保存在本地忽略目录，不提交到仓库。
+
+重复样本中每个非 `highlights` 字段只能绑定一次；多处亮点仍按原顺序分配。该约束共用于分析、缓存读取和导出，不按模型或模板设置例外。修正请求的 `validation.node_context` 提供出错区域内绑定节点的准确原文，让模型修正引文和记录边界；不能通过模糊匹配放宽引文校验。
+
+验证通用性时使用独立构造的输入，不需要读取用户简历数据库：
+
+```sh
+uv run python scripts/evaluate_generalization.py --cc-switch-db <cc-switch.db> --output output/template-generalization/run-1 --providers <供应商名称> <另一供应商名称> --workers 3
+```
+
+包含中英文段落、整行表格、独立双栏、缺字段模板、原生单栏 PDF 和双栏 PDF；原始样本与试填资料完全不同，姓名、栏目名、项目和照片都重新生成。`--generate-only` 只创建夹具；`--cases english-sidebar-pdf chinese-vector-pdf` 可复测部分类型。PDF 夹具及产物通过本机 Word 渲染。
+
+最终 `report.json` 额外检查旧样例残留、姓名重复与照片字节替换，不能仅使用控制台提前打印的基础内容检查。失败的结构化回复保存为 `response-N-invalid.json`，包括有界字段路径反馈。单元测试另覆盖同一映射的栏目改名、节点碎片化、增减记录、隐藏栏目与侧栏误判反例。所有规则共用于各供应商，不得按供应商名称、模板文件名或样例中的专有名词增加分支；失败结果需留在验收记录中，不能只记录重试成功的结果。
+
 ## 构建可安装包
 
 ```sh

@@ -11,6 +11,7 @@ from docx.oxml.ns import qn
 from docx.shared import Pt
 
 from resume_maker.core.errors import Problem
+from resume_maker.integrations.word.pdf.columns import parse_sidebar
 from resume_maker.integrations.word.pdf.geometry import SOURCE, mark_paragraph
 
 
@@ -86,7 +87,11 @@ def separate_blocks(blocks, column_left, *, split_lines=False):
             for row in block:
                 for cell in row:
                     if cell:
-                        separate_blocks(cell.blocks, cell.bbox.x0, split_lines=split_lines)
+                        separate_blocks(
+                            cell.blocks,
+                            cell.bbox.x0,
+                            split_lines=split_lines or getattr(block, "independent_columns", False),
+                        )
         if not block.is_text_block or not block.is_horizontal_text:
             output.append(block)
             continue
@@ -195,8 +200,8 @@ def align_bullet(paragraph, block, column_left):
         run.text = "•\t" + run.text[1:]
 
 
-def convert_flow(page, bullets=(), symbols=(), *, split_lines=False):
-    """在去图的 PDF 副本中分析文字布局；返回单页 Word 及可跟随排版的锚点"""
+def convert_flow(page, bullets=(), symbols=(), *, split_lines=True):
+    """在去图的 PDF 副本中保留物理行边界，防止多个样本被合成无法重复的单段"""
     # 延迟导入；普通 DOCX 识别不加载 PDF 转换器；也不受其字体和日志初始化影响
     from docx import Document
     from pdf2docx import Converter
@@ -226,19 +231,19 @@ def convert_flow(page, bullets=(), symbols=(), *, split_lines=False):
                 )
         converter = Converter(stream=text_pdf.tobytes())
     try:
-        converter.parse(
-            pages=[page.number],
-            **{
-                **converter.default_settings,
-                "ignore_page_error": False,
-                "raw_exceptions": True,
-                "multi_processing": False,
-            },
-        )
+        settings = {
+            **converter.default_settings,
+            "ignore_page_error": False,
+            "raw_exceptions": True,
+            "multi_processing": False,
+        }
+        converter.load_pages(pages=[page.number]).parse_document(**settings)
         layout = converter.pages[page.number]
         captured = []
         for section in layout.sections:
             for column in section:
+                if not parse_sidebar(column, page, settings):
+                    column.parse(**settings)
                 separate_blocks(column.blocks, column.bbox.x0, split_lines=split_lines)
                 for block in text_blocks(column.blocks):
                     capture_block(block, captured, column.bbox.x0)

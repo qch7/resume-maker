@@ -189,6 +189,15 @@ class TemplateLayout:
                 anchors[title].append(node)
                 title_fields.append((title, binding))
                 self.fields.append(binding)
+        # keep 中的旧栏目标题会在这里升级为独立字段；升级后也必须验证样本边界。
+        for region in plan.repeats:
+            identifiers = package.descendants(package.region(region.start, region.end))
+            for title, binding in title_fields:
+                if binding.node in identifiers:
+                    raise Problem(
+                        f"“{region.section}”重复区包含独立栏目标题“{title}”"
+                        f"（{binding.node}），请选择不包含该标题的记录样本。"
+                    )
         nodes = [node for group in anchors.values() for node in group]
         if not nodes or (len(anchors) == 1 and not title_fields):
             return
@@ -257,11 +266,14 @@ class TemplateLayout:
         owners = {}
         for position in range(first, last + 1):
             block = blocks[position]
-            if block in personal and page_positioned(block):
-                self.fixed.append(block)
             containing = [
                 title for title, (start, end) in spans.items() if start <= position <= end
             ]
+            # 未落在任何显式栏目范围内的个人资料不是前一个栏目的尾部。
+            # 特别是模型在页首空段落安排新栏目时，姓名、联系表格及照片仍须留在页首；
+            # 教育区域内的 GPA 等字段则继续随其真实栏目移动。
+            if block in personal and (page_positioned(block) or not containing):
+                self.fixed.append(block)
             if containing:
                 # 一个子栏目与 GPA 等个人字段共用块时；保留在外层栏目且不能随空子栏目删除
                 choose = max if block in personal else min

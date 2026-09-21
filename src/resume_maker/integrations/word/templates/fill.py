@@ -38,7 +38,10 @@ from resume_maker.integrations.word.templates.project_order import (
     empty_project_range,
 )
 from resume_maker.integrations.word.templates.project_slots import prepare_project_slots
-from resume_maker.integrations.word.templates.record_columns import prepare_record_columns
+from resume_maker.integrations.word.templates.record_columns import (
+    metadata_separator,
+    prepare_record_columns,
+)
 from resume_maker.integrations.word.templates.values import (
     missing_targets,
     personal_values,
@@ -131,6 +134,7 @@ def fill_fields(nodes: dict, fields: list[TextBinding], values: dict):
                 ]
             )
         else:
+            value += metadata_separator(node, binding, fields, values)
             grouped.setdefault(binding.node, []).append((start, end, value))
     for identifier, replacements in grouped.items():
         paragraph = nodes[identifier]
@@ -379,6 +383,9 @@ def fill_template(
     missing = missing_targets(document, plan, projects)
     if missing:
         raise Problem("模板未覆盖这些已填写资料，请补充映射或在资料中隐藏：" + "、".join(missing))
+    # 已核对的删除必须先落地，避免 PDF 页首重排把旧占位或弃用图形当作未映射内容。
+    for identifier in plan.remove:
+        remove_preserving_sections(package.node(identifier))
     values = personal_values(document)
     records_by_section = {
         section.title: section_records(document, section.title, projects)
@@ -419,6 +426,7 @@ def fill_template(
                 package.ids[old]: new
                 for old_root, new_root in zip(sample, clones, strict=True)
                 for old, new in zip(old_root.iter(), new_root.iter(), strict=True)
+                if old in package.ids
             }
             for clone in clones:
                 # 复制样本时不复制书签身份以免不同记录共享同一个 Word 锚点
@@ -455,8 +463,6 @@ def fill_template(
     values = personal_values(document)
     for identifier in plan.photos:
         fill_photo(package, identifier, values["personal.photo"])
-    for identifier in plan.remove:
-        remove_preserving_sections(package.node(identifier))
     layout.apply()
     personal.apply()
     pdf_header.apply()

@@ -3,6 +3,7 @@
 import json
 import os
 import queue
+import re
 import shutil
 import subprocess
 import threading
@@ -11,10 +12,21 @@ from collections.abc import Callable
 from pathlib import Path
 
 import psutil
+from pydantic import ValidationError
 
 from resume_maker.domain.models import AIResult, Model, ProviderSettings
-from resume_maker.integrations.providers.base import Cancelled, ProviderError
+from resume_maker.integrations.providers.base import Cancelled, ProviderError, StructuredOutputError
 from resume_maker.integrations.sources import redact
+
+
+def structured_text(message: str) -> str:
+    """只解开唯一完整 JSON 代码块；多个结果、块外数据和截断回复仍交由严格校验拒绝。"""
+    if message.count("```") != 2:
+        return message
+    fenced = re.search(r"```(?:json)?[ \t]*\r?\n(.*?)\r?\n```", message, flags=re.DOTALL)
+    if fenced and not re.search(r"[{}\[\]]", message[: fenced.start()] + message[fenced.end() :]):
+        return fenced.group(1)
+    return message
 
 
 def schema(result_model: type[Model]) -> dict:
@@ -56,6 +68,10 @@ def terminate_tree(process: subprocess.Popen):
 
 class CodexProvider:
     """将统一 AI 请求适配为当前用户配置下的 Codex CLI 调用"""
+
+    def __init__(self, *, environment: dict[str, str] | None = None):
+        """允许测试启动独立 CLI 配置；环境仅传给子进程，不修改当前进程。"""
+        self.environment = dict(environment or {})
 
     @staticmethod
     def executable(settings: ProviderSettings) -> str:
@@ -159,6 +175,7 @@ class CodexProvider:
             encoding="utf-8",
             errors="replace",
             cwd=workspace,
+            env={**os.environ, **self.environment},
             creationflags=0x08000200 if os.name == "nt" else 0,
             start_new_session=os.name != "nt",
         )
@@ -177,8 +194,12 @@ class CodexProvider:
         started, finished, last_message = time.monotonic(), set(), ""
         errors, diagnostics = [], []
         try:
-            process.stdin.write(prompt)
-            process.stdin.close()
+            try:
+                process.stdin.write(prompt)
+                process.stdin.close()
+            except BrokenPipeError:
+                # CLI 配置错误可能先于读取提示词退出；仍读取 stderr 才能给出真正原因。
+                pass
             while len(finished) < 2:
                 if cancelled.is_set():
                     raise Cancelled("任务已取消")
@@ -207,6 +228,8 @@ class CodexProvider:
                 elif kind == "turn.started":
                     emit("activity", {"type": "working", "text": "Codex 已开始处理请求"})
                 elif kind == "turn.completed":
+                    # CLI 重连可能先报告 error；成功完成后旧传输错误不应否定有效结果。
+                    errors.clear()
                     # exec resume 返回整个会话累计值；调用方据此避免重复累加旧轮次
                     emit("usage", {**event.get("usage", {}), "cumulative": True})
                 elif kind in {"turn.failed", "error"}:
@@ -219,7 +242,7 @@ class CodexProvider:
                         last_message = item.get("text", "")
                         # 仅展示公开文字消息；最终结构化结果交给调用方且不显示映射原文
                         try:
-                            json.loads(last_message)
+                            json.loads(structured_text(last_message))
                         except ValueError:
                             emit(
                                 "activity", {"type": "message", "text": redact(last_message)[:1000]}
@@ -246,9 +269,11 @@ class CodexProvider:
             if code != 0 or errors:
                 raise ProviderError("\n".join(errors or diagnostics[-5:]) or f"Codex 退出码 {code}")
             try:
-                return result_model.model_validate_json(last_message)
-            except ValueError as exc:
-                raise ProviderError("Codex 返回的数据不符合要求的格式，原有内容未被修改。") from exc
+                return result_model.model_validate_json(structured_text(last_message))
+            except ValidationError as exc:
+                raise StructuredOutputError(
+                    last_message, exc.errors(include_url=False, include_context=False)
+                ) from exc
         finally:
             if process.poll() is None:
                 terminate_tree(process)

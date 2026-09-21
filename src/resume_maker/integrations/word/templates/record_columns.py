@@ -12,6 +12,29 @@ from resume_maker.integrations.word.templates.mapping import paragraph_text, quo
 from resume_maker.integrations.word.templates.personal import paragraph_stream, slice_paragraph
 
 
+def metadata_separator(paragraph, binding, fields, values):
+    """日期与名称原本紧贴时补可见间距；保留已有空格、制表符及换行。"""
+    if binding.target not in {"title", "period"} or not values.get(binding.target):
+        return ""
+    text = paragraph_text(paragraph)
+    _, end = quote_range(text, binding)
+    stream, positions = paragraph_stream(paragraph)
+    for other in fields:
+        if (
+            other.node != binding.node
+            or {other.target, binding.target} != {"title", "period"}
+            or not values.get(other.target)
+        ):
+            continue
+        start, _ = quote_range(text, other)
+        if (
+            0 < end == start < len(positions)
+            and not stream[positions[end - 1] + 1 : positions[start]]
+        ):
+            return "\u2002"
+    return ""
+
+
 def content_width(styles, paragraph):
     """从本单元格或本节取得可用宽度；未知宽度、分栏和绝对定位不猜测页面坐标"""
     if styles.group(paragraph) is None:

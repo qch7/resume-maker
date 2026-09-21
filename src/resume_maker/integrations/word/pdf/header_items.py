@@ -96,7 +96,11 @@ def extract_items(package, roots, fields):
                 if paragraph_text(paragraph).strip() and not re.fullmatch(
                     r"[\s|｜·•;；]+", paragraph_text(paragraph)
                 ):
-                    raise Problem("PDF 顶部资料区仍有未关联到字段的文字，请先补全该区域映射。")
+                    raise Problem(
+                        f"PDF 顶部资料区节点 {package.ids.get(paragraph, '')} "
+                        "仍有未关联到字段的文字；"
+                        "请映射实际资料，或 remove 无对应字段的旧样例，不能将旧经历摘要 keep。"
+                    )
                 continue
             plain = without_drawings(paragraph)
             parsed = personal_items(plain, mapped) if len(mapped) > 1 else None
@@ -105,7 +109,11 @@ def extract_items(package, roots, fields):
             elif parsed is not None:
                 fragments = parsed[0]
             else:
-                raise Problem("PDF 同行个人资料的边界不明确，请把各字段完整映射后重试。")
+                raise Problem(
+                    f"PDF 同行个人资料节点 {package.ids.get(paragraph, '')} 的边界不明确；"
+                    "多个字段必须有独立标签或明确分隔。无对应字段的旧摘要应 remove，"
+                    "不能把完整摘要虚构成多个 personal.custom 字段。"
+                )
             for fragment, field, _ in fragments:
                 items.append(
                     {

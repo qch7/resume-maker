@@ -7,7 +7,7 @@ from resume_maker.integrations.word.ooxml import NS, w
 WP = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
 
 
-def separate_anchors(root) -> bool:
+def separate_anchors(root, *, paragraph_relative=False) -> bool:
     """给混合段落中的浮动图形独立锚点；文字重复区不再包含照片或其他栏目标题"""
     changed = False
     for paragraph in list(root.iter(w("p"))):
@@ -20,7 +20,9 @@ def separate_anchors(root) -> bool:
             node
             for node in drawings
             if node.xpath(
-                "./wp:anchor[wp:positionV[@relativeFrom='page' or @relativeFrom='margin'] "
+                "./wp:anchor[wp:positionV[@relativeFrom='page' or @relativeFrom='margin'"
+                + (" or @relativeFrom='paragraph'" if paragraph_relative else "")
+                + "] "
                 "and wp:positionH[@relativeFrom='page' or @relativeFrom='margin']]",
                 namespaces={"wp": WP},
             )

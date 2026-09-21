@@ -13,6 +13,7 @@ from resume_maker.core.errors import Problem
 from resume_maker.domain.templates import RecoveredPage
 from resume_maker.integrations.providers.base import Cancelled
 from resume_maker.integrations.word.rendering import convert_word, render_word
+from resume_maker.integrations.word.templates.anchors import separate_anchors
 from resume_maker.integrations.word.templates.mapping import NS, TemplatePackage
 from resume_maker.integrations.word.templates.values import personal_values, section_records
 
@@ -258,6 +259,13 @@ def prepare_template(source, output, provider, settings, flag, emit, document, p
     if flag.is_set():
         raise Cancelled("模板自动整理已取消。")
     if package is not None:
+        # 只在首次导入、尚无映射时分离段落相对锚点；不能重编号已保存的模板。
+        separated = [
+            separate_anchors(root, paragraph_relative=True) for root in package.parts.values()
+        ]
+        if any(separated):
+            package.reindex()
+            notices.append("已分离文字与浮动标题的共用锚点，保留图形及相对位置。")
         notices.extend(package.notices)
         package.write(output)
         inventory = package.inventory()

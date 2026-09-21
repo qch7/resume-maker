@@ -267,7 +267,7 @@ class TemplatePackage:
 
     def validate_fields(self, fields: list[TextBinding], *, local: bool = False) -> set[str]:
         """核验目标字段、引文和重叠范围以防替换相邻字段或跨区域写入"""
-        intervals = {}
+        intervals, targets = {}, set()
         for binding in fields:
             node = self.node(binding.node)
             if node.tag != w("p"):
@@ -285,6 +285,12 @@ class TemplatePackage:
             )
             if not valid:
                 raise Problem(f"不支持的替换字段：{binding.target}")
+            if local and binding.target != "highlights" and binding.target in targets:
+                raise Problem(
+                    f"同一条记录的字段 {binding.target} 只能映射一次；"
+                    "请将样式样本缩小为一条完整记录，其他旧记录仍纳入替换范围。"
+                )
+            targets.add(binding.target)
             interval = quote_range(paragraph_text(node), binding)
             previous = intervals.setdefault(binding.node, [])
             if any(
@@ -354,7 +360,10 @@ class TemplatePackage:
                         "重复样本含未映射文字或图片，请补充映射或确认固定标签。", sorted(missing)
                     )
             except Problem as exc:
-                report(str(exc), [repeat.sample_start, repeat.start])
+                report(
+                    str(exc),
+                    [repeat.sample_start, repeat.start, *[field.node for field in repeat.fields]],
+                )
         for identifier in plan.photos:
             covered.add(identifier)
             try:

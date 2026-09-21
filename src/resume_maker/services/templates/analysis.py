@@ -5,11 +5,12 @@ from importlib.resources import files
 from resume_maker.core.errors import Problem
 from resume_maker.domain.templates import TemplatePlan
 from resume_maker.infrastructure.database import dump
-from resume_maker.integrations.providers.base import Cancelled
+from resume_maker.integrations.providers.base import Cancelled, StructuredOutputError
 from resume_maker.integrations.word.pdf.geometry import SOURCE
 from resume_maker.integrations.word.templates.completion import complete_template
 from resume_maker.integrations.word.templates.fill import fill_template
 from resume_maker.integrations.word.templates.images import image_sheets
+from resume_maker.integrations.word.templates.mapping import IMAGE_TAGS, image_container
 from resume_maker.integrations.word.templates.values import (
     missing_targets,
     personal_values,
@@ -17,6 +18,7 @@ from resume_maker.integrations.word.templates.values import (
     section_records,
 )
 from resume_maker.integrations.word.templates.visuals import layout_context, source_pages
+from resume_maker.services.templates.schema import plan_schema
 
 SKILL_PATH = files("resume_maker").joinpath("skills/resume-template-mapping/SKILL.md")
 INSTRUCTIONS = SKILL_PATH.read_text(encoding="utf-8")
@@ -73,6 +75,27 @@ def complete_labels(package, plan):
     plan = plan.model_copy(deep=True)
     for key in ("keep", "remove", "photos"):
         setattr(plan, key, list(dict.fromkeys(getattr(plan, key))))
+    removal_roots = {}
+    for identifier in plan.remove:
+        try:
+            node = package.node(identifier)
+            removal_roots[identifier] = image_container(node) if node.tag in IMAGE_TAGS else node
+        except Problem:
+            continue
+    # 删除父段落已经包含其图片和子段落；冗余子项不是与替换字段冲突。
+    roots, seen, removals = set(removal_roots.values()), set(), []
+    for identifier in plan.remove:
+        root = removal_roots.get(identifier)
+        if root is not None:
+            if root in seen or any(parent in roots for parent in root.iterancestors()):
+                continue
+            seen.add(root)
+        removals.append(identifier)
+    plan.remove = removals
+    # 删除完整父块也会删除其固定装饰；keep 不能让子图片成为一枚无资料的孤立图标。
+    # 动态 fields / photos 仍由 review 检查冲突，不能借此覆盖真正的替换目标。
+    deleted = package.descendants(list(removal_roots.values()))
+    plan.keep = [identifier for identifier in plan.keep if identifier not in deleted]
     claimed = {field.node for field in plan.fields}
     claimed.update(field.node for region in plan.repeats for field in region.fields)
     for identifier in plan.remove:
@@ -130,7 +153,22 @@ def analysis_context(package, document, projects):
             required_entry_fields(records, project=section.kind == "projects")
         )
     context = {
-        "sections": [{"title": s.title, "kind": s.kind} for s in document.sections],
+        "sections": [
+            {"id": s.id, "title": s.title, "kind": s.kind, "parent_id": s.parent_id}
+            for s in document.sections
+        ],
+        # 某些上游不执行 API 的结构化输出参数；正文也携带同一领域模型的字段契约。
+        "output_schema": TemplatePlan.model_json_schema(),
+        "completion_policy": {
+            "missing_personal_text": "omit_binding",
+            "missing_entry_fields": "omit_binding",
+            "missing_section": "omit_repeat",
+            "explanation": (
+                "仅识别模板现有内容；缺少字段和普通栏目（含子栏目）由程序复制样式后补齐。"
+                "不要为满足 required 字段占用页首或栏目间的空白。"
+                "项目已有完整样本时，缺少的角色、技术栈、描述和亮点也由程序补齐。"
+            ),
+        },
         "custom_labels": [field.label for field in document.personal.custom_fields],
         "required_personal_fields": [
             target
@@ -217,6 +255,7 @@ def analyze_plan(
     attempts = 0
     thread_id = None
     last_raw = None
+    format_issues = []
     usage_by_thread = {}
 
     def receive(kind, data):
@@ -246,7 +285,11 @@ def analyze_plan(
             context.update(source_pages=visual, visible_images=shown)
             evidence_source = source.read_bytes()
             thread_id = None
-        stage = "正在识别资料和栏目" if candidate is None else "正在自动补全和修正"
+        stage = (
+            "正在识别资料和栏目"
+            if candidate is None and not format_issues
+            else "正在自动补全和修正"
+        )
         emit(
             "activity", {"type": "analysis", "round": attempt, "text": f"{stage} · 第 {attempt} 轮"}
         )
@@ -259,6 +302,13 @@ def analyze_plan(
             request["validation"] = {
                 key: validation[key] for key in ("errors", "missing", "unresolved")
             }
+            request["validation"]["issues"] = validation.get("issues", [])
+            issue_nodes = {
+                node for issue in validation.get("issues", []) for node in issue["nodes"]
+            }
+            request["validation"]["node_context"] = compact_inventory(
+                {"nodes": [row for row in package.inventory()["nodes"] if row["id"] in issue_nodes]}
+            )
             request["validation"]["unresolved"] = compact_inventory(
                 {"nodes": validation["unresolved"]}
             )
@@ -267,6 +317,13 @@ def analyze_plan(
             )
         if feedback:
             request["user_feedback"] = feedback
+        if format_issues:
+            request["format_validation"] = format_issues
+            request["repair_instructions"] = (
+                "上次输出没有通过结构化校验。请按字段路径修正类型或候选值，"
+                "节点必须来自相应类别的真实清单；照片须使用 image 节点，不能用容器编号。"
+                "不要更改正确内容，返回符合 schema 的完整 JSON。"
+            )
         try:
             prompt = (
                 (
@@ -286,8 +343,9 @@ def analyze_plan(
                     "resumed": resuming,
                 },
             )
+            attempts += 1
             result = provider.run_structured(
-                result_model=TemplatePlan,
+                result_model=plan_schema(package, document),
                 workspace=workspace,
                 prompt=prompt,
                 thread_id=thread_id,
@@ -296,7 +354,7 @@ def analyze_plan(
                 emit=receive,
                 images=[] if resuming else images,
             )
-            attempts += 1
+            format_issues, last_error = [], None
             if flag.is_set():
                 raise Cancelled("模板分析已取消。")
             emit(
@@ -337,6 +395,18 @@ def analyze_plan(
             candidate_review = review
         except Cancelled:
             raise
+        except StructuredOutputError as exc:
+            if flag.is_set():
+                raise Cancelled("模板分析已取消。") from exc
+            format_issues, last_error = exc.issues, str(exc)
+            emit(
+                "activity",
+                {"type": "validation", "text": "输出格式未通过校验，已反馈具体字段路径。"},
+            )
+            if attempt == 3:
+                if best is None:
+                    raise
+                break
         except Exception as exc:
             if best is None:
                 raise

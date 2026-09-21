@@ -1,6 +1,7 @@
 """原生模板的组合图形、浮动坐标、照片和横向分栏不能因识别或填充丢失"""
 
 import base64
+import threading
 from io import BytesIO
 
 import pytest
@@ -11,6 +12,7 @@ from test_template_mapping import photo_bytes
 from resume_maker.domain.resume import ResumeDocument
 from resume_maker.domain.templates import RepeatBinding, TemplatePlan, TextBinding
 from resume_maker.integrations.word.ooxml import NS, w
+from resume_maker.integrations.word.recovery import prepare_template
 from resume_maker.integrations.word.templates.fill import fill_fields, fill_template
 from resume_maker.integrations.word.templates.mapping import TemplatePackage, paragraph_text
 
@@ -158,6 +160,42 @@ def test_native_normalization_is_idempotent_and_keeps_separate_drawing_geometry(
     course = next(region for region in plan.repeats if region.section == "主修课程")
     assert not package.node(course.start).findall(".//w:drawing", NS)
     assert len(package.parts["word/document.xml"].findall(".//w:drawing", NS)) == 1
+
+
+def test_import_separates_paragraph_relative_drawing_without_reindexing_saved_sources(tmp_path):
+    """首次识别才分离相对段落锚点；既有模板按旧编号加载且写回后编号稳定。"""
+    source, output = tmp_path / "source.docx", tmp_path / "prepared.docx"
+    grouped_header(source)
+    doc = Document(source)
+    anchor = doc.element.find(f".//{{{WP}}}anchor")
+    anchor.find(f"{{{WP}}}positionV").set("relativeFrom", "paragraph")
+    before_geometry = etree.tostring(anchor)
+    doc.save(source)
+    original = source.read_bytes()
+    existing = TemplatePackage(source)
+    course = next(
+        node
+        for node in existing.nodes.values()
+        if node.tag == w("p") and paragraph_text(node) == "旧课程"
+    )
+    assert course.findall(".//w:drawing", NS)
+    package, notices = prepare_template(
+        source, output, None, None, threading.Event(), lambda *_: None, None, []
+    )
+    course = next(
+        node
+        for node in package.nodes.values()
+        if node.tag == w("p") and paragraph_text(node) == "旧课程"
+    )
+    assert not course.findall(".//w:drawing", NS)
+    actual = package.parts["word/document.xml"].find(f".//{{{WP}}}anchor")
+    # 序列化后命名空间声明可能不同；比较几何和图形内容而非前缀。
+    old = etree.fromstring(before_geometry)
+    assert actual.attrib == old.attrib
+    assert actual.find(f"{{{WP}}}positionV/{{{WP}}}posOffset").text == "0"
+    assert actual.find(f".//{{{A}}}srgbClr").get("val") == "718DB5"
+    assert TemplatePackage(output).inventory() == package.inventory()
+    assert notices and source.read_bytes() == original
 
 
 def test_repeated_education_preserves_three_column_layout_and_fonts(tmp_path):

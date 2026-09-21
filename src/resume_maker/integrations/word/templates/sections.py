@@ -25,6 +25,43 @@ from resume_maker.integrations.word.templates.values import required_entry_field
 ENTRY_SLOT = "〔自动条目占位〕"
 
 
+def defer_empty_sections(package, plan, document):
+    """无标题、无原文的普通大栏目交给补全器创建，不能把页首留白当成栏目。"""
+    if not section_headings(package, plan, document):
+        return plan, []
+    titles = {section.title for section in document.sections if section.kind != "projects"}
+    headings = {
+        field.target.partition(":")[2]
+        for field in plan.fields
+        if field.target.startswith("section-title:")
+    }
+    headings.update(paragraph_text(package.node(node)).strip().rstrip("：:") for node in plan.keep)
+    updated = plan.model_copy(deep=True)
+    notices = []
+    for region in plan.repeats:
+        if region.section not in titles - headings:
+            continue
+        blocks = package.region(region.start, region.end)
+        # 仅重建真正的空白/程序占位段落；真实正文、装饰、分节和表格都不能推断删除。
+        if any(
+            block.tag != w("p")
+            or paragraph_text(block).strip() not in {"", ENTRY_SLOT}
+            or block.xpath(
+                ".//w:drawing | .//w:pict | .//w:sectPr | .//w:br | "
+                "w:pPr/w:framePr | w:pPr/w:pBdr | w:pPr/w:shd | .//w:fldChar",
+                namespaces=NS,
+            )
+            for block in blocks
+        ):
+            continue
+        updated.repeats.remove(region)
+        identifiers = package.descendants(blocks)
+        updated.keep = [node for node in updated.keep if node not in identifiers]
+        updated.remove.extend(package.ids[block] for block in blocks)
+        notices.append(f"“{region.section}”没有原文样本，已交由程序创建完整栏目。")
+    return updated, notices
+
+
 def section_headings(package, plan, document):
     """从标题映射和已确认的固定标题中寻找可复用的大栏目完整块"""
     children = {section.title for section in document.sections if section.parent_id}
@@ -180,9 +217,7 @@ def supplement_sections(package, plan, document, projects):
             or (section.kind == "projects" and region.section == "projects")
         ]
         required = required_entry_fields(records[section.title], project=section.kind == "projects")
-        if section.kind == "projects":
-            required = [key for key in required if key == "custom_fields"]
-        if not regions and section.kind != "projects" and not section.parent_id and required:
+        if not regions and section.kind != "projects" and required:
             additions.append((section, required))
         for region in regions:
             if section.kind == "projects" and any(
@@ -242,8 +277,20 @@ def supplement_sections(package, plan, document, projects):
     for index, (section, targets) in enumerate(additions):
         if not headings:
             continue
-        root, title_field, parent = headings[0]
-        heading, title_node = cloned_heading(working, root, title_field, index)
+        parent_title = next(
+            (item.title for item in document.sections if item.id == section.parent_id), None
+        )
+        root, title_field, parent = next(
+            (item for item in headings if item[1].target == f"section-title:{parent_title}"),
+            headings[0],
+        )
+        if section.parent_id:
+            # 子栏目继承正文字体和加粗层级；不能把大标题的白字/浮动底图套到小标题上。
+            title_node = entry_paragraph(working, plan, "title", styles)
+            heading = entry_blocks(parent, [title_node])[0]
+            title_field = title_field.model_copy(update={"quote": ENTRY_SLOT, "occurrence": 1})
+        else:
+            heading, title_node = cloned_heading(working, root, title_field, index)
         # 插在已知栏目尾部、固定结尾之前；随后交由统一栏目编排按当前顺序放置
         anchors = [item[0] for item in headings if item[2] is parent]
         anchors.extend(
@@ -268,8 +315,11 @@ def supplement_sections(package, plan, document, projects):
                 heading,
             )
         )
+        donor_title = title_field.target.partition(":")[2]
         notices.append(
-            f"已沿用“{title_field.target.partition(':')[2]}”的大标题样式新增“{section.title}”。"
+            f"已沿用正文字体新增子栏目“{section.title}”。"
+            if section.parent_id
+            else f"已沿用“{donor_title}”的大标题样式新增“{section.title}”。"
         )
     if not extensions and not sections:
         return package, plan, []

@@ -18,6 +18,28 @@ from resume_maker.integrations.word.templates.mapping import TemplatePackage, pa
 from resume_maker.integrations.word.templates.supplement import supplement_personal_fields
 
 
+@pytest.mark.parametrize("gap", ["", " ", "\t", "\n"])
+@pytest.mark.parametrize("period_first", [False, True])
+def test_adjacent_metadata_gets_spacing_without_replacing_existing_separators(
+    tmp_path, gap, period_first
+):
+    """源样本日期与名称相连时增加间距；保留已有换行、制表位和单空格。"""
+    source, output = tmp_path / "source.docx", tmp_path / "result.docx"
+    doc = Document()
+    left, right = ("Old period", "Old title") if period_first else ("Old title", "Old period")
+    paragraph = doc.add_paragraph(left + gap + right, "List Bullet")
+    if gap == "\t":
+        paragraph.paragraph_format.tab_stops.add_tab_stop(Pt(360), WD_TAB_ALIGNMENT.RIGHT)
+    doc.save(source)
+    literal = left + (gap if gap == " " else "") + right
+    plan = record_plan(source, [(literal, "Old title", "title"), (literal, "Old period", "period")])
+    content = record_content([{"id": "one", "title": "Result", "period": "2026-09-20"}])
+    fill_template(source, output, plan, content.model_dump(), [])
+    result = Document(output).paragraphs[0].text
+    expected = ("2026-09-20", "Result") if period_first else ("Result", "2026-09-20")
+    assert result == expected[0] + (gap or "\u2002") + expected[1]
+
+
 @pytest.mark.parametrize("gap", [" " * 70, "\u3000" * 12, "\t"])
 @pytest.mark.parametrize("cell", [False, True])
 def test_long_repeat_titles_wrap_independently_of_dates(tmp_path, gap, cell):

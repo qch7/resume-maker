@@ -368,10 +368,10 @@ def test_trial_layout_conflict_keeps_native_table_and_reports_error(
 
         def run_structured(self, **kwargs):
             """首轮结果能通过节点检查；但实际栏目编排无法独立移动同一行"""
-            if kwargs["result_model"] is TemplatePlan and not self.pages:
+            if issubclass(kwargs["result_model"], TemplatePlan) and not self.pages:
                 self.calls.append(kwargs)
                 rows = TemplatePackage(kwargs["workspace"] / "original.docx").inventory()["nodes"]
-                return TemplatePlan(
+                return kwargs["result_model"](
                     summary="共用容器",
                     fields=[
                         TextBinding(

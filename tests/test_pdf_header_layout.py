@@ -119,6 +119,33 @@ def header_content(**personal):
     )
 
 
+@pytest.mark.parametrize("remove", [False, True])
+def test_header_respects_validated_deletions_but_rejects_unknown_text(tmp_path, remove):
+    """已确认删除的旧占位不妨碍页首重排；保留却未绑定的文字仍需用户确认。"""
+    source, plan = header_source(tmp_path)
+    package = TemplatePackage(source)
+    previous = dict(package.nodes)
+    name = package.node(next(f.node for f in plan.fields if f.target == "personal.name"))
+    stale = etree.Element(w("p"))
+    etree.SubElement(etree.SubElement(stale, w("r")), w("t")).text = "Obsolete sample"
+    name.addnext(stale)
+    package.reindex()
+    from resume_maker.integrations.word.templates.supplement import remap_plan
+
+    plan = remap_plan(plan, previous, package)
+    (plan.remove if remove else plan.keep).append(package.ids[stale])
+    package.write(source)
+    assert package.review(plan)["ready"]
+    output = tmp_path / "result.docx"
+    if not remove:
+        with pytest.raises(Problem, match="未关联到字段"):
+            fill_template(source, output, plan, header_content().model_dump(), [])
+    else:
+        fill_template(source, output, plan, header_content().model_dump(), [])
+        text = "".join(TemplatePackage(output).parts["word/document.xml"].itertext())
+        assert "NEW NAME" in text and "Obsolete sample" not in text
+
+
 @pytest.mark.parametrize("left", [False, True])
 @pytest.mark.parametrize(
     "hidden", [[], ["email", "job_title"], ["photo"], ["phone", "email", "job_title", "photo"]]

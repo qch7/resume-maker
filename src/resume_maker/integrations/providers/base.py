@@ -20,6 +20,24 @@ class Cancelled(ProviderError):
     pass
 
 
+class StructuredOutputError(ProviderError):
+    """模型已返回但结构不合法；保留有界字段反馈供调用方重试，不能当作有效结果。"""
+
+    def __init__(self, response, errors):
+        """只提取路径、错误类别和有限片段，避免把整个嵌套方案放进每条反馈。"""
+        super().__init__("Codex 返回的数据不符合要求的格式，原有内容未被修改。")
+        self.response = response
+        self.issues = [
+            {
+                "path": ".".join(map(str, error.get("loc", ()))),
+                "type": error["type"],
+                "message": error["msg"][:600],
+                "value": str(error.get("input", ""))[:200],
+            }
+            for error in errors[:20]
+        ]
+
+
 class Provider(Protocol):
     """可注入的 AI 执行接口；隔离模型调用与经历持久化"""
 
