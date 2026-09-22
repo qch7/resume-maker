@@ -136,6 +136,16 @@
             }
           },
           {
+            "name": "hide_maintenance",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Hide Maintenance"
+            }
+          },
+          {
             "name": "polling_paths",
             "in": "query",
             "required": false,
@@ -308,6 +318,16 @@
               "type": "boolean",
               "default": false,
               "title": "Hide Polling"
+            }
+          },
+          {
+            "name": "hide_maintenance",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Hide Maintenance"
             }
           },
           {

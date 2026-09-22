@@ -1,14 +1,18 @@
 import { useState } from "react";
 import { DEFAULT_POLLING_PATHS, pollingPathError } from "./preferences";
 
-/** 编辑轮询路径规则，保存后立即应用并作为下次进入日志的默认值 */
+/** 配置例行维护和轮询过滤，保存为下次进入日志的默认值 */
 export default function ActivitySettings({
   paths,
+  hideMaintenance,
+  onMaintenanceChange,
   onSave,
   onClose,
   onResetLayout,
 }: {
   paths: string;
+  hideMaintenance: boolean;
+  onMaintenanceChange: (value: boolean) => void;
   onSave: (paths: string) => void;
   onClose: () => void;
   onResetLayout: () => void;
@@ -17,6 +21,17 @@ export default function ActivitySettings({
   const error = pollingPathError(draft);
   return (
     <div className="activity-settings" role="dialog" aria-label="日志设置">
+      <label
+        className="activity-polling-toggle"
+        title="隐藏回收站定时检查及其状态读取，保留警告、错误和实际删除记录；自动保存"
+      >
+        <input
+          type="checkbox"
+          checked={hideMaintenance}
+          onChange={(event) => onMaintenanceChange(event.target.checked)}
+        />
+        隐藏例行维护
+      </label>
       <label htmlFor="activity-polling-paths">轮询路径 · GET 200</label>
       <textarea
         id="activity-polling-paths"

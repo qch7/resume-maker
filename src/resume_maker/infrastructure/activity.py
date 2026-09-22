@@ -189,10 +189,19 @@ class ActivityLog:
         since="",
         until="",
         hide_polling=False,
+        hide_maintenance=False,
         **_,
     ):
         """组合固定列的参数化条件，关键词按字面搜索全部正文和关联标识"""
         clauses, args = [], []
+        if hide_maintenance and not trace_id:
+            clauses.append(
+                "NOT (category='service' AND level='info' AND event IN ('started','completed') "
+                "AND (source='template_library.purge_expired' OR "
+                "(source='template_library.state' AND parent_span_id IN "
+                "(SELECT span_id FROM activity WHERE category='service' "
+                "AND source='template_library.purge_expired' AND span_id<>''))))"
+            )
         if hide_polling and not trace_id:
             clauses.append(
                 "NOT (category IN ('api','service') AND level='info' "

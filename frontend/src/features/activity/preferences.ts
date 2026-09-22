@@ -2,6 +2,7 @@ export const DEFAULT_POLLING_PATHS =
   "/api/state\n/api/honors\n/api/templates/analyses/*/progress";
 export const DEFAULT_ACTIVITY_PREFERENCES = {
   hidePolling: true,
+  hideMaintenance: true,
   pollingPaths: DEFAULT_POLLING_PATHS,
   overviewHeight: 160,
   detailWidth: 460,
@@ -16,6 +17,8 @@ export function restoreActivityPreferences(
   const result = { ...DEFAULT_ACTIVITY_PREFERENCES };
   if (typeof value?.hidePolling === "boolean")
     result.hidePolling = value.hidePolling;
+  if (typeof value?.hideMaintenance === "boolean")
+    result.hideMaintenance = value.hideMaintenance;
   if (
     typeof value?.pollingPaths === "string" &&
     value.pollingPaths.length <= 2000

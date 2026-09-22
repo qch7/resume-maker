@@ -43,6 +43,7 @@ class ActivityQuery(BaseModel):
     since: str = Field(default="", max_length=40)
     until: str = Field(default="", max_length=40)
     hide_polling: bool = False
+    hide_maintenance: bool = False
     polling_paths: str = Field(default=DEFAULT_POLLING_PATHS, max_length=2000)
     after: int | None = Field(default=None, ge=0)
     before: int = Field(default=0, ge=0)

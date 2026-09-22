@@ -195,6 +195,69 @@ def test_filtered_export_keeps_snapshot_when_stream_worker_changes(tmp_path):
     assert log.page(hide_polling=True)["total"] == 201
 
 
+def test_maintenance_filter_covers_existing_and_live_service_records(tmp_path, monkeypatch):
+    """隐藏例行检查及内部读取，保留独立读取、实际删除和失败链路"""
+    app = create_app(Config(data_dir=tmp_path, token="synthetic-token"))
+    library = app.state.services.template_library
+    log = app.state.services.db.activity
+    library.purge_expired()
+    raw = log.page()
+    assert len(raw["events"]) == 4
+    trace = raw["events"][0]["trace_id"]
+    hidden = log.page(hide_maintenance=True)
+    assert hidden["total"] == 0 and hidden["events"] == []
+    # 过滤只影响视图，历史、单条详情和关联排查均可恢复
+    assert ActivityLog(log.path).page(hide_maintenance=True)["total"] == 0
+    assert log.detail(raw["events"][0]["id"])["source"] == "template_library.purge_expired"
+    assert log.page(hide_maintenance=True, trace_id=trace)["total"] == 4
+    library.purge_expired()
+    incremental = log.page(after=hidden["cursor"], hide_maintenance=True)
+    assert incremental["events"] == [] and incremental["cursor"] > hidden["cursor"]
+    library.state()
+    for event in ("started", "completed"):
+        log.write("service", event, "template_library.delete", source="template_library.delete")
+    for level in ("warning", "error"):
+        log.write(
+            "service",
+            "completed",
+            "maintenance notice",
+            source="template_library.purge_expired",
+            level=level,
+        )
+
+    def fail_state(_conn):
+        """模拟状态读取失败以核验异常仍能定位到完整维护链路"""
+        raise RuntimeError("synthetic maintenance failure")
+
+    monkeypatch.setattr(library, "_state", fail_state)
+    with pytest.raises(RuntimeError, match="synthetic maintenance failure"):
+        library.purge_expired()
+    filtered = log.page(hide_maintenance=True, hide_polling=True)
+    assert filtered["total"] == 8
+    assert filtered["counts"] == {"service": 8}
+    assert len([row for row in filtered["events"] if row["event"] == "failed"]) == 2
+    headers = {"x-resume-token": "synthetic-token"}
+    client = TestClient(app)
+    query = {"hide_maintenance": True, "hide_polling": True}
+    assert (
+        client.get("/api/activity", params=query, headers=headers).json()["events"]
+        == filtered["events"]
+    )
+    exported = client.get("/api/activity/export", params=query, headers=headers)
+    assert [json.loads(line)["id"] for line in exported.text.splitlines()] == [
+        row["id"] for row in filtered["events"]
+    ]
+    assert log.page(hide_maintenance=True, q="maintenance failure")["total"] == 2
+    first = log.page(hide_maintenance=True, after=0, limit=3)
+    remaining = log.page(hide_maintenance=True, after=first["cursor"])
+    assert first["events"] + remaining["events"] == filtered["events"]
+    assert (
+        log.page(hide_maintenance=True, before=filtered["events"][3]["id"])["events"]
+        == filtered["events"][:3]
+    )
+    assert log.page()["total"] == 18
+
+
 def test_sensitive_values_binary_and_large_details_are_bounded(tmp_path):
     """嵌套密钥、文本鉴权、编码查询和大型内容不泄漏到列表详情及导出"""
     log = ActivityLog(tmp_path / "log.sqlite")

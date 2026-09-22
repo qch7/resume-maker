@@ -102,6 +102,7 @@ export default function Activity() {
       q: keyword,
       trace_id: trace,
       hide_polling: String(preferences.hidePolling),
+      hide_maintenance: String(preferences.hideMaintenance),
       polling_paths: preferences.pollingPaths,
     });
     if (since) params.set("since", new Date(since).toISOString());
@@ -115,6 +116,7 @@ export default function Activity() {
     since,
     until,
     preferences.hidePolling,
+    preferences.hideMaintenance,
     preferences.pollingPaths,
   ]);
   const feed = useActivity(query, live);
@@ -206,6 +208,10 @@ export default function Activity() {
           {settings && (
             <ActivitySettings
               paths={preferences.pollingPaths}
+              hideMaintenance={preferences.hideMaintenance}
+              onMaintenanceChange={(hideMaintenance) =>
+                setPreferences((current) => ({ ...current, hideMaintenance }))
+              }
               onClose={() => setSettings(false)}
               onResetLayout={() =>
                 setPreferences((current) => ({
