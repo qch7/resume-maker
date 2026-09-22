@@ -1,11 +1,12 @@
-"""受本机认证保护的日志分页、详情和快照导出"""
+"""受本机认证保护的日志分页、详情、快照导出和删除"""
 
 import re
+from datetime import UTC
 from typing import Annotated
 
 from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field, field_validator
+from pydantic import AwareDatetime, BaseModel, Field, field_validator
 
 from resume_maker.api.dependencies import ServicesDep
 from resume_maker.core.errors import need
@@ -88,3 +89,16 @@ def export_activity(services: ServicesDep, query: Annotated[ActivityQuery, Query
 def activity_detail(identifier: int, services: ServicesDep):
     """按需展开单条活动，已过期记录返回明确错误"""
     return need(services.db.activity.detail(identifier), "日志已过期或不存在。")
+
+
+class ActivityDeletion(BaseModel):
+    """明确传入带时区的删除截止时间，空值表示删除全部日志"""
+
+    before: AwareDatetime | None
+
+
+@router.delete("")
+def delete_activity(body: ActivityDeletion, services: ServicesDep):
+    """只删除独立日志库中的记录，保留业务资料和历史补录标记"""
+    before = body.before.astimezone(UTC).isoformat() if body.before is not None else None
+    return {"deleted": services.db.activity.delete(before=before)}

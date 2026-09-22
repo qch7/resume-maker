@@ -130,6 +130,8 @@ class ActivityLog:
         with closing(self.connect()) as conn:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.executescript(SCHEMA)
+            conn.execute("BEGIN IMMEDIATE")
+            self._remember_cursor(conn, self._cursor(conn))
             self._prune(conn)
             conn.commit()
 
@@ -149,6 +151,21 @@ class ActivityLog:
             (self.max_records,),
         )
 
+    def _cursor(self, conn):
+        """同时读取保留记录和持久游标，清空日志后编号继续递增"""
+        return conn.execute(
+            "SELECT MAX(COALESCE((SELECT MAX(id) FROM activity),0),"
+            "COALESCE((SELECT CAST(value AS INTEGER) FROM metadata WHERE key='last_id'),0))"
+        ).fetchone()[0]
+
+    def _remember_cursor(self, conn, identifier):
+        """在写入或删除事务内保存日志游标，避免其他页面漏收新事件"""
+        conn.execute(
+            "INSERT INTO metadata(key,value) VALUES ('last_id',?) "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            (str(identifier),),
+        )
+
     def write(self, category, event, title, payload=None, **fields):
         """持久化脱敏后的事件，记录失败计数供界面提示"""
         try:
@@ -163,6 +180,8 @@ class ActivityLog:
                 **fields,
             }
             with self.lock, closing(self.connect()) as conn:
+                conn.execute("BEGIN IMMEDIATE")
+                values["id"] = self._cursor(conn) + 1
                 values["created_at"] = values["created_at"] or now()
                 if self.secrets:
                     values["title"] = mask_secrets(values["title"], self.secrets)
@@ -175,8 +194,10 @@ class ActivityLog:
                     f"VALUES ({','.join('?' for _ in values)})",
                     tuple(values.values()),
                 )
-                if cursor.lastrowid and cursor.lastrowid % min(100, self.max_records) == 0:
-                    self._prune(conn)
+                if cursor.rowcount:
+                    self._remember_cursor(conn, values["id"])
+                    if values["id"] % min(100, self.max_records) == 0:
+                        self._prune(conn)
                 conn.commit()
         except (OSError, sqlite3.Error, ValueError, TypeError) as exc:
             self.write_failures += 1
@@ -290,7 +311,7 @@ class ActivityLog:
         cte, polling_args = self.polling_cte(**filters)
         with closing(self.connect()) as conn:
             conn.execute("BEGIN")
-            snapshot = conn.execute("SELECT COALESCE(MAX(id),0) FROM activity").fetchone()[0]
+            snapshot = self._cursor(conn)
             bounds, values = "id<=?", [snapshot]
             if after is not None:
                 bounds += " AND id>?"
@@ -341,6 +362,19 @@ class ActivityLog:
             "max_records": self.max_records,
         }
 
+    def delete(self, *, before):
+        """串行删除指定时间之前或全部日志，保留历史补录标记和递增游标"""
+        with self.lock, closing(self.connect()) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            self._remember_cursor(conn, self._cursor(conn))
+            cursor = conn.execute(
+                "DELETE FROM activity" + (" WHERE created_at < ?" if before is not None else ""),
+                (before,) if before is not None else (),
+            )
+            deleted = cursor.rowcount
+            conn.commit()
+        return deleted
+
     def detail(self, identifier):
         """按需读取单条完整详情，列表轮询不反复传输大型正文"""
         with closing(self.connect()) as conn:
@@ -359,7 +393,7 @@ class ActivityLog:
         # 流式迭代串行执行，但框架可能将下一批调度到另一线程
         with closing(self.connect(check_same_thread=False)) as conn:
             conn.execute("BEGIN")
-            snapshot = conn.execute("SELECT COALESCE(MAX(id),0) FROM activity").fetchone()[0]
+            snapshot = self._cursor(conn)
             after = 0
             while True:
                 rows = conn.execute(

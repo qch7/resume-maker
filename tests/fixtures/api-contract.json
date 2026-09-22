@@ -234,6 +234,38 @@
             }
           }
         }
+      },
+      "delete": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActivityDeletion"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/activity/export": {
@@ -3148,6 +3180,27 @@
       "type": "object",
       "title": "AISettings",
       "description": "模型和思考强度覆盖，空值表示继承上一级配置"
+    },
+    "ActivityDeletion": {
+      "properties": {
+        "before": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Before"
+        }
+      },
+      "type": "object",
+      "required": [
+        "before"
+      ],
+      "title": "ActivityDeletion"
     },
     "AdaptiveTemplateInput": {
       "properties": {

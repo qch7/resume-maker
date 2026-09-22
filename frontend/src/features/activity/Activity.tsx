@@ -31,6 +31,7 @@ import {
   type ActivityEvent,
 } from "./model";
 import { useActivity } from "./useActivity";
+import { activityQueryTime, useActivityTime } from "./useActivityTime";
 
 const ROW_HEIGHT = 32;
 
@@ -48,8 +49,8 @@ export default function Activity() {
   const [search, setSearch] = useState("");
   const [keyword, setKeyword] = useState("");
   const [trace, setTrace] = useState("");
-  const [since, setSince] = useState("");
-  const [until, setUntil] = useState("");
+  const time = useActivityTime();
+  const { since, until } = time;
   const [live, setLive] = useState(true);
   const [follow, setFollow] = useState(true);
   const [selected, setSelected] = useState<ActivityEvent | null>(null);
@@ -105,8 +106,8 @@ export default function Activity() {
       hide_polling: String(preferences.hidePolling),
       hidden_rules: preferences.hiddenRules,
     });
-    if (since) params.set("since", new Date(since).toISOString());
-    if (until) params.set("until", new Date(until).toISOString());
+    if (since) params.set("since", activityQueryTime(since));
+    if (until) params.set("until", activityQueryTime(until));
     return params.toString();
   }, [
     category,
@@ -207,6 +208,11 @@ export default function Activity() {
           {settings && (
             <ActivitySettings
               rules={preferences.hiddenRules}
+              onDeleted={() => {
+                setSelected(null);
+                setActionError("");
+                feed.refresh();
+              }}
               onClose={() => setSettings(false)}
               onResetLayout={() =>
                 setPreferences((current) => ({
@@ -265,6 +271,14 @@ export default function Activity() {
           隐藏轮询日志
         </label>
         <button
+          className={time.today ? "active" : ""}
+          aria-pressed={time.today}
+          onClick={time.showToday}
+          title="本地时间今天的日志"
+        >
+          今天
+        </button>
+        <button
           aria-label="时间筛选"
           aria-expanded={advanced}
           className={since || until ? "active" : ""}
@@ -276,25 +290,20 @@ export default function Activity() {
           <div className="activity-time-filters">
             <input
               type="datetime-local"
+              step="0.001"
               aria-label="开始时间"
               value={since}
-              onChange={(event) => setSince(event.target.value)}
+              onChange={(event) => time.change("since", event.target.value)}
             />
             <span className="subtle">至</span>
             <input
               type="datetime-local"
+              step="0.001"
               aria-label="结束时间"
               value={until}
-              onChange={(event) => setUntil(event.target.value)}
+              onChange={(event) => time.change("until", event.target.value)}
             />
-            <button
-              onClick={() => {
-                setSince("");
-                setUntil("");
-              }}
-            >
-              清除时间
-            </button>
+            <button onClick={time.clear}>清除时间</button>
           </div>
         )}
         {trace && (
@@ -513,8 +522,7 @@ export default function Activity() {
                     setLevel([]);
                     setSearch("");
                     setKeyword("");
-                    setSince("");
-                    setUntil("");
+                    time.clear();
                     setTrace(value);
                     setFollow(false);
                   }}
