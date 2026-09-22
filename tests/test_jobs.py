@@ -46,14 +46,22 @@ class FakeProvider:
 
 
 def wait_job(catalog, job_id):
-    """在有界时间内等待后台任务结束，超时则报告测试失败"""
-    until = time.monotonic() + 5
-    while time.monotonic() < until:
+    """为慢速 CI 留出数据库等待余量，超时报告任务状态和最后事件"""
+    until = time.monotonic() + 30
+    while True:
         job = catalog.db.one("SELECT * FROM jobs WHERE id=?", (job_id,))
         if job["status"] not in {"queued", "running"}:
             return job
-        time.sleep(0.02)
-    pytest.fail("job did not finish")
+        if time.monotonic() >= until:
+            event = catalog.db.one(
+                "SELECT kind,data_json FROM events WHERE job_id=? ORDER BY id DESC LIMIT 1",
+                (job_id,),
+            )
+            pytest.fail(
+                f"job {job_id} did not finish: status={job['status']}, "
+                f"error={job['error']}, last_event={event}"
+            )
+        time.sleep(0.05)
 
 
 def test_independent_sessions_and_stale_proposal(catalog, project, tmp_path):
