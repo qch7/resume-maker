@@ -6,10 +6,11 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import Field
 
 from resume_maker.api import create_app
 from resume_maker.core.config import Config
-from resume_maker.domain.models import ProviderSettings
+from resume_maker.domain.models import Model, ProviderSettings
 from resume_maker.integrations.privacy import TOKEN, Redactor
 from resume_maker.integrations.privacy_store import PrivacyStore
 from resume_maker.integrations.providers.base import Cancelled, ProviderError, StructuredOutputError
@@ -107,6 +108,46 @@ def test_saved_and_unsaved_documents_supply_sensitive_values(tmp_path, catalog):
     assert base.sensitive_values == set()
 
 
+@pytest.mark.parametrize("origin", ["private_data", "ocr"])
+def test_task_secrets_survive_copying_and_are_never_restored(tmp_path, origin):
+    """任务登记的裸凭据在提示词和契约中移除，还原姓名时也不能还原凭据"""
+    first, second = "synthetic-credential-one", "synthetic-credential-two"
+    seen = []
+
+    class SecretReply(Model):
+        """在契约说明中放入裸凭据以验证同一个隐私出口"""
+
+        answer: str = Field(description=f"说明 {first} {second}")
+
+    def runner(payload, *_):
+        """回显脱敏后的材料，检查凭据不会随本机还原重新出现"""
+        seen.append(payload)
+        return json.dumps({"answer": payload["input"]})
+
+    base = CodexProvider(runner=runner)
+    provider = base.with_private_data({"personal": {"name": "合成姓名"}})
+    sibling = provider.with_private_data({})
+    if origin == "private_data":
+        provider = provider.with_private_data({"password": first})
+    else:
+        provider.register_ocr({"text": f"password={first}", "pages": []})
+    provider = provider.with_private_data({"api_key": second})
+    result = provider.run_structured(
+        result_model=SecretReply,
+        workspace=tmp_path,
+        prompt=f"合成姓名 {first} {second}",
+        thread_id=None,
+        settings=ProviderSettings(),
+        cancelled=threading.Event(),
+        emit=lambda *_: None,
+    )
+    serialized = json.dumps(seen, ensure_ascii=False)
+    assert all(value not in serialized for value in ("合成姓名", first, second))
+    assert result.answer == "合成姓名 [凭据已移除] [凭据已移除]"
+    assert not base.sensitive_values and not base.sensitive_secrets
+    assert sibling.sensitive_values == {"合成姓名"} and not sibling.sensitive_secrets
+
+
 @pytest.mark.parametrize(
     "value",
     [
@@ -178,6 +219,38 @@ def test_connection_inherits_profile_effort_and_overrides_without_executing_tool
     assert (values["model"], values["model_reasoning_effort"]) == ("override", "low")
 
 
+@pytest.mark.parametrize("profile", ["", "inline", "file"])
+@pytest.mark.parametrize("wire_api", [None, "responses", "chat", "unknown"])
+def test_custom_provider_requires_responses_in_all_configuration_sources(
+    tmp_path, profile, wire_api
+):
+    """主配置和两种配置档均限制 Responses，省略协议时显式采用同一默认值"""
+    provider = (
+        'model_provider="custom"\n[model_providers.custom]\n'
+        'name="Synthetic"\nbase_url="https://example.invalid/v1"\n'
+    ) + (f'wire_api="{wire_api}"\n' if wire_api is not None else "")
+    if profile == "inline":
+        config = "[profiles.inline]\n" + provider.replace(
+            "[model_providers.", "[profiles.inline.model_providers."
+        )
+    elif profile == "file":
+        config = 'model="base"\n'
+        (tmp_path / "file.config.toml").write_text(provider, encoding="utf-8")
+    else:
+        config = provider
+    (tmp_path / "config.toml").write_text(config, encoding="utf-8")
+    settings = ProviderSettings(profile=profile)
+    env = {"CODEX_HOME": str(tmp_path), "OPENAI_API_KEY": ""}
+    if wire_api not in (None, "responses"):
+        with pytest.raises(ProviderError, match="仅支持 Responses"):
+            connection(settings, env)
+    else:
+        values, _ = connection(settings, env)
+        selected = values["model_providers"]["resume-provider"]
+        assert selected["wire_api"] == "responses"
+        assert selected["base_url"] == "https://example.invalid/v1"
+
+
 @pytest.mark.parametrize("input_text", ["data:image/png;base64,AAAA", "A" * 600, "[[RM_fake]]"])
 def test_encoded_payloads_and_forged_tokens_fail_closed(input_text):
     """图片编码和手工伪造的占位符不能伪装成普通文本外发"""
@@ -204,6 +277,8 @@ def test_validation_feedback_is_local_and_can_be_redacted_again(tmp_path):
     provider = provider_at(tmp_path, handle).with_private_data({"personal": {"name": "测试甲"}})
     with pytest.raises(StructuredOutputError) as caught:
         run(provider, tmp_path, "测试甲")
+    assert caught.value.issues[0]["path"] == "reply"
+    assert caught.value.issues[0]["type"] == "string_type"
     assert "测试甲" in caught.value.response
     assert "[[RM_" not in json.dumps(caught.value.issues)
     safe = Redactor(["测试甲"]).prompt(json.dumps(caught.value.issues, ensure_ascii=False))

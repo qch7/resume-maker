@@ -12,7 +12,7 @@ from resume_maker.integrations.providers.connection import connection
 from resume_maker.integrations.providers.credentials import isolated_credentials
 from resume_maker.integrations.providers.material_server import SOURCE_TOOLS, TOOLS
 from resume_maker.integrations.providers.model_catalog import write_catalog
-from resume_maker.integrations.providers.process import execute
+from resume_maker.integrations.providers.process import diagnostic, execute
 from resume_maker.integrations.providers.sandbox import (
     arguments,
     materials,
@@ -204,8 +204,14 @@ def run_cli(payload, settings, environment, cancelled, emit, *, source_access=No
                     },
                 )
             elif kind == "turn.failed":
-                state["completed"] = False
-            elif kind in {"item.started", "item.completed"}:
+                error = value.get("error", "")
+                if isinstance(error, dict):
+                    error = error.get("message", "")
+                reason = diagnostic(error, env) if isinstance(error, str) else ""
+                raise ProviderError(
+                    "CLI 本轮请求失败，原有资料未修改。" + (f"\n{reason}" if reason else "")
+                )
+            elif kind in {"item.started", "item.updated", "item.completed"}:
                 item = value.get("item", {})
                 item_type = item.get("type")
                 if item_type in {

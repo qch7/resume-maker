@@ -74,6 +74,10 @@ def connection(settings, environment):
         if provider_id != "openai" and not provider:
             raise ProviderError("找不到配置的模型供应商。")
         if provider:
+            if provider.get("wire_api", "responses") != "responses":
+                raise ProviderError(
+                    "隐私出口仅支持 Responses 协议，请将供应商 wire_api 配置为 responses。"
+                )
             base = provider.get("base_url", "https://api.openai.com/v1")
             parsed = urlsplit(base)
             if (
@@ -91,10 +95,11 @@ def connection(settings, environment):
                 raise ProviderError("远程供应商必须使用 HTTPS，地址不能包含凭据或查询参数。")
             selected = {
                 k: provider[k]
-                for k in ("name", "base_url", "wire_api", "requires_openai_auth")
+                for k in ("name", "base_url", "requires_openai_auth")
                 if k in provider
             }
             selected.setdefault("name", "Resume Maker provider")
+            selected["wire_api"] = "responses"
             key = original.get(provider.get("env_key", "OPENAI_API_KEY"), "") or provider.get(
                 "experimental_bearer_token", ""
             )

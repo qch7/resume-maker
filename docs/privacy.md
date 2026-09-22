@@ -27,6 +27,7 @@ flowchart LR
 这里的 sandbox 是**受限工具和脱敏副本组成的应用层边界**，没有宣称为 AppContainer 或虚拟机。受信任的应用后端和 CLI 控制进程仍以当前 Windows 账户运行。模型不能任意运行 PowerShell，也没有本机通用文件读取入口。
 
 - 每轮在系统盘 `ResumeMakerSandbox/task-*` 建立独立目录。父目录及任务文件 ACL 只允许当前账户、管理员和 SYSTEM；任务结束清理。脱敏材料和控制文件分开保存。
+- POSIX 使用 `/tmp/resume-maker-sandbox`，创建任务前核对父目录属于当前账户且权限为 `0700`，拒绝链接、其他账户目录和过宽权限。
 - CLI 使用新的 `CODEX_HOME`、`--ephemeral`、`--ignore-user-config`、`--ignore-rules` 和严格配置，不续用供应商会话。仅复制 `auth.json`；不复制旧历史、技能、插件和项目规则。
 - `CODEX_HOME` 使用 `control/codex-home`，`TEMP/TMP/TMPDIR` 使用同级的 `control/tmp`，避免 CLI 因配置目录位于临时文件目录内而拒绝创建 PATH 辅助程序；两者都留在本轮任务目录并随任务清理。保留 `skip_host_skill_discovery`，通过 `suppress_unstable_features_warning` 关闭开发功能启动提示，其他诊断继续写入日志。
 - 每轮生成受控模型目录，保留用户选定的模型名称，固定标准 Responses 工具协议、禁用 shell、补丁和代码编排。CLI 内置模型元数据可能重新启用这些能力，仅关闭功能开关不足以保证工具集合。
@@ -77,11 +78,13 @@ flowchart LR
 
 ## 登录和连接
 
-复用 `CODEX_HOME/config.toml`、`profiles.<name>` 或 `<name>.config.toml` 中的模型、推理强度、供应商地址和鉴权字段。供应商使用 Responses 协议；远程地址要求 HTTPS，本机测试可使用 HTTP。自定义系统提示、工具、插件、HTTP 头及任意命令不会随配置继承。
+复用 `CODEX_HOME/config.toml`、`profiles.<name>` 或 `<name>.config.toml` 中的模型、推理强度、供应商地址和鉴权字段。供应商使用 Responses 协议；自定义供应商省略 `wire_api` 时显式采用 `responses`，配置其他协议时在启动 CLI 前报错。远程地址要求 HTTPS，本机测试可使用 HTTP。自定义系统提示、工具、插件、HTTP 头及任意命令不会随配置继承。
 
 应用设置或继承的 CLI 配置必须明确模型名称，未配置时停止调用，避免 CLI 自动选择未经约束的模型元数据。
 
 API 环境变量或 `experimental_bearer_token` 只供 CLI 鉴权，不写入材料和审计。支持文件保存的 CLI 订阅登录；仅存在系统 keyring 中的登录不在本次兼容范围，请使用文件凭据登录。临时副本刷新令牌后，仅在原凭据未被其他 CLI 修改时保存新状态；应用内部串行复用登录，避免并发刷新。
+
+未保存资料和 OCR 登记的凭据单独保存在任务内存中，复制任务上下文时独立继承。裸凭据再次出现在提示词或契约说明中也会移除，模型回复在本机还原身份时不会还原这些凭据。
 
 CLI 负责最终 HTTP 协议、重试及供应商通信，应用不承诺第三方留存政策。每次从本机历史重新脱敏构建上下文，旧 `provider_thread_id` 不外发。
 
@@ -98,6 +101,8 @@ CLI 负责最终 HTTP 协议、重试及供应商通信，应用不承诺第三�
 普通测试使用合成资料和 CLI 替身；本地 OCR 测试实际运行 CPU 模型。额外验收用真实 Windows CLI 连接本机假 Responses 服务，验证工具清单、用户规则不进入上下文、shell 调用不可用、脱敏读取成功、路径穿越被拒绝、凭据不进入模型正文和取消回收。没有在这些验收中向真实供应商发送资料。
 
 原生 CLI 回归同时覆盖普通测试模型、GPT-5.5 和 GPT-6-Astra 的模型元数据，检查命令执行、补丁工具均不可用。另有用户授权的合成资料真实供应商验收，详见 [2026-09-21 完整验收](privacy-acceptance-2026-09-21.md)。验收代理只用于测试，不能理解为生产中新增了全量出站过滤。
+
+事件回归覆盖工具开始、更新和完成三个阶段的权限检查，只采用已完成的助手消息；失败轮次即使含合法中间 JSON 也会停止。任务错误保留经过凭据遮盖的具体原因，进程提前关闭输入管道时仍收集标准错误，错误摘要最多 2,000 字符。
 
 ```powershell
 $env:RESUME_MAKER_TEST_NATIVE_CLI = '1'

@@ -3,6 +3,7 @@
 import json
 import os
 import shutil
+import stat
 import tempfile
 import time
 from contextlib import contextmanager
@@ -67,6 +68,17 @@ def windows_parent(path):
     )
 
 
+def posix_parent(path):
+    """拒绝其他账户拥有或权限过宽的父目录，验证通过后才创建任务"""
+    info = path.lstat()
+    if not stat.S_ISDIR(info.st_mode):
+        raise ProviderError("沙箱父路径必须是普通目录，不能是链接。")
+    if info.st_uid != os.geteuid():
+        raise ProviderError("沙箱父目录不属于当前账户，已停止使用该目录。")
+    if stat.S_IMODE(info.st_mode) != 0o700:
+        raise ProviderError("沙箱父目录权限必须为 0700，请修正权限后重试。")
+
+
 @contextmanager
 def workspace():
     """在不含用户名的目录生成独立副本，清理前再次核验归属及路径"""
@@ -81,6 +93,8 @@ def workspace():
             raise ProviderError("沙箱根目录不能是链接，请检查 ResumeMakerSandbox 目录。")
         if os.name == "nt":
             windows_parent(base)
+        else:
+            posix_parent(base)
         root = Path(tempfile.mkdtemp(prefix="task-", dir=base))
         if os.name == "nt":
             windows_parent(root)
