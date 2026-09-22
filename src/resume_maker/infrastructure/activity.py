@@ -169,8 +169,8 @@ class ActivityLog:
             (str(identifier),),
         )
 
-    def write(self, category, event, title, payload=None, **fields):
-        """持久化脱敏后的事件，记录失败计数供界面提示"""
+    def write(self, category, event, title, payload=None, **fields) -> bool:
+        """持久化脱敏事件并返回成功状态，失败计数供界面提示"""
         try:
             values = {
                 "created_at": fields.pop("created_at", None),
@@ -202,9 +202,11 @@ class ActivityLog:
                     if values["id"] % min(100, self.max_records) == 0:
                         self._prune(conn)
                 conn.commit()
+            return True
         except (OSError, sqlite3.Error, ValueError, TypeError) as exc:
             self.write_failures += 1
             self.last_error = safe_text(str(exc))[:500]
+            return False
 
     def filters(
         self,
@@ -417,6 +419,7 @@ class ActivityLog:
                 (before,) if before is not None else (),
             )
             deleted = cursor.rowcount
+            conn.execute("INSERT OR REPLACE INTO metadata VALUES ('history_imported','1')")
             conn.commit()
         return deleted
 
@@ -456,7 +459,7 @@ class ActivityLog:
                 after = rows[-1]["id"]
 
     def import_history(self, db):
-        """首次接入时按原时间补录已保存消息及工具事件，重启不会重复导入"""
+        """按原时间补录历史，写入失败留待重启重试，已成功记录按来源去重"""
         with closing(self.connect()) as conn:
             if conn.execute("SELECT 1 FROM metadata WHERE key='history_imported'").fetchone():
                 return
@@ -487,9 +490,10 @@ class ActivityLog:
             )
             for row in events
         ]
+        imported = True
         for stamp, key, category, event, title, row in sorted(pending)[-self.max_records :]:
             if stamp >= cutoff:
-                self.write(
+                if not self.write(
                     category,
                     event,
                     title,
@@ -501,6 +505,9 @@ class ActivityLog:
                     job_id=row.get("job_id") or "",
                     conversation_id=row.get("conversation_id") or "",
                     project_id=row.get("project_id") or "",
-                )
+                ):
+                    imported = False
+        if not imported:
+            return
         with closing(self.connect()) as conn, conn:
             conn.execute("INSERT OR REPLACE INTO metadata VALUES ('history_imported','1')")

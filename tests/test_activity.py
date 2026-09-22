@@ -444,6 +444,46 @@ def test_history_import_is_dated_idempotent_and_survives_message_deletion(
     assert imported.page(level="error")["events"][0]["job_id"] == job_id
 
 
+@pytest.mark.parametrize("finish", ["retry", "restart", "delete"])
+def test_partial_history_import_can_retry_without_duplicates(catalog, project, tmp_path, finish):
+    """部分补录失败不标记完成，重试去重且手动删除后不再补回历史"""
+    conversation = catalog.db.all("SELECT * FROM conversations")[0]
+    identifiers = [uid() for _ in range(3)]
+    with catalog.db.transaction() as conn:
+        for index, identifier in enumerate(identifiers):
+            conn.execute(
+                "INSERT INTO messages VALUES (?,?,NULL,'user',?,?)",
+                (identifier, conversation["id"], f"合成历史 {index}", now()),
+            )
+    log = ActivityLog(tmp_path / "history.sqlite")
+    # 补录前已有故障不能决定本次补录是否成功
+    assert not log.write("system", "test", "无效字段", unknown_column="synthetic")
+    with closing(log.connect()) as conn, conn:
+        conn.execute(
+            "CREATE TRIGGER fail_history BEFORE INSERT ON activity "
+            f"WHEN NEW.origin_key='message:{identifiers[1]}' "
+            "BEGIN SELECT RAISE(FAIL, 'synthetic disk failure'); END"
+        )
+    log.import_history(catalog.db)
+    assert log.write_failures == 2
+    assert log.page()["total"] == 2
+    with closing(log.connect()) as conn, conn:
+        assert not conn.execute("SELECT 1 FROM metadata WHERE key='history_imported'").fetchone()
+        conn.execute("DROP TRIGGER fail_history")
+    if finish == "delete":
+        assert log.delete(before=None) == 2
+    if finish in {"restart", "delete"}:
+        log = ActivityLog(log.path)
+    log.import_history(catalog.db)
+    log.import_history(catalog.db)
+    assert log.page()["total"] == (0 if finish == "delete" else 3)
+    if finish != "delete":
+        records = [json.loads(line) for line in log.export()]
+        assert {row["payload"]["id"] for row in records} == set(identifiers)
+    with closing(log.connect()) as conn:
+        assert conn.execute("SELECT 1 FROM metadata WHERE key='history_imported'").fetchone()
+
+
 def test_concurrent_instances_retention_and_write_failure(tmp_path, monkeypatch):
     """并发活动不串实例，过期清理保持游标，日志写失败仍允许业务继续"""
     left = ActivityLog(tmp_path / "left.sqlite", max_records=3)

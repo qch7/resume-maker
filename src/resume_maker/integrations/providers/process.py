@@ -10,6 +10,7 @@ import time
 
 import psutil
 
+from resume_maker.infrastructure.activity import mask_secrets, safe_text
 from resume_maker.infrastructure.observability import operation, record
 from resume_maker.integrations.providers.base import Cancelled, ProviderError
 
@@ -68,6 +69,12 @@ def process_title(arguments):
     command = arguments.get("command", ())
     action = command[1] if len(command) > 1 else ""
     return {"--version": "CLI 版本检查", "exec": "CLI 模型调用"}.get(action, "CLI 进程")
+
+
+def diagnostic(message, env):
+    """先遮盖已知鉴权及常见凭据格式，再保留有界的失败原因"""
+    secrets = {env[key] for key in ("RESUME_MAKER_PROVIDER_KEY", "OPENAI_API_KEY") if env.get(key)}
+    return safe_text(mask_secrets(message, sorted(secrets, key=len, reverse=True))).strip()[-2000:]
 
 
 @operation("cli.process", "system", title=process_title)
@@ -131,6 +138,7 @@ def execute(command, *, cwd, env, timeout, cancelled, stdin="", event=None):
     for worker in workers:
         worker.start()
     started, finished, total, output = time.monotonic(), set(), 0, []
+    errors = []
     try:
         while len(finished) < 2:
             if cancelled.is_set():
@@ -148,6 +156,7 @@ def execute(command, *, cwd, env, timeout, cancelled, stdin="", event=None):
             if len(raw) > MAX_LINE or total > MAX_OUTPUT:
                 raise ProviderError("CLI 输出超过大小限制，已停止本次请求。")
             if channel == "stderr":
+                errors.append(raw.decode("utf-8", "replace"))
                 record(
                     "system",
                     "stderr",
@@ -176,8 +185,10 @@ def execute(command, *, cwd, env, timeout, cancelled, stdin="", event=None):
                 else:
                     output.append(line)
         if process.wait(timeout=2) != 0:
+            reason = diagnostic("".join(errors), env)
             raise ProviderError(
                 "CLI 或隔离检查失败，未回退到未隔离模式。请检查 CLI 配置及沙箱环境。"
+                + (f"\n{reason}" if reason else "")
             )
         return "".join(output)
     finally:

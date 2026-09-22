@@ -13,19 +13,60 @@ import psutil
 import pytest
 
 from resume_maker.domain.models import Model, ProviderSettings
-from resume_maker.integrations.providers.base import Cancelled
+from resume_maker.integrations.providers import sandbox
+from resume_maker.integrations.providers.base import Cancelled, ProviderError
 from resume_maker.integrations.providers.cli import run_cli
 from resume_maker.integrations.providers.codex import CodexProvider
 from resume_maker.integrations.providers.credentials import isolated_credentials
 from resume_maker.integrations.providers.material_server import call, dispatch
 from resume_maker.integrations.providers.process import execute
-from resume_maker.integrations.providers.sandbox import materials
+from resume_maker.integrations.providers.sandbox import materials, posix_parent
 
 
 class BoundaryReply(Model):
     """真实 CLI 边界验收所用的最小输出契约"""
 
     answer: str
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX 所有权及权限由 Linux CI 验证")
+@pytest.mark.parametrize("mode", [0o700, 0o755, 0o770, 0o777])
+def test_posix_parent_requires_private_permissions(tmp_path, monkeypatch, mode):
+    """现有沙箱父目录只有当前账户私有权限可用，拒绝时不改动目录"""
+    parent = tmp_path / "sandbox"
+    parent.mkdir(mode=mode)
+    parent.chmod(mode)
+    monkeypatch.setattr(
+        sandbox,
+        "Path",
+        lambda path: parent if str(path) == "/tmp/resume-maker-sandbox" else Path(path),
+    )
+    if mode == 0o700:
+        with sandbox.workspace() as root:
+            assert root.parent == parent and (root / "control").is_dir()
+            assert root.stat().st_mode & 0o777 == 0o700
+    else:
+        with pytest.raises(ProviderError, match="0700"), sandbox.workspace():
+            pytest.fail("权限过宽时不得创建任务目录")
+    assert parent.stat().st_mode & 0o777 == mode
+    assert list(parent.iterdir()) == []
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX 所有权及链接由 Linux CI 验证")
+def test_posix_parent_rejects_foreign_owner_files_and_links(tmp_path, monkeypatch):
+    """即使权限私有也拒绝其他账户的目录，文件和符号链接同样不能充当父目录"""
+    parent = tmp_path / "sandbox"
+    parent.mkdir(mode=0o700)
+    file = tmp_path / "file"
+    file.write_text("synthetic")
+    link = tmp_path / "link"
+    link.symlink_to(parent, target_is_directory=True)
+    for path in (file, link):
+        with pytest.raises(ProviderError, match="普通目录"):
+            posix_parent(path)
+    monkeypatch.setattr(os, "geteuid", lambda: parent.stat().st_uid + 1)
+    with pytest.raises(ProviderError, match="不属于当前账户"):
+        posix_parent(parent)
 
 
 @pytest.mark.parametrize("newline", ["\n", "\r\n", "\r"])

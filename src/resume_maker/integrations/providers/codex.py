@@ -62,6 +62,7 @@ class CodexProvider:
         self.privacy = privacy or PrivacyStore()
         self.runner = runner or run_cli
         self.sensitive_values = set()
+        self.sensitive_secrets = set()
 
     def with_private_data(self, value):
         """为当前任务登记尚未保存的资料，独立副本避免并发互相污染"""
@@ -69,12 +70,14 @@ class CodexProvider:
         redactor = self.privacy.redactor()
         redactor.learn(value)
         result.sensitive_values = self.sensitive_values | redactor.values
+        result.sensitive_secrets = self.sensitive_secrets | redactor.secrets
         return result
 
     def register_ocr(self, document):
         """在模板任务的独立 Provider 中登记 OCR 原文和需要整体遮盖的片段"""
         redactor = self.privacy.redactor()
         redactor.learn(document["text"])
+        self.sensitive_secrets = self.sensitive_secrets | redactor.secrets
         self.sensitive_values = (
             self.sensitive_values
             | redactor.values
@@ -136,6 +139,7 @@ class CodexProvider:
             raise Cancelled("请求已取消。")
         redactor = self.privacy.redactor()
         redactor.values.update(self.sensitive_values)
+        redactor.secrets.update(self.sensitive_secrets)
         redactor.values.update(value for value in sensitive_values if value)
         documents = []
         for path in images or []:

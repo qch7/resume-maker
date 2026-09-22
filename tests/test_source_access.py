@@ -227,6 +227,21 @@ def test_search_pages_survive_later_redaction_and_cache_refresh(tmp_path):
         assert "SynthPrivate" in access.redactor.restore(rest)[0]["text"]
 
 
+def test_search_size_limit_resumes_inside_a_hundred_line_batch(tmp_path):
+    """长命中在百行批次中间触发响应上限，续页仍逐行完整返回且不重复"""
+    with access_at(tmp_path) as access:
+        (tmp_path / "first" / "many.py").write_text(
+            ("find " + "q = 0; " * 200 + "\n") * 245, encoding="utf-8"
+        )
+        args = {"query": "find", "glob": "many.py"}
+        first = access.call("search_sources", args)
+        assert 0 < len(first["results"]) < 100
+        assert len(json.dumps(first, ensure_ascii=False)) <= 24000
+        assert not first["complete"]
+        rest = pages(access, "search_sources", {**args, "cursor": first["next_cursor"]})
+        assert [row["line"] for row in first["results"] + rest] == list(range(1, 246))
+
+
 def test_mcp_subprocess_remains_available_after_500_requests(tmp_path):
     """独立材料进程跨过旧生命周期上限后仍可通过本轮网关读取源码"""
     with access_at(tmp_path, ["合成私密姓名"]) as access:
