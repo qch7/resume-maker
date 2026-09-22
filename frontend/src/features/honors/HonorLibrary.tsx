@@ -328,12 +328,16 @@ export default function HonorLibrary({
           >
             <Upload size={20} />
             <div>
-              <h2>{uploading || "拖入证书，自动识别"}</h2>
+              <h2>{uploading || "拖入证书，提取可用文字"}</h2>
               <p>PDF / 图片 · 支持批量 · 单文件 ≤20 MB · PDF ≤12 页</p>
+              <p>
+                图片和 PDF 先在本机提取文字，再脱敏识别。
+                原图不外发，识别结果需对照原件核对。
+              </p>
             </div>
             <button
               className="primary"
-              title="使用设置中的 AI 服务识别；支持 PDF、JPG、PNG、WebP、BMP、TIFF"
+              title="上传原件至本机；仅可提取的文字经过脱敏后交给 AI"
               disabled={!!uploading}
               onClick={
                 /* 通过原生文件选择器选择本机附件 */ () =>

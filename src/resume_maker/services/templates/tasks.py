@@ -153,13 +153,18 @@ class Templates:
                     )
 
         try:
+            provider = (
+                self.provider.with_private_data(document.model_dump())
+                if hasattr(self.provider, "with_private_data")
+                else self.provider
+            )
             source = directory / "original.docx"
             if source.exists():
                 package = TemplatePackage(source)
             else:
                 uploaded = next(directory.glob("uploaded*"))
                 package, notices = prepare_template(
-                    uploaded, source, self.provider, settings, flag, emit, document, projects
+                    uploaded, source, provider, settings, flag, emit, document, projects
                 )
                 with self.lock:
                     if flag.is_set():
@@ -196,7 +201,7 @@ class Templates:
             else:
                 plan, review, attempts, repair_error = analyze_plan(
                     package,
-                    self.provider,
+                    provider,
                     directory,
                     document,
                     projects,

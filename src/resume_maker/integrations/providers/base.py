@@ -39,7 +39,7 @@ class StructuredOutputError(ProviderError):
 
 
 class Provider(Protocol):
-    """可注入的 AI 执行接口，隔离模型调用和经历持久化"""
+    """可注入的 AI 执行接口，生产出口负责脱敏及隔离模型工具"""
 
     def run(
         self,
@@ -50,6 +50,8 @@ class Provider(Protocol):
         settings: ProviderSettings,
         cancelled: threading.Event,
         emit: Callable[[str, dict], None],
+        sources: list[dict] | None = None,
+        data_dir: Path | None = None,
     ) -> AIResult:
         """按给定上下文生成建议并通过事件回调报告进度、响应取消"""
         ...
@@ -65,6 +67,8 @@ class Provider(Protocol):
         cancelled: threading.Event,
         emit: Callable[[str, dict], None],
         images: list[Path] | None = None,
+        sources: list[dict] | None = None,
+        data_dir: Path | None = None,
     ) -> T:
         """复用同一 AI 配置生成指定领域模型，用于模板映射等独立分析"""
         ...

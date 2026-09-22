@@ -11,6 +11,7 @@ from resume_maker.api.routes import (
     conversations,
     honors,
     jobs,
+    privacy,
     projects,
     resumes,
     settings,
@@ -77,7 +78,17 @@ def create_app(config: Config | None = None, provider: Provider | None = None) -
     app = FastAPI(title="Resume Maker", version=__version__, lifespan=lifespan)
     app.state.services = services
     configure_middleware(app, config)
-    for module in (system, projects, conversations, jobs, resumes, templates, settings, honors):
+    for module in (
+        system,
+        projects,
+        conversations,
+        jobs,
+        resumes,
+        templates,
+        settings,
+        honors,
+        privacy,
+    ):
         app.include_router(module.router)
     mount_frontend(app, config)
     return app

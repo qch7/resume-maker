@@ -1,8 +1,28 @@
+import httpx
 import pytest
 
 from resume_maker.infrastructure.database import Database
 from resume_maker.integrations.sources import capture_evidence, project_sources
 from resume_maker.services.catalog import Catalog
+
+
+@pytest.fixture(autouse=True)
+def isolate_model_network(monkeypatch, tmp_path):
+    """测试不加载用户供应商凭据，真实网络出口始终由模拟传输替代"""
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "isolated-codex"))
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    async def blocked(*args, **kwargs):
+        """任何遗漏模拟传输的外网调用立即失败"""
+        pytest.fail("测试禁止连接真实模型服务，请注入 MockTransport")
+
+    monkeypatch.setattr(httpx.AsyncHTTPTransport, "handle_async_request", blocked)
+
+    def blocked_cli(*args, **kwargs):
+        """默认禁止真实 CLI 模型请求，单测必须显式注入执行替身"""
+        pytest.fail("测试禁止启动真实模型会话，请注入 CLI runner")
+
+    monkeypatch.setattr("resume_maker.integrations.providers.codex.run_cli", blocked_cli)
 
 
 @pytest.fixture(autouse=True)

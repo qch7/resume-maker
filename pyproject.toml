@@ -17,6 +17,8 @@ dependencies = [
   "pywin32>=308; sys_platform == 'win32'",
   "pillow>=11,<13",
   "pdf2docx>=0.5.8,<0.6",
+  "httpx>=0.28,<1",
+  "rapidocr-onnxruntime==1.4.4",
 ]
 
 [dependency-groups]

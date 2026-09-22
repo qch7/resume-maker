@@ -11,7 +11,7 @@ from docx.shared import Pt
 
 from resume_maker.core.errors import Problem
 from resume_maker.domain.templates import RecoveredPage
-from resume_maker.integrations.providers.base import Cancelled
+from resume_maker.integrations.providers.base import Cancelled, ProviderError
 from resume_maker.integrations.word.rendering import convert_word, render_word
 from resume_maker.integrations.word.templates.anchors import separate_anchors
 from resume_maker.integrations.word.templates.mapping import NS, TemplatePackage
@@ -93,6 +93,13 @@ def append_page(document, recovered, page, number):
 
 def recover_page(provider, output, prompt, image, settings, flag, emit, number):
     """页面恢复失败时重试一次并响应取消，重试失败则中止"""
+    if getattr(provider, "preprocess_images", False):
+        from resume_maker.integrations.local_ocr import read_document
+
+        result = read_document(image, flag)
+        if hasattr(provider, "register_ocr"):
+            provider.register_ocr(result)
+        return ocr_page(result["pages"][0])
     for attempt in range(1, 3):
         if flag.is_set():
             raise Cancelled("模板自动整理已取消。")
@@ -118,13 +125,47 @@ def recover_page(provider, output, prompt, image, settings, flag, emit, number):
             prompt += "\n上次恢复未成功，请重新识别本页，并检查文字与照片坐标是否符合格式。"
 
 
+def ocr_page(page):
+    """将本地 OCR 行转成可编辑段落，原始像素不参与模型恢复"""
+    return RecoveredPage(
+        blocks=[{"text": row["text"]} for row in page["blocks"]],
+        notes=["由本地 OCR 恢复文字，照片、装饰、字体及识别错字需人工核对。"],
+    )
+
+
 def rebuild_pages(pdf, output, provider, settings, flag, emit, *, native_pdf=False):
     """逐页识别避免图片数量限制，任何一页失败均保留源快照并返回实际失败原因"""
     if native_pdf:
+        from resume_maker.integrations.local_ocr import MAX_PAGES, native_blocks, pdf_page
         from resume_maker.integrations.word.pdf.recovery import rebuild_pdf
+
+        private = getattr(provider, "preprocess_images", False)
+        budget = {"pages": 0, "characters": 0, "blocks": 0}
+
+        def register_page(local):
+            """登记整页文字以识别跨行身份，低置信度片段继续整体脱敏"""
+            if hasattr(provider, "register_ocr"):
+                provider.register_ocr(
+                    {"pages": [local], "text": "\n".join(row["text"] for row in local["blocks"])}
+                )
+
+        def observe_page(page):
+            """原生页面只登记本地文字层，不因短文字或附带照片启动 OCR"""
+            register_page({"blocks": native_blocks(page)})
 
         def fallback(document, page, number):
             """只把缺少可靠文字层或版面转换失败的 PDF 页交给现有视觉恢复器"""
+            if private:
+                budget["pages"] += 1
+                if budget["pages"] > MAX_PAGES:
+                    raise ProviderError("模板需要 OCR 的页面超过 12 页，请拆分后重试。")
+                local = pdf_page(page, flag)
+                budget["characters"] += sum(len(row["text"]) for row in local["blocks"])
+                budget["blocks"] += len(local["blocks"])
+                if budget["characters"] > 100000 or budget["blocks"] > 6000:
+                    raise ProviderError("OCR 文字超过单次处理上限，请拆分文档。")
+                register_page(local)
+                return append_page(document, ocr_page(local), page, number)
             image = output.parent / f"recovery-page-{number}.png"
             page.get_pixmap(matrix=pymupdf.Matrix(1.6, 1.6)).save(image)
             prompt = RECOVERY_INSTRUCTIONS + "\n辅助原文：\n" + page.get_text(sort=True)
@@ -133,7 +174,9 @@ def rebuild_pages(pdf, output, provider, settings, flag, emit, *, native_pdf=Fal
                 raise Cancelled("模板自动整理已取消。")
             return append_page(document, recovered, page, number)
 
-        return rebuild_pdf(pdf, output, flag, emit, fallback)
+        return rebuild_pdf(
+            pdf, output, flag, emit, fallback, observe_page=observe_page if private else None
+        )
     document, notes = Document(), []
     document.styles["Normal"].font.name = "等线"
     with pymupdf.open(pdf) as pages:

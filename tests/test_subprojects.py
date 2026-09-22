@@ -1,7 +1,5 @@
 """验证聚合项目的子项目登记、历史保留、独立引用及 AI 上下文隔离"""
 
-from pathlib import Path
-
 import pytest
 from fastapi.testclient import TestClient
 from test_jobs import FakeProvider, wait_job
@@ -137,21 +135,15 @@ def test_parent_and_subproject_jobs_use_separate_sources_histories_and_threads(c
             )
             assert wait_job(catalog, job["id"])["status"] == "completed"
             context = provider.calls[-1]["context"]
-            assert context["source_access"] == "direct-read-only"
+            assert context["source_access"] == "on-demand-redacted"
             assert "snapshot_directory" not in context
-            assert {source["path"] for source in context["source_directories"]} == set(
-                project["roots"]
-            )
-            expected_files = (
-                {"agent.py", "rag.py"}
-                if project["id"] == parent["id"]
-                else {f"{project['name']}.py"}
-            )
-            assert {
-                path.name
-                for source in context["source_directories"]
-                for path in Path(source["path"]).iterdir()
-            } == expected_files
+            assert len(context["source_directories"]) == len(project["roots"])
+            assert all("path" not in source for source in context["source_directories"])
+            assert [row["path"] for row in provider.calls[-1]["sources"]] == project["roots"]
+            assert context["source_materials"]["sources"] == [
+                row["id"] for row in provider.calls[-1]["sources"]
+            ]
+            assert "files" not in context["source_materials"]
             assert not catalog.db.all("SELECT id FROM snapshots")
             assert context["current_experience"]["title"] == project["name"]
             assert context["recent_messages"] == [

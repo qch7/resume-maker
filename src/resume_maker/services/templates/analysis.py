@@ -55,6 +55,16 @@ FIXED_LABELS = {
 }
 
 
+def visual_evidence(provider, package, source, workspace, flag):
+    """隐私出口仅接收布局结构，原始像素和内嵌照片留在本机"""
+    if not getattr(provider, "supports_images", True):
+        notice = "隐私保护未发送模板图片；映射基于文字和布局结构，照片位置请人工核对。"
+        return [], {}, {"available": False, "reason": notice}, [notice]
+    sheets, shown = image_sheets(package, workspace)
+    pages, visual, notices = source_pages(source, workspace, flag)
+    return [*pages, *sheets], shown, visual, notices
+
+
 def check_trial(source, plan, review, document, projects):
     """识别通过后先实际生成试填副本，提前发现栏目容器和排序约束"""
     if review["ready"]:
@@ -223,9 +233,9 @@ def analyze_plan(
                 return initial, review, 0, None
     context = analysis_context(package, document, projects)
     emit("activity", {"type": "prepare", "text": "正在准备模板清单与图片"})
-    sheets, shown = image_sheets(package, workspace)
-    pages, visual, visual_notices = source_pages(source, workspace, flag)
-    images = [*pages, *sheets]
+    images, shown, visual, visual_notices = visual_evidence(
+        provider, package, source, workspace, flag
+    )
     evidence_source = source.read_bytes()
     context["visible_images"] = shown
     context["source_pages"] = visual
@@ -279,9 +289,9 @@ def analyze_plan(
         if source.read_bytes() != evidence_source:
             # 补充结构后重新发送对应快照的清单和图片并新建识别会话
             context.update(analysis_context(package, document, projects))
-            pages, visual, visual_notices = source_pages(source, workspace, flag)
-            sheets, shown = image_sheets(package, workspace)
-            images = [*pages, *sheets]
+            images, shown, visual, visual_notices = visual_evidence(
+                provider, package, source, workspace, flag
+            )
             context.update(source_pages=visual, visible_images=shown)
             evidence_source = source.read_bytes()
             thread_id = None

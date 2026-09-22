@@ -42,9 +42,11 @@ npm --prefix frontend run build
 
 格式化使用 `uv run ruff format src tests scripts` 和 `npm --prefix frontend run format`。前端 `check` 包括中文注释与依赖边界、TypeScript、Prettier 和 Node 测试。
 
-后端测试使用 pytest 临时目录和可控 Provider，不需要真实 CLI 鉴权或 Microsoft Word。文档测试使用 DOCX 内容对比验证区域保留，并替换渲染器；真实 Word 排版和真实 Provider 连通性须在有对应环境的本机另行验收。Windows 和 Ubuntu 的 CI 均执行核心测试与安装包检查。
+后端测试使用 pytest 临时目录和可控 Provider，自动隔离 CODEX_HOME 并禁止真实 HTTP 传输；模型出口测试必须注入 MockTransport，不需要真实凭据或 Microsoft Word。文档测试使用 DOCX 内容对比验证区域保留，并替换渲染器；真实 Word 排版和真实 Provider 连通性须在有对应环境的本机另行验收。Windows 和 Ubuntu 的 CI 均执行核心测试与安装包检查。
 
 ## 真实模板与供应商对照
+
+隐私保护保留 Windows 原生 CLI，固定 0.154.0，以只读材料服务提供脱敏副本。评测同样经过本地 OCR 和脱敏，原始像素不外发；支持文件登录。本地输出仍可能包含原件和还原结果。OCR 合成评测运行 `uv run python scripts/benchmark_ocr.py`，非 Windows 环境通过 `--font` 指定本机中文字体。真实 CLI 边界验收见 [隐私保护](privacy.md)。
 
 用户授权发送模板后，可从 CC Switch 只读加载指定的 Codex 供应商：
 

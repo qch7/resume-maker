@@ -227,7 +227,16 @@ class Honors:
                     self._status(identifier, "running")
                 workspace.mkdir(parents=True)
                 images = []
-                for page in range(1, item["attachment"]["pages"] + 1):
+                allow_images = getattr(self.provider, "supports_images", True)
+                local_ocr = getattr(self.provider, "preprocess_images", False)
+                if local_ocr:
+                    source, _ = self.file(identifier)
+                    images.append(source)
+                if not allow_images and not local_ocr and not item["attachment"]["text"].strip():
+                    raise Problem(
+                        "隐私保护未发送证书图片。此文件没有可提取的文字，请对照原件手动录入。"
+                    )
+                for page in range(1, item["attachment"]["pages"] + 1) if allow_images else []:
                     source, _ = self.file(identifier, page)
                     target = workspace / source.name
                     shutil.copyfile(source, target)

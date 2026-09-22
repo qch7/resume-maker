@@ -1,22 +1,21 @@
-"""Codex CLI 调用、严格输出校验及进程生命周期管理"""
+"""本机 OCR、脱敏及还原，CLI 只接触隔离的安全副本"""
 
 import json
 import os
-import queue
 import re
-import shutil
 import subprocess
-import threading
-import time
-from collections.abc import Callable
-from pathlib import Path
+from contextlib import nullcontext
+from copy import copy
 
-import psutil
 from pydantic import ValidationError
 
-from resume_maker.domain.models import AIResult, Model, ProviderSettings
+from resume_maker.domain.models import AIResult, Model
+from resume_maker.integrations.local_ocr import REVIEW_SCORE, read_document
+from resume_maker.integrations.privacy_store import PrivacyStore
 from resume_maker.integrations.providers.base import Cancelled, ProviderError, StructuredOutputError
-from resume_maker.integrations.sources import redact
+from resume_maker.integrations.providers.cli import run_cli
+from resume_maker.integrations.providers.sandbox import native_executable
+from resume_maker.integrations.source_access import SourceAccess
 
 
 def structured_text(message: str) -> str:
@@ -50,43 +49,52 @@ def schema(result_model: type[Model]) -> dict:
     return value
 
 
-def terminate_tree(process: subprocess.Popen):
-    """终止本次请求的子进程树，忽略已经退出的进程"""
-    try:
-        parent = psutil.Process(process.pid)
-        children = parent.children(recursive=True)
-        for child in reversed(children):
-            try:
-                child.kill()
-            except psutil.NoSuchProcess:
-                pass
-        parent.kill()
-        psutil.wait_procs(children + [parent], timeout=3)
-    except psutil.NoSuchProcess:
-        pass
-
-
 class CodexProvider:
-    """将统一 AI 请求适配为当前用户配置下的 Codex CLI 调用"""
+    """用脱敏副本和严格读取权限保留 CLI 的分析及鉴权方式"""
 
-    def __init__(self, *, environment: dict[str, str] | None = None):
-        """允许测试启动独立 CLI 配置，环境仅传给子进程，不修改当前进程"""
+    supports_images = False
+    preprocess_images = True
+
+    def __init__(self, *, environment=None, privacy=None, runner=None):
+        """测试注入 CLI 替身，生产通过版本校验和受限材料工具调用"""
         self.environment = dict(environment or {})
+        self.privacy = privacy or PrivacyStore()
+        self.runner = runner or run_cli
+        self.sensitive_values = set()
+
+    def with_private_data(self, value):
+        """为当前任务登记尚未保存的资料，独立副本避免并发互相污染"""
+        result = copy(self)
+        redactor = self.privacy.redactor()
+        redactor.learn(value)
+        result.sensitive_values = self.sensitive_values | redactor.values
+        return result
+
+    def register_ocr(self, document):
+        """在模板任务的独立 Provider 中登记 OCR 原文和需要整体遮盖的片段"""
+        redactor = self.privacy.redactor()
+        redactor.learn(document["text"])
+        self.sensitive_values = (
+            self.sensitive_values
+            | redactor.values
+            | {
+                row["text"]
+                for page in document["pages"]
+                for row in page["blocks"]
+                if row["confidence"] < REVIEW_SCORE
+            }
+        )
 
     @staticmethod
-    def executable(settings: ProviderSettings) -> str:
-        """解析用户配置的 Codex 可执行文件路径，缺失时给出设置提示"""
-        candidate = shutil.which(settings.executable)
-        if not candidate:
-            raise ProviderError("找不到 Codex CLI，请在设置中填写已安装的 codex 可执行文件路径。")
-        return candidate
+    def executable(settings):
+        """解析实际运行及版本检查使用的原生程序"""
+        return native_executable(settings.executable)
 
-    def inspect(self, settings: ProviderSettings) -> dict:
-        """读取 CLI 版本以判断程序是否可执行，实际鉴权由连接测试确认"""
+    def inspect(self, settings):
+        """检查本机 CLI 版本，不连接模型或读取用户文档"""
         try:
-            executable = self.executable(settings)
             result = subprocess.run(
-                [executable, "--version"],
+                [self.executable(settings), "--version"],
                 capture_output=True,
                 timeout=15,
                 encoding="utf-8",
@@ -94,188 +102,92 @@ class CodexProvider:
                 creationflags=0x08000000 if os.name == "nt" else 0,
             )
             return {
-                "available": result.returncode == 0,
-                "executable": executable,
+                "available": result.returncode == 0
+                and result.stdout.strip() == "codex-cli 0.154.0",
                 "version": result.stdout.strip(),
-                "authentication": "实际连接测试确认",
+                "authentication": "使用已验证的 CLI 0.154.0，复用文件登录及只读材料工具",
             }
-        except (OSError, subprocess.TimeoutExpired, ProviderError) as exc:
-            return {"available": False, "error": str(exc)}
+        except (OSError, subprocess.TimeoutExpired, ProviderError):
+            return {"available": False, "error": "无法读取 CLI 版本。"}
 
-    def run(
+    def run(self, **kwargs):
+        """使用经历结果契约调用统一隐私出口"""
+        return self.run_structured(result_model=AIResult, **kwargs)
+
+    def run_structured(
         self,
         *,
-        workspace: Path,
-        prompt: str,
-        thread_id: str | None,
-        settings: ProviderSettings,
-        cancelled: threading.Event,
-        emit: Callable[[str, dict], None],
-    ) -> AIResult:
-        """使用经历结果模型调用通用结构化执行器"""
-        return self.run_structured(
-            result_model=AIResult,
-            workspace=workspace,
-            prompt=prompt,
-            thread_id=thread_id,
-            settings=settings,
-            cancelled=cancelled,
-            emit=emit,
-        )
-
-    def run_structured[T: Model](
-        self,
-        *,
-        result_model: type[T],
-        workspace: Path,
-        prompt: str,
-        thread_id: str | None,
-        settings: ProviderSettings,
-        cancelled: threading.Event,
-        emit: Callable[[str, dict], None],
-        images: list[Path] | None = None,
-    ) -> T:
-        """以只读沙箱调用 Codex，解析 JSON 事件并处理超时、取消和进程回收"""
-        workspace.mkdir(parents=True, exist_ok=True)
-        schema_path = workspace / "response-schema.json"
-        schema_path.write_text(json.dumps(schema(result_model)), encoding="utf-8")
-        command = [
-            self.executable(settings),
-            "exec",
-            "--sandbox",
-            "read-only",
-            "--json",
-            "--skip-git-repo-check",
-            "--color",
-            "never",
-            "--output-schema",
-            str(schema_path),
-            "-C",
-            str(workspace),
-        ]
-        if settings.model:
-            command += ["--model", settings.model]
-        if settings.profile:
-            command += ["--profile", settings.profile]
-        if settings.reasoning_effort:
-            # 每次请求通过参数传入提交时的功能配置
-            command += ["--config", f'model_reasoning_effort="{settings.reasoning_effort}"']
-        for image in images or []:
-            command += ["--image", str(image)]
-        if thread_id:
-            command += ["resume", thread_id]
-        command.append("-")
-        # 继承当前用户的配置和鉴权，CLI 登录状态无法代表自定义 Provider 的实际连通性
-        process = subprocess.Popen(
-            command,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            cwd=workspace,
-            env={**os.environ, **self.environment},
-            creationflags=0x08000200 if os.name == "nt" else 0,
-            start_new_session=os.name != "nt",
-        )
-        lines = queue.Queue()
-
-        def read(stream, channel):
-            """在线程中读取标准输出或错误输出并用结束标记通知主循环"""
-            try:
-                for line in stream:
-                    lines.put((channel, line))
-            finally:
-                lines.put((channel, None))
-
-        for stream, channel in ((process.stdout, "stdout"), (process.stderr, "stderr")):
-            threading.Thread(target=read, args=(stream, channel), daemon=True).start()
-        started, finished, last_message = time.monotonic(), set(), ""
-        errors, diagnostics = [], []
+        result_model,
+        workspace,
+        prompt,
+        thread_id,
+        settings,
+        cancelled,
+        emit,
+        images=None,
+        sensitive_values=(),
+        sources=None,
+        data_dir=None,
+    ):
+        """原图只供本机 OCR，脱敏后的文字进入独立 CLI 沙箱"""
+        if cancelled.is_set():
+            raise Cancelled("请求已取消。")
+        redactor = self.privacy.redactor()
+        redactor.values.update(self.sensitive_values)
+        redactor.values.update(value for value in sensitive_values if value)
+        documents = []
+        for path in images or []:
+            emit("status", {"text": "正在本机提取文档文字，原图不外发"})
+            document = read_document(path, cancelled)
+            redactor.learn(document["text"])
+            for page in document["pages"]:
+                for block in page["blocks"]:
+                    if block["confidence"] < REVIEW_SCORE:
+                        redactor.values.add(block["text"])
+            documents.append(document)
+        safe_prompt = redactor.prompt(prompt)
+        if documents:
+            safe_prompt += (
+                "\n本地 OCR 文字和比例坐标（低置信度片段已整体替换，禁止推测）：\n"
+                + json.dumps(redactor.protect(documents), ensure_ascii=False)
+            )
+        safe_schema = redactor.protect_schema(schema(result_model))
+        payload = {
+            "transport": "codex-cli-sandbox",
+            "input": safe_prompt,
+            "schema": safe_schema,
+        }
+        if len(json.dumps(payload).encode()) > 2 * 1024 * 1024:
+            raise ProviderError("脱敏请求超过大小限制，请缩小材料范围。")
+        identifier = self.privacy.record(payload, redactor.count)
+        emit("status", {"text": f"隐私保护已处理 {redactor.count} 处内容，正在发送文字请求"})
         try:
+
+            def audit(name, result, count):
+                """记录有界的脱敏工具结果，原始路径和还原表始终留在内存"""
+                self.privacy.material(identifier, name, result, count)
+
+            with (
+                SourceAccess(sources, data_dir, redactor, cancelled, audit)
+                if sources
+                else nullcontext(None)
+            ) as access:
+                options = {"source_access": access} if access is not None else {}
+                raw = self.runner(payload, settings, self.environment, cancelled, emit, **options)
+            if cancelled.is_set():
+                raise Cancelled("请求已取消。")
             try:
-                process.stdin.write(prompt)
-                process.stdin.close()
-            except BrokenPipeError:
-                # CLI 可能在读取提示词前退出，因此仍需读取 stderr 获取配置错误
-                pass
-            while len(finished) < 2:
-                if cancelled.is_set():
-                    raise Cancelled("任务已取消")
-                if time.monotonic() - started > settings.timeout_seconds:
-                    raise ProviderError(
-                        f"Codex 超过 {settings.timeout_seconds} 秒未完成，任务已停止。"
-                    )
-                try:
-                    channel, line = lines.get(timeout=0.2)
-                except queue.Empty:
-                    continue
-                if line is None:
-                    finished.add(channel)
-                    continue
-                if channel == "stderr":
-                    diagnostics = (diagnostics + [redact(line.strip())])[-20:]
-                    continue
-                try:
-                    event = json.loads(line)
-                except ValueError:
-                    continue
-                kind = event.get("type")
-                if kind == "thread.started":
-                    emit("thread", {"id": event["thread_id"]})
-                    emit("activity", {"type": "connected", "text": "Codex 会话已连接"})
-                elif kind == "turn.started":
-                    emit("activity", {"type": "working", "text": "Codex 已开始处理请求"})
-                elif kind == "turn.completed":
-                    # CLI 重连可能先报告 error，成功完成后旧传输错误不应否定有效结果
-                    errors.clear()
-                    # exec resume 返回整个会话累计值，调用方据此避免重复累加旧轮次
-                    emit("usage", {**event.get("usage", {}), "cumulative": True})
-                elif kind in {"turn.failed", "error"}:
-                    detail = event.get("error", event.get("message", event))
-                    errors.append(redact(json.dumps(detail, ensure_ascii=False)))
-                elif kind in {"item.started", "item.updated", "item.completed"}:
-                    item = event.get("item", {})
-                    item_type = item.get("type")
-                    if item_type == "agent_message" and kind == "item.completed":
-                        last_message = item.get("text", "")
-                        # 只展示公开文字消息并将结构化结果交给调用方
-                        try:
-                            json.loads(structured_text(last_message))
-                        except ValueError:
-                            emit(
-                                "activity", {"type": "message", "text": redact(last_message)[:1000]}
-                            )
-                    elif item_type == "reasoning":
-                        # 只报告公开的执行状态
-                        emit("activity", {"type": "working", "text": "Codex 正在分析"})
-                    elif item_type in {"command_execution", "mcp_tool_call", "web_search"}:
-                        label = {
-                            "command_execution": "执行工具",
-                            "mcp_tool_call": "调用工具",
-                            "web_search": "检索资料",
-                        }[item_type]
-                        emit(
-                            "activity",
-                            {
-                                "type": item_type,
-                                "state": kind.split(".")[1],
-                                "text": f"Codex {label} · "
-                                + ("完成" if kind == "item.completed" else "进行中"),
-                            },
-                        )
-            code = process.wait(timeout=5)
-            if code != 0 or errors:
-                raise ProviderError("\n".join(errors or diagnostics[-5:]) or f"Codex 退出码 {code}")
-            try:
-                return result_model.model_validate_json(structured_text(last_message))
+                restored = redactor.restore(json.loads(structured_text(raw)))
+                result = result_model.model_validate(restored)
             except ValidationError as exc:
                 raise StructuredOutputError(
-                    last_message, exc.errors(include_url=False, include_context=False)
+                    json.dumps(restored, ensure_ascii=False),
+                    exc.errors(include_url=False, include_context=False),
                 ) from exc
-        finally:
-            if process.poll() is None:
-                terminate_tree(process)
-            for stream in (process.stdout, process.stderr):
-                stream.close()
+            except ValueError as exc:
+                raise ProviderError("模型输出不是完整 JSON，结果未采用。") from exc
+            self.privacy.finish(identifier, "completed")
+            return result
+        except Exception:
+            self.privacy.finish(identifier, "cancelled" if cancelled.is_set() else "failed")
+            raise

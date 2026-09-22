@@ -72,7 +72,7 @@ def check_provider(
     services: ServicesDep,
 ):
     """发起最小结构化连接请求，以真实响应确认当前 Provider 配置可用"""
-    result = CodexProvider().run(
+    result = services.jobs.provider.run(
         workspace=services.config.data_dir / "workspaces" / f"check-{uid()}",
         prompt="连接测试。不要使用工具或读取文件。reply 写连接成功；"
         "experience=null，changes=[]，questions=[]。",

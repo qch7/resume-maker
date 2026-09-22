@@ -4,6 +4,7 @@ import PathInput from "../../shared/components/PathInput";
 import { api, download } from "../../shared/lib/api";
 import type { Conversation, ProviderSettings } from "../../shared/types/index";
 import CodexModels from "./CodexModels";
+import Privacy from "./Privacy";
 
 interface Props {
   initial: "projects" | "settings";
@@ -215,12 +216,14 @@ export default function Settings(props: Props) {
       )}
       {tab === "settings" && (
         <div className="settings-body">
-          <h3>Codex CLI</h3>
+          <Privacy />
+          <h3>模型连接配置</h3>
           <p className="subtle">
-            复用当前 CLI 配置，包括 CCSwitch 的 Provider。
+            复用 CLI 文件登录和供应商配置，通过专用只读工具分析脱敏副本，无需
+            WSL。
           </p>
           <PathInput
-            label="可执行文件"
+            label="Codex 可执行文件（已验证 0.154.0）"
             kind="executable"
             value={provider.executable}
             disabled={busy || !loaded}

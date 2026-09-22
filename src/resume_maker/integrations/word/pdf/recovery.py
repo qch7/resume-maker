@@ -52,7 +52,7 @@ def normalized_page(document, number):
     return result
 
 
-def rebuild_pdf(pdf, output, flag, emit, fallback):
+def rebuild_pdf(pdf, output, flag, emit, fallback, *, observe_page=None):
     """逐页恢复结构并在单页失败时改用视觉识别，全部成功后发布模板"""
     result = Document()
     notices = []
@@ -67,6 +67,8 @@ def rebuild_pdf(pdf, output, flag, emit, fallback):
             )
             with normalized_page(pages, number) as normalized:
                 page = normalized[0]
+                if observe_page is not None:
+                    observe_page(page)
                 restored = None
                 if native_text(page):
                     while not LAYOUT_LOCK.acquire(timeout=0.1):
