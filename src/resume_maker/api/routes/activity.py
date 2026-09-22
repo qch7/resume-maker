@@ -1,10 +1,11 @@
 """受本机认证保护的日志分页、详情和快照导出"""
 
+import re
 from typing import Annotated
 
 from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from resume_maker.api.dependencies import ServicesDep
 from resume_maker.core.errors import need
@@ -34,8 +35,8 @@ def client_activity(body: ClientActivity, services: ServicesDep):
 class ActivityQuery(BaseModel):
     """日志列表和导出共用筛选条件"""
 
-    category: str = Field(default="", max_length=30)
-    level: str = Field(default="", max_length=20)
+    category: str = Field(default="", max_length=200)
+    level: str = Field(default="", max_length=80)
     q: str = Field(default="", max_length=500)
     trace_id: str = Field(default="", max_length=100)
     job_id: str = Field(default="", max_length=100)
@@ -45,9 +46,26 @@ class ActivityQuery(BaseModel):
     hide_polling: bool = False
     hide_maintenance: bool = False
     polling_paths: str = Field(default=DEFAULT_POLLING_PATHS, max_length=2000)
+    hidden_rules: str | None = Field(default=None, max_length=4000)
     after: int | None = Field(default=None, ge=0)
     before: int = Field(default=0, ge=0)
     limit: int = Field(default=200, ge=1, le=500)
+
+    @field_validator("hidden_rules")
+    @classmethod
+    def validate_hidden_rules(cls, value):
+        """限制统一规则的数量和语法，避免无界查询或误填查询参数"""
+        if value is None:
+            return value
+        lines = list(dict.fromkeys(line.strip() for line in value.splitlines() if line.strip()))
+        if len(lines) > 100:
+            raise ValueError("最多填写 100 条隐藏规则")
+        for line in lines:
+            if not re.fullmatch(
+                r"/api/[^\s?#]*|[A-Za-z_*][A-Za-z0-9_.*-]*\.[A-Za-z0-9_.*-]+", line
+            ):
+                raise ValueError("隐藏规则须为 /api/ 路径或操作名，支持星号通配符")
+        return "\n".join(lines)
 
 
 @router.get("")

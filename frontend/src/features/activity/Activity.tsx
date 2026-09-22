@@ -17,10 +17,11 @@ import { useElementSize } from "../../shared/hooks/useElementSize";
 import { clamp } from "../../shared/lib/layout";
 import { loadLocal } from "../../shared/lib/storage";
 import ActivitySettings from "./ActivitySettings";
+import ActivityMultiSelect from "./ActivityMultiSelect";
 import {
   DEFAULT_ACTIVITY_PREFERENCES,
   restoreActivityPreferences,
-  type ActivityPreferences,
+  type SavedActivityPreferences,
 } from "./preferences";
 import {
   CATEGORIES,
@@ -37,13 +38,13 @@ const ROW_HEIGHT = 32;
 export default function Activity() {
   const [preferences, setPreferences] = useState(() =>
     restoreActivityPreferences(
-      loadLocal<Partial<ActivityPreferences> | null>("rm.activity", null),
+      loadLocal<SavedActivityPreferences | null>("rm.activity", null),
     ),
   );
   const [settings, setSettings] = useState(false);
   const [advanced, setAdvanced] = useState(false);
-  const [category, setCategory] = useState("");
-  const [level, setLevel] = useState("");
+  const [category, setCategory] = useState<string[]>([]);
+  const [level, setLevel] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [keyword, setKeyword] = useState("");
   const [trace, setTrace] = useState("");
@@ -97,13 +98,12 @@ export default function Activity() {
   }, [search]);
   const query = useMemo(() => {
     const params = new URLSearchParams({
-      category,
-      level,
+      category: category.join(","),
+      level: level.join(","),
       q: keyword,
       trace_id: trace,
       hide_polling: String(preferences.hidePolling),
-      hide_maintenance: String(preferences.hideMaintenance),
-      polling_paths: preferences.pollingPaths,
+      hidden_rules: preferences.hiddenRules,
     });
     if (since) params.set("since", new Date(since).toISOString());
     if (until) params.set("until", new Date(until).toISOString());
@@ -116,8 +116,7 @@ export default function Activity() {
     since,
     until,
     preferences.hidePolling,
-    preferences.hideMaintenance,
-    preferences.pollingPaths,
+    preferences.hiddenRules,
   ]);
   const feed = useActivity(query, live);
   const { events, page } = feed;
@@ -207,11 +206,7 @@ export default function Activity() {
           </button>
           {settings && (
             <ActivitySettings
-              paths={preferences.pollingPaths}
-              hideMaintenance={preferences.hideMaintenance}
-              onMaintenanceChange={(hideMaintenance) =>
-                setPreferences((current) => ({ ...current, hideMaintenance }))
-              }
+              rules={preferences.hiddenRules}
               onClose={() => setSettings(false)}
               onResetLayout={() =>
                 setPreferences((current) => ({
@@ -221,8 +216,8 @@ export default function Activity() {
                   detailHeight: DEFAULT_ACTIVITY_PREFERENCES.detailHeight,
                 }))
               }
-              onSave={(pollingPaths) => {
-                setPreferences((current) => ({ ...current, pollingPaths }));
+              onSave={(hiddenRules) => {
+                setPreferences((current) => ({ ...current, hiddenRules }));
                 setSettings(false);
               }}
             />
@@ -239,31 +234,23 @@ export default function Activity() {
             onChange={(event) => setSearch(event.target.value)}
           />
         </div>
-        <select
-          aria-label="日志类型"
+        <ActivityMultiSelect
+          label="日志类型"
+          allLabel="全部类型"
+          options={CATEGORIES}
           value={category}
-          onChange={(event) => setCategory(event.target.value)}
-        >
-          <option value="">全部类型</option>
-          {tracks.map(([key, label]) => (
-            <option key={key} value={key}>
-              {label}
-            </option>
-          ))}
-        </select>
-        <select
-          aria-label="日志级别"
+          onChange={setCategory}
+        />
+        <ActivityMultiSelect
+          label="日志级别"
+          allLabel="全部级别"
+          options={{ error: "错误", warning: "警告", info: "信息" }}
           value={level}
-          onChange={(event) => setLevel(event.target.value)}
-        >
-          <option value="">全部级别</option>
-          <option value="error">仅错误</option>
-          <option value="warning">仅警告</option>
-          <option value="info">信息</option>
-        </select>
+          onChange={setLevel}
+        />
         <label
           className="activity-polling-toggle"
-          title="隐藏匹配路径的 GET 200 及普通业务记录；设置自动保存"
+          title="按日志设置中的路径和操作名隐藏普通轮询记录，保留警告和错误"
         >
           <input
             type="checkbox"
@@ -275,7 +262,7 @@ export default function Activity() {
               }))
             }
           />
-          隐藏轮询 200
+          隐藏轮询日志
         </label>
         <button
           aria-label="时间筛选"
@@ -337,12 +324,18 @@ export default function Activity() {
             </span>
           </div>
           {tracks
-            .filter(([key]) => !category || key === category)
+            .filter(([key]) => !category.length || category.includes(key))
             .map(([key, label]) => (
               <div className="activity-track" key={key}>
                 <button
                   className="activity-track-label"
-                  onClick={() => setCategory(category === key ? "" : key)}
+                  onClick={() =>
+                    setCategory(
+                      category.includes(key)
+                        ? category.filter((item) => item !== key)
+                        : [...category, key],
+                    )
+                  }
                 >
                   <span className={`activity-dot cat-${key}`} />
                   {label}
@@ -516,8 +509,8 @@ export default function Activity() {
                   event={selected}
                   onClose={() => setSelected(null)}
                   onTrace={(value) => {
-                    setCategory("");
-                    setLevel("");
+                    setCategory([]);
+                    setLevel([]);
                     setSearch("");
                     setKeyword("");
                     setSince("");

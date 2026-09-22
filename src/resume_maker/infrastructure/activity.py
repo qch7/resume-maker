@@ -47,6 +47,11 @@ CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 """
 
 
+def wildcard_pattern(value):
+    """仅将星号转换成 SQL 通配符，其余字符保持字面含义"""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_").replace("*", "%")
+
+
 def safe_text(value):
     """遮盖文本中的常见鉴权值和私钥，保留调试需要的业务正文"""
     text = SECRET_TEXT.sub(lambda match: (match[1] or match[2] or "") + "[已遮盖]", value)
@@ -190,26 +195,44 @@ class ActivityLog:
         until="",
         hide_polling=False,
         hide_maintenance=False,
+        hidden_rules=None,
         **_,
     ):
         """组合固定列的参数化条件，关键词按字面搜索全部正文和关联标识"""
         clauses, args = [], []
-        if hide_maintenance and not trace_id:
+        service_patterns = []
+        if hidden_rules is not None and hide_polling:
+            service_patterns = [
+                wildcard_pattern(rule.strip())
+                for rule in dict.fromkeys(hidden_rules.splitlines())
+                if rule.strip() and not rule.strip().startswith("/api/")
+            ]
+        elif hidden_rules is None and hide_maintenance:
+            service_patterns = [wildcard_pattern("template_library.purge_expired")]
+        if service_patterns and not trace_id:
+            matches = " OR ".join("source LIKE ? ESCAPE '\\'" for _ in service_patterns)
             clauses.append(
                 "NOT (category='service' AND level='info' AND event IN ('started','completed') "
-                "AND (source='template_library.purge_expired' OR "
+                f"AND (({matches}) OR "
                 "(source='template_library.state' AND parent_span_id IN "
                 "(SELECT span_id FROM activity WHERE category='service' "
-                "AND source='template_library.purge_expired' AND span_id<>''))))"
+                "AND source='template_library.purge_expired' AND span_id<>'' "
+                f"AND ({matches})))))"
             )
+            args.extend(service_patterns * 2)
         if hide_polling and not trace_id:
             clauses.append(
                 "NOT (category IN ('api','service') AND level='info' "
                 "AND trace_id IN (SELECT trace_id FROM hidden_polling))"
             )
+        for key, value in {"category": category, "level": level}.items():
+            selected = list(
+                dict.fromkeys(item.strip() for item in value.split(",") if item.strip())
+            )
+            if selected:
+                clauses.append(f"{key} IN ({','.join('?' for _ in selected)})")
+                args.extend(selected)
         for key, value in {
-            "category": category,
-            "level": level,
             "trace_id": trace_id,
             "job_id": job_id,
             "conversation_id": conversation_id,
@@ -241,15 +264,18 @@ class ActivityLog:
             args.extend([pattern] * 6)
         return " AND ".join(clauses) or "1=1", args
 
-    def polling_cte(self, *, hide_polling=False, polling_paths=DEFAULT_POLLING_PATHS, **_):
+    def polling_cte(
+        self, *, hide_polling=False, polling_paths=DEFAULT_POLLING_PATHS, hidden_rules=None, **_
+    ):
         """从成功响应识别轮询链路，路径只支持星号且其余字符按字面匹配"""
         patterns = []
         if hide_polling:
+            if hidden_rules is not None:
+                polling_paths = hidden_rules
             for path in dict.fromkeys(polling_paths.splitlines()):
                 path = path.strip()
                 if path.startswith("/api/"):
-                    escaped = path.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-                    patterns.append("GET " + escaped.replace("*", "%") + " · 200")
+                    patterns.append("GET " + wildcard_pattern(path) + " · 200")
         matches = " OR ".join("title LIKE ? ESCAPE '\\'" for _ in patterns) or "0"
         return (
             "WITH hidden_polling AS (SELECT trace_id,MAX(id) AS completed_id FROM activity "

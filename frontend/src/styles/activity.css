@@ -98,8 +98,7 @@
   flex-wrap: wrap;
   flex-shrink: 0;
 }
-.activity-filters input,
-.activity-filters select {
+.activity-filters input {
   padding: 5px 7px;
   font-size: 12px;
   min-height: 28px;
@@ -140,8 +139,67 @@
   border: 0;
   background: transparent;
 }
-.activity-filters select {
-  width: 98px;
+.activity-multiselect {
+  position: relative;
+  min-width: 104px;
+  font-size: 12px;
+}
+.activity-multiselect > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 7px;
+  min-height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--surface);
+  color: var(--text);
+  list-style: none;
+}
+.activity-multiselect > summary::-webkit-details-marker {
+  display: none;
+}
+.activity-multiselect[open] > summary {
+  border-color: var(--accent);
+}
+.activity-multiselect-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 30;
+  width: 176px;
+  max-height: 55vh;
+  overflow: auto;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  box-shadow: 0 6px 18px #0002;
+}
+.activity-multiselect-menu > button,
+.activity-multiselect-menu > label {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 7px;
+  width: 100%;
+  min-height: 30px;
+  margin: 0;
+  padding: 4px 7px;
+  border: 0;
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+}
+.activity-multiselect-menu > button.active,
+.activity-multiselect-menu > label:hover {
+  background: var(--accent-soft);
+}
+.activity-multiselect-menu input {
+  min-height: 0;
+  margin: 0;
+  padding: 0;
 }
 .activity-filters input[type="datetime-local"] {
   width: 190px;

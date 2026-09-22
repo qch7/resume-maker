@@ -43,7 +43,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "maxLength": 30,
+              "maxLength": 200,
               "default": "",
               "title": "Category"
             }
@@ -54,7 +54,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "maxLength": 20,
+              "maxLength": 80,
               "default": "",
               "title": "Level"
             }
@@ -154,6 +154,23 @@
               "maxLength": 2000,
               "default": "/api/state\n/api/honors\n/api/templates/analyses/*/progress",
               "title": "Polling Paths"
+            }
+          },
+          {
+            "name": "hidden_rules",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 4000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hidden Rules"
             }
           },
           {
@@ -228,7 +245,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "maxLength": 30,
+              "maxLength": 200,
               "default": "",
               "title": "Category"
             }
@@ -239,7 +256,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "maxLength": 20,
+              "maxLength": 80,
               "default": "",
               "title": "Level"
             }
@@ -339,6 +356,23 @@
               "maxLength": 2000,
               "default": "/api/state\n/api/honors\n/api/templates/analyses/*/progress",
               "title": "Polling Paths"
+            }
+          },
+          {
+            "name": "hidden_rules",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 4000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hidden Rules"
             }
           },
           {

@@ -3,7 +3,7 @@ import test from "node:test";
 import { eventPosition, mergeEvents } from "../src/features/activity/model.ts";
 import {
   DEFAULT_ACTIVITY_PREFERENCES,
-  pollingPathError,
+  hiddenRuleError,
   restoreActivityPreferences,
 } from "../src/features/activity/preferences.ts";
 
@@ -61,8 +61,7 @@ test("默认过滤开启，保存的开关、规则和面板尺寸可恢复", ()
   );
   const saved = {
     hidePolling: false,
-    hideMaintenance: false,
-    pollingPaths: "/api/custom/*",
+    hiddenRules: "/api/custom/*\ntemplate_library.purge_expired",
     overviewHeight: 70,
     detailWidth: 520,
     detailHeight: 320,
@@ -78,17 +77,17 @@ test("默认过滤开启，保存的开关、规则和面板尺寸可恢复", ()
     detailWidth: -200,
   });
   assert.equal(broken.hidePolling, true);
-  assert.equal(broken.hideMaintenance, true);
+  assert.equal(broken.hiddenRules, DEFAULT_ACTIVITY_PREFERENCES.hiddenRules);
   assert.equal(broken.overviewHeight, 160);
   assert.equal(broken.detailWidth, 32);
-  assert.equal(pollingPathError("/api/state\n/api/custom/*"), "");
-  assert.equal(pollingPathError(""), "");
-  assert.ok(pollingPathError("/api/state?query=1"));
-  assert.ok(pollingPathError("state"));
+  assert.equal(hiddenRuleError("/api/state\n/api/custom/*"), "");
+  assert.equal(hiddenRuleError(""), "");
+  assert.ok(hiddenRuleError("/api/state?query=1"));
+  assert.ok(hiddenRuleError("state"));
 });
 
-test("旧日志偏好自动开启例行维护过滤且保留原轮询选择", () => {
+test("旧日志偏好迁移维护规则且保留原隐藏开关", () => {
   const restored = restoreActivityPreferences({ hidePolling: false });
-  assert.equal(restored.hideMaintenance, true);
+  assert.ok(restored.hiddenRules.includes("template_library.purge_expired"));
   assert.equal(restored.hidePolling, false);
 });

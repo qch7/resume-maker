@@ -1,29 +1,49 @@
 export const DEFAULT_POLLING_PATHS =
   "/api/state\n/api/honors\n/api/templates/analyses/*/progress";
+export const DEFAULT_HIDDEN_RULES = `${DEFAULT_POLLING_PATHS}\ntemplate_library.purge_expired`;
 export const DEFAULT_ACTIVITY_PREFERENCES = {
   hidePolling: true,
-  hideMaintenance: true,
-  pollingPaths: DEFAULT_POLLING_PATHS,
+  hiddenRules: DEFAULT_HIDDEN_RULES,
   overviewHeight: 160,
   detailWidth: 460,
   detailHeight: 280,
 };
 export type ActivityPreferences = typeof DEFAULT_ACTIVITY_PREFERENCES;
+export type SavedActivityPreferences = Partial<ActivityPreferences> & {
+  pollingPaths?: string;
+  hideMaintenance?: boolean;
+};
 
 /** 校验本地缓存并补齐新增设置，损坏值不会破坏日志布局 */
 export function restoreActivityPreferences(
-  value: Partial<ActivityPreferences> | null,
+  value: SavedActivityPreferences | null,
 ) {
   const result = { ...DEFAULT_ACTIVITY_PREFERENCES };
   if (typeof value?.hidePolling === "boolean")
     result.hidePolling = value.hidePolling;
-  if (typeof value?.hideMaintenance === "boolean")
-    result.hideMaintenance = value.hideMaintenance;
   if (
-    typeof value?.pollingPaths === "string" &&
-    value.pollingPaths.length <= 2000
-  )
-    result.pollingPaths = value.pollingPaths;
+    typeof value?.hiddenRules === "string" &&
+    !hiddenRuleError(value.hiddenRules)
+  ) {
+    result.hiddenRules = value.hiddenRules;
+  } else {
+    const paths =
+      typeof value?.pollingPaths === "string" &&
+      value.pollingPaths.length <= 2000
+        ? value.pollingPaths
+        : DEFAULT_POLLING_PATHS;
+    const migrated = [
+      paths,
+      value?.hideMaintenance === false ? "" : "template_library.purge_expired",
+    ]
+      .filter(Boolean)
+      .join("\n");
+    result.hiddenRules = !hiddenRuleError(migrated)
+      ? migrated
+      : value?.hideMaintenance === false
+        ? DEFAULT_POLLING_PATHS
+        : DEFAULT_HIDDEN_RULES;
+  }
   for (const key of [
     "overviewHeight",
     "detailWidth",
@@ -36,12 +56,19 @@ export function restoreActivityPreferences(
   return result;
 }
 
-/** 检查每行轮询路径，只将星号当作通配符 */
-export function pollingPathError(value: string) {
-  if (value.length > 2000) return "路径总长度不能超过 2,000 字符";
-  return value
+/** 检查统一隐藏规则，允许 API 路径和操作名中的星号通配符 */
+export function hiddenRuleError(value: string) {
+  if (value.length > 4000) return "规则总长度不能超过 4,000 字符";
+  const lines = value
     .split("\n")
-    .some((line) => line.trim() && !/^\/api\/[^\s?#]*$/.test(line.trim()))
-    ? "每行填写 /api/ 开头的路径，可用 * 匹配，不含查询参数"
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (new Set(lines).size > 100) return "最多填写 100 条规则";
+  return lines.some(
+    (line) =>
+      !/^\/api\/[^\s?#]*$/.test(line) &&
+      !/^[A-Za-z_*][A-Za-z0-9_.*-]*\.[A-Za-z0-9_.*-]+$/.test(line),
+  )
+    ? "每行填写 /api/ 路径或操作名（如 template_library.purge_expired），支持 *"
     : "";
 }
