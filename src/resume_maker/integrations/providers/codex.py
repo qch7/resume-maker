@@ -10,6 +10,7 @@ from copy import copy
 from pydantic import ValidationError
 
 from resume_maker.domain.models import AIResult, Model
+from resume_maker.infrastructure.observability import operation, record
 from resume_maker.integrations.local_ocr import REVIEW_SCORE, read_document
 from resume_maker.integrations.privacy_store import PrivacyStore
 from resume_maker.integrations.providers.base import Cancelled, ProviderError, StructuredOutputError
@@ -114,6 +115,7 @@ class CodexProvider:
         """使用经历结果契约调用统一隐私出口"""
         return self.run_structured(result_model=AIResult, **kwargs)
 
+    @operation("provider.run_structured", "ai")
     def run_structured(
         self,
         *,
@@ -160,6 +162,7 @@ class CodexProvider:
         if len(json.dumps(payload).encode()) > 2 * 1024 * 1024:
             raise ProviderError("脱敏请求超过大小限制，请缩小材料范围。")
         identifier = self.privacy.record(payload, redactor.count)
+        record("ai", "context", "发送给模型的脱敏上下文", {**payload, "model": settings.model})
         emit("status", {"text": f"隐私保护已处理 {redactor.count} 处内容，正在发送文字请求"})
         try:
 

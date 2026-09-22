@@ -7,6 +7,7 @@ from resume_maker.core.errors import Problem, need
 from resume_maker.domain.experience import field_value
 from resume_maker.domain.models import ProviderSettings
 from resume_maker.infrastructure.database import Database, dump, now, uid
+from resume_maker.infrastructure.observability import record, record_event, remember_task
 from resume_maker.integrations.privacy_store import PrivacyStore
 from resume_maker.integrations.providers.base import Cancelled, Provider
 from resume_maker.integrations.providers.codex import CodexProvider
@@ -179,6 +180,20 @@ class Jobs:
                 "UPDATE conversations SET input_draft='',title=?,updated_at=? WHERE id=?",
                 (title, stamp, conversation_id),
             )
+        if self.db.activity:
+            remember_task(
+                self.db.activity, job_id, conversation_id=conversation_id, project_id=project["id"]
+            )
+        record(
+            "ai",
+            "user",
+            text.strip(),
+            {"role": "user", "text": text.strip()},
+            job_id=job_id,
+            conversation_id=conversation_id,
+            project_id=project["id"],
+            origin_key=f"job-user:{job_id}",
+        )
         self.wakeup.set()
         return self.db.one("SELECT * FROM jobs WHERE id=?", (job_id,))
 
@@ -222,6 +237,7 @@ class Jobs:
         def emit(kind, data):
             """持久化任务事件，收到模型会话标识时立即保存以支持后续续聊"""
             self.db.event(job_id, kind, data)
+            record_event(kind, data)
             if kind == "thread":
                 with self.db.transaction() as conn:
                     conn.execute(
@@ -369,6 +385,9 @@ class Jobs:
                 conn.execute(
                     "UPDATE conversations SET updated_at=? WHERE id=?", (stamp, conversation_id)
                 )
+            record(
+                "ai", "assistant", payload["reply"], {"role": "assistant", "text": payload["reply"]}
+            )
             emit("status", {"text": "已完成"})
         except Exception as exc:
             status = "cancelled" if isinstance(exc, Cancelled) else "failed"
@@ -379,5 +398,12 @@ class Jobs:
                     (status, redact(str(exc))[:6000], now(), job_id),
                 )
             self.db.event(job_id, "error", {"text": redact(str(exc))[:6000]})
+            record(
+                "task",
+                status,
+                str(exc),
+                {"error": str(exc)},
+                level="warning" if status == "cancelled" else "error",
+            )
         finally:
             self.cancel_flags.pop(job_id, None)

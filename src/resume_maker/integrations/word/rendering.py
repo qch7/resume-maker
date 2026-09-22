@@ -10,6 +10,8 @@ from pathlib import Path
 import psutil
 import pymupdf
 
+from resume_maker.infrastructure.observability import operation, record
+
 # Word COM 排版串行运行以免并发导出争用桌面实例
 RENDER_LOCK = threading.Lock()
 
@@ -27,9 +29,11 @@ def render_pages(pdf: Path) -> int:
         return len(document)
 
 
+@operation("word.process", "system")
 def word_process(source: Path, output: Path, mode="render") -> str | None:
     """隔离执行 Word 的转换或排版且只回收本次启动的进程，失败返回具体原因"""
     if os.name != "nt":
+        record("system", "unavailable", "Word 自动转换不可用", level="warning", source="word")
         return "此自动转换需要 Windows 上的 Microsoft Word。"
     with RENDER_LOCK:
         owner_file = output.with_suffix(".owner.json")
@@ -52,10 +56,26 @@ def word_process(source: Path, output: Path, mode="render") -> str | None:
                 creationflags=0x08000000,
             )
             if result.returncode or not output.exists():
+                record(
+                    "system",
+                    "failed",
+                    "Word 自动处理失败",
+                    {"exit_code": result.returncode, "stderr": result.stderr},
+                    source="word",
+                    level="error",
+                )
                 detail = result.stderr.strip().splitlines()
                 return "Word 自动处理失败。" + (detail[-1][:300] if detail else "")
             return None
         except (OSError, subprocess.TimeoutExpired) as exc:
+            record(
+                "system",
+                "failed",
+                "Word 进程异常或超时",
+                {"error": str(exc)},
+                source="word",
+                level="error",
+            )
             return f"Word 自动处理失败：{exc}"
         finally:
             if owner_file.exists():

@@ -28,6 +28,7 @@ flowchart LR
 
 - 每轮在系统盘 `ResumeMakerSandbox/task-*` 建立独立目录。父目录及任务文件 ACL 只允许当前账户、管理员和 SYSTEM；任务结束清理。脱敏材料和控制文件分开保存。
 - CLI 使用新的 `CODEX_HOME`、`--ephemeral`、`--ignore-user-config`、`--ignore-rules` 和严格配置，不续用供应商会话。仅复制 `auth.json`；不复制旧历史、技能、插件和项目规则。
+- `CODEX_HOME` 使用 `control/codex-home`，`TEMP/TMP/TMPDIR` 使用同级的 `control/tmp`，避免 CLI 因配置目录位于临时文件目录内而拒绝创建 PATH 辅助程序；两者都留在本轮任务目录并随任务清理。保留 `skip_host_skill_discovery`，通过 `suppress_unstable_features_warning` 关闭开发功能启动提示，其他诊断继续写入日志。
 - 每轮生成受控模型目录，保留用户选定的模型名称，固定标准 Responses 工具协议、禁用 shell、补丁和代码编排。CLI 内置模型元数据可能重新启用这些能力，仅关闭功能开关不足以保证工具集合。
 - 禁用 shell、补丁、浏览器、计算机操作、图片、网络搜索、代理、记忆和外部 MCP。只注册内置 `resume_materials` 服务：`read_material` 和 `search_materials` 读取初始材料，源码任务另提供 `list_source_files`、`search_sources` 和 `read_source`。CLI 保留自身的 MCP 资源调度和交互工具，本服务不提供资源、写入、任意网络或执行接口。
 - 静态材料只接受 `context.txt` 和 `source-0001.txt` 这类生成编号。源码工具接受本轮来源编号和相对路径，经受信任后端核验范围后返回脱敏结果；绝对路径、`..`、Windows ADS、链接、硬链接、凭据和应用自身数据目录被拒绝。读取最多 200 行，单次结果最多约 24000 字符，列表和搜索每页最多 100 条，可继续访问。

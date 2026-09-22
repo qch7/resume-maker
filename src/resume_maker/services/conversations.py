@@ -2,6 +2,7 @@
 
 from resume_maker.core.errors import Problem
 from resume_maker.infrastructure.database import now, uid
+from resume_maker.infrastructure.observability import record
 from resume_maker.services.catalog import Catalog
 
 
@@ -71,4 +72,11 @@ class Conversations:
                 "INSERT INTO messages VALUES (?,?,NULL,'system',?,?)",
                 (uid(), conversation_id, "下次请求将以当前经历和已保存历史重建模型上下文。", now()),
             )
+        record(
+            "ai",
+            "system",
+            "下次请求将以当前经历和已保存历史重建模型上下文。",
+            {"role": "system", "text": "下次请求将以当前经历和已保存历史重建模型上下文。"},
+            conversation_id=conversation_id,
+        )
         return {"ok": True}

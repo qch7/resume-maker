@@ -10,6 +10,7 @@ import time
 
 import psutil
 
+from resume_maker.infrastructure.observability import operation, record
 from resume_maker.integrations.providers.base import Cancelled, ProviderError
 
 MAX_OUTPUT = 16 * 1024 * 1024
@@ -62,10 +63,19 @@ def windows_job(process):
         raise
 
 
+def process_title(arguments):
+    """从固定子命令区分版本检查和模型调用，标题不包含路径或提示词"""
+    command = arguments.get("command", ())
+    action = command[1] if len(command) > 1 else ""
+    return {"--version": "CLI 版本检查", "exec": "CLI 模型调用"}.get(action, "CLI 进程")
+
+
+@operation("cli.process", "system", title=process_title)
 def execute(command, *, cwd, env, timeout, cancelled, stdin="", event=None):
     """通过有界队列接收输出，超时和取消及时关闭整个请求"""
     if cancelled.is_set():
         raise Cancelled("请求已取消。")
+    label = process_title({"command": command})
     process = subprocess.Popen(
         command,
         cwd=cwd,
@@ -137,12 +147,29 @@ def execute(command, *, cwd, env, timeout, cancelled, stdin="", event=None):
             total += len(raw)
             if len(raw) > MAX_LINE or total > MAX_OUTPUT:
                 raise ProviderError("CLI 输出超过大小限制，已停止本次请求。")
+            if channel == "stderr":
+                record(
+                    "system",
+                    "stderr",
+                    f"{label} · 标准错误输出",
+                    {"text": raw.decode("utf-8", "replace")},
+                    source="codex-cli",
+                    level="warning",
+                )
             if channel == "stdout":
                 line = raw.decode("utf-8", "replace")
                 if event:
                     try:
                         value = json.loads(line)
                     except ValueError:
+                        record(
+                            "system",
+                            "stdout",
+                            f"{label} · 非 JSON 输出",
+                            {"text": line},
+                            source="codex-cli",
+                            level="warning",
+                        )
                         continue
                     if isinstance(value, dict):
                         event(value)

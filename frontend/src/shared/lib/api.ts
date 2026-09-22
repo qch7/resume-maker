@@ -12,6 +12,21 @@ export class ApiError extends Error {
   }
 }
 
+/** 上报浏览器错误，使用独立请求避免日志接口失败后递归记录 */
+export function reportClientError(event: string, failure: unknown, path = "") {
+  const error = failure instanceof Error ? failure : new Error(String(failure));
+  void fetch("/api/activity/client", {
+    method: "POST",
+    headers: { "x-resume-token": token, "content-type": "application/json" },
+    body: JSON.stringify({
+      event,
+      message: error.message.slice(0, 2000),
+      stack: (error.stack ?? "").slice(0, 12000),
+      path: path.slice(0, 2000),
+    }),
+  }).catch(() => undefined);
+}
+
 /** 携带实例令牌发送同源请求并将失败响应转为 API 异常 */
 export async function request(
   path: string,
@@ -24,6 +39,10 @@ export async function request(
       ...(options.body ? { "content-type": "application/json" } : {}),
       ...options.headers,
     },
+  }).catch((error: Error) => {
+    if (!path.startsWith("/activity") && !options.signal?.aborted)
+      reportClientError("network_error", error, path);
+    throw error;
   });
   if (!response.ok) {
     const body = await response.json().catch(

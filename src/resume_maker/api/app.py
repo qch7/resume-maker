@@ -5,9 +5,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from resume_maker import __version__
+from resume_maker.api.activity import ActivityMiddleware
 from resume_maker.api.dependencies import Services
 from resume_maker.api.middleware import configure_middleware
 from resume_maker.api.routes import (
+    activity,
     conversations,
     honors,
     jobs,
@@ -20,7 +22,9 @@ from resume_maker.api.routes import (
 )
 from resume_maker.api.static import mount_frontend
 from resume_maker.core.config import Config
+from resume_maker.infrastructure.activity import ActivityLog
 from resume_maker.infrastructure.database import Database
+from resume_maker.infrastructure.observability import install_logging, instrument_service
 from resume_maker.integrations.providers.base import Provider
 from resume_maker.services.catalog import Catalog
 from resume_maker.services.conversations import Conversations
@@ -39,6 +43,9 @@ def create_app(config: Config | None = None, provider: Provider | None = None) -
     config = config or Config()
     config.prepare()
     db = Database(config.data_dir / "resume.db")
+    db.activity = ActivityLog(config.data_dir / "logs" / "activity.sqlite", secrets=(config.token,))
+    db.activity.import_history(db)
+    install_logging()
     catalog = Catalog(db)
     queue = Jobs(db, catalog, config.data_dir, provider)
     template_service = Templates(catalog, config.data_dir, queue.provider)
@@ -60,9 +67,30 @@ def create_app(config: Config | None = None, provider: Provider | None = None) -
         workspace=Workspace(catalog),
     )
 
+    for name in (
+        "catalog",
+        "jobs",
+        "honors",
+        "documents",
+        "resume_previews",
+        "templates",
+        "template_library",
+        "projects",
+        "conversations",
+        "workspace",
+    ):
+        instrument_service(
+            getattr(services, name),
+            db.activity,
+            name,
+            background=("_run", "_analyze", "_recognize"),
+        )
+    instrument_service(catalog.history, db.activity, "history")
+
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         """随服务器启动队列并在正常关闭或异常退出时回收任务进程"""
+        db.activity.write("system", "startup", "本机服务启动", {"instance_id": config.instance_id})
         queue.start()
         services.honors.start()
         services.template_library.start()
@@ -74,11 +102,14 @@ def create_app(config: Config | None = None, provider: Provider | None = None) -
             services.templates.stop()
             services.resume_previews.stop()
             queue.stop()
+            db.activity.write("system", "shutdown", "本机服务停止")
 
     app = FastAPI(title="Resume Maker", version=__version__, lifespan=lifespan)
     app.state.services = services
     configure_middleware(app, config)
+    app.add_middleware(ActivityMiddleware, log=db.activity)
     for module in (
+        activity,
         system,
         projects,
         conversations,

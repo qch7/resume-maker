@@ -113,6 +113,7 @@ def restore_backup(archive_path: Path, directory: Path) -> Path | None:
         *FOLDERS,
         "workspaces",
         "backups",
+        "logs",
         "resume.db",
         "resume.db-wal",
         "resume.db-shm",

@@ -6,6 +6,7 @@ import shutil
 import sys
 from pathlib import Path
 
+from resume_maker.infrastructure.observability import protect_secrets, record
 from resume_maker.integrations.providers.base import ProviderError
 from resume_maker.integrations.providers.connection import connection
 from resume_maker.integrations.providers.credentials import isolated_credentials
@@ -90,6 +91,7 @@ def safety_settings(root, values, endpoint=None):
         "memories.generate_memories": False,
         "include_apps_instructions": False,
         "include_environment_context": False,
+        "suppress_unstable_features_warning": True,
         "history.persistence": "none",
         "check_for_update_on_startup": False,
         "log_dir": str(root / "control/logs"),
@@ -103,6 +105,7 @@ def safety_settings(root, values, endpoint=None):
 def run_cli(payload, settings, environment, cancelled, emit, *, source_access=None):
     """在临时 CLI home 中开启受限工具会话，只向只读服务提供脱敏副本"""
     selected, env = connection(settings, environment)
+    protect_secrets(env.get("RESUME_MAKER_PROVIDER_KEY"), env.get("OPENAI_API_KEY"))
     with (
         workspace() as root,
         isolated_credentials(root, env, cancelled) as env,
@@ -117,7 +120,10 @@ def run_cli(payload, settings, environment, cancelled, emit, *, source_access=No
             (root / "control/source-access.json").write_text(json.dumps(endpoint), encoding="utf-8")
         values = safety_settings(root, selected, endpoint)
         values["model_catalog_json"] = write_catalog(root, selected)
-        env["TEMP"] = env["TMP"] = str(root / "control")
+        # 临时文件和 CLI home 分开，避免 CLI 将自身辅助程序判定为位于临时目录内
+        temporary = root / "control/tmp"
+        temporary.mkdir()
+        env.update(dict.fromkeys(("TEMP", "TMP", "TMPDIR"), str(temporary)))
         version = execute(
             [executable, "--version"], cwd=root, env=env, timeout=15, cancelled=cancelled
         )
@@ -155,7 +161,34 @@ def run_cli(payload, settings, environment, cancelled, emit, *, source_access=No
         state = {"completed": False, "message": ""}
 
         def event(value):
-            """只公开通用活动及用量，不记录命令、环境、错误正文或推理原文"""
+            """在本机保存 CLI 消息和工具轨迹，既有进度界面仍使用通用活动摘要"""
+            item = value.get("item", {})
+            item_type = item.get("type", "")
+            is_tool = item_type in {
+                "mcp_tool_call",
+                "command_execution",
+                "file_change",
+                "web_search",
+                "image_generation",
+                "collab_tool_call",
+            }
+            record(
+                "tool" if is_tool else "ai",
+                value.get("type", "event"),
+                item.get("tool")
+                or item.get("text")
+                or item.get("message")
+                or value.get("message")
+                or item_type
+                or value.get("type", "CLI 活动"),
+                value,
+                source="codex-cli",
+                level="error"
+                if value.get("type") in {"error", "turn.failed"}
+                or item_type == "error"
+                or item.get("status") == "failed"
+                else "info",
+            )
             kind = value.get("type")
             if kind == "turn.completed":
                 state["completed"] = True
@@ -192,6 +225,7 @@ def run_cli(payload, settings, environment, cancelled, emit, *, source_access=No
                         raise ProviderError("CLI 使用了未登记的工具，本次请求已停止。")
                     emit("activity", {"type": "material_read", "text": "CLI 正在检查脱敏副本"})
 
+        record("ai", "system", "CLI 系统指令及材料入口", {"prompt": prompt}, source="codex-cli")
         emit("status", {"text": "正在使用 CLI 和只读工具分析脱敏副本"})
         execute(
             command,
