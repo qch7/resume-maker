@@ -8,7 +8,6 @@ import {
   RefreshCw,
   Search,
   Settings2,
-  SlidersHorizontal,
   X,
 } from "lucide-react";
 import { api, download } from "../../shared/lib/api";
@@ -18,6 +17,7 @@ import { clamp } from "../../shared/lib/layout";
 import { loadLocal } from "../../shared/lib/storage";
 import ActivitySettings from "./ActivitySettings";
 import ActivityMultiSelect from "./ActivityMultiSelect";
+import ActivityTimeFilter from "./ActivityTimeFilter";
 import {
   DEFAULT_ACTIVITY_PREFERENCES,
   restoreActivityPreferences,
@@ -26,6 +26,7 @@ import {
 import {
   CATEGORIES,
   eventPosition,
+  eventPhase,
   eventTime,
   isHiddenPolling,
   type ActivityEvent,
@@ -43,7 +44,6 @@ export default function Activity() {
     ),
   );
   const [settings, setSettings] = useState(false);
-  const [advanced, setAdvanced] = useState(false);
   const [category, setCategory] = useState<string[]>([]);
   const [level, setLevel] = useState<string[]>([]);
   const [search, setSearch] = useState("");
@@ -256,7 +256,7 @@ export default function Activity() {
         />
         <label
           className="activity-polling-toggle"
-          title="按日志设置中的路径和操作名隐藏普通轮询记录，保留警告和错误"
+          title="隐藏轮询重复步骤和普通读取，保留每轮响应、慢调用、警告和错误"
         >
           <input
             type="checkbox"
@@ -270,42 +270,7 @@ export default function Activity() {
           />
           隐藏轮询日志
         </label>
-        <button
-          className={time.today ? "active" : ""}
-          aria-pressed={time.today}
-          onClick={time.showToday}
-          title="本地时间今天的日志"
-        >
-          今天
-        </button>
-        <button
-          aria-label="时间筛选"
-          aria-expanded={advanced}
-          className={since || until ? "active" : ""}
-          onClick={() => setAdvanced(!advanced)}
-        >
-          <SlidersHorizontal size={14} />
-        </button>
-        {advanced && (
-          <div className="activity-time-filters">
-            <input
-              type="datetime-local"
-              step="0.001"
-              aria-label="开始时间"
-              value={since}
-              onChange={(event) => time.change("since", event.target.value)}
-            />
-            <span className="subtle">至</span>
-            <input
-              type="datetime-local"
-              step="0.001"
-              aria-label="结束时间"
-              value={until}
-              onChange={(event) => time.change("until", event.target.value)}
-            />
-            <button onClick={time.clear}>清除时间</button>
-          </div>
-        )}
+        <ActivityTimeFilter time={time} />
         {trace && (
           <button
             className="activity-trace-filter"
@@ -333,7 +298,9 @@ export default function Activity() {
             </span>
           </div>
           {tracks
-            .filter(([key]) => !category.length || category.includes(key))
+            .filter(([key]) =>
+              category.length ? category.includes(key) : !!page?.counts[key],
+            )
             .map(([key, label]) => (
               <div className="activity-track" key={key}>
                 <button
@@ -467,8 +434,12 @@ export default function Activity() {
                   {CATEGORIES[event.category as keyof typeof CATEGORIES] ??
                     event.category}
                 </span>
-                <span className="activity-event-kind">{event.event}</span>
-                <span className="activity-row-title">{event.title}</span>
+                <span className="activity-event-kind" title={event.event}>
+                  {eventPhase(event)}
+                </span>
+                <span className="activity-row-title" title={event.title}>
+                  {event.title}
+                </span>
                 {event.level !== "info" && (
                   <span className="activity-level">
                     {event.level === "error" ? "错误" : "警告"}
@@ -597,10 +568,24 @@ function ActivityDetail({
       </header>
       <div className="activity-detail-scroll">
         <h2>{event.title}</h2>
+        {event.source === "provider.run_structured" &&
+          ["started", "completed"].includes(event.event) && (
+            <p className="activity-stage-note">
+              {event.event === "started"
+                ? "本机原始输入 · 脱敏前，不代表外发内容"
+                : "本机还原结果 · 含还原后的个人资料"}
+            </p>
+          )}
+        {event.category === "ai" && event.event === "context" && (
+          <p className="activity-stage-note">模型上下文 · 已经过脱敏处理</p>
+        )}
         <dl>
           <dt>时间</dt>
           <dd>
-            {new Date(event.created_at).toLocaleString()} · {event.created_at}
+            <time dateTime={event.created_at} title={event.created_at}>
+              {new Date(event.created_at).toLocaleDateString()}{" "}
+              {eventTime(event.created_at)}
+            </time>
           </dd>
           <dt>来源</dt>
           <dd>
@@ -618,9 +603,9 @@ function ActivityDetail({
                 <button
                   className="text-button"
                   onClick={() => onTrace(event.trace_id)}
-                  title="筛选同一请求及其后台任务"
+                  title={`筛选同一请求及其后台任务：${event.trace_id}`}
                 >
-                  {event.trace_id}
+                  {event.trace_id.slice(0, 8)}…{event.trace_id.slice(-8)}
                 </button>
               </dd>
             </>

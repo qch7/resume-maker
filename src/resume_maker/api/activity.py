@@ -76,20 +76,15 @@ class ActivityMiddleware:
             await send(message)
 
         with activity_scope(self.log, trace_id=trace_id, span_id=span_id, source="http"):
-            record(
-                "api",
-                "request",
-                title,
-                {
-                    "method": scope["method"],
-                    "path": path,
-                    "query": parse_qs(scope.get("query_string", b"").decode("utf-8", "replace")),
-                    "headers": {
-                        key.decode("latin-1"): value.decode("latin-1")
-                        for key, value in headers.items()
-                    },
+            request_info = {
+                "method": scope["method"],
+                "path": path,
+                "query": parse_qs(scope.get("query_string", b"").decode("utf-8", "replace")),
+                "headers": {
+                    key.decode("latin-1"): value.decode("latin-1") for key, value in headers.items()
                 },
-            )
+            }
+            record("api", "request", title, request_info)
             error = None
             try:
                 await self.app(scope, read, write)
@@ -103,9 +98,14 @@ class ActivityMiddleware:
                     f"{title} · {status}",
                     {
                         "status": status,
-                        "request": body_detail(
-                            request_body, request_size, headers.get(b"content-type", b"").decode()
-                        ),
+                        "request": {
+                            **request_info,
+                            **body_detail(
+                                request_body,
+                                request_size,
+                                headers.get(b"content-type", b"").decode(),
+                            ),
+                        },
                         "response": body_detail(response_body, response_size, response_type),
                         "error": error,
                     },

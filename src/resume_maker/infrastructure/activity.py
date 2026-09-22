@@ -226,7 +226,7 @@ class ActivityLog:
             service_patterns = [
                 wildcard_pattern(rule.strip())
                 for rule in dict.fromkeys(hidden_rules.splitlines())
-                if rule.strip() and not rule.strip().startswith("/api/")
+                if rule.strip() and "/" not in rule and ":" not in rule
             ]
         elif hidden_rules is None and hide_maintenance:
             service_patterns = [wildcard_pattern("template_library.purge_expired")]
@@ -234,6 +234,7 @@ class ActivityLog:
             matches = " OR ".join("source LIKE ? ESCAPE '\\'" for _ in service_patterns)
             clauses.append(
                 "NOT (category='service' AND level='info' AND event IN ('started','completed') "
+                "AND COALESCE(duration_ms,0)<1000 "
                 f"AND (({matches}) OR "
                 "(source='template_library.state' AND parent_span_id IN "
                 "(SELECT span_id FROM activity WHERE category='service' "
@@ -241,9 +242,25 @@ class ActivityLog:
                 f"AND ({matches})))))"
             )
             args.extend(service_patterns * 2)
+        if hidden_rules is not None and hide_polling and not trace_id:
+            for rule in dict.fromkeys(hidden_rules.splitlines()):
+                if ":" in rule and "/" not in rule:
+                    kind, event = rule.strip().split(":", 1)
+                    clauses.append(
+                        "NOT (level='info' AND category=? AND event LIKE ? ESCAPE '\\' "
+                        "AND COALESCE(duration_ms,0)<1000)"
+                    )
+                    args.extend((kind, wildcard_pattern(event)))
         if hide_polling and not trace_id:
+            event_filter = (
+                "((category='api' AND event<>'response') OR "
+                "(category='service' AND event IN ('started','completed') "
+                "AND COALESCE(duration_ms,0)<1000))"
+                if hidden_rules is not None
+                else "category IN ('api','service')"
+            )
             clauses.append(
-                "NOT (category IN ('api','service') AND level='info' "
+                f"NOT ({event_filter} AND level='info' "
                 "AND trace_id IN (SELECT trace_id FROM hidden_polling))"
             )
         for key, value in {"category": category, "level": level}.items():
@@ -295,8 +312,13 @@ class ActivityLog:
                 polling_paths = hidden_rules
             for path in dict.fromkeys(polling_paths.splitlines()):
                 path = path.strip()
-                if path.startswith("/api/"):
-                    patterns.append("GET " + wildcard_pattern(path) + " · 200")
+                match = re.fullmatch(
+                    r"(?:(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) )?(/api/[^\s?#]*)", path
+                )
+                if match:
+                    patterns.append(
+                        (match[1] or "GET") + " " + wildcard_pattern(match[2]) + " · 200"
+                    )
         matches = " OR ".join("title LIKE ? ESCAPE '\\'" for _ in patterns) or "0"
         return (
             "WITH hidden_polling AS (SELECT trace_id,MAX(id) AS completed_id FROM activity "

@@ -56,13 +56,40 @@ export function mergeEvents(
   return older ? sorted.slice(0, 3000) : sorted.slice(-3000);
 }
 
-/** 成功响应到达后移除普通轮询活动，保留警告、错误和 AI 工具记录 */
+/** 成功响应到达后撤回重复步骤，保留响应、慢操作、警告和错误 */
 export function isHiddenPolling(event: ActivityEvent, hidden: Set<string>) {
   return (
     hidden.has(event.trace_id) &&
     event.level === "info" &&
-    ["api", "service"].includes(event.category)
+    ((event.category === "api" && event.event !== "response") ||
+      (event.category === "service" &&
+        ["started", "completed"].includes(event.event) &&
+        (event.duration_ms ?? 0) < 1000))
   );
+}
+
+/** 将执行阶段改为简短中文，区分本机原文和模型上下文 */
+export function eventPhase(event: ActivityEvent) {
+  if (event.source === "provider.run_structured") {
+    if (event.event === "started") return "原始输入";
+    if (event.event === "completed") return "本机还原";
+  }
+  const labels: Record<string, string> = {
+    request: "请求",
+    response: "响应",
+    started: "开始",
+    completed: "完成",
+    failed: "失败",
+    context: "脱敏输入",
+    system: "系统指令",
+    status: "进度",
+    "thread.started": "会话开始",
+    "turn.started": "轮次开始",
+    "turn.completed": "轮次完成",
+    "item.started": "消息开始",
+    "item.completed": "消息完成",
+  };
+  return labels[event.event] ?? event.event;
 }
 
 /** 以可见事件的真实时间定位轨道标记，同毫秒事件仍保留可选择位置 */

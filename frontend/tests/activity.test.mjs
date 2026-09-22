@@ -43,14 +43,42 @@ test("活动轨道按真实时间定位且处理同毫秒事件", () => {
 test("成功轮询响应撤回缓存中的请求，保留警告和工具消息", () => {
   const values = [
     { ...event(1), category: "api", level: "info", trace_id: "poll" },
-    { ...event(2), category: "service", level: "info", trace_id: "poll" },
+    {
+      ...event(2),
+      category: "service",
+      level: "info",
+      event: "started",
+      trace_id: "poll",
+    },
     { ...event(3), category: "service", level: "warning", trace_id: "poll" },
     { ...event(4), category: "tool", level: "info", trace_id: "poll" },
     { ...event(5), category: "api", level: "info", trace_id: "other" },
+    {
+      ...event(6),
+      category: "api",
+      level: "info",
+      event: "response",
+      trace_id: "poll",
+    },
+    {
+      ...event(7),
+      category: "service",
+      level: "info",
+      event: "completed",
+      duration_ms: 1200,
+      trace_id: "poll",
+    },
+    {
+      ...event(8),
+      category: "service",
+      level: "info",
+      event: "deleted",
+      trace_id: "poll",
+    },
   ];
   assert.deepEqual(
     mergeEvents(values, [], false, ["poll"]).map((item) => item.id),
-    [3, 4, 5],
+    [3, 4, 5, 6, 7, 8],
   );
 });
 
@@ -78,7 +106,10 @@ test("默认过滤开启，保存的开关、规则和面板尺寸可恢复", ()
   });
   assert.equal(broken.hidePolling, true);
   assert.equal(broken.hiddenRules, DEFAULT_ACTIVITY_PREFERENCES.hiddenRules);
-  assert.equal(broken.overviewHeight, 160);
+  assert.equal(
+    broken.overviewHeight,
+    DEFAULT_ACTIVITY_PREFERENCES.overviewHeight,
+  );
   assert.equal(broken.detailWidth, 32);
   assert.equal(hiddenRuleError("/api/state\n/api/custom/*"), "");
   assert.equal(hiddenRuleError(""), "");

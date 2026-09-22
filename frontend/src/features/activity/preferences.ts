@@ -1,10 +1,34 @@
 export const DEFAULT_POLLING_PATHS =
   "/api/state\n/api/honors\n/api/templates/analyses/*/progress";
-export const DEFAULT_HIDDEN_RULES = `${DEFAULT_POLLING_PATHS}\ntemplate_library.purge_expired`;
+const PREVIOUS_HIDDEN_RULES = `${DEFAULT_POLLING_PATHS}\ntemplate_library.purge_expired`;
+export const DEFAULT_HIDDEN_RULES = [
+  DEFAULT_POLLING_PATHS,
+  "GET /api/templates/analyses/*",
+  "POST /api/templates/analyses/*/review",
+  "template_library.purge_expired",
+  "template_library.state",
+  "workspace.state",
+  "catalog.project",
+  "catalog.revision",
+  "catalog.template",
+  "catalog.conversation",
+  "catalog.working",
+  "templates.get",
+  "templates.source",
+  "templates.projects",
+  "templates.progress",
+  "honors.get",
+  "honors.list",
+  "honors.file",
+  "conversations.archived_conversations",
+  "conversations.get_conversation",
+  "ai:thread.started",
+  "ai:turn.started",
+].join("\n");
 export const DEFAULT_ACTIVITY_PREFERENCES = {
   hidePolling: true,
   hiddenRules: DEFAULT_HIDDEN_RULES,
-  overviewHeight: 160,
+  overviewHeight: 136,
   detailWidth: 460,
   detailHeight: 280,
 };
@@ -25,7 +49,10 @@ export function restoreActivityPreferences(
     typeof value?.hiddenRules === "string" &&
     !hiddenRuleError(value.hiddenRules)
   ) {
-    result.hiddenRules = value.hiddenRules;
+    result.hiddenRules =
+      value.hiddenRules.trim() === PREVIOUS_HIDDEN_RULES
+        ? DEFAULT_HIDDEN_RULES
+        : value.hiddenRules;
   } else {
     const paths =
       typeof value?.pollingPaths === "string" &&
@@ -43,6 +70,8 @@ export function restoreActivityPreferences(
       : value?.hideMaintenance === false
         ? DEFAULT_POLLING_PATHS
         : DEFAULT_HIDDEN_RULES;
+    if (migrated === PREVIOUS_HIDDEN_RULES)
+      result.hiddenRules = DEFAULT_HIDDEN_RULES;
   }
   for (const key of [
     "overviewHeight",
@@ -66,9 +95,12 @@ export function hiddenRuleError(value: string) {
   if (new Set(lines).size > 100) return "最多填写 100 条规则";
   return lines.some(
     (line) =>
-      !/^\/api\/[^\s?#]*$/.test(line) &&
+      !/^(?:(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) )?\/api\/[^\s?#]*$/.test(
+        line,
+      ) &&
+      !/^(?:ai|task|system|client):[A-Za-z0-9_.*-]+$/.test(line) &&
       !/^[A-Za-z_*][A-Za-z0-9_.*-]*\.[A-Za-z0-9_.*-]+$/.test(line),
   )
-    ? "每行填写 /api/ 路径或操作名（如 template_library.purge_expired），支持 *"
+    ? "填写 API 路径（可加 GET/POST 等方法）、操作名或 类型:事件，支持 *"
     : "";
 }

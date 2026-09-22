@@ -111,6 +111,8 @@
   padding: 0 12px 6px;
   flex-wrap: wrap;
   flex-shrink: 0;
+  position: relative;
+  z-index: 10;
 }
 .activity-filters input {
   padding: 5px 7px;
@@ -131,16 +133,43 @@
   min-height: 0;
   margin: 0;
 }
-.activity-time-filters {
-  display: flex;
-  flex-basis: 100%;
+.activity-time-filter {
+  position: relative;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.activity-time-filter > button {
+  min-height: 30px;
+  gap: 5px;
+  white-space: nowrap;
+}
+.activity-time-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: min(340px, calc(100vw - 24px));
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--panel);
+  box-shadow: 0 8px 24px #0003;
+  display: grid;
+  gap: 8px;
+  z-index: 30;
+}
+.activity-time-popover label {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
   align-items: center;
-  flex-wrap: wrap;
   gap: 6px;
+  margin: 0;
+}
+.activity-time-close {
+  margin-left: auto;
 }
 .activity-search {
   flex: 1;
-  min-width: 150px;
+  min-width: 180px;
   display: flex;
   align-items: center;
   padding-left: 10px;
@@ -216,7 +245,7 @@
   padding: 0;
 }
 .activity-filters input[type="datetime-local"] {
-  width: 190px;
+  width: 100%;
   font-size: 11px;
 }
 .activity-overview {
@@ -247,6 +276,11 @@
   margin-bottom: 4px;
   gap: 8px;
   white-space: nowrap;
+  position: sticky;
+  top: -4px;
+  z-index: 2;
+  background: var(--panel);
+  padding-block: 3px;
 }
 .activity-overview-meta b {
   color: var(--text);
@@ -254,7 +288,7 @@
 }
 .activity-track {
   display: flex;
-  height: 18px;
+  height: 16px;
   gap: 8px;
   align-items: center;
 }
@@ -275,7 +309,7 @@
 .activity-track-lane {
   flex: 1;
   position: relative;
-  height: 18px;
+  height: 16px;
   background: repeating-linear-gradient(
     90deg,
     var(--line) 0 1px,
@@ -402,7 +436,7 @@
   text-align: center;
 }
 .activity-event-kind {
-  width: 85px;
+  width: 62px;
   flex-shrink: 0;
   color: var(--subtle);
   font-size: 11px;
@@ -417,7 +451,7 @@
   font-size: 12px;
 }
 .activity-duration {
-  width: 65px;
+  width: 54px;
   flex-shrink: 0;
   color: var(--subtle);
   font-size: 11px;
@@ -470,7 +504,7 @@
   font-size: 11px;
 }
 .activity-detail-scroll {
-  padding: 10px;
+  padding: 8px 10px;
   overflow: auto;
 }
 .activity-detail h2 {
@@ -482,12 +516,20 @@
 }
 .activity-detail h3 {
   font-size: 12px;
-  margin-top: 12px;
+  margin-block: 10px 6px;
+}
+.activity-stage-note {
+  margin: 6px 0;
+  padding: 5px 7px;
+  border-left: 2px solid var(--accent);
+  background: var(--accent-soft);
+  font-size: 11px;
+  line-height: 1.5;
 }
 .activity-detail dl {
   display: grid;
-  grid-template-columns: 75px minmax(0, 1fr);
-  gap: 6px;
+  grid-template-columns: 62px minmax(0, 1fr);
+  gap: 4px 6px;
   font-size: 11px;
 }
 .activity-detail dt {
@@ -512,6 +554,7 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   font-family: ui-monospace, Consolas, monospace;
+  margin: 0;
 }
 .activity-error {
   display: flex;
@@ -541,9 +584,6 @@
   }
 }
 @media (max-width: 1100px) {
-  .activity-filters input[type="datetime-local"] {
-    width: 170px;
-  }
   .activity-row {
     padding-inline: 12px;
     gap: 8px;
@@ -561,9 +601,6 @@
   .activity-filters,
   .activity-overview {
     padding-inline: 12px;
-  }
-  .activity-filters input[type="datetime-local"] {
-    width: 155px;
   }
   .activity-event-kind,
   .activity-duration {

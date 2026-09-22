@@ -59,9 +59,12 @@ export default function ActivitySettings({
         value={draft}
         spellCheck={false}
         onChange={(event) => setDraft(event.target.value)}
-        rows={6}
+        rows={9}
       />
-      <small>每行填写 API 路径或操作名，支持 *；保留警告和错误。</small>
+      <small>
+        每行一条，支持 *。路径默认 GET，也可填 POST /api/…、操作名或
+        ai:turn.started。轮询保留响应，警告、错误和 ≥1 秒操作始终保留。
+      </small>
       {error && <span role="alert">{error}</span>}
       <div className="row">
         <button onClick={() => setDraft(DEFAULT_HIDDEN_RULES)}>恢复默认</button>

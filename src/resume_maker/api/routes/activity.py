@@ -63,9 +63,12 @@ class ActivityQuery(BaseModel):
             raise ValueError("最多填写 100 条隐藏规则")
         for line in lines:
             if not re.fullmatch(
-                r"/api/[^\s?#]*|[A-Za-z_*][A-Za-z0-9_.*-]*\.[A-Za-z0-9_.*-]+", line
+                r"(?:(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) )?/api/[^\s?#]*|"
+                r"(?:ai|task|system|client):[A-Za-z0-9_.*-]+|"
+                r"[A-Za-z_*][A-Za-z0-9_.*-]*\.[A-Za-z0-9_.*-]+",
+                line,
             ):
-                raise ValueError("隐藏规则须为 /api/ 路径或操作名，支持星号通配符")
+                raise ValueError("隐藏规则须为 API 路径、操作名或类型:事件，支持方法前缀和星号")
         return "\n".join(lines)
 
 
