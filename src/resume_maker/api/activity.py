@@ -1,5 +1,6 @@
 """在 ASGI 边界观测请求和响应，不缓存或重放上传及流式正文"""
 
+import hashlib
 import json
 import time
 import traceback
@@ -11,9 +12,11 @@ from resume_maker.infrastructure.observability import activity_scope, record
 BODY_LIMIT = 32_768
 
 
-def body_detail(body, size, content_type):
+def body_detail(body, size, content_type, checksum=""):
     """JSON 和文字提供有界正文，上传及下载只记录类型和字节数"""
     value = {"content_type": content_type, "bytes": size}
+    if checksum:
+        value["sha256"] = checksum
     if "json" in content_type or content_type.startswith("text/"):
         text = body.decode("utf-8", "replace")
         try:
@@ -43,6 +46,7 @@ class ActivityMiddleware:
             return await self.app(scope, receive, send)
         trace_id, span_id = str(uuid4()), str(uuid4())
         request_body, response_body = bytearray(), bytearray()
+        request_digest, response_digest = hashlib.sha256(), hashlib.sha256()
         request_size = response_size = 0
         status, response_type = 500, ""
         headers = dict(scope.get("headers", []))
@@ -56,6 +60,7 @@ class ActivityMiddleware:
             if message["type"] == "http.request":
                 body = message.get("body", b"")
                 request_size += len(body)
+                request_digest.update(body)
                 request_body.extend(body[: max(0, BODY_LIMIT - len(request_body))])
             return message
 
@@ -72,6 +77,7 @@ class ActivityMiddleware:
             elif message["type"] == "http.response.body":
                 body = message.get("body", b"")
                 response_size += len(body)
+                response_digest.update(body)
                 response_body.extend(body[: max(0, BODY_LIMIT - len(response_body))])
             await send(message)
 
@@ -104,9 +110,12 @@ class ActivityMiddleware:
                                 request_body,
                                 request_size,
                                 headers.get(b"content-type", b"").decode(),
+                                request_digest.hexdigest(),
                             ),
                         },
-                        "response": body_detail(response_body, response_size, response_type),
+                        "response": body_detail(
+                            response_body, response_size, response_type, response_digest.hexdigest()
+                        ),
                         "error": error,
                     },
                     level="error"

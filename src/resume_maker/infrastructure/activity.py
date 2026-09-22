@@ -1,5 +1,6 @@
 """独立保存可检索的本机活动，日志写入失败不影响业务事务"""
 
+import hashlib
 import json
 import re
 import sqlite3
@@ -44,7 +45,20 @@ CREATE INDEX IF NOT EXISTS activity_trace ON activity(trace_id, id);
 CREATE INDEX IF NOT EXISTS activity_job ON activity(job_id, id);
 CREATE INDEX IF NOT EXISTS activity_time ON activity(created_at);
 CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS activity_responses (
+ id INTEGER PRIMARY KEY REFERENCES activity(id) ON DELETE CASCADE,
+ endpoint TEXT NOT NULL, request_key TEXT NOT NULL, signature TEXT NOT NULL,
+ complete INTEGER NOT NULL, important INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS activity_response_order ON activity_responses(request_key,id);
 """
+
+
+def response_digest(value):
+    """以固定键序计算比较摘要，不在索引中重复保存业务正文"""
+    return hashlib.sha256(
+        json.dumps(value, ensure_ascii=False, sort_keys=True).encode()
+    ).hexdigest()
 
 
 def wildcard_pattern(value):
@@ -133,13 +147,77 @@ class ActivityLog:
             conn.execute("BEGIN IMMEDIATE")
             self._remember_cursor(conn, self._cursor(conn))
             self._prune(conn)
+            for row in conn.execute(
+                "SELECT id,title,trace_id,level,payload_json FROM activity "
+                "WHERE category='api' AND event='response' "
+                "AND id NOT IN (SELECT id FROM activity_responses)"
+            ):
+                self._index_response(conn, dict(row))
             conn.commit()
 
     def connect(self, *, check_same_thread=True):
         """创建短连接，日志锁和业务事务互不共享"""
         conn = sqlite3.connect(self.path, timeout=2, check_same_thread=check_same_thread)
         conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys=ON")
         return conn
+
+    def _index_response(self, conn, values):
+        """索引请求及结果变化，旧记录只能比较已捕获正文和长度"""
+        payload = json.loads(values["payload_json"])
+        payload = payload if isinstance(payload, dict) else {}
+        request = payload.get("request", {})
+        response = payload.get("response", {})
+        request = request if isinstance(request, dict) else {}
+        response = response if isinstance(response, dict) else {}
+        endpoint = values["title"].rsplit(" · ", 1)[0]
+        query = request.get("query")
+        if query is None and values.get("trace_id"):
+            original = conn.execute(
+                "SELECT payload_json FROM activity WHERE trace_id=? AND category='api' "
+                "AND event='request' ORDER BY id LIMIT 1",
+                (values["trace_id"],),
+            ).fetchone()
+            original = json.loads(original[0]) if original else {}
+            query = original.get("query", {}) if isinstance(original, dict) else {}
+        complete = bool(response.get("sha256")) or (
+            "body" in response and not response.get("truncated", False)
+        )
+        complete = complete and (bool(request.get("sha256")) or not request.get("truncated", False))
+        result = response.get("body")
+        comparison = response.get("sha256") or response
+        if re.fullmatch(
+            r"GET /api/templates/analyses/[^/]+(?:/progress)?", endpoint
+        ) and isinstance(result, dict):
+            # 模板等待时的计时变化不代表结果变化，阶段和实际进度仍参与比较
+            comparison = {key: item for key, item in result.items() if key != "elapsed_ms"}
+        important = (
+            values["level"] != "info"
+            or payload.get("status") != 200
+            or bool(payload.get("error"))
+            or not response
+        )
+        if isinstance(result, dict) and result.get("errors"):
+            important = True
+        conn.execute(
+            "INSERT OR REPLACE INTO activity_responses VALUES (?,?,?,?,?,?)",
+            (
+                values["id"],
+                endpoint,
+                response_digest([endpoint, query]),
+                response_digest(
+                    [
+                        request.get("sha256")
+                        or {key: request.get(key) for key in ("body", "bytes", "content_type")},
+                        request.get("content_type"),
+                        comparison,
+                        response.get("content_type"),
+                    ]
+                ),
+                int(complete),
+                int(important),
+            ),
+        )
 
     def _prune(self, conn):
         """清理超龄及超量记录，自动递增游标始终不会复用"""
@@ -195,6 +273,8 @@ class ActivityLog:
                     tuple(values.values()),
                 )
                 if cursor.rowcount:
+                    if category == "api" and event == "response":
+                        self._index_response(conn, values)
                     self._remember_cursor(conn, values["id"])
                     if values["id"] % min(100, self.max_records) == 0:
                         self._prune(conn)
@@ -263,6 +343,11 @@ class ActivityLog:
                 f"NOT ({event_filter} AND level='info' "
                 "AND trace_id IN (SELECT trace_id FROM hidden_polling))"
             )
+        if self.collapse_polling(
+            hide_polling=hide_polling, hidden_rules=hidden_rules, trace_id=trace_id, q=q
+        ):
+            clauses.append("id NOT IN (SELECT id FROM polling_duplicates)")
+            clauses.append("id NOT IN (SELECT id FROM polling_request_starts)")
         for key, value in {"category": category, "level": level}.items():
             selected = list(
                 dict.fromkeys(item.strip() for item in value.split(",") if item.strip())
@@ -302,8 +387,19 @@ class ActivityLog:
             args.extend([pattern] * 6)
         return " AND ".join(clauses) or "1=1", args
 
+    def collapse_polling(self, *, hide_polling=False, hidden_rules=None, trace_id="", q="", **_):
+        """默认折叠连续重复轮询，关键词和关联排查保留具体记录"""
+        return hide_polling and hidden_rules is not None and not trace_id and not q
+
     def polling_cte(
-        self, *, hide_polling=False, polling_paths=DEFAULT_POLLING_PATHS, hidden_rules=None, **_
+        self,
+        *,
+        hide_polling=False,
+        polling_paths=DEFAULT_POLLING_PATHS,
+        hidden_rules=None,
+        since="",
+        until="",
+        **filters,
     ):
         """从成功响应识别轮询链路，路径只支持星号且其余字符按字面匹配"""
         patterns = []
@@ -320,17 +416,73 @@ class ActivityLog:
                         (match[1] or "GET") + " " + wildcard_pattern(match[2]) + " · 200"
                     )
         matches = " OR ".join("title LIKE ? ESCAPE '\\'" for _ in patterns) or "0"
-        return (
+        cte = (
             "WITH hidden_polling AS (SELECT trace_id,MAX(id) AS completed_id FROM activity "
             "WHERE category='api' AND event='response' AND level='info' AND trace_id<>'' "
-            f"AND ({matches}) GROUP BY trace_id) ",
-            patterns,
+            f"AND ({matches}) GROUP BY trace_id) "
         )
+        args = list(patterns)
+        if not self.collapse_polling(
+            hide_polling=hide_polling, hidden_rules=hidden_rules, **filters
+        ):
+            return cte, args
+        endpoints = [pattern.removesuffix(" · 200") for pattern in patterns]
+        starts = " OR ".join("title LIKE ? ESCAPE '\\'" for _ in endpoints) or "0"
+        cte += (
+            ", polling_request_starts AS (SELECT id FROM activity WHERE category='api' "
+            f"AND event='request' AND level='info' AND ({starts})) "
+        )
+        args.extend(endpoints)
+        matches = " OR ".join("r.endpoint LIKE ? ESCAPE '\\'" for _ in endpoints) or "0"
+        bounds = ""
+        args.extend(endpoints)
+        for operator, value in ((">=", since), ("<=", until)):
+            if value:
+                bounds += f" AND a.created_at {operator} ?"
+                args.append(value)
+        cte += (
+            ", polling_candidates AS (SELECT a.id,a.created_at,r.request_key,r.signature,r.complete,"
+            "CASE WHEN r.important=1 OR COALESCE(a.duration_ms,0)>=1000 THEN 1 ELSE 0 END AS preserve "
+            "FROM activity_responses r JOIN activity a ON a.id=r.id "
+            f"WHERE ({matches}){bounds}), "
+            "polling_ordered AS (SELECT *,"
+            "LAG(signature) OVER (PARTITION BY request_key ORDER BY id) AS previous_signature,"
+            "LAG(preserve) OVER (PARTITION BY request_key ORDER BY id) AS previous_preserve "
+            "FROM polling_candidates), "
+            "polling_numbered AS (SELECT *,SUM(CASE WHEN preserve=1 OR "
+            "COALESCE(previous_preserve,1)=1 OR signature<>previous_signature THEN 1 ELSE 0 END) "
+            "OVER (PARTITION BY request_key ORDER BY id) AS run_id FROM polling_ordered), "
+            "polling_groups AS (SELECT request_key,run_id,MIN(id) AS representative_id,"
+            "MAX(id) AS last_id,COUNT(*) AS repeat_count,MAX(1-complete) AS partial "
+            "FROM polling_numbered GROUP BY request_key,run_id), "
+            "polling_duplicates AS (SELECT id FROM polling_numbered "
+            "WHERE id NOT IN (SELECT representative_id FROM polling_groups)) "
+        )
+        return cte, args
+
+    def _polling_summaries(self, conn, cte, args):
+        """读取折叠次数和最近一次耗时，概要查询不反复加载正文"""
+        rows = conn.execute(
+            cte + "SELECT g.representative_id,g.repeat_count,g.partial,"
+            "a.created_at,a.duration_ms FROM polling_groups g "
+            "JOIN activity a ON a.id=g.last_id WHERE g.repeat_count>1",
+            args,
+        ).fetchall()
+        return {
+            row["representative_id"]: {
+                "polling_count": row["repeat_count"],
+                "polling_last_at": row["created_at"],
+                "polling_last_duration_ms": row["duration_ms"],
+                "polling_partial": bool(row["partial"]),
+            }
+            for row in rows
+        }
 
     def page(self, *, after=None, before=0, limit=200, **filters):
         """返回稳定游标分页，初次读取最近记录，增量读取保持顺序且不漏页"""
         where, args = self.filters(**filters)
         cte, polling_args = self.polling_cte(**filters)
+        collapse = self.collapse_polling(**filters)
         with closing(self.connect()) as conn:
             conn.execute("BEGIN")
             snapshot = self._cursor(conn)
@@ -360,6 +512,8 @@ class ActivityLog:
             )
             cursor = rows[-1]["id"] if after is not None and more else snapshot
             hidden = []
+            updates = []
+            summaries = self._polling_summaries(conn, cte, polling_args) if collapse else {}
             if after is not None and filters.get("hide_polling") and not filters.get("trace_id"):
                 hidden = [
                     row[0]
@@ -369,11 +523,19 @@ class ActivityLog:
                         (*polling_args, after, cursor),
                     )
                 ]
-        events = [dict(row) for row in rows]
+            if after is not None and collapse:
+                updates = conn.execute(
+                    cte + f"SELECT {SUMMARY_COLUMNS} FROM activity WHERE {where} AND id IN "
+                    "(SELECT representative_id FROM polling_groups WHERE repeat_count>1 "
+                    "AND last_id>? AND last_id<=? AND representative_id<=?)",
+                    (*polling_args, *args, after, cursor, after),
+                ).fetchall()
+        events = [{**dict(row), **summaries.get(row["id"], {})} for row in rows]
         return {
             "events": events,
             "cursor": cursor,
             "hidden_trace_ids": hidden,
+            "updated_events": [{**dict(row), **summaries.get(row["id"], {})} for row in updates],
             "has_more": more,
             "oldest": rows[0]["id"] if rows else 0,
             "counts": counts,
@@ -416,6 +578,11 @@ class ActivityLog:
         with closing(self.connect(check_same_thread=False)) as conn:
             conn.execute("BEGIN")
             snapshot = self._cursor(conn)
+            summaries = (
+                self._polling_summaries(conn, cte, polling_args)
+                if self.collapse_polling(**filters)
+                else {}
+            )
             after = 0
             while True:
                 rows = conn.execute(
@@ -427,6 +594,7 @@ class ActivityLog:
                     return
                 for row in rows:
                     value = dict(row)
+                    value.update(summaries.get(row["id"], {}))
                     value["payload"] = json.loads(value.pop("payload_json"))
                     value.pop("origin_key")
                     yield dump(value) + "\n"

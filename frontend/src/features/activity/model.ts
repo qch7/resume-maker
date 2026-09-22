@@ -24,6 +24,10 @@ export type ActivityEvent = {
   project_id: string;
   duration_ms: number | null;
   payload?: unknown;
+  polling_count?: number;
+  polling_last_at?: string;
+  polling_last_duration_ms?: number | null;
+  polling_partial?: boolean;
 };
 
 export type ActivityPage = {
@@ -38,6 +42,7 @@ export type ActivityPage = {
   retention_days: number;
   max_records: number;
   hidden_trace_ids: string[];
+  updated_events?: ActivityEvent[];
 };
 
 /** 按持久游标去重并保持时间顺序，限制当前页面内存占用 */
@@ -46,10 +51,14 @@ export function mergeEvents(
   incoming: ActivityEvent[],
   older = false,
   hiddenTraces: string[] = [],
+  updates: ActivityEvent[] = [],
 ): ActivityEvent[] {
   const hidden = new Set(hiddenTraces);
   const values = new Map(current.map((event) => [event.id, event]));
   for (const event of incoming) values.set(event.id, event);
+  for (const event of updates) {
+    if (values.has(event.id)) values.set(event.id, event);
+  }
   const sorted = [...values.values()]
     .filter((event) => !isHiddenPolling(event, hidden))
     .sort((a, b) => a.id - b.id);

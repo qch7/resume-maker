@@ -62,8 +62,8 @@ export default function ActivitySettings({
         rows={9}
       />
       <small>
-        每行一条，支持 *。路径默认 GET，也可填 POST /api/…、操作名或
-        ai:turn.started。轮询保留响应，警告、错误和 ≥1 秒操作始终保留。
+        每行一条，支持 *、GET/POST 路径、操作名和 ai:turn.started。
+        相同轮询合并，保留警告、错误和 ≥1 秒操作。
       </small>
       {error && <span role="alert">{error}</span>}
       <div className="row">
