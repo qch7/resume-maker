@@ -484,7 +484,9 @@ def test_cli_trace_records_tool_arguments_result_and_agent_message(tmp_path, mon
     @contextmanager
     def credentials(root, env, flag):
         """测试不访问本机登录信息"""
-        yield env
+        home = root / "control/codex-home"
+        home.mkdir()
+        yield {**env, "CODEX_HOME": str(home)}
 
     @contextmanager
     def workspace():
@@ -496,9 +498,18 @@ def test_cli_trace_records_tool_arguments_result_and_agent_message(tmp_path, mon
 
     def execute(command, **kwargs):
         """以真实 CLI JSON 结构模拟受限工具调用和回复"""
+        from pathlib import Path
+
+        env = kwargs["env"]
+        temporary, home = Path(env["TEMP"]), Path(env["CODEX_HOME"])
+        assert temporary.is_dir() and temporary.parent == home.parent
+        assert not home.is_relative_to(temporary)
+        assert env["TEMP"] == env["TMP"] == env["TMPDIR"]
         if "--version" in command:
             return "codex-cli 0.154.0"
+        assert "suppress_unstable_features_warning=true" in command
         emit = kwargs["event"]
+        emit({"type": "item.completed", "item": {"type": "error", "message": "synthetic notice"}})
         item = {
             "id": "call-1",
             "type": "mcp_tool_call",
@@ -537,6 +548,8 @@ def test_cli_trace_records_tool_arguments_result_and_agent_message(tmp_path, mon
     assert events[0]["payload"]["item"]["arguments"]["file"] == "context.txt"
     assert events[1]["payload"]["item"]["result"]["text"] == "tool-result"
     assert log.page(category="ai", q="hello")["total"] == 1
+    diagnostics = log.page(category="ai", level="error")["events"]
+    assert len(diagnostics) == 1 and diagnostics[0]["title"] == "synthetic notice"
 
 
 @pytest.mark.parametrize("params", [{"limit": 501}, {"after": -1}, {"q": "x" * 501}])

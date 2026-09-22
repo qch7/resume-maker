@@ -91,6 +91,7 @@ def safety_settings(root, values, endpoint=None):
         "memories.generate_memories": False,
         "include_apps_instructions": False,
         "include_environment_context": False,
+        "suppress_unstable_features_warning": True,
         "history.persistence": "none",
         "check_for_update_on_startup": False,
         "log_dir": str(root / "control/logs"),
@@ -119,7 +120,10 @@ def run_cli(payload, settings, environment, cancelled, emit, *, source_access=No
             (root / "control/source-access.json").write_text(json.dumps(endpoint), encoding="utf-8")
         values = safety_settings(root, selected, endpoint)
         values["model_catalog_json"] = write_catalog(root, selected)
-        env["TEMP"] = env["TMP"] = str(root / "control")
+        # 临时文件和 CLI home 分开，避免 CLI 将自身辅助程序判定为位于临时目录内
+        temporary = root / "control/tmp"
+        temporary.mkdir()
+        env.update(dict.fromkeys(("TEMP", "TMP", "TMPDIR"), str(temporary)))
         version = execute(
             [executable, "--version"], cwd=root, env=env, timeout=15, cancelled=cancelled
         )
@@ -171,11 +175,18 @@ def run_cli(payload, settings, environment, cancelled, emit, *, source_access=No
             record(
                 "tool" if is_tool else "ai",
                 value.get("type", "event"),
-                item.get("tool") or item.get("text") or item_type or value.get("type", "CLI 活动"),
+                item.get("tool")
+                or item.get("text")
+                or item.get("message")
+                or value.get("message")
+                or item_type
+                or value.get("type", "CLI 活动"),
                 value,
                 source="codex-cli",
                 level="error"
-                if value.get("type") in {"error", "turn.failed"} or item.get("status") == "failed"
+                if value.get("type") in {"error", "turn.failed"}
+                or item_type == "error"
+                or item.get("status") == "failed"
                 else "info",
             )
             kind = value.get("type")

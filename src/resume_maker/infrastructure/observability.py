@@ -62,8 +62,8 @@ def remember_task(log, identifier, **fields):
             log.task_contexts.popitem(last=False)
 
 
-def operation(source, category="service"):
-    """为适配器函数补充开始、结束和异常事件，保留原签名供调用方使用"""
+def operation(source, category="service", *, title=None):
+    """记录开始、结束和异常，允许按参数生成标题并保留稳定来源及原签名"""
 
     def decorate(function):
         """将同步业务边界包装成具有独立跨度的可观测操作"""
@@ -80,16 +80,17 @@ def operation(source, category="service"):
             arguments.pop("self", None)
             # 进程环境包含凭据且没有业务调试价值，只记录必要启动信息
             arguments.pop("env", None)
+            label = title(arguments) if title else source
             with activity_scope(log, span_id=span, parent_span_id=parent.get("span_id", "")):
                 started = time.monotonic()
-                record(category, "started", source, {"arguments": arguments}, source=source)
+                record(category, "started", label, {"arguments": arguments}, source=source)
                 try:
                     result = function(*args, **kwargs)
                 except Exception as exc:
                     record(
                         category,
                         "failed",
-                        f"{source} · {exc}",
+                        f"{label} · {exc}",
                         {
                             "error": str(exc),
                             "exception": type(exc).__name__,
@@ -103,7 +104,7 @@ def operation(source, category="service"):
                 record(
                     category,
                     "completed",
-                    source,
+                    label,
                     {"result": result},
                     source=source,
                     duration_ms=round((time.monotonic() - started) * 1000, 2),
