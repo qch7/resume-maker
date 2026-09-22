@@ -75,14 +75,15 @@ def upload(client, name="certificate.png", raw=None):
 
 
 def wait_honor(client, identifier, status="review"):
-    """等待可观察的任务状态，超时包含最后一份资料以便定位失败"""
-    deadline = time.monotonic() + 6
-    while time.monotonic() < deadline:
+    """给 CI 的 OCR 冷启动留出余量，异常终态或超时包含最后一份资料"""
+    deadline = time.monotonic() + 30
+    while True:
         item = next(item for item in client.get("/api/honors").json() if item["id"] == identifier)
         if item["status"] == status:
             return item
-        time.sleep(0.02)
-    pytest.fail(f"荣誉未到达 {status}: {item}")
+        if item["status"] not in {"queued", "running"} or time.monotonic() >= deadline:
+            pytest.fail(f"荣誉未到达 {status}: {item}")
+        time.sleep(0.05)
 
 
 @pytest.mark.parametrize("kind", ["png", "jpeg", "webp", "pdf"])

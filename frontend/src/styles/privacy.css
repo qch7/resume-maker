@@ -1,0 +1,99 @@
+/* 隐私设置以表单为主，规则和历史按需展开 */
+.privacy-settings {
+  display: grid;
+  gap: 14px;
+}
+.privacy-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 13px;
+}
+.privacy-status svg,
+.privacy-status > span {
+  color: var(--success);
+}
+.privacy-status > span {
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: var(--success-soft);
+  font-size: 11px;
+}
+.privacy-status small {
+  margin-left: auto;
+  color: var(--subtle);
+}
+.privacy-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.privacy-card {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+.privacy-card .section-heading,
+.privacy-settings .actions {
+  margin: 0;
+  flex-wrap: wrap;
+}
+.privacy-card textarea {
+  min-height: 124px;
+}
+.privacy-settings pre {
+  margin: 8px 0 0;
+  padding: 10px;
+  max-height: 260px;
+  overflow: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.privacy-disclosure {
+  border-top: 1px solid var(--line);
+}
+.privacy-disclosure > summary {
+  padding: 10px 0;
+  color: var(--text);
+}
+.privacy-disclosure summary span {
+  margin-left: 12px;
+  color: var(--subtle);
+  font-size: 11px;
+}
+.privacy-disclosure .actions {
+  margin-bottom: 10px;
+}
+.privacy-rules dl {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px 16px;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.privacy-rules dd {
+  margin: 0;
+  color: var(--subtle);
+}
+.privacy-notice {
+  margin: 0;
+  font-size: 12px;
+  color: var(--accent);
+}
+@media (max-width: 600px) {
+  .privacy-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .privacy-status small {
+    width: 100%;
+  }
+}
