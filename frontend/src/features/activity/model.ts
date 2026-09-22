@@ -24,10 +24,6 @@ export type ActivityEvent = {
   project_id: string;
   duration_ms: number | null;
   payload?: unknown;
-  polling_count?: number;
-  polling_last_at?: string;
-  polling_last_duration_ms?: number | null;
-  polling_partial?: boolean;
 };
 
 export type ActivityPage = {
@@ -42,7 +38,6 @@ export type ActivityPage = {
   retention_days: number;
   max_records: number;
   hidden_trace_ids: string[];
-  updated_events?: ActivityEvent[];
 };
 
 /** 按持久游标去重并保持时间顺序，限制当前页面内存占用 */
@@ -51,29 +46,25 @@ export function mergeEvents(
   incoming: ActivityEvent[],
   older = false,
   hiddenTraces: string[] = [],
-  updates: ActivityEvent[] = [],
 ): ActivityEvent[] {
   const hidden = new Set(hiddenTraces);
   const values = new Map(current.map((event) => [event.id, event]));
   for (const event of incoming) values.set(event.id, event);
-  for (const event of updates) {
-    if (values.has(event.id)) values.set(event.id, event);
-  }
   const sorted = [...values.values()]
     .filter((event) => !isHiddenPolling(event, hidden))
     .sort((a, b) => a.id - b.id);
   return older ? sorted.slice(0, 3000) : sorted.slice(-3000);
 }
 
-/** 成功响应到达后撤回重复步骤，保留响应、慢操作、警告和错误 */
+/** 成功响应到达后撤回普通轮询及读取步骤，保留慢操作、警告和错误 */
 export function isHiddenPolling(event: ActivityEvent, hidden: Set<string>) {
   return (
     hidden.has(event.trace_id) &&
     event.level === "info" &&
-    ((event.category === "api" && event.event !== "response") ||
+    (event.duration_ms ?? 0) < 1000 &&
+    (event.category === "api" ||
       (event.category === "service" &&
-        ["started", "completed"].includes(event.event) &&
-        (event.duration_ms ?? 0) < 1000))
+        ["started", "completed"].includes(event.event)))
   );
 }
 

@@ -40,7 +40,7 @@ test("活动轨道按真实时间定位且处理同毫秒事件", () => {
   assert.equal(eventPosition(event(1), [event(1)]), 50);
 });
 
-test("成功轮询响应撤回缓存中的请求，保留警告和工具消息", () => {
+test("成功轮询撤回缓存中的请求及响应，保留慢操作、异常和工具消息", () => {
   const values = [
     { ...event(1), category: "api", level: "info", trace_id: "poll" },
     {
@@ -75,10 +75,23 @@ test("成功轮询响应撤回缓存中的请求，保留警告和工具消息",
       event: "deleted",
       trace_id: "poll",
     },
+    {
+      ...event(9),
+      category: "api",
+      level: "info",
+      event: "response",
+      duration_ms: 1000,
+      trace_id: "poll",
+    },
+    { ...event(10), category: "api", level: "error", trace_id: "poll" },
   ];
   assert.deepEqual(
     mergeEvents(values, [], false, ["poll"]).map((item) => item.id),
-    [3, 4, 5, 6, 7, 8],
+    [3, 4, 5, 7, 8, 9, 10],
+  );
+  assert.deepEqual(
+    mergeEvents([], values, true, ["poll"]).map((item) => item.id),
+    [3, 4, 5, 7, 8, 9, 10],
   );
 });
 

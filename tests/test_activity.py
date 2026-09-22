@@ -177,6 +177,66 @@ def test_polling_live_retraction_pagination_and_path_rules(tmp_path):
     assert empty["hidden_trace_ids"] == ["last"]
 
 
+def test_hidden_rules_hide_every_normal_response_and_keep_diagnostic_events(tmp_path):
+    """统一规则隐藏首条及重复响应，搜索、翻页、增量和导出保持一致"""
+    log = ActivityLog(tmp_path / "log.sqlite")
+    query = {"hide_polling": True, "hidden_rules": "/api/state\nPOST /api/templates/*/review"}
+    log.write("api", "request", "GET /api/state", trace_id="first")
+    initial = log.page(**query)
+    assert initial["events"] == []
+    assert log.page(**query, q="/api/state")["events"] == []
+    log.write("service", "started", "workspace.state", trace_id="first")
+    pending = log.page(**query)
+    log.write("api", "response", "GET /api/state · 200", trace_id="first", duration_ms=15)
+    finished = log.page(**query, after=pending["cursor"])
+    assert finished["events"] == [] and finished["total"] == 0
+    assert finished["hidden_trace_ids"] == ["first"]
+    assert finished["cursor"] > pending["cursor"]
+    for index in range(3):
+        log.write(
+            "api",
+            "response",
+            "GET /api/state · 200",
+            {"version": index},
+            trace_id=f"repeat-{index}",
+            duration_ms=20,
+        )
+    log.write("api", "response", "POST /api/templates/one/review · 200", trace_id="review")
+    assert log.page(**query)["total"] == 0
+    assert log.page(**query, q="/api/state")["events"] == []
+    assert list(log.export(**query)) == []
+    assert log.page(**query, trace_id="first")["total"] == 3
+    assert log.page(hide_polling=False, hidden_rules=query["hidden_rules"])["total"] == 7
+    assert log.page(hide_polling=True, hidden_rules="")["total"] == 7
+    for trace, status, level, duration, payload in [
+        ("slow", 200, "info", 1000, None),
+        ("warning", 401, "warning", 20, None),
+        ("error", 500, "error", 20, None),
+        ("business-error", 200, "info", 20, {"response": {"body": {"errors": ["invalid"]}}}),
+    ]:
+        log.write(
+            "api",
+            "response",
+            f"GET /api/state · {status}",
+            payload,
+            trace_id=trace,
+            level=level,
+            duration_ms=duration,
+        )
+    log.write("service", "completed", "slow read", trace_id="first", duration_ms=1000)
+    log.write("tool", "completed", "tool result", trace_id="first")
+    log.write("service", "deleted", "actual deletion", trace_id="first")
+    page = log.page(**query, limit=2)
+    assert page["total"] == 7 and page["counts"] == {"api": 4, "service": 2, "tool": 1}
+    found = page["events"]
+    while page["has_more"]:
+        page = log.page(**query, before=page["oldest"], limit=2)
+        found = page["events"] + found
+    assert [row["id"] for row in found] == list(range(8, 15))
+    assert [json.loads(line)["id"] for line in log.export(**query)] == list(range(8, 15))
+    assert log.page(**query, q="/api/state")["total"] == 4
+
+
 def test_filtered_export_keeps_snapshot_when_stream_worker_changes(tmp_path):
     """流式下载跨工作线程仍可继续，晚到的响应不改变导出中的过滤快照"""
     log = ActivityLog(tmp_path / "log.sqlite")

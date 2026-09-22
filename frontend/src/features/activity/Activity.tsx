@@ -126,11 +126,6 @@ export default function Activity() {
       setSelected(null);
   }, [page, selected]);
   useEffect(() => {
-    if (!selected) return;
-    const updated = events.find((event) => event.id === selected.id);
-    if (updated && updated !== selected) setSelected(updated);
-  }, [events, selected]);
-  useEffect(() => {
     if (follow && scroll.current)
       scroll.current.scrollTop = scroll.current.scrollHeight;
   }, [events, follow]);
@@ -261,7 +256,7 @@ export default function Activity() {
         />
         <label
           className="activity-polling-toggle"
-          title="相同轮询合并显示，隐藏重复步骤和普通读取，保留变化、慢调用、警告和错误"
+          title="按设置规则隐藏普通轮询及读取步骤，保留警告、错误和 ≥1 秒操作；关联请求显示完整链路"
         >
           <input
             type="checkbox"
@@ -445,24 +440,15 @@ export default function Activity() {
                 <span className="activity-row-title" title={event.title}>
                   {event.title}
                 </span>
-                {(event.polling_count ?? 0) > 1 && (
-                  <span
-                    className="activity-repeat"
-                    title={`连续重复 ${event.polling_count} 次，最近 ${eventTime(event.polling_last_at!)}`}
-                  >
-                    ×{event.polling_count}
-                  </span>
-                )}
                 {event.level !== "info" && (
                   <span className="activity-level">
                     {event.level === "error" ? "错误" : "警告"}
                   </span>
                 )}
                 <span className="activity-duration">
-                  {(event.polling_last_duration_ms ?? event.duration_ms) ===
-                  null
+                  {event.duration_ms === null
                     ? ""
-                    : `${Math.round(event.polling_last_duration_ms ?? event.duration_ms!)} ms`}
+                    : `${Math.round(event.duration_ms)} ms`}
                 </span>
               </button>
             ))}
@@ -582,15 +568,6 @@ function ActivityDetail({
       </header>
       <div className="activity-detail-scroll">
         <h2>{event.title}</h2>
-        {(event.polling_count ?? 0) > 1 && (
-          <p className="activity-stage-note">
-            连续重复 {event.polling_count} 次 · 最近{" "}
-            {eventTime(event.polling_last_at!)}
-            {event.polling_last_duration_ms != null &&
-              ` · ${Math.round(event.polling_last_duration_ms)} ms`}
-            {event.polling_partial && " · 旧记录按已捕获摘要比较"}
-          </p>
-        )}
         {event.source === "provider.run_structured" &&
           ["started", "completed"].includes(event.event) && (
             <p className="activity-stage-note">
