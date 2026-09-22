@@ -29,8 +29,9 @@ PATTERNS = [
 LABEL = re.compile(
     r"(?im)(?:姓名|获奖人|持有人|联系人|身份证号?|证书编号|学号|住址|家庭地址|"
     r"出生日期|生日|毕业院校|就读学校|学校|院校|工作单位|颁发单位|颁发机构|发证机构|"
-    r"联系电话|电话|手机|邮箱|name|recipient|address|issuer|issued[ \t]+by|school|"
-    r"certificate[ _]?(?:number|no\.?))"
+    r"联系电话|电话|手机|邮箱|(?<!\w)(?:recipient|address|issuer|issued[ \t]+by|school|"
+    r"full[ _]name|person[ _]name|certificate[ _]?(?:number|no\.?))|"
+    r"(?:^|(?<=[，,；;|]))[ \t]*name)"
     r"[ \t]*(?:[:：=][ \t]*(?:\r?\n[ \t]*)?|\r?\n[ \t]*)"
     r"([^\r\n，,；;|<>]{1,120})"
 )
@@ -47,7 +48,8 @@ SECRET = re.compile(
 )
 BLOB = re.compile(r"(?i)data:[^\s,]+;base64,|[A-Za-z0-9+/]{512,}={0,2}")
 KEYS = {
-    "name",
+    "full_name",
+    "person_name",
     "recipient",
     "certificate_number",
     "phone",
@@ -55,12 +57,29 @@ KEYS = {
     "email",
     "address",
     "issuer",
+    "school",
     "passport",
     "id_number",
     "姓名",
     "身份证",
     "手机号",
     "证书编号",
+}
+PERSONAL_KEYS = {"name", "gender", "age", "location", "website"}
+PERSONAL_BUSINESS_LABELS = {
+    "求职意向",
+    "目标岗位",
+    "专业",
+    "主修专业",
+    "学历",
+    "学位",
+    "课程",
+    "技能",
+    "成绩",
+    "绩点",
+    "gpa",
+    "证书名称",
+    "荣誉名称",
 }
 
 
@@ -77,36 +96,40 @@ class Redactor:
         )
         self.count = 0
 
-    def learn(self, value):
-        """登记结构化个人资料及明确标注的身份字段，包括隐藏字段"""
+    def learn(self, value, *, personal=False):
+        """按字段语义登记身份，通用名称和专业等业务信息不自动加入敏感词"""
         if isinstance(value, dict):
             if value.get("kind") == "education":
                 for entry in value.get("entries", []):
-                    self.values.update(
-                        entry[key] for key in ("title", "subtitle") if entry.get(key)
-                    )
-            if isinstance(value.get("label"), str) and LABEL.search(value["label"] + ":标记"):
+                    if isinstance(entry.get("title"), str) and entry["title"].strip():
+                        self.values.add(entry["title"].strip())
+            if isinstance(value.get("label"), str) and LABEL.search(
+                value["label"].strip() + ":标记"
+            ):
                 if isinstance(value.get("value"), str) and value["value"].strip():
                     self.values.add(value["value"].strip())
+            if personal:
+                # 只放行用途明确的业务标签，未知或无标签的个人自定义资料继续保护
+                for field in value.get("custom_fields", []):
+                    if (
+                        field.get("label", "").strip().lower() not in PERSONAL_BUSINESS_LABELS
+                        and field.get("value", "").strip()
+                    ):
+                        self.values.add(field["value"].strip())
             for key, child in value.items():
                 if SECRET_KEY.fullmatch(key) and isinstance(child, str):
                     self.secrets.add(child)
-                if key == "personal" and isinstance(child, dict):
-                    self.values.update(
-                        v.strip()
-                        for k, v in child.items()
-                        if isinstance(v, str) and v.strip() and k != "photo"
+                if (
+                    (
+                        key.lower() in KEYS | IDENTIFIER_KEYS
+                        or personal
+                        and key.lower() in PERSONAL_KEYS
                     )
-                    for field in child.get("custom_fields", []):
-                        if field.get("value", "").strip():
-                            self.values.add(field["value"].strip())
-                elif (
-                    key.lower() in KEYS | IDENTIFIER_KEYS
                     and isinstance(child, str)
                     and child.strip()
                 ):
                     self.values.add(child.strip())
-                self.learn(child)
+                self.learn(child, personal=key.lower() == "personal")
         elif isinstance(value, list):
             for child in value:
                 self.learn(child)

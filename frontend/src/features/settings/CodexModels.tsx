@@ -34,7 +34,7 @@ const functions: { id: AIFunction; title: string; description: string }[] = [
   {
     id: "honor_recognition",
     title: "证书识别",
-    description: "图片和 PDF 先在本机提取文字，再用脱敏材料识别荣誉资料",
+    description: "提取并整理证书字段",
   },
   {
     id: "connection_check",
@@ -115,10 +115,7 @@ export default function CodexModels(props: {
   return (
     <section className="codex-models" aria-label="Codex 模型与思考强度">
       <h3>全局默认</h3>
-      <p className="subtle">
-        模型填写当前 Provider 支持的模型 ID；留空时继承 CLI / Profile 配置。
-        思考强度需由所选模型支持，强度越高通常耗时越长。
-      </p>
+      <p className="subtle">留空继承 CLI / Profile 配置。</p>
       <div className="form-grid">
         <ModelFields
           title="全局默认"
@@ -133,10 +130,7 @@ export default function CodexModels(props: {
         />
       </div>
       <h3>各 AI 功能</h3>
-      <p className="subtle">
-        每项可单独设置模型和思考强度，留空则继承全局默认。保存后用于新提交的任务，
-        模板自动修正的每一轮均使用该功能的设置。
-      </p>
+      <p className="subtle">留空继承全局默认，保存后用于新任务。</p>
       <div className="ai-function-list">
         {functions.map(
           /* 为每个真实 AI 入口提供独立配置 */ (feature) => (

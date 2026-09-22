@@ -13,10 +13,12 @@ interface Props {
   run: (work: () => Promise<void>) => void;
 }
 
-/** 管理项目导入、归档会话和 Provider 配置 */
+/** 分页管理项目导入、模型连接、隐私保护和本机数据 */
 export default function Settings(props: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
-  const [tab, setTab] = useState(props.initial);
+  const [tab, setTab] = useState<"projects" | "settings" | "privacy">(
+    props.initial,
+  );
   const [archived, setArchived] = useState<Conversation[]>([]);
   const [root, setRoot] = useState("");
   const [candidates, setCandidates] = useState<
@@ -90,6 +92,12 @@ export default function Settings(props: Props) {
           onClick={() => setTab("settings")}
         >
           Codex 与数据
+        </button>
+        <button
+          className={tab === "privacy" ? "active" : ""}
+          onClick={() => setTab("privacy")}
+        >
+          隐私保护
         </button>
       </nav>
       {tab === "projects" && (
@@ -216,12 +224,7 @@ export default function Settings(props: Props) {
       )}
       {tab === "settings" && (
         <div className="settings-body">
-          <Privacy />
           <h3>模型连接配置</h3>
-          <p className="subtle">
-            复用 CLI 文件登录和供应商配置，通过专用只读工具分析脱敏副本，无需
-            WSL。
-          </p>
           <PathInput
             label="Codex 可执行文件（已验证 0.154.0）"
             kind="executable"
@@ -329,9 +332,6 @@ export default function Settings(props: Props) {
             </details>
           )}
           <code className="path">{dataDir}</code>
-          <p className="subtle">
-            经历、会话、草稿、模板与导出记录保存在本机数据目录中。
-          </p>
           <button
             disabled={busy}
             onClick={() =>
@@ -345,7 +345,10 @@ export default function Settings(props: Props) {
           </button>
         </div>
       )}
-      {notice && (
+      <div className="settings-body" hidden={tab !== "privacy"}>
+        <Privacy />
+      </div>
+      {notice && tab !== "privacy" && (
         <p className="dialog-notice" role="status">
           {notice}
         </p>

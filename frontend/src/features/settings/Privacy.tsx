@@ -1,3 +1,4 @@
+import { ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../../shared/lib/api";
 
@@ -9,22 +10,34 @@ interface RequestRecord {
   payload: unknown;
 }
 
-/** 管理本机敏感词并检查交给 CLI 的脱敏材料 */
+interface PrivacyTerms {
+  terms: string[];
+  version: number;
+}
+
+/** 管理本机敏感词并检查交给模型的脱敏材料 */
 export default function Privacy() {
   const [terms, setTerms] = useState("");
+  const [savedTerms, setSavedTerms] = useState("");
   const [version, setVersion] = useState(0);
   const [text, setText] = useState("");
-  const [preview, setPreview] = useState("");
+  const [preview, setPreview] = useState<{
+    text: string;
+    replacements: number;
+  } | null>(null);
   const [records, setRecords] = useState<RequestRecord[]>([]);
+  const [recordsLoaded, setRecordsLoaded] = useState(false);
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const dirty = terms !== savedTerms;
   useEffect(() => {
     let active = true;
-    void api<{ terms: string[]; version: number }>("/privacy")
+    void api<PrivacyTerms>("/privacy")
       .then((value) => {
         if (active) {
           setTerms(value.terms.join("\n"));
+          setSavedTerms(value.terms.join("\n"));
           setVersion(value.version);
           setLoaded(true);
         }
@@ -49,131 +62,178 @@ export default function Privacy() {
     }
   }
   return (
-    <section>
-      <h3>隐私保护 · 已开启</h3>
-      <p className="subtle">
-        每轮发送前替换已知个人信息和常见敏感格式，真实值只在本机还原。
-        原图先在本机提取文字，CLI
-        通过专用只读工具访问脱敏副本，无法运行任意命令。
-      </p>
-      <p className="subtle">
-        自动检测可能遗漏未登记的姓名、单位或特殊格式，请补充敏感词。 复用 CLI
-        登录和供应商配置，每轮新建隔离会话；版本不兼容或工具服务启动失败时停止请求。
-      </p>
-      <p className="subtle">
-        OCR 使用本地中英文轻量模型和 CPU，可靠 PDF 文字层直接提取，
-        扫描页和图片按需识别，低置信度页面最多复核一次。请核对错字、漏字和照片位置。
-      </p>
-      <label>
-        补充敏感词（每行一个，如姓名、学校、单位、住址）
-        <textarea
-          rows={4}
-          value={terms}
-          disabled={!loaded || busy}
-          onChange={(event) => setTerms(event.target.value)}
-        />
-      </label>
-      <button
-        disabled={!loaded || busy}
-        onClick={() =>
-          void perform(async () => {
-            const saved = await api<{ version: number }>(
-              "/privacy/terms",
-              "PUT",
-              {
-                terms: terms.split("\n").filter((value) => value.trim()),
-                version,
-              },
-            );
-            setVersion(saved.version);
-            setNotice("敏感词已保存，后续请求自动生效。");
-          })
-        }
-      >
-        保存敏感词
-      </button>
-      <details>
-        <summary>本地检测一段文字</summary>
-        <label>
-          待检测文字
+    <section className="privacy-settings" aria-label="隐私设置">
+      <div className="privacy-status">
+        <ShieldCheck size={18} />
+        <strong>发送前脱敏</strong>
+        <span>已开启</span>
+        <small>原图留在本机 · 结果本机还原</small>
+      </div>
+      <div className="privacy-grid">
+        <section className="privacy-card">
+          <div className="section-heading">
+            <h3>补充敏感词</h3>
+            <small className="subtle">{dirty ? "未保存" : "每行一个"}</small>
+          </div>
           <textarea
-            rows={3}
-            value={text}
-            onChange={(event) => setText(event.target.value)}
+            aria-label="补充敏感词"
+            rows={5}
+            placeholder={"填写需要额外隐藏的内容\n如姓名、学校、单位"}
+            value={terms}
+            disabled={!loaded || busy}
+            onChange={(event) => {
+              setTerms(event.target.value);
+              setPreview(null);
+              setNotice("");
+            }}
           />
-        </label>
-        <button
-          disabled={busy || !loaded || !text}
-          onClick={() =>
-            void perform(async () => {
-              const value = await api<{ text: string; replacements: number }>(
-                "/privacy/preview",
-                "POST",
-                { text },
-              );
-              setPreview(value.text);
-              setNotice(
-                `已替换 ${value.replacements} 处内容，本次检测未发送给模型。`,
-              );
-            })
-          }
-        >
-          仅在本机检测
-        </button>
-        {preview && (
-          <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
-            {preview}
-          </pre>
-        )}
-      </details>
-      <details>
-        <summary>最近脱敏材料包（最多 10 条）</summary>
-        <p className="subtle">
-          显示初始脱敏材料、输出契约及最近 20 次源码工具结果，较早结果不保留。
-          不包含鉴权或还原表，也不是完整网络抓包；记录仍可能含业务内容，可随时清除。
-          替换次数包含同一信息的重复出现，请核对脱敏内容。
+          <div className="actions">
+            <button
+              className="primary"
+              disabled={!loaded || busy || !dirty}
+              onClick={() =>
+                void perform(async () => {
+                  const saved = await api<PrivacyTerms>(
+                    "/privacy/terms",
+                    "PUT",
+                    {
+                      terms: terms.split("\n").filter((value) => value.trim()),
+                      version,
+                    },
+                  );
+                  setVersion(saved.version);
+                  setTerms(saved.terms.join("\n"));
+                  setSavedTerms(saved.terms.join("\n"));
+                  setPreview(null);
+                  setNotice("敏感词已保存");
+                })
+              }
+            >
+              保存敏感词
+            </button>
+          </div>
+        </section>
+        <section className="privacy-card">
+          <div className="section-heading">
+            <h3>脱敏预览</h3>
+            <small className="subtle">仅本机检测</small>
+          </div>
+          <textarea
+            aria-label="待检测文字"
+            rows={5}
+            maxLength={30000}
+            placeholder="粘贴文字，检查替换效果"
+            value={text}
+            disabled={busy}
+            onChange={(event) => {
+              setText(event.target.value);
+              setPreview(null);
+            }}
+          />
+          <div className="actions">
+            <button
+              disabled={busy || !loaded || !text.trim() || dirty}
+              onClick={() =>
+                void perform(async () => {
+                  setPreview(
+                    await api<{ text: string; replacements: number }>(
+                      "/privacy/preview",
+                      "POST",
+                      { text },
+                    ),
+                  );
+                })
+              }
+            >
+              检测文字
+            </button>
+            {dirty && <small className="subtle">先保存敏感词</small>}
+          </div>
+        </section>
+      </div>
+      {preview && (
+        <section className="privacy-result" aria-label="脱敏结果">
+          <h3>已替换 {preview.replacements} 处</h3>
+          <pre>{preview.text}</pre>
+        </section>
+      )}
+      {notice && (
+        <p className="privacy-notice" role="status">
+          {notice}
         </p>
-        <button
-          disabled={busy}
-          onClick={() =>
-            void perform(async () => {
-              setRecords(await api<RequestRecord[]>("/privacy/requests"));
-            })
-          }
-        >
-          刷新发送记录
-        </button>
-        <button
-          disabled={busy}
-          onClick={() =>
-            void perform(async () => {
-              await api("/privacy/requests", "DELETE");
-              setRecords([]);
-            })
-          }
-        >
-          清除记录
-        </button>
+      )}
+      <details className="privacy-disclosure">
+        <summary>
+          最近发送记录 <span>最多 10 条</span>
+        </summary>
+        <div className="actions">
+          <button
+            disabled={busy}
+            onClick={() =>
+              void perform(async () => {
+                setRecords(await api<RequestRecord[]>("/privacy/requests"));
+                setRecordsLoaded(true);
+              })
+            }
+          >
+            {recordsLoaded ? "刷新记录" : "查看记录"}
+          </button>
+          <button
+            disabled={busy || !recordsLoaded || !records.length}
+            onClick={() =>
+              void perform(async () => {
+                await api("/privacy/requests", "DELETE");
+                setRecords([]);
+                setNotice("发送记录已清除");
+              })
+            }
+          >
+            清除记录
+          </button>
+          <small className="subtle">脱敏材料，可能含业务内容</small>
+        </div>
+        {recordsLoaded && !records.length && (
+          <p className="subtle">暂无发送记录</p>
+        )}
         {records.map((record) => (
-          <details key={record.id}>
+          <details className="privacy-record" key={record.id}>
             <summary>
-              {record.created_at} · 替换 {record.replacements} 处 ·{" "}
-              {(
-                {
-                  prepared: "准备发送",
-                  completed: "完成",
-                  failed: "失败",
-                  cancelled: "取消",
-                } as Record<string, string>
-              )[record.status] ?? record.status}
+              <time dateTime={record.created_at}>
+                {new Date(record.created_at).toLocaleString()}
+              </time>
+              <span>替换 {record.replacements} 处</span>
+              <span>
+                {(
+                  {
+                    prepared: "准备发送",
+                    completed: "完成",
+                    failed: "失败",
+                    cancelled: "取消",
+                  } as Record<string, string>
+                )[record.status] ?? record.status}
+              </span>
             </summary>
-            <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
-              {JSON.stringify(record.payload, null, 2)}
-            </pre>
+            <pre>{JSON.stringify(record.payload, null, 2)}</pre>
           </details>
         ))}
       </details>
-      {notice && <p role="status">{notice}</p>}
+      <details className="privacy-disclosure privacy-rules">
+        <summary>自动处理范围</summary>
+        <dl>
+          <dt>自动隐藏</dt>
+          <dd>姓名、联系方式、地址、学校、颁发单位、身份和证书编号等。</dd>
+          <dt>正常保留</dt>
+          <dd>
+            证书和项目名称、专业、求职意向、成绩；命中敏感词或身份格式时仍隐藏。
+          </dd>
+          <dt>本机处理</dt>
+          <dd>原图先提取文字；低置信度片段整体隐藏，凭据直接移除。</dd>
+          <dt>需要核对</dt>
+          <dd>
+            自动识别可能遗漏，特殊身份信息请补充敏感词。发送记录保留初始材料和最近工具结果。
+          </dd>
+        </dl>
+      </details>
     </section>
   );
 }

@@ -150,10 +150,13 @@ def test_escaped_values_secrets_and_structured_keys():
 def test_structured_names_and_multiline_values(tmp_path):
     """无标签结构字段和跨行自定义值脱敏后仍能准确还原"""
     redactor = Redactor(["第一行\n第二行"])
-    safe = redactor.prompt(json.dumps({"Name": "Synthetic Person", "notes": "第一行\n第二行"}))
+    safe = redactor.prompt(
+        json.dumps({"personal": {"Name": "Synthetic Person"}, "notes": "第一行\n第二行"})
+    )
     assert "Synthetic Person" not in safe
     restored = redactor.restore(json.loads(safe))
-    assert restored["Name"] == "Synthetic Person" and restored["notes"] == "第一行\n第二行"
+    assert restored["personal"]["Name"] == "Synthetic Person"
+    assert restored["notes"] == "第一行\n第二行"
     assert json.loads(safe)["notes"].count("\n") == 1
 
 
