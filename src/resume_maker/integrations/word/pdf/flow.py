@@ -273,7 +273,11 @@ def append_document(target, source):
     if source._element.get(SOURCE) == "1":
         target._element.set(SOURCE, "1")
     if len(body) > 1:
+        previous_source = body.sectPr.get(SOURCE)
         target.add_section(WD_SECTION_START.NEW_PAGE)
+        # python-docx 克隆分节时会清除根属性，显式保留前一页的隐私来源
+        if previous_source is not None:
+            target.sections[-2]._sectPr.set(SOURCE, previous_source)
     relationships = {}
     for rel in source.part.rels.values():
         if rel.reltype == RT.IMAGE:

@@ -171,13 +171,15 @@ def draw_row(canvas, row, color, private, font):
     canvas.paste(tile, box[:2], tile)
 
 
-def sanitized_page(path, redactor, cancelled):
+def sanitized_page(path, redactor, cancelled, *, budget=None):
     """先学习完整 OCR 再生成全新页面，任何阶段失败都不能回退原图"""
     check_cancelled(cancelled)
     document = read_document(path, cancelled)
     if len(document["pages"]) != 1 or not document["pages"][0]["blocks"]:
         raise ProviderError("图片模板必须包含一页可识别文字，无法脱敏时已停止发送。")
     blocks = document["pages"][0]["blocks"]
+    if budget is not None:
+        budget.register(path, blocks)
     if len(blocks) > 1500:
         raise ProviderError("图片文字行数超过版面恢复上限，请拆分页面。")
     redactor.learn(document["text"])

@@ -11,7 +11,7 @@ from docx.shared import Pt
 
 from resume_maker.core.errors import Problem
 from resume_maker.domain.templates import RecoveredPage
-from resume_maker.integrations.providers.base import Cancelled, ProviderError
+from resume_maker.integrations.providers.base import Cancelled
 from resume_maker.integrations.word.rendering import convert_word, render_word
 from resume_maker.integrations.word.templates.anchors import separate_anchors
 from resume_maker.integrations.word.templates.mapping import NS, TemplatePackage
@@ -136,11 +136,11 @@ def ocr_page(page):
 def rebuild_pages(pdf, output, provider, settings, flag, emit, *, native_pdf=False):
     """逐页识别避免图片数量限制，任何一页失败均保留源快照并返回实际失败原因"""
     if native_pdf:
-        from resume_maker.integrations.local_ocr import MAX_PAGES, native_blocks, pdf_page
+        from resume_maker.integrations.local_ocr import OCRBudget, native_blocks, pdf_page
         from resume_maker.integrations.word.pdf.recovery import rebuild_pdf
 
         private = getattr(provider, "preprocess_images", False)
-        budget = {"pages": 0, "characters": 0, "blocks": 0}
+        budget = OCRBudget()
 
         def register_page(local):
             """登记整页文字以识别跨行身份，低置信度片段继续整体脱敏"""
@@ -155,15 +155,17 @@ def rebuild_pages(pdf, output, provider, settings, flag, emit, *, native_pdf=Fal
 
         def fallback(document, page, number):
             """只把缺少可靠文字层或版面转换失败的 PDF 页交给现有视觉恢复器"""
+            if not page.get_contents():
+                return [f"第 {number} 页为空白页，已在本机保留。"]
+            if getattr(provider, "supports_page_images", False):
+                from resume_maker.integrations.word.pdf.visual import recover_private_page
+
+                return recover_private_page(
+                    document, page, number, output, provider, settings, flag, emit, budget
+                )
             if private:
-                budget["pages"] += 1
-                if budget["pages"] > MAX_PAGES:
-                    raise ProviderError("模板需要 OCR 的页面超过 12 页，请拆分后重试。")
                 local = pdf_page(page, flag)
-                budget["characters"] += sum(len(row["text"]) for row in local["blocks"])
-                budget["blocks"] += len(local["blocks"])
-                if budget["characters"] > 100000 or budget["blocks"] > 6000:
-                    raise ProviderError("OCR 文字超过单次处理上限，请拆分文档。")
+                budget.register(number, local["blocks"])
                 register_page(local)
                 return append_page(document, ocr_page(local), page, number)
             image = output.parent / f"recovery-page-{number}.png"

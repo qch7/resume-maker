@@ -179,7 +179,9 @@ class CodexProvider:
             if len(page_inputs) != 1:
                 raise ProviderError("整页图片恢复每次只允许一页，请拆分页面。")
             emit("status", {"text": "正在本机 OCR、覆盖敏感文字并为图像区域打码"})
-            data, context, audit = sanitized_page(page_inputs[0].path, redactor, cancelled)
+            data, context, audit = sanitized_page(
+                page_inputs[0].path, redactor, cancelled, budget=page_inputs[0].budget
+            )
             # 图片恢复后还会识别 DOCX 映射，后续轮次继续保护当前页学到的身份和凭据
             self.sensitive_values = self.sensitive_values | redactor.values
             self.sensitive_secrets = self.sensitive_secrets | redactor.secrets

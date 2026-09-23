@@ -21,6 +21,25 @@ BASE_SIDE = 960
 RETRY_SIDE = 2000
 
 
+class OCRBudget:
+    """累计模板回退页面的 OCR 开销，同一页重试只计一次"""
+
+    def __init__(self):
+        """每份模板独立记录页数、文字数和行数"""
+        self.pages = {}
+
+    def register(self, key, blocks):
+        """在模型发送前拒绝超限页面，可靠文字页不占用额度"""
+        self.pages[key] = (sum(len(row["text"]) for row in blocks), len(blocks))
+        if len(self.pages) > MAX_PAGES:
+            raise ProviderError("模板需要 OCR 的页面超过 12 页，请拆分后重试。")
+        if (
+            sum(row[0] for row in self.pages.values()) > 100000
+            or sum(row[1] for row in self.pages.values()) > 6000
+        ):
+            raise ProviderError("OCR 文字超过单次处理上限，请拆分文档。")
+
+
 def check_cancelled(cancelled):
     """在页面和识别阶段边界检查取消，避免发布已取消结果"""
     if cancelled.is_set():

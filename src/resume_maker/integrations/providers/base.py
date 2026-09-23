@@ -4,9 +4,12 @@ import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from resume_maker.domain.models import AIResult, Model, ProviderSettings
+
+if TYPE_CHECKING:
+    from resume_maker.integrations.local_ocr import OCRBudget
 
 
 class ProviderError(Exception):
@@ -31,9 +34,10 @@ class MosaicImage:
 
 @dataclass(frozen=True)
 class PageImage:
-    """图片模板的本机页面，只能在隐私出口生成脱敏版面后发送"""
+    """图片或 PDF 模板的本机页面，只能在隐私出口生成脱敏版面后发送"""
 
     path: Path = field(repr=False)
+    budget: "OCRBudget | None" = field(default=None, repr=False)
 
 
 class StructuredOutputError(ProviderError):
