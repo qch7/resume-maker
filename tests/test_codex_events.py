@@ -45,7 +45,9 @@ def cli_stream(tmp_path, monkeypatch):
     monkeypatch.setattr(cli, "workspace", workspace)
     monkeypatch.setattr(cli, "isolated_credentials", credentials)
     monkeypatch.setattr(cli, "native_executable", lambda *_: "synthetic-cli")
-    monkeypatch.setattr(cli, "write_catalog", lambda root, selected: str(root / "catalog.json"))
+    monkeypatch.setattr(
+        cli, "write_catalog", lambda root, selected, *, images=False: str(root / "catalog.json")
+    )
     monkeypatch.setattr(cli, "execute", execute_stream)
 
     def run(events, emit=lambda *_: None):

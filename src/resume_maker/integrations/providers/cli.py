@@ -102,7 +102,7 @@ def safety_settings(root, values, endpoint=None):
     }
 
 
-def run_cli(payload, settings, environment, cancelled, emit, *, source_access=None):
+def run_cli(payload, settings, environment, cancelled, emit, *, source_access=None, safe_images=()):
     """在临时 CLI home 中开启受限工具会话，只向只读服务提供脱敏副本"""
     selected, env = connection(settings, environment)
     protect_secrets(env.get("RESUME_MAKER_PROVIDER_KEY"), env.get("OPENAI_API_KEY"))
@@ -119,7 +119,12 @@ def run_cli(payload, settings, environment, cancelled, emit, *, source_access=No
         if endpoint:
             (root / "control/source-access.json").write_text(json.dumps(endpoint), encoding="utf-8")
         values = safety_settings(root, selected, endpoint)
-        values["model_catalog_json"] = write_catalog(root, selected)
+        values["model_catalog_json"] = write_catalog(root, selected, images=bool(safe_images))
+        attachments = []
+        for index, data in enumerate(safe_images):
+            path = root / "control" / f"mosaic-{index + 1}.png"
+            path.write_bytes(data)
+            attachments.extend(["--image", str(path)])
         # 临时文件和 CLI home 分开，避免 CLI 将自身辅助程序判定为位于临时目录内
         temporary = root / "control/tmp"
         temporary.mkdir()
@@ -155,6 +160,7 @@ def run_cli(payload, settings, environment, cancelled, emit, *, source_access=No
             str(root / "materials"),
             "--output-schema",
             str(root / "materials/schema.json"),
+            *attachments,
             *arguments(values),
             "-",
         ]

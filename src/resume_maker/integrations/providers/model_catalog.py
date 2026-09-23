@@ -5,7 +5,7 @@ import json
 from resume_maker.integrations.providers.base import ProviderError
 
 
-def write_catalog(root, settings):
+def write_catalog(root, settings, *, images=False):
     """保留选定模型名称，通过受控目录固定标准工具协议和只读能力"""
     model = settings.get("model")
     if not model:
@@ -32,7 +32,7 @@ def write_catalog(root, settings):
         "truncation_policy": {"mode": "bytes", "limit": 30000},
         "effective_context_window_percent": 95,
         "experimental_supported_tools": [],
-        "input_modalities": ["text"],
+        "input_modalities": ["text", "image"] if images else ["text"],
         "include_skills_usage_instructions": False,
         "include_plugin_usage_instructions": False,
         "include_apps_usage_instructions": False,

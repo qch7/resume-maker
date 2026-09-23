@@ -5,6 +5,24 @@ from pathlib import Path
 import pymupdf
 
 from resume_maker.core.errors import Problem
+from resume_maker.integrations.providers.base import MosaicImage
+from resume_maker.integrations.providers.mosaic import MAX_IMAGES
+
+
+def mosaic_sources(package):
+    """收集本机内嵌图片，隐私出口统一打码，未提供的图片明确留待核对"""
+    images, notices = [], []
+    for row in package.inventory()["nodes"]:
+        if row["kind"] != "image":
+            continue
+        if len(images) >= MAX_IMAGES:
+            notices.append("模板图片超过二十四张，未展示的图片需人工核对。")
+            break
+        try:
+            images.append(MosaicImage(row["id"], package.image(row["id"])))
+        except Problem:
+            notices.append(f"图片 {row['id']} 无法提取，请在本机核对用途。")
+    return images, [image.node for image in images], notices
 
 
 def image_sheets(package, directory: Path) -> tuple[list[Path], list[str]]:
