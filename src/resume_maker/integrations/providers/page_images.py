@@ -30,13 +30,13 @@ SECTION_HEADING = re.compile(
 )
 
 
-def protect_header(blocks, redactor):
+def header_values(blocks):
     """页首身份区整体保护，避免未登记姓名和 OCR 误认的联系方式漏过格式规则"""
     boundary = min(
         (row["box"][1] for row in blocks if SECTION_HEADING.fullmatch(row["text"].strip())),
         default=0.25,
     )
-    redactor.values.update(row["text"] for row in blocks if row["box"][1] < min(boundary, 0.25))
+    return {row["text"] for row in blocks if row["box"][1] < min(boundary, 0.25)}
 
 
 def validate_page_text(result, context):
@@ -181,7 +181,7 @@ def sanitized_page(path, redactor, cancelled):
     if len(blocks) > 1500:
         raise ProviderError("图片文字行数超过版面恢复上限，请拆分页面。")
     redactor.learn(document["text"])
-    protect_header(blocks, redactor)
+    redactor.values.update(header_values(blocks))
     redactor.values.update(row["text"] for row in blocks if row["confidence"] < REVIEW_SCORE)
     rows, colors, private = [], [], []
     with Image.open(path) as source:

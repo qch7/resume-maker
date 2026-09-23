@@ -14,12 +14,15 @@ from test_privacy_mosaic import synthetic_image
 
 from resume_maker.domain.image_layout import ImagePage
 from resume_maker.domain.models import ProviderSettings
+from resume_maker.domain.templates import TemplatePlan
 from resume_maker.integrations.privacy import Redactor
 from resume_maker.integrations.providers import page_images
 from resume_maker.integrations.providers.base import Cancelled, PageImage, ProviderError
 from resume_maker.integrations.providers.codex import CodexProvider
 from resume_maker.integrations.word.image.layout import text_layer
 from resume_maker.integrations.word.image.recovery import rebuild_image
+from resume_maker.integrations.word.templates.mapping import TemplatePackage
+from resume_maker.services.templates.analysis import visual_evidence
 
 
 def page_fixture(path, monkeypatch):
@@ -115,6 +118,30 @@ def test_private_page_rebuild_restores_text_assets_and_preserves_source(tmp_path
         for rel in document.part.rels.values()
         if rel.reltype.endswith("/image")
     )
+    seen = []
+
+    def reopened_runner(payload, *args, **kwargs):
+        """新的修复任务没有旧 Provider 内存，仍须保护模板中的未知身份"""
+        seen.append(payload)
+        assert "SAMPLE NAME" not in payload["input"]
+        assert "OLD ROLE" not in payload["input"]
+        return TemplatePlan(
+            summary="checked", fields=[], repeats=[], photos=[], keep=[], remove=[], warnings=[]
+        ).model_dump_json()
+
+    fresh = CodexProvider(runner=reopened_runner)
+    package = TemplatePackage(output)
+    visual_evidence(fresh, package, output, tmp_path, Event())
+    fresh.run_structured(
+        result_model=TemplatePlan,
+        workspace=tmp_path,
+        prompt="\n".join(row.text for row in layout.texts),
+        thread_id=None,
+        settings=ProviderSettings(),
+        cancelled=Event(),
+        emit=lambda *_: None,
+    )
+    assert len(seen) == 1
 
 
 @pytest.mark.parametrize("failure", ["ocr", "graphics", "cancel", "empty", "multiple"])
