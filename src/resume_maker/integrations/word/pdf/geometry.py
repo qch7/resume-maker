@@ -7,6 +7,7 @@ BOX = f"{{{PDF}}}box"
 TEXT = f"{{{PDF}}}text"
 ROLE = f"{{{PDF}}}role"
 SOURCE = f"{{{PDF}}}source"
+PRIVATE = f"{{{PDF}}}private"
 WP = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
 LEGACY_LABELS = {
     "PDF 固定装饰（图标、底色或线条）",

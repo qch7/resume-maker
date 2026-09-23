@@ -9,6 +9,7 @@ from docx.shared import Pt
 from resume_maker.integrations.providers.base import Cancelled
 from resume_maker.integrations.word.pdf.assets import extract_assets, place_assets, separate_bullets
 from resume_maker.integrations.word.pdf.flow import append_document, convert_flow
+from resume_maker.integrations.word.pdf.geometry import SOURCE
 from resume_maker.integrations.word.pdf.symbols import font_symbols
 
 # pdf2docx 的底层坐标矩阵是进程级状态，同进程多个工作台实例必须串行调用
@@ -55,6 +56,7 @@ def normalized_page(document, number):
 def rebuild_pdf(pdf, output, flag, emit, fallback, *, observe_page=None):
     """逐页恢复结构并在单页失败时改用视觉识别，全部成功后发布模板"""
     result = Document()
+    result._element.set(SOURCE, "1")
     notices = []
     native_count = 0
     with pymupdf.open(pdf) as pages:
@@ -104,9 +106,10 @@ def rebuild_pdf(pdf, output, flag, emit, fallback, *, observe_page=None):
                     section.top_margin = section.bottom_margin = Pt(36)
                     section.left_margin = section.right_margin = Pt(36)
                     notices.extend(fallback(restored, page, number + 1))
-                    notices.append(
-                        f"第 {number + 1} 页使用视觉识别，复杂版式可能调整，请核对试填预览。"
-                    )
+                    if page.get_contents():
+                        notices.append(
+                            f"第 {number + 1} 页使用视觉识别，复杂版式可能调整，请核对试填预览。"
+                        )
                 if len(restored._element.body) == 1:
                     restored.add_paragraph()
                 if flag.is_set():

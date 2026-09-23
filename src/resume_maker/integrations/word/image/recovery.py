@@ -19,7 +19,7 @@ polygon 为页面比例坐标的顶点列表（斜切底块需要四角），普
 """
 
 
-def recognize_image(provider, image, output, settings, flag, emit):
+def recognize_image(provider, image, output, settings, flag, emit, *, paper_size=None, budget=None):
     """结构识别和几何检查共用两次有界重试，取消后不发布迟到结果"""
     from PIL import Image
 
@@ -53,13 +53,13 @@ def recognize_image(provider, image, output, settings, flag, emit):
                 settings=settings,
                 cancelled=flag,
                 emit=emit,
-                images=[PageImage(image) if private_page else image],
+                images=[PageImage(image, budget) if private_page else image],
             )
             if flag.is_set():
                 raise Cancelled("图片模板恢复已取消。")
             validate_layout(result)
             with Image.open(image) as original:
-                width, height = page_size(original)
+                width, height = page_size(original, paper_size)
             with text_layer(result, width, height):
                 pass
             return result

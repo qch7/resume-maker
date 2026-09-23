@@ -1,5 +1,6 @@
 """将图片空间识别结果转成可流动 Word，局部素材和文字分离，禁止整页背景伪装恢复"""
 
+import math
 import os
 import re
 from contextlib import contextmanager
@@ -47,10 +48,12 @@ def validate_layout(layout):
                 raise Problem(f"文字位置重叠：{text.text[:20]} / {other.text[:20]}。")
 
 
-def page_size(image):
-    """按固定纸面短边等比缩放图片"""
+def page_size(image, paper_size=None):
+    """独立图片按固定短边缩放，PDF 页面保留原始纸张尺寸"""
     scale = 595.276 / min(image.size)
-    width, height = image.width * scale, image.height * scale
+    width, height = paper_size or (image.width * scale, image.height * scale)
+    if not all(math.isfinite(value) and value > 0 for value in (width, height)):
+        raise Problem("页面尺寸无效，无法恢复 Word 模板。")
     if max(width, height) > 1584:
         raise Problem("图片过长，无法作为一张 Word 页面恢复，请按实际页面拆分图片。")
     return width, height
@@ -204,11 +207,11 @@ def image_text_styles(paragraphs):
         run.text = "•\t" + run.text[2:]
 
 
-def build_image_document(path, layout, flag):
-    """串行调用版面解析器并标记图片来源"""
+def build_image_document(path, layout, flag, *, paper_size=None):
+    """串行调用版面解析器并保留分节来源，合并 PDF 后仍可保护各页身份"""
     validate_layout(layout)
     with Image.open(path) as image:
-        width, height = page_size(image)
+        width, height = page_size(image, paper_size)
         with text_layer(layout, width, height) as pdf:
             while not LAYOUT_LOCK.acquire(timeout=0.1):
                 if flag.is_set():
@@ -218,6 +221,7 @@ def build_image_document(path, layout, flag):
                     raise Cancelled("图片模板恢复已取消。")
                 document, paragraphs = convert_flow(pdf[0], split_lines=True)
                 document._element.set(SOURCE, "image-v1")
+                document.sections[0]._sectPr.set(SOURCE, "image-v1")
                 image_text_styles(paragraphs)
                 place_image_assets(image, layout, paragraphs, width, height)
                 return document

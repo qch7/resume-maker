@@ -12,6 +12,7 @@ from PIL import Image
 from test_privacy import provider_at, reply, run
 from test_template_analysis import simple_document
 
+from resume_maker.core.errors import Problem
 from resume_maker.domain.models import Model, ProviderSettings
 from resume_maker.integrations import local_ocr
 from resume_maker.integrations.privacy import TOKEN
@@ -148,7 +149,7 @@ def test_native_pdf_recovery_does_not_require_ocr(tmp_path, monkeypatch, pages):
 
 @pytest.mark.parametrize("blank", [False, True])
 def test_private_mixed_pdf_recovers_only_scanned_page(tmp_path, monkeypatch, blank):
-    """混合模板只对扫描页 OCR，空结果仍保留原生页并登记不确定身份"""
+    """混合模板只对扫描页 OCR，低置信度身份遮盖，空结果停止发布"""
     source = tmp_path / "mixed.pdf"
     pixels = BytesIO()
     Image.new("RGB", (100, 100), "white").save(pixels, format="PNG")
@@ -168,11 +169,37 @@ def test_private_mixed_pdf_recovers_only_scanned_page(tmp_path, monkeypatch, bla
             "height": 100,
             "blocks": []
             if blank
-            else [{"text": "UncertainIdentity", "confidence": 0.4, "box": [0.1, 0.1, 0.8, 0.2]}],
+            else [{"text": "UncertainIdentity", "confidence": 0.4, "box": [0.1, 0.1, 0.5, 0.13]}],
         }
 
     monkeypatch.setattr(local_ocr, "recognize", recognize)
-    provider = provider_at(tmp_path, lambda payload: reply(payload["input"]))
+
+    def runner(payload, *args, safe_images):
+        """扫描页模型只获得脱敏图和占位文字，回复使用本地 OCR 坐标"""
+        assert not blank
+        assert len(safe_images) == 1 and payload["images"][0]["kind"] == "sanitized-page"
+        assert "UncertainIdentity" not in payload["input"]
+        context = json.loads(payload["input"].splitlines()[-1])
+        return json.dumps(
+            {"texts": [{"text": r["text"], "box": r["box"]} for r in context["blocks"]]}
+        )
+
+    provider = CodexProvider(runner=runner)
+    if blank:
+        with pytest.raises(Problem, match="第 2 页"):
+            prepare_template(
+                source,
+                tmp_path / "restored.docx",
+                provider,
+                ProviderSettings(),
+                threading.Event(),
+                lambda *_: None,
+                simple_document(),
+                [],
+            )
+        assert not (tmp_path / "restored.docx").exists()
+        assert len(calls) == 2
+        return
     package, _ = prepare_template(
         source,
         tmp_path / "restored.docx",
@@ -185,12 +212,10 @@ def test_private_mixed_pdf_recovers_only_scanned_page(tmp_path, monkeypatch, bla
     )
     text = "\n".join(row["text"] for row in package.inventory()["nodes"])
     assert "Alice Example" in text
-    assert ("UncertainIdentity" in text) == (not blank)
+    assert "UncertainIdentity" in text
     assert calls == [True]
     assert "Alice Example" in provider.sensitive_values
-    if not blank:
-        assert "UncertainIdentity" in provider.sensitive_values
-    assert not TOKEN.search(run(provider, tmp_path, "Alice Example").reply)
+    assert "UncertainIdentity" in provider.sensitive_values
 
 
 def test_material_long_line_can_be_read_completely_and_searched(tmp_path):

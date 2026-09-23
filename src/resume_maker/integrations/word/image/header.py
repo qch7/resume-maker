@@ -5,22 +5,40 @@ import math
 from resume_maker.core.errors import Problem
 from resume_maker.integrations.providers.page_images import header_values
 from resume_maker.integrations.word.ooxml import w
-from resume_maker.integrations.word.pdf.geometry import SOURCE, rectangle
+from resume_maker.integrations.word.pdf.geometry import PRIVATE, SOURCE, rectangle
 from resume_maker.integrations.word.templates.layout import child_in
 
 
 def private_image_text(package):
-    """从图片来源的 Word 副本重建身份登记，重开任务后继续保护页首和未知坐标文字"""
+    """按分节重建图片和扫描 PDF 身份登记，重开任务后继续保护每页页首"""
     root = package.parts["word/document.xml"]
-    if root.get(SOURCE) != "image-v1":
+    legacy_image = root.get(SOURCE) == "image-v1"
+    pages, nodes = [], []
+    for child in root.find(w("body")):
+        nodes.extend(child.iter(w("p")))
+        section = child if child.tag == w("sectPr") else child.find(f"{w('pPr')}/{w('sectPr')}")
+        if section is None:
+            continue
+        if legacy_image or section.get(SOURCE) == "image-v1":
+            pages.append({"blocks": private_page_blocks(nodes, section)})
+        nodes = []
+    if not pages:
         return None
-    size = root.find(f".//{w('sectPr')}/{w('pgSz')}")
+    return {
+        "text": "\n".join(block["text"] for page in pages for block in page["blocks"]),
+        "pages": pages,
+    }
+
+
+def private_page_blocks(nodes, section):
+    """使用当前页纸张尺寸保护页首，未知或损坏坐标的文字整体保护"""
+    size = section.find(w("pgSz"))
     width = float(size.get(w("w"), "11906")) / 20 if size is not None else 595.3
     height = float(size.get(w("h"), "16838")) / 20 if size is not None else 841.9
     if not all(math.isfinite(value) and value > 0 for value in (width, height)):
-        raise Problem("图片恢复模板的纸张尺寸无效，无法重新保护文字。")
+        raise Problem("页面恢复模板的纸张尺寸无效，无法重新保护文字。")
     blocks = []
-    for node in root.iter(w("p")):
+    for node in nodes:
         text = "".join(part.text or "" for part in node.iter(w("t"))).strip()
         if not text:
             continue
@@ -36,14 +54,14 @@ def private_image_text(package):
                 "box": [value / (width if i % 2 == 0 else height) for i, value in enumerate(box)]
                 if box
                 else [0, 0, 1, 1],
-                "confidence": 1.0 if box else 0.0,
+                "confidence": 1.0 if box and node.get(PRIVATE) != "1" else 0.0,
             }
         )
     protected = header_values(blocks)
     for block in blocks:
         if block["text"] in protected:
             block["confidence"] = 0.0
-    return {"text": "\n".join(block["text"] for block in blocks), "pages": [{"blocks": blocks}]}
+    return blocks
 
 
 def check_image_header(package, plan):

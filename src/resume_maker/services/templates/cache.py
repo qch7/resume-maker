@@ -18,7 +18,7 @@ def cache_path(directory, package, document, projects, settings) -> Path:
         "contract": (
             19
             if package.parts["word/document.xml"].get(SOURCE) == "image-v1"
-            else 17
+            else 20
             if recovered_pdf(package.parts["word/document.xml"])
             else 16
         ),
