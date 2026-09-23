@@ -9,7 +9,7 @@ from resume_maker.integrations.providers.base import Cancelled, StructuredOutput
 from resume_maker.integrations.word.pdf.geometry import SOURCE
 from resume_maker.integrations.word.templates.completion import complete_template
 from resume_maker.integrations.word.templates.fill import fill_template
-from resume_maker.integrations.word.templates.images import image_sheets
+from resume_maker.integrations.word.templates.images import image_sheets, mosaic_sources
 from resume_maker.integrations.word.templates.mapping import IMAGE_TAGS, image_container
 from resume_maker.integrations.word.templates.values import (
     missing_targets,
@@ -56,7 +56,11 @@ FIXED_LABELS = {
 
 
 def visual_evidence(provider, package, source, workspace, flag):
-    """隐私出口仅接收布局结构，原始像素和内嵌照片留在本机"""
+    """隐私出口提供马赛克图片，原始像素和整页图留在本机"""
+    if getattr(provider, "supports_mosaic_images", False):
+        images, shown, notices = mosaic_sources(package)
+        notice = "模板内嵌图片经本机马赛克处理后识别，整页原图未发送；模糊用途请人工核对。"
+        return images, shown, {"available": False, "reason": notice}, [notice, *notices]
     if not getattr(provider, "supports_images", True):
         notice = "隐私保护未发送模板图片；映射基于文字和布局结构，照片位置请人工核对。"
         return [], {}, {"available": False, "reason": notice}, [notice]
@@ -240,7 +244,11 @@ def analyze_plan(
     context["visible_images"] = shown
     context["source_pages"] = visual
     context["image_instructions"] = (
-        "附件先为 source_pages 指定的源模板整页图，再为标注节点的图片拼图。"
+        "附件为带节点编号的马赛克图片拼图，整页原图未发送。"
+        "结合图片中仍可见的轮廓、布局和节点信息判断照片或装饰用途；"
+        "不要推测身份、恢复被遮盖细节，无法区分时写入 warnings 并保留待确认。"
+        if getattr(provider, "supports_mosaic_images", False)
+        else "附件先为 source_pages 指定的源模板整页图，再为标注节点的图片拼图。"
         "结合整页的空间关系、layout 中的显式换行和制表位及 template 中的精确原文映射；"
         "不能由字段名字、编号顺序或图片尺寸推测位置。缺少整页证据时不要声称已验证视觉布局。"
     )

@@ -2,6 +2,7 @@
 
 import threading
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
 
@@ -18,6 +19,14 @@ class Cancelled(ProviderError):
     """任务被主动取消，调用方应停止发布其结果"""
 
     pass
+
+
+@dataclass(frozen=True)
+class MosaicImage:
+    """模板内嵌图片的本机原件，必须经过隐私出口打码后才能成为模型附件"""
+
+    node: str
+    data: bytes = field(repr=False)
 
 
 class StructuredOutputError(ProviderError):
@@ -66,7 +75,7 @@ class Provider(Protocol):
         settings: ProviderSettings,
         cancelled: threading.Event,
         emit: Callable[[str, dict], None],
-        images: list[Path] | None = None,
+        images: list[Path | MosaicImage] | None = None,
         sources: list[dict] | None = None,
         data_dir: Path | None = None,
     ) -> T:

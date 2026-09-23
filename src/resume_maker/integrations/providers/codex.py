@@ -13,8 +13,14 @@ from resume_maker.domain.models import AIResult, Model
 from resume_maker.infrastructure.observability import operation, record
 from resume_maker.integrations.local_ocr import REVIEW_SCORE, read_document
 from resume_maker.integrations.privacy_store import PrivacyStore
-from resume_maker.integrations.providers.base import Cancelled, ProviderError, StructuredOutputError
+from resume_maker.integrations.providers.base import (
+    Cancelled,
+    MosaicImage,
+    ProviderError,
+    StructuredOutputError,
+)
 from resume_maker.integrations.providers.cli import run_cli
+from resume_maker.integrations.providers.mosaic import mosaic_sheets
 from resume_maker.integrations.providers.sandbox import native_executable
 from resume_maker.integrations.source_access import SourceAccess
 
@@ -54,6 +60,7 @@ class CodexProvider:
     """用脱敏副本和严格读取权限保留 CLI 的分析及鉴权方式"""
 
     supports_images = False
+    supports_mosaic_images = True
     preprocess_images = True
 
     def __init__(self, *, environment=None, privacy=None, runner=None):
@@ -134,15 +141,18 @@ class CodexProvider:
         sources=None,
         data_dir=None,
     ):
-        """原图只供本机 OCR，脱敏后的文字进入独立 CLI 沙箱"""
+        """普通原图只供本机 OCR，模板图片打码后随脱敏文字进入独立 CLI 沙箱"""
         if cancelled.is_set():
             raise Cancelled("请求已取消。")
         redactor = self.privacy.redactor()
         redactor.values.update(self.sensitive_values)
         redactor.secrets.update(self.sensitive_secrets)
         redactor.values.update(value for value in sensitive_values if value)
-        documents = []
+        documents, mosaic_inputs = [], []
         for path in images or []:
+            if isinstance(path, MosaicImage):
+                mosaic_inputs.append(path)
+                continue
             emit("status", {"text": "正在本机提取文档文字，原图不外发"})
             document = read_document(path, cancelled)
             redactor.learn(document["text"])
@@ -151,6 +161,9 @@ class CodexProvider:
                     if block["confidence"] < REVIEW_SCORE:
                         redactor.values.add(block["text"])
             documents.append(document)
+        safe_images, image_records = mosaic_sheets(mosaic_inputs, cancelled)
+        if safe_images:
+            emit("status", {"text": "模板图片已在本机打上马赛克，原图不外发"})
         safe_prompt = redactor.prompt(prompt)
         if documents:
             safe_prompt += (
@@ -163,11 +176,13 @@ class CodexProvider:
             "input": safe_prompt,
             "schema": safe_schema,
         }
+        if image_records:
+            payload["images"] = image_records
         if len(json.dumps(payload).encode()) > 2 * 1024 * 1024:
             raise ProviderError("脱敏请求超过大小限制，请缩小材料范围。")
         identifier = self.privacy.record(payload, redactor.count)
         record("ai", "context", "发送给模型的脱敏上下文", {**payload, "model": settings.model})
-        emit("status", {"text": f"隐私保护已处理 {redactor.count} 处内容，正在发送文字请求"})
+        emit("status", {"text": f"隐私保护已处理 {redactor.count} 处内容，正在发送脱敏请求"})
         try:
 
             def audit(name, result, count):
@@ -180,6 +195,8 @@ class CodexProvider:
                 else nullcontext(None)
             ) as access:
                 options = {"source_access": access} if access is not None else {}
+                if safe_images:
+                    options["safe_images"] = safe_images
                 raw = self.runner(payload, settings, self.environment, cancelled, emit, **options)
             if cancelled.is_set():
                 raise Cancelled("请求已取消。")

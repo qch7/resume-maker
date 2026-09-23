@@ -1,5 +1,6 @@
 """验证只读工具的目录边界、进程回收和真实 CLI 的工具注册结果"""
 
+import base64
 import json
 import os
 import subprocess
@@ -11,14 +12,16 @@ from pathlib import Path
 
 import psutil
 import pytest
+from test_privacy_mosaic import synthetic_image
 
 from resume_maker.domain.models import Model, ProviderSettings
 from resume_maker.integrations.providers import sandbox
-from resume_maker.integrations.providers.base import Cancelled, ProviderError
+from resume_maker.integrations.providers.base import Cancelled, MosaicImage, ProviderError
 from resume_maker.integrations.providers.cli import run_cli
 from resume_maker.integrations.providers.codex import CodexProvider
 from resume_maker.integrations.providers.credentials import isolated_credentials
 from resume_maker.integrations.providers.material_server import call, dispatch
+from resume_maker.integrations.providers.mosaic import mosaic_sheets
 from resume_maker.integrations.providers.process import execute
 from resume_maker.integrations.providers.sandbox import materials, posix_parent
 
@@ -234,9 +237,12 @@ def test_fast_exit_waits_for_job_assignment(tmp_path, monkeypatch):
     reason="显式启用后使用真实 CLI 连接本机合成服务，不访问供应商",
 )
 @pytest.mark.parametrize("model", ["test-model", "gpt-5.5", "gpt-6-astra"])
-def test_native_cli_tool_boundary(tmp_path, model):
+@pytest.mark.parametrize("with_mosaic", [False, True])
+def test_native_cli_tool_boundary(tmp_path, model, with_mosaic):
     """真实 CLI 按需读取大文件尾部并还原新身份值，同时拒绝越界及配置污染"""
     requests = []
+    raw_image = synthetic_image()
+    images = [MosaicImage("n71", raw_image)] if with_mosaic else []
     root = tmp_path / "PRIVATE-SOURCE-ROOT"
     root.mkdir()
     tail = "TAIL_FEATURE late4726@example.invalid 762810219043785"
@@ -356,6 +362,7 @@ def test_native_cli_tool_boundary(tmp_path, model):
             settings=ProviderSettings(timeout_seconds=60),
             cancelled=threading.Event(),
             emit=lambda *_: None,
+            images=images,
             sources=[{"id": "source-0", "path": str(root)}],
             data_dir=tmp_path / "data",
         )
@@ -366,6 +373,18 @@ def test_native_cli_tool_boundary(tmp_path, model):
     assert result.answer == tail
     assert (root / "main.py").read_text(encoding="utf-8") == original
     wire = json.dumps(requests, ensure_ascii=False)
+    attached = [
+        block["image_url"]
+        for item in requests[0]["input"]
+        if item.get("type") == "message"
+        for block in item.get("content", [])
+        if block.get("type") == "input_image"
+    ]
+    assert len(attached) == int(with_mosaic)
+    if with_mosaic:
+        expected, _ = mosaic_sheets(images, threading.Event())
+        assert base64.b64decode(attached[0].partition(",")[2]) == expected[0]
+    assert base64.b64encode(raw_image).decode() not in wire
     assert all(value not in wire for value in ("CONFIG-CANARY", "RULES-CANARY", "SECRET-CANARY"))
     assert all(
         value not in wire
