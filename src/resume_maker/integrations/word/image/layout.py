@@ -1,6 +1,7 @@
 """将图片空间识别结果转成可流动 Word，局部素材和文字分离，禁止整页背景伪装恢复"""
 
 import os
+import re
 from contextlib import contextmanager
 from io import BytesIO
 from pathlib import Path
@@ -102,13 +103,19 @@ def insert_texts(page, layout):
             raise Problem(f"文字尺寸与行框不匹配：{text.text[:35]}，请重新识别紧密文字框。")
         ink_top = max(font.glyph_bbox(ord(char)).y1 for char in text.text if not char.isspace())
         baseline = box.y0 + ink_top * size
-        page.insert_text(
-            (box.x0, baseline),
-            text.text,
-            fontname=name,
-            fontsize=size,
-            color=tuple(value / 255 for value in color_rgb(text.color)),
-        )
+        offset = 0
+        # 等线等字体把半角连字符映射为 U+2010，独立拉丁字形保留原始码位
+        for segment in re.split(r"(-+)", text.text):
+            if not segment:
+                continue
+            page.insert_text(
+                (box.x0 + offset, baseline),
+                segment,
+                fontname="helv" if set(segment) == {"-"} else name,
+                fontsize=size,
+                color=tuple(value / 255 for value in color_rgb(text.color)),
+            )
+            offset += font.text_length(segment, fontsize=size)
 
 
 @contextmanager

@@ -6,6 +6,7 @@ from resume_maker.core.errors import Problem
 from resume_maker.domain.templates import TemplatePlan
 from resume_maker.infrastructure.database import dump
 from resume_maker.integrations.providers.base import Cancelled, StructuredOutputError
+from resume_maker.integrations.word.image.header import private_image_text
 from resume_maker.integrations.word.pdf.geometry import SOURCE
 from resume_maker.integrations.word.templates.completion import complete_template
 from resume_maker.integrations.word.templates.fill import fill_template
@@ -57,6 +58,10 @@ FIXED_LABELS = {
 
 def visual_evidence(provider, package, source, workspace, flag):
     """隐私出口提供马赛克图片，原始像素和整页图留在本机"""
+    if hasattr(provider, "register_ocr"):
+        document = private_image_text(package)
+        if document is not None:
+            provider.register_ocr(document)
     if getattr(provider, "supports_mosaic_images", False):
         images, shown, notices = mosaic_sources(package)
         notice = "模板内嵌图片经本机马赛克处理后识别，整页原图未发送；模糊用途请人工核对。"

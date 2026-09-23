@@ -1,8 +1,49 @@
 """检查图片恢复中资料区和重复栏目是否共用容器以免通过映射检查却跳过顶部重排"""
 
+import math
+
 from resume_maker.core.errors import Problem
+from resume_maker.integrations.providers.page_images import header_values
 from resume_maker.integrations.word.ooxml import w
+from resume_maker.integrations.word.pdf.geometry import SOURCE, rectangle
 from resume_maker.integrations.word.templates.layout import child_in
+
+
+def private_image_text(package):
+    """从图片来源的 Word 副本重建身份登记，重开任务后继续保护页首和未知坐标文字"""
+    root = package.parts["word/document.xml"]
+    if root.get(SOURCE) != "image-v1":
+        return None
+    size = root.find(f".//{w('sectPr')}/{w('pgSz')}")
+    width = float(size.get(w("w"), "11906")) / 20 if size is not None else 595.3
+    height = float(size.get(w("h"), "16838")) / 20 if size is not None else 841.9
+    if not all(math.isfinite(value) and value > 0 for value in (width, height)):
+        raise Problem("图片恢复模板的纸张尺寸无效，无法重新保护文字。")
+    blocks = []
+    for node in root.iter(w("p")):
+        text = "".join(part.text or "" for part in node.iter(w("t"))).strip()
+        if not text:
+            continue
+        box = rectangle(node)
+        if box and (
+            not all(math.isfinite(value) for value in box)
+            or not (0 <= box[0] < box[2] <= width and 0 <= box[1] < box[3] <= height)
+        ):
+            box = None
+        blocks.append(
+            {
+                "text": text,
+                "box": [value / (width if i % 2 == 0 else height) for i, value in enumerate(box)]
+                if box
+                else [0, 0, 1, 1],
+                "confidence": 1.0 if box else 0.0,
+            }
+        )
+    protected = header_values(blocks)
+    for block in blocks:
+        if block["text"] in protected:
+            block["confidence"] = 0.0
+    return {"text": "\n".join(block["text"] for block in blocks), "pages": [{"blocks": blocks}]}
 
 
 def check_image_header(package, plan):
