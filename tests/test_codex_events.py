@@ -81,6 +81,10 @@ def cli_stream(tmp_path, monkeypatch):
         {"type": "mcp_tool_call", "server": "external", "tool": "read_material"},
         {"type": "mcp_tool_call", "server": "resume_materials", "tool": "exec"},
         {"type": "mcp_tool_call", "server": "resume_materials", "tool": "read_source"},
+        *(
+            {"type": "mcp_tool_call", "server": "codex", "tool": name}
+            for name in ("list_mcp_resources", "list_mcp_resource_templates", "read_mcp_resource")
+        ),
     ],
 )
 def test_forbidden_tools_stop_on_every_item_phase(cli_stream, kind, item):

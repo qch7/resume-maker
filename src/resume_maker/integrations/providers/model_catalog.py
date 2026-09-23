@@ -22,7 +22,8 @@ def write_catalog(root, settings, *, images=False):
         "upgrade": None,
         "model_messages": {
             "instructions_template": (
-                "你负责分析脱敏后的简历材料。仅使用已注册的只读材料工具，"
+                "你负责分析脱敏后的简历材料。仅使用 resume_materials 服务的只读材料工具，"
+                "禁止调用 CLI 内置的 MCP 资源发现和读取工具。"
                 "保留隐私占位符和准确引文，按指定 JSON 契约返回结果。"
             )
         },
