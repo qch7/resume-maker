@@ -16,11 +16,17 @@ from resume_maker.integrations.privacy_store import PrivacyStore
 from resume_maker.integrations.providers.base import (
     Cancelled,
     MosaicImage,
+    PageImage,
     ProviderError,
     StructuredOutputError,
 )
 from resume_maker.integrations.providers.cli import run_cli
 from resume_maker.integrations.providers.mosaic import mosaic_sheets
+from resume_maker.integrations.providers.page_images import (
+    PAGE_INSTRUCTIONS,
+    sanitized_page,
+    validate_page_text,
+)
 from resume_maker.integrations.providers.sandbox import native_executable
 from resume_maker.integrations.source_access import SourceAccess
 
@@ -61,6 +67,7 @@ class CodexProvider:
 
     supports_images = False
     supports_mosaic_images = True
+    supports_page_images = True
     preprocess_images = True
 
     def __init__(self, *, environment=None, privacy=None, runner=None):
@@ -141,17 +148,20 @@ class CodexProvider:
         sources=None,
         data_dir=None,
     ):
-        """普通原图只供本机 OCR，模板图片打码后随脱敏文字进入独立 CLI 沙箱"""
+        """普通原图只供本机 OCR，模板图片和整页版面处理后进入独立 CLI 沙箱"""
         if cancelled.is_set():
             raise Cancelled("请求已取消。")
         redactor = self.privacy.redactor()
         redactor.values.update(self.sensitive_values)
         redactor.secrets.update(self.sensitive_secrets)
         redactor.values.update(value for value in sensitive_values if value)
-        documents, mosaic_inputs = [], []
+        documents, mosaic_inputs, page_inputs = [], [], []
         for path in images or []:
             if isinstance(path, MosaicImage):
                 mosaic_inputs.append(path)
+                continue
+            if isinstance(path, PageImage):
+                page_inputs.append(path)
                 continue
             emit("status", {"text": "正在本机提取文档文字，原图不外发"})
             document = read_document(path, cancelled)
@@ -165,6 +175,17 @@ class CodexProvider:
         if safe_images:
             emit("status", {"text": "模板图片已在本机打上马赛克，原图不外发"})
         safe_prompt = redactor.prompt(prompt)
+        if page_inputs:
+            if len(page_inputs) != 1:
+                raise ProviderError("整页图片恢复每次只允许一页，请拆分页面。")
+            emit("status", {"text": "正在本机 OCR、覆盖敏感文字并为图像区域打码"})
+            data, context, audit = sanitized_page(page_inputs[0].path, redactor, cancelled)
+            # 图片恢复后还会识别 DOCX 映射，后续轮次继续保护当前页学到的身份和凭据
+            self.sensitive_values = self.sensitive_values | redactor.values
+            self.sensitive_secrets = self.sensitive_secrets | redactor.secrets
+            safe_images.append(data)
+            image_records.append(audit)
+            safe_prompt += "\n" + PAGE_INSTRUCTIONS + json.dumps(context, ensure_ascii=False)
         if documents:
             safe_prompt += (
                 "\n本地 OCR 文字和比例坐标（低置信度片段已整体替换，禁止推测）：\n"
@@ -201,7 +222,10 @@ class CodexProvider:
             if cancelled.is_set():
                 raise Cancelled("请求已取消。")
             try:
-                restored = redactor.restore(json.loads(structured_text(raw)))
+                parsed = json.loads(structured_text(raw))
+                if page_inputs:
+                    validate_page_text(parsed, context)
+                restored = redactor.restore(parsed)
                 result = result_model.model_validate(restored)
             except ValidationError as exc:
                 raise StructuredOutputError(

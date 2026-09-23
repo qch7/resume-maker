@@ -29,6 +29,13 @@ class MosaicImage:
     data: bytes = field(repr=False)
 
 
+@dataclass(frozen=True)
+class PageImage:
+    """图片模板的本机页面，只能在隐私出口生成脱敏版面后发送"""
+
+    path: Path = field(repr=False)
+
+
 class StructuredOutputError(ProviderError):
     """模型已返回但结构不合法，保留有界字段反馈供调用方重试，不能当作有效结果"""
 
@@ -75,7 +82,7 @@ class Provider(Protocol):
         settings: ProviderSettings,
         cancelled: threading.Event,
         emit: Callable[[str, dict], None],
-        images: list[Path | MosaicImage] | None = None,
+        images: list[Path | MosaicImage | PageImage] | None = None,
         sources: list[dict] | None = None,
         data_dir: Path | None = None,
     ) -> T:
