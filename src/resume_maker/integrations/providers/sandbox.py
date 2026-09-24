@@ -39,17 +39,21 @@ def native_executable(name):
 
 
 def windows_parent(path):
-    """控制目录只允许当前账户和系统访问，权限继承到任务文件"""
+    """核对目录归属后设置当前账户为所有者，仅保留账户、系统和管理员权限"""
     import win32api
     import win32security
 
     token = win32security.OpenProcessToken(win32api.GetCurrentProcess(), 8)
-    owner = win32security.GetTokenInformation(token, win32security.TokenUser)[0]
-    token.Close()
+    try:
+        owner = win32security.GetTokenInformation(token, win32security.TokenUser)[0]
+        default_owner = win32security.GetTokenInformation(token, win32security.TokenOwner)
+    finally:
+        token.Close()
     current = win32security.GetNamedSecurityInfo(
         str(path), win32security.SE_FILE_OBJECT, win32security.OWNER_SECURITY_INFORMATION
     ).GetSecurityDescriptorOwner()
-    if current != owner:
+    # 提权进程创建目录时可能默认归 Administrators 组所有
+    if current not in (owner, default_owner):
         raise ProviderError("沙箱父目录不属于当前账户，已停止使用该目录。")
     acl = win32security.ACL()
     for sid in (
@@ -58,11 +62,16 @@ def windows_parent(path):
         win32security.ConvertStringSidToSid("S-1-5-32-544"),
     ):
         acl.AddAccessAllowedAceEx(win32security.ACL_REVISION, 3, 0x1F01FF, sid)
+    flags = (
+        win32security.DACL_SECURITY_INFORMATION | win32security.PROTECTED_DACL_SECURITY_INFORMATION
+    )
+    if current != owner:
+        flags |= win32security.OWNER_SECURITY_INFORMATION
     win32security.SetNamedSecurityInfo(
         str(path),
         win32security.SE_FILE_OBJECT,
-        win32security.DACL_SECURITY_INFORMATION | win32security.PROTECTED_DACL_SECURITY_INFORMATION,
-        None,
+        flags,
+        owner if current != owner else None,
         None,
         acl,
         None,

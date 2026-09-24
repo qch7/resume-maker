@@ -32,6 +32,50 @@ class BoundaryReply(Model):
     answer: str
 
 
+@pytest.mark.skipif(os.name != "nt", reason="Windows 目录所有者和 ACL 边界")
+@pytest.mark.parametrize("existing_owner", ["account", "default", "foreign"])
+def test_windows_sandbox_accepts_token_owners_and_rejects_foreign_owner(
+    tmp_path, monkeypatch, existing_owner
+):
+    """账户和进程默认所有者可归一到当前账户，其他账户目录不能修改权限或接管"""
+    import win32security
+
+    account = win32security.ConvertStringSidToSid("S-1-5-21-100-200-300-1001")
+    administrators = win32security.ConvertStringSidToSid("S-1-5-32-544")
+    system = win32security.ConvertStringSidToSid("S-1-5-18")
+    foreign = win32security.ConvertStringSidToSid("S-1-5-21-100-200-300-1002")
+    descriptor = win32security.SECURITY_DESCRIPTOR()
+    descriptor.SetSecurityDescriptorOwner(
+        {"account": account, "default": administrators, "foreign": foreign}[existing_owner], False
+    )
+    monkeypatch.setattr(
+        win32security,
+        "GetTokenInformation",
+        lambda token, kind: (account, 0) if kind == win32security.TokenUser else administrators,
+    )
+    monkeypatch.setattr(win32security, "GetNamedSecurityInfo", lambda *_: descriptor)
+    updates = []
+    monkeypatch.setattr(win32security, "SetNamedSecurityInfo", lambda *args: updates.append(args))
+    if existing_owner == "foreign":
+        with pytest.raises(ProviderError, match="不属于当前账户"):
+            sandbox.windows_parent(tmp_path)
+        assert updates == []
+        return
+    sandbox.windows_parent(tmp_path)
+    assert len(updates) == 1
+    _, _, flags, owner, _, acl, _ = updates[0]
+    if existing_owner == "default":
+        assert owner == account
+        assert flags & win32security.OWNER_SECURITY_INFORMATION
+    else:
+        assert owner is None
+        assert not flags & win32security.OWNER_SECURITY_INFORMATION
+    assert flags & win32security.DACL_SECURITY_INFORMATION
+    assert flags & win32security.PROTECTED_DACL_SECURITY_INFORMATION
+    assert acl.GetAceCount() == 3
+    assert [acl.GetAce(i)[2] for i in range(3)] == [account, system, administrators]
+
+
 @pytest.mark.parametrize("exit_reason", ["success", "failure", "cancelled"])
 def test_project_sandbox_cleans_only_its_task(tmp_path, monkeypatch, exit_reason):
     """项目内沙箱在成功、异常和取消后清理本轮副本，保留源码及其他任务"""
