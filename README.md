@@ -31,7 +31,7 @@ Resume Maker 是运行在本机的简历工作台，可以管理项目经历、�
 | --- | --- |
 | Python 3.12+、[uv](https://docs.astral.sh/uv/getting-started/installation/) | 安装依赖并运行本机服务 |
 | Node.js 22.16+、npm | 构建前端界面 |
-| Codex CLI 0.154.0（文件登录或 Responses 供应商配置） | 使用隔离的脱敏材料及专用只读工具分析 |
+| Codex CLI（文件登录或 Responses 供应商配置） | 使用隔离的脱敏材料及专用只读工具分析 |
 | Windows + Microsoft Word | 真实排版预览、精确页数和 PDF 导出 |
 
 **完整预览体验推荐 Windows + Microsoft Word；其他平台仍可生成 DOCX。**
@@ -151,7 +151,7 @@ uv run resume-maker --port 8768 --data-dir /path/to/resume-data --no-browser
 
 ### AI 配置
 
-AI 功能使用原生 CLI 0.154.0，复用文件登录和供应商配置；“测试实际连接”会调用所选供应商。CLI 按需列出、搜索和读取关联目录的脱敏源码，分页可以继续，不因项目文件数、总量或单文件大小省略源码；完成后留存引用文件和证据。
+AI 功能使用原生 Codex CLI，复用文件登录和供应商配置，不限定具体版本号；CLI 需支持严格配置、受控模型目录和只读 MCP 材料工具，不兼容时保留具体错误并停止调用。“测试实际连接”会调用所选供应商。CLI 按需列出、搜索和读取关联目录的脱敏源码，分页可以继续，不因项目文件数、总量或单文件大小省略源码；完成后留存引用文件和证据。
 
 AI 请求中的内容会交给所配置的 Provider 处理，个人资料和任务记录仍保存在本机。
 

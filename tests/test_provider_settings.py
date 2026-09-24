@@ -22,14 +22,20 @@ from resume_maker.services.templates.tasks import Templates
     "version,code,available",
     [
         ("codex-cli 0.154.0", 0, True),
-        ("codex-cli 0.155.0", 0, False),
+        ("codex-cli 0.153.0", 0, True),
+        ("codex-cli 0.154.0-alpha.6.2", 0, True),
+        ("codex-cli 0.155.0", 0, True),
+        ("codex-cli 1.0.0", 0, True),
         ("codex-cli 0.154.0", 1, False),
+        ("another-cli 0.154.0", 0, False),
+        ("codex-cli", 0, False),
+        ("", 0, False),
     ],
 )
 def test_cli_inspection_checks_version_without_model_call(
     tmp_path, monkeypatch, version, code, available
 ):
-    """配置页只接受已验证的 CLI 版本，版本查询不依赖任务队列或模型调用"""
+    """配置页识别 CLI 且展示实际版本，不因版本号或预发布后缀拒绝使用"""
     commands = []
     monkeypatch.setattr(cli, "native_executable", lambda _: "synthetic-codex")
 

@@ -89,7 +89,7 @@ Windows 下安装 [uv](https://docs.astral.sh/uv/getting-started/installation/)�
 
 ## Codex 与 CCSwitch
 
-AI 功能使用原生 Codex CLI 0.154.0，复用文件登录或 Responses 供应商配置。无需 WSL；模型只能通过专用只读工具访问脱敏副本。“测试实际连接”会调用所选供应商，模型和 Profile 留空时沿用 CLI 配置。
+AI 功能使用原生 Codex CLI，复用文件登录或 Responses 供应商配置，不限定具体版本号；不兼容的必需参数或配置会返回具体错误。无需 WSL；模型只能通过专用只读工具访问脱敏副本。“测试实际连接”会调用所选供应商，模型和 Profile 留空时沿用 CLI 配置。
 
 每轮采用 `codex exec --sandbox read-only --json --output-schema ...`，续聊使用明确的会话 ID。任务全局排队，同一会话只允许一个未完成任务；支持取消、超时、失败重试、重启后中断标记，以及从已保存历史重建模型上下文。
 

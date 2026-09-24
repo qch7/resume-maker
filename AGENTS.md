@@ -146,7 +146,7 @@ uv run python scripts/check_wheel.py
 
 更多协作要求见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
-隐私 CLI 当前仅验证 0.154.0，升级须先通过真实 CLI 对本机假服务的工具边界验收。OCR 基准只使用合成材料，指标及限制记录在 docs/ocr-benchmark.md。
+隐私 CLI 不按具体版本号或预发布后缀拒绝运行，严格配置、受控模型目录及工具权限检查保持生效。调整 CLI 兼容性须通过真实 CLI 对本机假服务的工具边界验收，不得降级为宽松配置或普通 shell。OCR 基准只使用合成材料，指标及限制记录在 docs/ocr-benchmark.md。
 
 工具边界必须同时约束功能开关和模型目录元数据，并覆盖普通模型、GPT-5.5、GPT-6-Astra。Windows 子进程须挂起创建、加入 Job Object 后再恢复；源码副本写入须保持原始换行及引用行号。真实供应商验收仅使用合成资料，抓包及原件放入忽略目录，报告不得包含鉴权。
 
