@@ -8,6 +8,7 @@ from io import BytesIO
 import pytest
 from docx import Document
 from fastapi.testclient import TestClient
+from provider_stub import ProviderStub
 from test_template_mapping import photo_bytes
 
 from resume_maker.api import create_app
@@ -15,7 +16,7 @@ from resume_maker.core.config import Config
 from resume_maker.core.errors import Problem
 from resume_maker.domain.models import AIResult, ResumeItem
 from resume_maker.domain.resume import ResumeDocument
-from resume_maker.domain.templates import TemplatePlan, TextBinding
+from resume_maker.domain.templates import TemplatePlan
 from resume_maker.integrations.providers.codex import schema
 from resume_maker.integrations.word.templates.mapping import TemplatePackage
 from resume_maker.services.templates.tasks import Templates
@@ -38,7 +39,7 @@ def simple_template(path):
     doc.save(path)
 
 
-class TemplateProvider:
+class TemplateProvider(ProviderStub):
     """可控制取消及失败的结构化 AI 替身"""
 
     def __init__(self, block=False, failure=False):
@@ -59,7 +60,7 @@ class TemplateProvider:
         paragraph = next(node for node in nodes if node["kind"] == "p")
         return kwargs["result_model"](
             summary="识别姓名",
-            fields=[TextBinding(node=paragraph["id"], quote="原姓名", target="personal.name")],
+            fields=[{"node": paragraph["id"], "quote": "原姓名", "target": "personal.name"}],
             repeats=[],
             photos=[],
             keep=[],

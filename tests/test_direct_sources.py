@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 from conftest import record_source_files
+from provider_stub import ProviderStub
 from test_jobs import wait_job
 
 from resume_maker.domain.models import AIResult
@@ -60,7 +61,7 @@ def test_jobs_read_all_current_roots_and_only_archive_cited_files(catalog, tmp_p
     last_file.write_text("current content", encoding="utf-8")
     calls = []
 
-    class ReadingProvider:
+    class ReadingProvider(ProviderStub):
         """通过本轮只读网关访问当前源码并引用末尾子项目"""
 
         def run(self, **kw):

@@ -1,5 +1,7 @@
 """验证 AI 功能设置的保存、逐字段继承、提交快照及实际调用入口"""
 
+from types import SimpleNamespace
+
 import pytest
 from fastapi.testclient import TestClient
 from test_jobs import FakeProvider, wait_job
@@ -10,9 +12,41 @@ from resume_maker.core.config import Config
 from resume_maker.domain.models import AIResult, ProviderSettings
 from resume_maker.domain.templates import TemplatePlan
 from resume_maker.infrastructure.database import uid
+from resume_maker.integrations.providers import cli
 from resume_maker.integrations.providers.codex import CodexProvider
 from resume_maker.services.jobs import Jobs
 from resume_maker.services.templates.tasks import Templates
+
+
+@pytest.mark.parametrize(
+    "version,code,available",
+    [
+        ("codex-cli 0.154.0", 0, True),
+        ("codex-cli 0.155.0", 0, False),
+        ("codex-cli 0.154.0", 1, False),
+    ],
+)
+def test_cli_inspection_checks_version_without_model_call(
+    tmp_path, monkeypatch, version, code, available
+):
+    """配置页只接受已验证的 CLI 版本，版本查询不依赖任务队列或模型调用"""
+    commands = []
+    monkeypatch.setattr(cli, "native_executable", lambda _: "synthetic-codex")
+
+    def execute(command, **kwargs):
+        """记录命令参数并返回合成版本，避免启动真实 CLI"""
+        commands.append(command)
+        return SimpleNamespace(stdout=version + "\n", returncode=code)
+
+    monkeypatch.setattr(cli.subprocess, "run", execute)
+    with TestClient(
+        create_app(Config(data_dir=tmp_path, token="test")), headers={"x-resume-token": "test"}
+    ) as client:
+        response = client.get("/api/providers/codex")
+        assert response.status_code == 200
+        assert response.json()["available"] is available
+        assert response.json()["version"] == version
+    assert commands == [["synthetic-codex", "--version"]]
 
 
 def test_settings_persist_normalize_and_fill_defaults(tmp_path):

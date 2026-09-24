@@ -4,7 +4,6 @@ import inspect
 import logging
 import time
 import traceback
-from collections import OrderedDict
 from contextlib import contextmanager
 from contextvars import ContextVar
 from functools import wraps
@@ -55,8 +54,6 @@ def remember_task(log, identifier, **fields):
     current = CURRENT.get()
     context = current[1] if current and current[0] is log else {}
     with log.lock:
-        if not hasattr(log, "task_contexts"):
-            log.task_contexts = OrderedDict()
         log.task_contexts[identifier] = {**context, **fields, "job_id": identifier}
         while len(log.task_contexts) > 2000:
             log.task_contexts.popitem(last=False)
@@ -141,7 +138,7 @@ def service_entry(function, log, background):
             job = arguments.get("job", {})
             identifier = arguments.get("identifier") or job.get("id", "")
             with log.lock:
-                fields = {**getattr(log, "task_contexts", {}).get(identifier, {}), **fields}
+                fields = {**log.task_contexts.get(identifier, {}), **fields}
             if identifier:
                 fields["job_id"] = identifier
             fields.update(

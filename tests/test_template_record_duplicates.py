@@ -5,6 +5,7 @@ import threading
 
 import pytest
 from docx import Document
+from provider_stub import ProviderStub
 
 from resume_maker.core.errors import Problem
 from resume_maker.domain.models import ProviderSettings
@@ -125,7 +126,7 @@ def test_duplicate_record_feedback_is_bounded_and_reusable(tmp_path, monkeypatch
         "resume_maker.services.templates.analysis.source_pages", lambda *_: ([], [], [])
     )
 
-    class Provider:
+    class Provider(ProviderStub):
         """模拟先错误选择样本，再根据同一契约返回映射"""
 
         def __init__(self):

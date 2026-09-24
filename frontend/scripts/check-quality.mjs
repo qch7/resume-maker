@@ -35,10 +35,10 @@ function documentationAnchor(node) {
 }
 
 /** 检查单个文件的函数说明、语法和从共享层反向依赖业务层的情况 */
-function checkFile(name) {
+export function checkFile(name, sourceRoot = root) {
   const source = fs.readFileSync(name, "utf8");
   const file = ts.createSourceFile(name, source, ts.ScriptTarget.Latest, true);
-  const relative = path.relative(root, name).replaceAll("\\", "/");
+  const relative = path.relative(sourceRoot, name).replaceAll("\\", "/");
   const errors = [];
   let functions = 0;
 
@@ -72,14 +72,18 @@ function checkFile(name) {
         errors.push(`${relative}:${line} 缺少紧邻函数声明的中文说明`);
       }
     }
-    if (
-      ts.isImportDeclaration(node) &&
-      ts.isStringLiteral(node.moduleSpecifier)
-    ) {
-      const module = node.moduleSpecifier.text;
+    const specifier =
+      ts.isImportDeclaration(node) || ts.isExportDeclaration(node)
+        ? node.moduleSpecifier
+        : ts.isCallExpression(node) &&
+            node.expression.kind === ts.SyntaxKind.ImportKeyword
+          ? node.arguments[0]
+          : undefined;
+    if (specifier && ts.isStringLiteralLike(specifier)) {
+      const module = specifier.text;
       if (module.startsWith(".")) {
         const target = path
-          .relative(root, path.resolve(path.dirname(name), module))
+          .relative(sourceRoot, path.resolve(path.dirname(name), module))
           .replaceAll("\\", "/");
         if (
           (relative.startsWith("shared/") &&
@@ -95,18 +99,27 @@ function checkFile(name) {
   return { errors, functions };
 }
 
-const errors = [];
-let functions = 0;
-for (const name of sourceFiles(root)) {
-  const result = checkFile(name);
-  errors.push(...result.errors);
-  functions += result.functions;
+/** 执行完整源码检查，导入检查函数时不启动命令行流程 */
+function main() {
+  const errors = [];
+  let functions = 0;
+  for (const name of sourceFiles(root)) {
+    const result = checkFile(name);
+    errors.push(...result.errors);
+    functions += result.functions;
+  }
+  if (errors.length) {
+    console.error(errors.join("\n"));
+    process.exitCode = 1;
+  } else {
+    console.log(
+      `前端质量检查通过：已检查 ${functions} 个函数和回调，模块依赖方向有效。`,
+    );
+  }
 }
-if (errors.length) {
-  console.error(errors.join("\n"));
-  process.exitCode = 1;
-} else {
-  console.log(
-    `前端质量检查通过：已检查 ${functions} 个函数和回调，模块依赖方向有效。`,
-  );
-}
+
+if (
+  process.argv[1] &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+)
+  main();

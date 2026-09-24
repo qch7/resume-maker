@@ -35,7 +35,7 @@ def recover_private_page(document, page, number, output, provider, settings, fla
     # 保留页首以外的不确定 OCR 身份，重新打开任务时仍须整段遮盖
     for node in restored._element.iter(w("p")):
         text = "".join(part.text or "" for part in node.iter(w("t")))
-        if any(value and value in text for value in getattr(provider, "sensitive_values", ())):
+        if any(value and value in text for value in provider.sensitive_values):
             node.set(PRIVATE, "1")
     append_document(document, restored)
     return [

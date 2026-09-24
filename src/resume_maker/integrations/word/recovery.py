@@ -93,12 +93,11 @@ def append_page(document, recovered, page, number):
 
 def recover_page(provider, output, prompt, image, settings, flag, emit, number):
     """页面恢复失败时重试一次并响应取消，重试失败则中止"""
-    if getattr(provider, "preprocess_images", False):
+    if provider.preprocess_images:
         from resume_maker.integrations.local_ocr import read_document
 
         result = read_document(image, flag)
-        if hasattr(provider, "register_ocr"):
-            provider.register_ocr(result)
+        provider.register_ocr(result)
         return ocr_page(result["pages"][0])
     for attempt in range(1, 3):
         if flag.is_set():
@@ -139,15 +138,14 @@ def rebuild_pages(pdf, output, provider, settings, flag, emit, *, native_pdf=Fal
         from resume_maker.integrations.local_ocr import OCRBudget, native_blocks, pdf_page
         from resume_maker.integrations.word.pdf.recovery import rebuild_pdf
 
-        private = getattr(provider, "preprocess_images", False)
+        private = provider.preprocess_images
         budget = OCRBudget()
 
         def register_page(local):
             """登记整页文字以识别跨行身份，低置信度片段继续整体脱敏"""
-            if hasattr(provider, "register_ocr"):
-                provider.register_ocr(
-                    {"pages": [local], "text": "\n".join(row["text"] for row in local["blocks"])}
-                )
+            provider.register_ocr(
+                {"pages": [local], "text": "\n".join(row["text"] for row in local["blocks"])}
+            )
 
         def observe_page(page):
             """原生页面只登记本地文字层，不因短文字或附带照片启动 OCR"""
@@ -157,7 +155,7 @@ def rebuild_pages(pdf, output, provider, settings, flag, emit, *, native_pdf=Fal
             """只把缺少可靠文字层或版面转换失败的 PDF 页交给现有视觉恢复器"""
             if not page.get_contents():
                 return [f"第 {number} 页为空白页，已在本机保留。"]
-            if getattr(provider, "supports_page_images", False):
+            if provider.supports_page_images:
                 from resume_maker.integrations.word.pdf.visual import recover_private_page
 
                 return recover_private_page(

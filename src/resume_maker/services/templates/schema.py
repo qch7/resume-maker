@@ -2,14 +2,9 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, create_model, field_validator
+from pydantic import Field, create_model
 
 from resume_maker.domain.templates import RepeatBinding, TemplatePlan, TextBinding
-
-
-def binding_values(cls, value):
-    """兼容 Provider 直接构造基础绑定对象，并按当前候选重新校验"""
-    return [item.model_dump() if isinstance(item, BaseModel) else item for item in value]
 
 
 def plan_schema(package, document):
@@ -27,7 +22,6 @@ def plan_schema(package, document):
     repeat = create_model(
         "CandidateRepeatBinding",
         __base__=RepeatBinding,
-        __validators__={"bindings": field_validator("fields", mode="before")(binding_values)},
         section=(
             Literal[tuple(dict.fromkeys(["projects", *[s.title for s in document.sections]]))],
             ...,
@@ -38,9 +32,6 @@ def plan_schema(package, document):
     return create_model(
         "CandidateTemplatePlan",
         __base__=TemplatePlan,
-        __validators__={
-            "bindings": field_validator("fields", "repeats", mode="before")(binding_values)
-        },
         fields=(list[binding], Field(max_length=150)),
         repeats=(list[repeat], Field(max_length=40)),
         photos=(

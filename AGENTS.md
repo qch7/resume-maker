@@ -50,7 +50,11 @@ Resume Maker 是单用户本机简历工作台，将项目源码整理成有引�
 
 后端依赖约束由 `scripts/check_quality.py` 检查：`core` 独立于业务模块，`domain` 不依赖存储或适配器，`infrastructure` 和 `integrations` 不导入 `services` 或 `api`，`services` 不导入 `api`。
 
+Provider 和隐私存储由 `api/app.py` 统一创建，再注入需要它们的服务；任务队列不负责其他服务的依赖装配。适配器显式实现 `Provider` 中的图片能力、任务隐私副本及 OCR 登记，不用属性探测绕过契约。设置及隐私规则的事务放在对应服务，路由只负责 HTTP 输入输出。
+
 前端 `shared` 不导入 `features` 或 `app`，`features` 不导入 `app`；通用草稿提交通过 `shared/lib/draftRegistry.ts` 协调。
+
+依赖检查同时覆盖 Python 包入口导入、前端重导出及字面量动态导入，不能通过改写导入语法绕过模块边界。
 
 ## 注释规则
 

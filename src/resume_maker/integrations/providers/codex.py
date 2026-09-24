@@ -1,9 +1,7 @@
 """本机 OCR、脱敏及还原，CLI 只接触隔离的安全副本"""
 
 import json
-import os
 import re
-import subprocess
 from contextlib import nullcontext
 from copy import copy
 
@@ -27,7 +25,6 @@ from resume_maker.integrations.providers.page_images import (
     sanitized_page,
     validate_page_text,
 )
-from resume_maker.integrations.providers.sandbox import native_executable
 from resume_maker.integrations.source_access import SourceAccess
 
 
@@ -102,31 +99,6 @@ class CodexProvider:
                 if row["confidence"] < REVIEW_SCORE
             }
         )
-
-    @staticmethod
-    def executable(settings):
-        """解析实际运行及版本检查使用的原生程序"""
-        return native_executable(settings.executable)
-
-    def inspect(self, settings):
-        """检查本机 CLI 版本，不连接模型或读取用户文档"""
-        try:
-            result = subprocess.run(
-                [self.executable(settings), "--version"],
-                capture_output=True,
-                timeout=15,
-                encoding="utf-8",
-                errors="replace",
-                creationflags=0x08000000 if os.name == "nt" else 0,
-            )
-            return {
-                "available": result.returncode == 0
-                and result.stdout.strip() == "codex-cli 0.154.0",
-                "version": result.stdout.strip(),
-                "authentication": "使用已验证的 CLI 0.154.0，复用文件登录及只读材料工具",
-            }
-        except (OSError, subprocess.TimeoutExpired, ProviderError):
-            return {"available": False, "error": "无法读取 CLI 版本。"}
 
     def run(self, **kwargs):
         """使用经历结果契约调用统一隐私出口"""

@@ -4,7 +4,7 @@ import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Protocol, Self
 
 from resume_maker.domain.models import AIResult, Model, ProviderSettings
 
@@ -60,6 +60,20 @@ class StructuredOutputError(ProviderError):
 
 class Provider(Protocol):
     """可注入的 AI 执行接口，生产出口负责脱敏及隔离模型工具"""
+
+    supports_images: bool
+    supports_mosaic_images: bool
+    supports_page_images: bool
+    preprocess_images: bool
+    sensitive_values: set[str]
+
+    def with_private_data(self, value: dict) -> Self:
+        """为任务建立独立隐私上下文，保留已有身份值和凭据保护"""
+        ...
+
+    def register_ocr(self, document: dict) -> None:
+        """登记本机 OCR 身份及低置信度文字，供后续轮次继续保护"""
+        ...
 
     def run(
         self,

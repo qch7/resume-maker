@@ -12,8 +12,10 @@ from resume_maker.services.conversations import Conversations
 from resume_maker.services.documents import Documents
 from resume_maker.services.honors import Honors
 from resume_maker.services.jobs import Jobs
+from resume_maker.services.privacy import Privacy
 from resume_maker.services.projects import Projects
 from resume_maker.services.resume_previews import ResumePreviews
+from resume_maker.services.settings import Settings
 from resume_maker.services.templates.library import TemplateLibrary
 from resume_maker.services.templates.tasks import Templates
 from resume_maker.services.workspace import Workspace
@@ -35,6 +37,8 @@ class Services:
     templates: Templates
     template_library: TemplateLibrary
     resume_previews: ResumePreviews
+    settings: Settings
+    privacy: Privacy
 
 
 def get_services(request: Request) -> Services:

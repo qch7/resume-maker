@@ -25,14 +25,18 @@ from resume_maker.core.config import Config
 from resume_maker.infrastructure.activity import ActivityLog
 from resume_maker.infrastructure.database import Database
 from resume_maker.infrastructure.observability import install_logging, instrument_service
+from resume_maker.integrations.privacy_store import PrivacyStore
 from resume_maker.integrations.providers.base import Provider
+from resume_maker.integrations.providers.codex import CodexProvider
 from resume_maker.services.catalog import Catalog
 from resume_maker.services.conversations import Conversations
 from resume_maker.services.documents import Documents
 from resume_maker.services.honors import Honors
 from resume_maker.services.jobs import Jobs
+from resume_maker.services.privacy import Privacy
 from resume_maker.services.projects import Projects
 from resume_maker.services.resume_previews import ResumePreviews
+from resume_maker.services.settings import Settings
 from resume_maker.services.templates.library import TemplateLibrary
 from resume_maker.services.templates.tasks import Templates
 from resume_maker.services.workspace import Workspace
@@ -46,16 +50,20 @@ def create_app(config: Config | None = None, provider: Provider | None = None) -
     db.activity = ActivityLog(config.data_dir / "logs" / "activity.sqlite", secrets=(config.token,))
     db.activity.import_history(db)
     install_logging()
+    privacy_store = PrivacyStore(db)
+    provider = provider if provider is not None else CodexProvider(privacy=privacy_store)
     catalog = Catalog(db)
     queue = Jobs(db, catalog, config.data_dir, provider)
-    template_service = Templates(catalog, config.data_dir, queue.provider)
+    template_service = Templates(catalog, config.data_dir, provider)
     preview_service = ResumePreviews(catalog, config.data_dir)
     services = Services(
         config=config,
         db=db,
         catalog=catalog,
         jobs=queue,
-        honors=Honors(db, config.data_dir, queue.provider),
+        honors=Honors(db, config.data_dir, provider),
+        settings=Settings(db, config.data_dir, provider),
+        privacy=Privacy(db, privacy_store),
         documents=Documents(catalog, config.data_dir),
         resume_previews=preview_service,
         templates=template_service,
@@ -78,6 +86,8 @@ def create_app(config: Config | None = None, provider: Provider | None = None) -
         "projects",
         "conversations",
         "workspace",
+        "settings",
+        "privacy",
     ):
         instrument_service(
             getattr(services, name),

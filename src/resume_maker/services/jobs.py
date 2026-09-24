@@ -8,9 +8,7 @@ from resume_maker.domain.experience import field_value
 from resume_maker.domain.models import ProviderSettings
 from resume_maker.infrastructure.database import Database, dump, now, uid
 from resume_maker.infrastructure.observability import record, record_event, remember_task
-from resume_maker.integrations.privacy_store import PrivacyStore
 from resume_maker.integrations.providers.base import Cancelled, Provider
-from resume_maker.integrations.providers.codex import CodexProvider
 from resume_maker.integrations.source_context import source_context
 from resume_maker.integrations.sources import (
     capture_evidence,
@@ -75,12 +73,10 @@ Scope 写“范围”、fallback 写“回退”、chunk 写“分块”，不�
 class Jobs:
     """带持久状态、幂等提交和连接取消的串行任务队列"""
 
-    def __init__(
-        self, db: Database, catalog: Catalog, data_dir: Path, provider: Provider | None = None
-    ):
+    def __init__(self, db: Database, catalog: Catalog, data_dir: Path, provider: Provider):
         """保存任务依赖，创建取消信号和工作线程状态，此时不启动队列"""
         self.db, self.catalog, self.data_dir = db, catalog, data_dir
-        self.provider = provider or CodexProvider(privacy=PrivacyStore(db))
+        self.provider = provider
         self.stopped, self.wakeup = threading.Event(), threading.Event()
         self.cancel_flags: dict[str, threading.Event] = {}
         self.worker: threading.Thread | None = None

@@ -25,13 +25,12 @@ def recognize_image(provider, image, output, settings, flag, emit, *, paper_size
 
     from resume_maker.integrations.word.image.layout import page_size, text_layer, validate_layout
 
-    private_page = getattr(provider, "supports_page_images", False)
-    if getattr(provider, "preprocess_images", False) and not private_page:
+    private_page = provider.supports_page_images
+    if provider.preprocess_images and not private_page:
         from resume_maker.integrations.local_ocr import read_document
 
         local = read_document(image, flag)
-        if hasattr(provider, "register_ocr"):
-            provider.register_ocr(local)
+        provider.register_ocr(local)
         return ImagePage(
             texts=[{"text": row["text"], "box": row["box"]} for row in local["pages"][0]["blocks"]],
             assets=[],
@@ -105,9 +104,9 @@ def rebuild_image(source, output, provider, settings, flag, emit):
     return [
         "已将本地 OCR 脱敏重绘的整页图交给 AI 恢复版面，原文和照片在本机放回 Word；"
         "OCR、字体及复杂装饰需对照原件核对。"
-        if getattr(provider, "supports_page_images", False)
+        if provider.supports_page_images
         else "已通过本地 OCR 恢复文字布局，照片、字体及装饰需人工核对。"
-        if getattr(provider, "preprocess_images", False)
+        if provider.preprocess_images
         else "已按图片位置重建可编辑模板：保留同行关系、文字样式、局部图标和照片；"
         "标题底块独立绘制，填入资料后随文字排版。",
         *recovered.notes,
