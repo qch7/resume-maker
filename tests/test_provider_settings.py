@@ -22,14 +22,20 @@ from resume_maker.services.templates.tasks import Templates
     "version,code,available",
     [
         ("codex-cli 0.154.0", 0, True),
-        ("codex-cli 0.155.0", 0, False),
+        ("codex-cli 0.153.0", 0, True),
+        ("codex-cli 0.154.0-alpha.6.2", 0, True),
+        ("codex-cli 0.155.0", 0, True),
+        ("codex-cli 1.0.0", 0, True),
         ("codex-cli 0.154.0", 1, False),
+        ("another-cli 0.154.0", 0, False),
+        ("codex-cli", 0, False),
+        ("", 0, False),
     ],
 )
 def test_cli_inspection_checks_version_without_model_call(
     tmp_path, monkeypatch, version, code, available
 ):
-    """配置页只接受已验证的 CLI 版本，版本查询不依赖任务队列或模型调用"""
+    """配置页识别 CLI 且展示实际版本，不因版本号或预发布后缀拒绝使用"""
     commands = []
     monkeypatch.setattr(cli, "native_executable", lambda _: "synthetic-codex")
 
@@ -92,13 +98,15 @@ def test_settings_persist_normalize_and_fill_defaults(tmp_path):
 @pytest.mark.parametrize(
     "invalid",
     [
-        {"reasoning_effort": "unsupported"},
-        {"functions": {"conversation": {"reasoning_effort": "unsupported"}}},
+        {"reasoning_effort": 123},
+        {"reasoning_effort": "high\nshell_tool=true"},
+        {"reasoning_effort": "x" * 65},
+        {"functions": {"conversation": {"reasoning_effort": ["high"]}}},
         {"functions": {"unknown": {"model": "test-model"}}},
     ],
 )
 def test_invalid_settings_do_not_replace_saved_configuration(tmp_path, invalid):
-    """拒绝未知强度和功能标识，校验失败不能覆盖已保存的配置"""
+    """拒绝强度格式错误和未知功能，校验失败不能覆盖已保存的配置"""
     with TestClient(
         create_app(Config(data_dir=tmp_path, token="test")), headers={"x-resume-token": "test"}
     ) as client:

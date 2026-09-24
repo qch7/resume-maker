@@ -3,6 +3,7 @@
 import base64
 import json
 import threading
+import time
 from io import BytesIO
 
 import pytest
@@ -79,10 +80,11 @@ class TemplateProvider(ProviderStub):
 
 def completed(service, identifier):
     """有界等待实际分析线程结束，返回完成或失败的任务结果"""
+    # 字体、磁盘和文档处理在共享 Windows runner 上可能超过十秒，所有线程共用等待上限
+    deadline = time.monotonic() + 60
     for thread in service.threads:
-        # 整页图片生成涉及磁盘和字体缓存，繁忙 Windows 主机上不能假设三秒内结束
-        thread.join(timeout=10)
-        assert not thread.is_alive()
+        thread.join(timeout=max(0, deadline - time.monotonic()))
+        assert not thread.is_alive(), f"模板线程 {thread.name} 未在 60 秒内结束"
     return service.get(identifier)
 
 

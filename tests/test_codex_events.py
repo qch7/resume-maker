@@ -19,6 +19,7 @@ from resume_maker.integrations.providers.process import execute
 def cli_stream(tmp_path, monkeypatch):
     """用合成事件驱动真实解析入口，不访问本机配置、登录或供应商"""
     stream = []
+    version_output = ""
 
     @contextmanager
     def workspace():
@@ -37,7 +38,7 @@ def cli_stream(tmp_path, monkeypatch):
     def execute_stream(command, **kwargs):
         """模拟版本检查和 CLI 逐行事件，异常立即终止后续事件"""
         if "--version" in command:
-            return "codex-cli 0.154.0"
+            return version_output
         for value in stream:
             kwargs["event"](value)
 
@@ -50,8 +51,10 @@ def cli_stream(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(cli, "execute", execute_stream)
 
-    def run(events, emit=lambda *_: None):
+    def run(events, emit=lambda *_: None, *, version="codex-cli 0.155.0"):
         """将给定事件流送入本轮 CLI，并返回真实入口的最终消息"""
+        nonlocal version_output
+        version_output = version
         stream.extend(events)
         return cli.run_cli(
             {"input": "synthetic context", "schema": {}},
@@ -62,6 +65,56 @@ def cli_stream(tmp_path, monkeypatch):
         )
 
     return run
+
+
+@pytest.mark.parametrize(
+    "version",
+    [
+        "codex-cli 0.153.0",
+        "codex-cli 0.154.0",
+        "codex-cli 0.154.0-alpha.6.2",
+        "codex-cli 0.155.0",
+        "codex-cli 1.0.0",
+    ],
+)
+def test_cli_versions_can_complete_the_same_protocol(cli_stream, version):
+    """兼容的 CLI 可完成结构化调用，版本号及预发布后缀不构成拦截条件"""
+    result = cli_stream(
+        [
+            {
+                "type": "item.completed",
+                "item": {"type": "agent_message", "text": '{"reply":"completed"}'},
+            },
+            {"type": "turn.completed"},
+        ],
+        version=version,
+    )
+    assert json.loads(result) == {"reply": "completed"}
+
+
+@pytest.mark.parametrize("version", ["another-cli 0.154.0", "codex-cli", ""])
+def test_wrong_executable_is_rejected_before_model_call(cli_stream, version):
+    """错误程序或空白版本输出仍须在启动模型调用前拒绝"""
+    with pytest.raises(ProviderError, match="无法识别 Codex CLI"):
+        cli_stream([], version=version)
+
+
+def test_unsupported_strict_configuration_never_retries_unrestricted(cli_stream, monkeypatch):
+    """版本可识别但严格配置不兼容时保留具体错误，不降级或重试宽松配置"""
+    commands = []
+
+    def reject_configuration(command, **kwargs):
+        """模拟新版 CLI 拒绝必需参数，记录是否出现放宽权限的再次调用"""
+        commands.append(command)
+        if "--version" in command:
+            return "codex-cli 1.0.0"
+        assert "--strict-config" in command
+        raise ProviderError("unexpected argument --strict-config")
+
+    monkeypatch.setattr(cli, "execute", reject_configuration)
+    with pytest.raises(ProviderError, match="unexpected argument --strict-config"):
+        cli_stream([])
+    assert len(commands) == 2
 
 
 @pytest.mark.parametrize("kind", ["item.started", "item.updated", "item.completed"])

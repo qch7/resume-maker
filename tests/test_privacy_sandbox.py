@@ -32,6 +32,82 @@ class BoundaryReply(Model):
     answer: str
 
 
+@pytest.mark.skipif(os.name != "nt", reason="Windows 目录所有者和 ACL 边界")
+@pytest.mark.parametrize("existing_owner", ["account", "default", "foreign"])
+def test_windows_sandbox_accepts_token_owners_and_rejects_foreign_owner(
+    tmp_path, monkeypatch, existing_owner
+):
+    """账户和进程默认所有者可归一到当前账户，其他账户目录不能修改权限或接管"""
+    import win32security
+
+    account = win32security.ConvertStringSidToSid("S-1-5-21-100-200-300-1001")
+    administrators = win32security.ConvertStringSidToSid("S-1-5-32-544")
+    system = win32security.ConvertStringSidToSid("S-1-5-18")
+    foreign = win32security.ConvertStringSidToSid("S-1-5-21-100-200-300-1002")
+    descriptor = win32security.SECURITY_DESCRIPTOR()
+    descriptor.SetSecurityDescriptorOwner(
+        {"account": account, "default": administrators, "foreign": foreign}[existing_owner], False
+    )
+    monkeypatch.setattr(
+        win32security,
+        "GetTokenInformation",
+        lambda token, kind: (account, 0) if kind == win32security.TokenUser else administrators,
+    )
+    monkeypatch.setattr(win32security, "GetNamedSecurityInfo", lambda *_: descriptor)
+    updates = []
+    monkeypatch.setattr(win32security, "SetNamedSecurityInfo", lambda *args: updates.append(args))
+    if existing_owner == "foreign":
+        with pytest.raises(ProviderError, match="不属于当前账户"):
+            sandbox.windows_parent(tmp_path)
+        assert updates == []
+        return
+    sandbox.windows_parent(tmp_path)
+    assert len(updates) == 1
+    _, _, flags, owner, _, acl, _ = updates[0]
+    if existing_owner == "default":
+        assert owner == account
+        assert flags & win32security.OWNER_SECURITY_INFORMATION
+    else:
+        assert owner is None
+        assert not flags & win32security.OWNER_SECURITY_INFORMATION
+    assert flags & win32security.DACL_SECURITY_INFORMATION
+    assert flags & win32security.PROTECTED_DACL_SECURITY_INFORMATION
+    assert acl.GetAceCount() == 3
+    assert [acl.GetAce(i)[2] for i in range(3)] == [account, system, administrators]
+
+
+@pytest.mark.parametrize("exit_reason", ["success", "failure", "cancelled"])
+def test_project_sandbox_cleans_only_its_task(tmp_path, monkeypatch, exit_reason):
+    """项目内沙箱在成功、异常和取消后清理本轮副本，保留源码及其他任务"""
+    project = tmp_path / "project"
+    project.mkdir()
+    original = project / "main.py"
+    original.write_text("ORIGINAL-CANARY", encoding="utf-8")
+    parent = project / "ResumeMakerSandbox"
+    parent.mkdir(mode=0o700)
+    other = parent / "task-other"
+    other.mkdir()
+    marker = other / "context.txt"
+    marker.write_text("OTHER-TASK-CANARY", encoding="utf-8")
+    monkeypatch.setattr(sandbox, "sandbox_directory", lambda: parent)
+    monkeypatch.chdir(tmp_path)
+    try:
+        with sandbox.workspace() as root:
+            assert root.parent == parent and root != other
+            assert (root / "materials").is_dir() and (root / "control").is_dir()
+            (root / "control" / "private.txt").write_text("PRIVATE-CANARY", encoding="utf-8")
+            if exit_reason == "failure":
+                raise RuntimeError("合成任务失败")
+            if exit_reason == "cancelled":
+                raise Cancelled("合成任务取消")
+    except (RuntimeError, Cancelled):
+        assert exit_reason != "success"
+    assert not root.exists()
+    assert list(parent.iterdir()) == [other]
+    assert original.read_text(encoding="utf-8") == "ORIGINAL-CANARY"
+    assert marker.read_text(encoding="utf-8") == "OTHER-TASK-CANARY"
+
+
 @pytest.mark.skipif(os.name == "nt", reason="POSIX 所有权及权限由 Linux CI 验证")
 @pytest.mark.parametrize("mode", [0o700, 0o755, 0o770, 0o777])
 def test_posix_parent_requires_private_permissions(tmp_path, monkeypatch, mode):
@@ -39,11 +115,7 @@ def test_posix_parent_requires_private_permissions(tmp_path, monkeypatch, mode):
     parent = tmp_path / "sandbox"
     parent.mkdir(mode=mode)
     parent.chmod(mode)
-    monkeypatch.setattr(
-        sandbox,
-        "Path",
-        lambda path: parent if str(path) == "/tmp/resume-maker-sandbox" else Path(path),
-    )
+    monkeypatch.setattr(sandbox, "sandbox_directory", lambda: parent)
     if mode == 0o700:
         with sandbox.workspace() as root:
             assert root.parent == parent and (root / "control").is_dir()
@@ -345,7 +417,8 @@ def test_native_cli_tool_boundary(tmp_path, model, with_mosaic):
         f'model="{model}"\nmodel_provider="test"\ndeveloper_instructions="CONFIG-CANARY"\n'
         '[mcp_servers.untrusted]\ncommand="SHOULD-NOT-START"\n'
         '[model_providers.test]\nname="test"\nwire_api="responses"\nenv_key="SYNTHETIC_KEY"\n'
-        f'base_url="http://127.0.0.1:{server.server_port}/v1"\n',
+        f'base_url="http://127.0.0.1:{server.server_port}/v1"\n'
+        '[profiles."团队 profile.v2"]\nmodel_reasoning_effort="none"\n',
         encoding="utf-8",
     )
     try:
@@ -359,7 +432,9 @@ def test_native_cli_tool_boundary(tmp_path, model, with_mosaic):
             prompt="SAFE-MATERIAL\n姓名：合成测试甲\n电话：13800004726\n"
             "邮箱：synthetic4726@example.invalid\n颁发单位\n合成测试委员会",
             thread_id="PRIVATE-OLD-SESSION",
-            settings=ProviderSettings(timeout_seconds=60),
+            settings=ProviderSettings(
+                timeout_seconds=60, profile="团队 profile.v2" if with_mosaic else ""
+            ),
             cancelled=threading.Event(),
             emit=lambda *_: None,
             images=images,
@@ -414,6 +489,9 @@ def test_native_cli_tool_boundary(tmp_path, model, with_mosaic):
         if item["type"] == "function_call_output"
     )
     for request in requests:
+        assert request["model"] == model
+        if with_mosaic:
+            assert request["reasoning"]["effort"] == "none"
         assert {item["name"] for item in request["tools"]} <= {
             "mcp__resume_materials",
             "list_mcp_resources",

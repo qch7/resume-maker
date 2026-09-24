@@ -29,7 +29,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path.cwd() / "package"))
 from resume_maker.api import create_app
-from resume_maker.core.config import Config
+from resume_maker.core.config import Config, sandbox_directory
 from resume_maker.infrastructure.database import SCHEMA_VERSION
 from resume_maker.services.templates.analysis import INSTRUCTIONS
 from resume_maker.integrations import local_ocr
@@ -41,6 +41,7 @@ import json
 import threading
 assert "name: resume-template-mapping" in INSTRUCTIONS
 assert Path(material_server.__file__).is_relative_to(Path.cwd() / "package")
+assert sandbox_directory() == Path.home() / ".resume-maker-sandbox"
 assert len(material_server.TOOLS) == 2
 assert len(material_server.SOURCE_TOOLS) == 3
 source = Path.cwd() / "synthetic-source"

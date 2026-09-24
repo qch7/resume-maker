@@ -68,7 +68,7 @@ class CodexProvider:
     preprocess_images = True
 
     def __init__(self, *, environment=None, privacy=None, runner=None):
-        """测试注入 CLI 替身，生产通过版本校验和受限材料工具调用"""
+        """测试注入 CLI 替身，生产通过严格配置和受限材料工具调用"""
         self.environment = dict(environment or {})
         self.privacy = privacy or PrivacyStore()
         self.runner = runner or run_cli

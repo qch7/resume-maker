@@ -2,7 +2,14 @@
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
 
 class Model(BaseModel):
@@ -114,7 +121,9 @@ class ProjectProfile(Model):
     notes: str = ""
 
 
-ReasoningEffort = Literal["", "minimal", "low", "medium", "high", "xhigh"]
+ReasoningEffort = Annotated[
+    str, StringConstraints(strip_whitespace=True, max_length=64, pattern=r"^[A-Za-z0-9_-]*$")
+]
 AIFunction = Literal[
     "project_analysis",
     "conversation",

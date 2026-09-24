@@ -17,6 +17,15 @@ def data_directory() -> Path:
     return Path.home() / ".resume-maker"
 
 
+def sandbox_directory() -> Path:
+    """源码运行使用项目内沙箱，安装包使用独立用户目录且不跟随启动位置"""
+    source = Path(__file__).resolve().parents[2]
+    project = source.parent
+    if source.name == "src" and (project / "pyproject.toml").is_file():
+        return project / "ResumeMakerSandbox"
+    return Path.home() / ".resume-maker-sandbox"
+
+
 def frontend_directory() -> Path:
     """优先使用显式资源目录，其次使用 wheel 内资源，开发时回退到仓库构建目录"""
     if override := os.environ.get("RESUME_MAKER_FRONTEND_DIR"):

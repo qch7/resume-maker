@@ -2,7 +2,6 @@
 
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -35,10 +34,11 @@ def inspect_cli(settings):
             errors="replace",
             creationflags=0x08000000 if os.name == "nt" else 0,
         )
+        version = result.stdout.strip()
         return {
-            "available": result.returncode == 0 and result.stdout.strip() == "codex-cli 0.154.0",
-            "version": result.stdout.strip(),
-            "authentication": "使用已验证的 CLI 0.154.0，复用文件登录及只读材料工具",
+            "available": result.returncode == 0 and version.startswith("codex-cli "),
+            "version": version,
+            "authentication": "复用 CLI 文件登录及只读材料工具",
         }
     except (OSError, subprocess.TimeoutExpired, ProviderError):
         return {"available": False, "error": "无法读取 CLI 版本。"}
@@ -155,9 +155,8 @@ def run_cli(payload, settings, environment, cancelled, emit, *, source_access=No
         version = execute(
             [executable, "--version"], cwd=root, env=env, timeout=15, cancelled=cancelled
         )
-        match = re.search(r"codex-cli (\d+)\.(\d+)\.(\d+)", version)
-        if not match or tuple(map(int, match.groups())) != (0, 154, 0):
-            raise ProviderError("隐私工具沙箱目前验证的 Codex CLI 版本为 0.154.0，请使用该版本。")
+        if not version.strip().startswith("codex-cli "):
+            raise ProviderError("无法识别 Codex CLI，请检查可执行文件路径及版本输出。")
         prompt = materials(root, payload["input"], payload["schema"])
         allowed_tools = "、".join(
             tool["name"] for tool in TOOLS + (SOURCE_TOOLS if endpoint else [])

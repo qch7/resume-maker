@@ -3280,14 +3280,8 @@
         },
         "reasoning_effort": {
           "type": "string",
-          "enum": [
-            "",
-            "minimal",
-            "low",
-            "medium",
-            "high",
-            "xhigh"
-          ],
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9_-]*$",
           "title": "Reasoning Effort",
           "default": ""
         }
@@ -4294,14 +4288,8 @@
         },
         "reasoning_effort": {
           "type": "string",
-          "enum": [
-            "",
-            "minimal",
-            "low",
-            "medium",
-            "high",
-            "xhigh"
-          ],
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9_-]*$",
           "title": "Reasoning Effort",
           "default": ""
         },

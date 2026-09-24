@@ -6,7 +6,22 @@ import tomllib
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from resume_maker.domain.models import AISettings
 from resume_maker.integrations.providers.base import ProviderError
+
+
+def profile_settings(home, config, name):
+    """按完整名称查找内嵌配置，独立配置文件只允许在 CLI home 内读取"""
+    overlay = config.get("profiles", {}).get(name)
+    if not re.search(r'[<>:"/\\|?*\x00-\x1f]', name) and name not in {".", ".."}:
+        file = home / f"{name}.config.toml"
+        if file.is_file():
+            if file.resolve().parent != home.resolve():
+                raise ProviderError("独立 CLI 配置档必须位于 CODEX_HOME 内。")
+            overlay = tomllib.loads(file.read_text(encoding="utf-8"))
+    if not isinstance(overlay, dict):
+        raise ProviderError("找不到指定的 CLI 配置档。")
+    return overlay
 
 
 def connection(settings, environment):
@@ -17,16 +32,7 @@ def connection(settings, environment):
         file = home / "config.toml"
         config = tomllib.loads(file.read_text(encoding="utf-8")) if file.exists() else {}
         if settings.profile:
-            if not re.fullmatch(r"[\w-]+", settings.profile):
-                raise ProviderError("配置档名称只支持字母、数字、下划线和连字符。")
-            file = home / f"{settings.profile}.config.toml"
-            overlay = (
-                tomllib.loads(file.read_text(encoding="utf-8"))
-                if file.exists()
-                else config.get("profiles", {}).get(settings.profile)
-            )
-            if not isinstance(overlay, dict):
-                raise ProviderError("找不到指定的 CLI 配置档。")
+            overlay = profile_settings(home, config, settings.profile)
             config = {
                 **config,
                 **overlay,
@@ -62,12 +68,12 @@ def connection(settings, environment):
         env["CODEX_HOME"] = str(home.resolve())
         values = {}
         model = settings.model or config.get("model", "")
-        effort = settings.reasoning_effort or config.get("model_reasoning_effort", "")
+        effort = AISettings(
+            reasoning_effort=settings.reasoning_effort or config.get("model_reasoning_effort", "")
+        ).reasoning_effort
         if model:
             values["model"] = model
         if effort:
-            if effort not in {"minimal", "low", "medium", "high", "xhigh"}:
-                raise ProviderError("配置中的思考强度不受支持。")
             values["model_reasoning_effort"] = effort
         provider_id = config.get("model_provider", "openai")
         provider = config.get("model_providers", {}).get(provider_id, {})

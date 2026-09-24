@@ -30,3 +30,23 @@ def test_installed_package_keeps_user_data_directory(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     (tmp_path / "pyproject.toml").write_text('[project]\nname = "another-project"\n')
     assert config.Config().data_dir == Path.home() / ".resume-maker"
+
+
+def test_source_sandbox_stays_in_project_when_launch_environment_changes(tmp_path, monkeypatch):
+    """沙箱固定在源码项目内，启动位置、系统盘和数据目录设置均不改变位置"""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SystemDrive", "Z:")
+    monkeypatch.setenv("RESUME_MAKER_DATA_DIR", str(tmp_path / "data"))
+    expected = Path(config.__file__).resolve().parents[3] / "ResumeMakerSandbox"
+    assert config.sandbox_directory() == expected
+    assert not (tmp_path / "ResumeMakerSandbox").exists()
+
+
+def test_installed_sandbox_avoids_package_and_current_directories(tmp_path, monkeypatch):
+    """安装包没有源码根目录时使用独立用户沙箱，不写入安装位置或待分析项目"""
+    monkeypatch.setattr(
+        config, "__file__", str(tmp_path / "site-packages/resume_maker/core/config.py")
+    )
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "pyproject.toml").write_text('[project]\nname = "another-project"\n')
+    assert config.sandbox_directory() == Path.home() / ".resume-maker-sandbox"
