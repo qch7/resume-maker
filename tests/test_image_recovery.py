@@ -8,6 +8,7 @@ import pymupdf
 import pytest
 from docx import Document
 from PIL import Image
+from provider_stub import ProviderStub
 from pydantic import ValidationError
 from test_pdf_header_layout import header_content
 
@@ -95,7 +96,7 @@ def image_fixture(path, scale=2, left=False, font=None):
     return ImagePage(texts=texts, assets=assets)
 
 
-class ImageProvider:
+class ImageProvider(ProviderStub):
     """返回给定图片结构，可模拟首轮坏坐标和迟到取消"""
 
     def __init__(self, layout, invalid=False, cancel=False):

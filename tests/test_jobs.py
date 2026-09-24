@@ -4,6 +4,7 @@ import json
 import time
 
 import pytest
+from provider_stub import ProviderStub
 
 from resume_maker.core.errors import Problem
 from resume_maker.domain.models import AIResult, Experience
@@ -12,7 +13,7 @@ from resume_maker.integrations.providers.base import Cancelled
 from resume_maker.services.jobs import Jobs
 
 
-class FakeProvider:
+class FakeProvider(ProviderStub):
     """可控 AI 替身以免自动测试调用真实 CLI 或消耗模型额度"""
 
     def __init__(self, block=False):

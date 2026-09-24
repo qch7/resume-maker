@@ -9,6 +9,7 @@ import pymupdf
 import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
+from provider_stub import ProviderStub
 
 from resume_maker.api import create_app
 from resume_maker.core.config import Config
@@ -17,7 +18,7 @@ from resume_maker.domain.honors import HonorFields, HonorRecognition
 from resume_maker.infrastructure.storage import create_backup, restore_backup
 
 
-class CertificateProvider:
+class CertificateProvider(ProviderStub):
     """用事件控制识别替身以验证任务协议"""
 
     def __init__(self):

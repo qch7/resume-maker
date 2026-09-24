@@ -1,8 +1,10 @@
 """通过严格权限配置运行 CLI，模型工具只能读取脱敏副本"""
 
 import json
+import os
 import re
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -20,6 +22,27 @@ from resume_maker.integrations.providers.sandbox import (
     workspace,
 )
 from resume_maker.integrations.providers.source_broker import source_broker
+
+
+def inspect_cli(settings):
+    """检查本机 CLI 版本，不连接模型或读取用户文档"""
+    try:
+        result = subprocess.run(
+            [native_executable(settings.executable), "--version"],
+            capture_output=True,
+            timeout=15,
+            encoding="utf-8",
+            errors="replace",
+            creationflags=0x08000000 if os.name == "nt" else 0,
+        )
+        return {
+            "available": result.returncode == 0 and result.stdout.strip() == "codex-cli 0.154.0",
+            "version": result.stdout.strip(),
+            "authentication": "使用已验证的 CLI 0.154.0，复用文件登录及只读材料工具",
+        }
+    except (OSError, subprocess.TimeoutExpired, ProviderError):
+        return {"available": False, "error": "无法读取 CLI 版本。"}
+
 
 DISABLED = (
     "apps",

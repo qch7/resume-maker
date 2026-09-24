@@ -242,8 +242,8 @@ class Honors:
                 self._status(identifier, "running")
             workspace.mkdir(parents=True)
             images = []
-            allow_images = getattr(self.provider, "supports_images", True)
-            local_ocr = getattr(self.provider, "preprocess_images", False)
+            allow_images = self.provider.supports_images
+            local_ocr = self.provider.preprocess_images
             if local_ocr:
                 source, _ = self.file(identifier)
                 images.append(source)

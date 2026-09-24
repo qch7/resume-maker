@@ -4,6 +4,7 @@ import json
 import re
 import sqlite3
 import threading
+from collections import OrderedDict
 from contextlib import closing
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -123,6 +124,7 @@ class ActivityLog:
         self.path = path
         self.max_records, self.retention_days = max_records, retention_days
         self.lock = threading.Lock()
+        self.task_contexts = OrderedDict()
         self.secrets = {value for value in secrets if value}
         self.write_failures = 0
         self.last_error = ""
@@ -131,8 +133,6 @@ class ActivityLog:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.executescript(SCHEMA)
             conn.execute("BEGIN IMMEDIATE")
-            # 移除旧轮询合并的派生索引，原始日志和游标保持不变
-            conn.execute("DROP TABLE IF EXISTS activity_responses")
             self._remember_cursor(conn, self._cursor(conn))
             self._prune(conn)
             conn.commit()

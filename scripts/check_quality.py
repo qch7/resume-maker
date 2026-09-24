@@ -32,7 +32,8 @@ def check_file(path: Path) -> tuple[list[str], int]:
         if isinstance(node, ast.ImportFrom):
             if node.level and layer not in {"__init__.py", "cli.py"}:
                 errors.append(f"{relative}:{node.lineno} 包内部请使用绝对导入")
-            modules = [node.module or ""]
+            module = node.module or ""
+            modules = [module, *(f"{module}.{alias.name}" for alias in node.names)]
         elif isinstance(node, ast.Import):
             modules = [alias.name for alias in node.names]
         for module in modules:

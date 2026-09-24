@@ -26,7 +26,7 @@ flowchart LR
 
 | 位置 | 职责与修改入口 |
 | --- | --- |
-| `api/app.py` | 创建每个实例的服务容器，统一管理后台任务生命周期 |
+| `api/app.py` | 创建实例服务、Provider 和隐私存储，统一管理后台任务生命周期 |
 | `api/dependencies.py` | 从当前请求的应用读取服务，避免模块全局变量共享用户目录 |
 | `api/routes/` | 按 projects、conversations、jobs、resumes、templates、settings、system 拆分 HTTP 入口 |
 | `api/schemas.py` | 请求体约束；HTTP 特有字段留在接口层 |
@@ -38,6 +38,8 @@ flowchart LR
 | `services/catalog.py` | 不可变版本、逐字段草稿、采用冲突和固定组合的事务边界 |
 | `services/projects.py` / `conversations.py` / `workspace.py` | 项目维护、会话维护及工作台聚合查询 |
 | `services/jobs.py` | 持久队列、真实来源上下文、建议校验、取消和结果发布 |
+| `services/settings.py` | Provider 设置、默认栏目版本事务、CLI 检查和连接测试 |
+| `services/privacy.py` | 敏感词版本事务、本机脱敏预览和发送记录管理 |
 | `services/documents.py` | 模板登记、固定版本导出与追溯清单编排 |
 | `services/templates/tasks.py` | 模板分析任务、映射核对、试填和保存 |
 | `services/templates/analysis.py` / `cache.py` | 建议校验、自动修正与识别缓存 |
@@ -54,6 +56,10 @@ flowchart LR
 | `integrations/word/image/` | 图片识别、局部素材与版面恢复 |
 
 依赖约束由 `scripts/check_quality.py` 检查：`core` 不反向依赖任何业务模块；`domain` 不依赖数据库、适配器、服务或 HTTP；`infrastructure` 与 `integrations` 不依赖服务和 HTTP；`services` 不依赖 HTTP。业务错误通过 `core.errors.Problem` 传递，接口层负责转换成响应。
+
+模型出口由应用工厂一次性装配，经历队列、模板、荣誉和连接检查直接接收同一 Provider。`Provider` 契约显式声明图片能力、独立任务隐私上下文和 OCR 登记；调用方直接使用契约，缺失能力不再默认开放原图或跳过隐私登记。`CodexProvider` 负责脱敏、还原和结构化结果，CLI 版本检查归属 `providers/cli.py`。合成资料测试在 `tests/provider_stub.py` 实现可控契约，模板替身提交和真实 JSON 一致的绑定字典，生产 schema 不再为基础绑定对象增加转换器。
+
+设置和隐私路由只解析 HTTP 请求并调用对应服务。默认栏目和敏感词的版本校验、规范化和持久化保持同一事务；连接测试直接使用注入的模型出口，不通过队列寻找依赖。活动日志在创建时初始化任务关联索引，观测包装不再动态补建属性；启动不执行废弃轮询派生表的删除语句，原始日志、游标及历史补录保持现有规则。
 
 ## 前端职责
 
@@ -75,6 +81,8 @@ flowchart LR
 经历编辑器直接使用当前字段草稿协议。项目显隐独立写入简历，不再在挂载时迁移旧元信息草稿；本机草稿恢复、并发版本校验、内容差异判断和不可变修订引用保持原有规则。
 
 `shared/` 只包含可复用控件、尺寸/请求 hooks、网络和本机缓存工具，以及与 API 对齐的数据类型。经历与会话共同使用 `shared/lib/draftRegistry.ts`：导航、保存和导出前先等待注册的草稿写入，失败时保留编辑现场。共享层不能导入 `features` 或 `app`，业务模块不能导入 `app`；前端质量脚本自动检查这些边界。
+
+前端边界检查覆盖普通导入、`export ... from` 重导出和字面量动态导入，后端同时检查 `from resume_maker import services` 等包入口写法。正反向依赖用合成源码回归验证，避免语法变化绕过分层约束。
 
 样式按 `base → workspace → components → history → responsive` 顺序导入。拆分保持原有选择器顺序和优先级，避免移动文件时改变布局表现。
 

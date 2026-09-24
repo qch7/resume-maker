@@ -157,11 +157,7 @@ class Templates:
                     )
 
         try:
-            provider = (
-                self.provider.with_private_data(document.model_dump())
-                if hasattr(self.provider, "with_private_data")
-                else self.provider
-            )
+            provider = self.provider.with_private_data(document.model_dump())
             source = directory / "original.docx"
             if source.exists():
                 package = TemplatePackage(source)

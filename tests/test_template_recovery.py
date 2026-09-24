@@ -11,7 +11,7 @@ from docx import Document
 from lxml import etree
 from test_template_analysis import TemplateProvider, completed, simple_document
 
-from resume_maker.domain.templates import RecoveredBlock, RecoveredPage, TextBinding
+from resume_maker.domain.templates import RecoveredBlock, RecoveredPage
 from resume_maker.integrations.word.ooxml import NS, w
 from resume_maker.integrations.word.recovery import blank_template, prepare_template
 from resume_maker.integrations.word.templates.fill import fill_template
@@ -97,9 +97,11 @@ class RecoveryProvider(TemplateProvider):
         return kwargs["result_model"](
             summary="恢复后映射",
             fields=[
-                TextBinding(
-                    node=paragraphs[0]["id"], quote=paragraphs[0]["text"], target="personal.name"
-                )
+                {
+                    "node": paragraphs[0]["id"],
+                    "quote": paragraphs[0]["text"],
+                    "target": "personal.name",
+                }
             ],
             repeats=[],
             photos=[],
@@ -374,13 +376,13 @@ def test_trial_layout_conflict_keeps_native_table_and_reports_error(
                 return kwargs["result_model"](
                     summary="共用容器",
                     fields=[
-                        TextBinding(
-                            node=row["id"],
-                            quote=label,
-                            target="personal.name"
+                        {
+                            "node": row["id"],
+                            "quote": label,
+                            "target": "personal.name"
                             if label == "原姓名"
                             else "section-title:" + label,
-                        )
+                        }
                         for row in rows
                         if row["kind"] == "p" and row["text"]
                         for label in ("原姓名", "教育背景", "项目经历")
