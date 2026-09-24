@@ -47,7 +47,7 @@ body {
   border: 1px solid var(--line);
   border-radius: 4px;
   background: var(--surface);
-  color: var(--muted);
+  color: var(--subtle);
   font-size: 11px;
 }
 .persistence-status.warning {
