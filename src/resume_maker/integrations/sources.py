@@ -7,6 +7,7 @@ import subprocess
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from tempfile import TemporaryDirectory
 
+from resume_maker.core.config import sandbox_directory
 from resume_maker.infrastructure.database import dump, now, uid
 from resume_maker.integrations.providers.base import Cancelled
 
@@ -147,7 +148,12 @@ def evidence_file(sources, source, path, data_dir):
     ):
         raise ValueError("引用文件不能通过链接越出项目来源。")
     target = candidate.resolve(strict=True)
-    if not target.is_relative_to(root) or target.is_relative_to(data_dir) or not target.is_file():
+    if (
+        not target.is_relative_to(root)
+        or target.is_relative_to(data_dir)
+        or target.is_relative_to(sandbox_directory().resolve())
+        or not target.is_file()
+    ):
         raise ValueError("引用文件必须位于当前项目来源内。")
     return target, relative.as_posix()
 

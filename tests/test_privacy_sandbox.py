@@ -32,6 +32,38 @@ class BoundaryReply(Model):
     answer: str
 
 
+@pytest.mark.parametrize("exit_reason", ["success", "failure", "cancelled"])
+def test_project_sandbox_cleans_only_its_task(tmp_path, monkeypatch, exit_reason):
+    """项目内沙箱在成功、异常和取消后清理本轮副本，保留源码及其他任务"""
+    project = tmp_path / "project"
+    project.mkdir()
+    original = project / "main.py"
+    original.write_text("ORIGINAL-CANARY", encoding="utf-8")
+    parent = project / "ResumeMakerSandbox"
+    parent.mkdir(mode=0o700)
+    other = parent / "task-other"
+    other.mkdir()
+    marker = other / "context.txt"
+    marker.write_text("OTHER-TASK-CANARY", encoding="utf-8")
+    monkeypatch.setattr(sandbox, "sandbox_directory", lambda: parent)
+    monkeypatch.chdir(tmp_path)
+    try:
+        with sandbox.workspace() as root:
+            assert root.parent == parent and root != other
+            assert (root / "materials").is_dir() and (root / "control").is_dir()
+            (root / "control" / "private.txt").write_text("PRIVATE-CANARY", encoding="utf-8")
+            if exit_reason == "failure":
+                raise RuntimeError("合成任务失败")
+            if exit_reason == "cancelled":
+                raise Cancelled("合成任务取消")
+    except (RuntimeError, Cancelled):
+        assert exit_reason != "success"
+    assert not root.exists()
+    assert list(parent.iterdir()) == [other]
+    assert original.read_text(encoding="utf-8") == "ORIGINAL-CANARY"
+    assert marker.read_text(encoding="utf-8") == "OTHER-TASK-CANARY"
+
+
 @pytest.mark.skipif(os.name == "nt", reason="POSIX 所有权及权限由 Linux CI 验证")
 @pytest.mark.parametrize("mode", [0o700, 0o755, 0o770, 0o777])
 def test_posix_parent_requires_private_permissions(tmp_path, monkeypatch, mode):
@@ -39,11 +71,7 @@ def test_posix_parent_requires_private_permissions(tmp_path, monkeypatch, mode):
     parent = tmp_path / "sandbox"
     parent.mkdir(mode=mode)
     parent.chmod(mode)
-    monkeypatch.setattr(
-        sandbox,
-        "Path",
-        lambda path: parent if str(path) == "/tmp/resume-maker-sandbox" else Path(path),
-    )
+    monkeypatch.setattr(sandbox, "sandbox_directory", lambda: parent)
     if mode == 0o700:
         with sandbox.workspace() as root:
             assert root.parent == parent and (root / "control").is_dir()

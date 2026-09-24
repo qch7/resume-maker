@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from resume_maker.core import config
 from resume_maker.integrations.privacy import Redactor
 from resume_maker.integrations.providers import material_server
 from resume_maker.integrations.providers.base import Cancelled
@@ -16,6 +17,7 @@ from resume_maker.integrations.providers.material_server import dispatch, source
 from resume_maker.integrations.providers.source_broker import source_broker
 from resume_maker.integrations.source_access import SourceAccess
 from resume_maker.integrations.source_context import source_context
+from resume_maker.integrations.sources import evidence_file
 
 
 def access_at(tmp_path, values=()):
@@ -164,6 +166,44 @@ def test_source_access_rejects_unlinked_private_paths_and_hardlinks(tmp_path):
                 access.call("read_source", {"source": "source-0", "path": path})
         with pytest.raises(ValueError):
             access.call("read_source", {"source": "source-9", "path": "uv.lock"})
+
+
+@pytest.mark.parametrize("selection", ["project", "sandbox", "task", "control"])
+def test_project_sandbox_never_becomes_source_material(tmp_path, monkeypatch, selection):
+    """项目沙箱及其子目录即使被直接选为来源，也不能列出、搜索、读取或留存证据"""
+    project = tmp_path / "project"
+    control = project / "ResumeMakerSandbox/task-synthetic/control"
+    control.mkdir(parents=True)
+    (project / "pyproject.toml").write_text('[project]\nname="resume-maker"\n')
+    private = control / "session.txt"
+    private.write_text("PRIVATE-CANARY", encoding="utf-8")
+    monkeypatch.setattr(config, "__file__", str(project / "src/resume_maker/core/config.py"))
+    selected = {
+        "project": project,
+        "sandbox": control.parent.parent,
+        "task": control.parent,
+        "control": control,
+    }[selection]
+    ordinary = tmp_path / "ordinary/ResumeMakerSandbox"
+    ordinary.mkdir(parents=True)
+    (ordinary / "main.py").write_text("ORDINARY-CANARY", encoding="utf-8")
+    sources = [
+        {"id": "source-0", "path": str(selected)},
+        {"id": "source-1", "path": str(ordinary)},
+    ]
+    data_dir = tmp_path / "data"
+    with SourceAccess(sources, data_dir, Redactor(), threading.Event()) as access:
+        rows = pages(access, "list_source_files", {})
+        assert {row["path"] for row in rows if row["source"] == "source-0"} == (
+            {"pyproject.toml"} if selection == "project" else set()
+        )
+        assert {row["path"] for row in rows if row["source"] == "source-1"} == {"main.py"}
+        assert pages(access, "search_sources", {"query": "PRIVATE-CANARY"}) == []
+        path = private.relative_to(selected).as_posix()
+        with pytest.raises(ValueError):
+            access.call("read_source", {"source": "source-0", "path": path})
+        with pytest.raises(ValueError):
+            evidence_file(sources, "source-0", path, data_dir)
 
 
 def test_cursor_scope_changes_and_cancellation(tmp_path):

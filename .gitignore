@@ -11,6 +11,7 @@ frontend/test-results/
 frontend/playwright-report/
 *.egg-info/
 data/
+/ResumeMakerSandbox/
 /.data.instance.lock
 .env
 .env.*

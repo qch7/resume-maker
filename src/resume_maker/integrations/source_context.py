@@ -3,6 +3,7 @@
 import os
 from pathlib import Path
 
+from resume_maker.core.config import sandbox_directory
 from resume_maker.integrations.providers.base import Cancelled
 from resume_maker.integrations.sources import EXCLUDED, SECRET_FILE, linked
 
@@ -27,19 +28,25 @@ BINARY = {
 
 
 def source_paths(root, data_dir, cancelled):
-    """逐个产出目录标记和候选文件，跳过链接、凭据和本实例数据目录"""
+    """逐个产出候选文件，跳过链接、凭据、应用数据和运行沙箱"""
+    private_roots = (data_dir, sandbox_directory().resolve())
     for directory, dirs, names in os.walk(root, followlinks=False):
         if cancelled.is_set():
             raise Cancelled("源码读取已取消。")
         yield None
         parent = Path(directory)
+        if any(parent.resolve().is_relative_to(private) for private in private_roots):
+            dirs.clear()
+            continue
         dirs[:] = sorted(
             name
             for name in dirs
             if name.lower() not in EXCLUDED
             and not SECRET_FILE.search(name)
             and not linked(parent / name)
-            and not (parent / name).resolve().is_relative_to(data_dir)
+            and not any(
+                (parent / name).resolve().is_relative_to(private) for private in private_roots
+            )
         )
         names.sort(key=lambda name: (not name.lower().startswith("readme"), name))
         for name in names:

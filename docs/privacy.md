@@ -27,8 +27,8 @@ flowchart LR
 
 这里的 sandbox 是**受限工具和脱敏副本组成的应用层边界**，没有宣称为 AppContainer 或虚拟机。受信任的应用后端和 CLI 控制进程仍以当前 Windows 账户运行。模型不能任意运行 PowerShell，也没有本机通用文件读取入口。
 
-- 每轮在系统盘 `ResumeMakerSandbox/task-*` 建立独立目录。父目录及任务文件 ACL 只允许当前账户、管理员和 SYSTEM；任务结束清理。脱敏材料和控制文件分开保存。
-- POSIX 使用 `/tmp/resume-maker-sandbox`，创建任务前核对父目录属于当前账户且权限为 `0700`，拒绝链接、其他账户目录和过宽权限。
+- 源码运行时，每轮在项目根目录下的 `ResumeMakerSandbox/task-*` 建立独立目录，不随系统盘、启动位置或数据目录设置改变；独立安装包使用用户目录下的 `.resume-maker-sandbox/task-*`。沙箱不进入 Git、资料备份或源码材料，直接将沙箱或其子目录作为来源也不能读取。脱敏材料和控制文件分开保存，任务结束只清理本轮目录。
+- Windows 父目录及任务文件 ACL 只允许当前账户、管理员和 SYSTEM；POSIX 创建任务前核对父目录属于当前账户且权限为 `0700`，拒绝链接、其他账户目录和过宽权限。
 - CLI 使用新的 `CODEX_HOME`、`--ephemeral`、`--ignore-user-config`、`--ignore-rules` 和严格配置，不续用供应商会话。仅复制 `auth.json`；不复制旧历史、技能、插件和项目规则。
 - `CODEX_HOME` 使用 `control/codex-home`，`TEMP/TMP/TMPDIR` 使用同级的 `control/tmp`，避免 CLI 因配置目录位于临时文件目录内而拒绝创建 PATH 辅助程序；两者都留在本轮任务目录并随任务清理。保留 `skip_host_skill_discovery`，通过 `suppress_unstable_features_warning` 关闭开发功能启动提示，其他诊断继续写入日志。
 - 每轮生成受控模型目录，保留用户选定的模型名称，固定标准 Responses 工具协议、禁用 shell、补丁和代码编排。CLI 内置模型元数据可能重新启用这些能力，仅关闭功能开关不足以保证工具集合。

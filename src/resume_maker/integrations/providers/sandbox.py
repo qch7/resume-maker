@@ -9,6 +9,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
+from resume_maker.core.config import sandbox_directory
 from resume_maker.integrations.providers.base import ProviderError
 
 
@@ -81,12 +82,8 @@ def posix_parent(path):
 
 @contextmanager
 def workspace():
-    """在不含用户名的目录生成独立副本，清理前再次核验归属及路径"""
-    base = (
-        Path(os.environ.get("SystemDrive", "C:") + "/ResumeMakerSandbox")
-        if os.name == "nt"
-        else Path("/tmp/resume-maker-sandbox")
-    )
+    """在应用专用沙箱内生成独立副本，清理前再次核验归属及路径"""
+    base = sandbox_directory()
     try:
         base.mkdir(mode=0o700, exist_ok=True)
         if base.is_symlink() or base.resolve() != base.absolute():
