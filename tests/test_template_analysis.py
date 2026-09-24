@@ -43,17 +43,25 @@ class TemplateProvider(ProviderStub):
     """可控制取消及失败的结构化 AI 替身"""
 
     def __init__(self, block=False, failure=False):
-        """用事件同步后台分析以免依赖机器快慢或无界等待"""
+        """用事件同步后台分析，阻塞场景通过上下文退出保证释放"""
         self.block, self.failure = block, failure
         self.started, self.release = threading.Event(), threading.Event()
         self.calls = []
+
+    def __enter__(self):
+        """把阻塞替身的存活范围限定在测试上下文内"""
+        return self
+
+    def __exit__(self, *_):
+        """断言失败也释放后台线程，不依赖磁盘写入耗时来结束模型替身"""
+        self.release.set()
 
     def run_structured(self, **kwargs):
         """返回模板映射，故意允许取消后的迟到结果以检验服务保护"""
         self.calls.append(kwargs)
         self.started.set()
         if self.block:
-            assert self.release.wait(3)
+            self.release.wait()
         if self.failure:
             raise RuntimeError("模拟模型失败")
         nodes = TemplatePackage(kwargs["workspace"] / "original.docx").inventory()["nodes"]
@@ -157,21 +165,21 @@ def test_cancel_and_stop_discard_late_analysis(catalog, tmp_path):
     """取消后不能保存迟到方案，也不能在旧分析线程退出前启动另一项分析"""
     source = tmp_path / "source.docx"
     simple_template(source)
-    provider = TemplateProvider(block=True)
-    service = Templates(catalog, tmp_path / "data", provider)
-    task = service.analyze(source, simple_document())
-    assert provider.started.wait(2)
-    assert service.cancel(task["id"])["status"] == "cancelled"
-    with pytest.raises(Problem, match="已有模板"):
-        service.analyze(source, simple_document())
-    provider.release.set()
-    assert completed(service, task["id"])["plan"] is None
-    with pytest.raises(Problem, match="先完成"):
-        service.source(task["id"])
-    service.stop()
-    with pytest.raises(Problem, match="关闭"):
-        service.analyze(source, simple_document())
-    assert not catalog.db.all("SELECT * FROM templates")
+    with TemplateProvider(block=True) as provider:
+        service = Templates(catalog, tmp_path / "data", provider)
+        task = service.analyze(source, simple_document())
+        assert provider.started.wait(2)
+        assert service.cancel(task["id"])["status"] == "cancelled"
+        with pytest.raises(Problem, match="已有模板"):
+            service.analyze(source, simple_document())
+        provider.release.set()
+        assert completed(service, task["id"])["plan"] is None
+        with pytest.raises(Problem, match="先完成"):
+            service.source(task["id"])
+        service.stop()
+        with pytest.raises(Problem, match="关闭"):
+            service.analyze(source, simple_document())
+        assert not catalog.db.all("SELECT * FROM templates")
 
 
 def test_reopen_saved_mapping_preserves_versions_and_checks_hash(tmp_path):
