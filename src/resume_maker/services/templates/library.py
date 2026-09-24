@@ -108,7 +108,9 @@ class TemplateLibrary:
                     unpack(row)
                     for row in conn.execute("SELECT * FROM templates WHERE id<>?", (template_id,))
                 ]
-                cleanup_template(self.data_dir, template, others, self.templates, self.previews)
+                cleanup_template(
+                    self.data_dir, template, others, self.templates, self.previews, conn
+                )
                 conn.execute("DELETE FROM templates WHERE id=?", (template_id,))
                 del state["items"][template_id]
             else:

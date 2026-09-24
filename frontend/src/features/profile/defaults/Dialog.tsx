@@ -8,6 +8,7 @@ import type {
   ResumeDocument,
 } from "../../../shared/types/index";
 import { api } from "../../../shared/lib/api";
+import { loadLocal, storage } from "../../../shared/lib/storage";
 import { builtinDefaults, builtinFields, defaultHasContent } from "./model";
 import DefaultDeleteDialog from "./DeleteDialog";
 import {
@@ -16,7 +17,7 @@ import {
   type DefaultSearchResult,
 } from "./navigation";
 
-/** 集中编辑默认栏目和条目字段，未保存的操作只存在于弹窗副本中 */
+/** 集中编辑默认栏目和条目字段，草稿恢复后仍由用户确认应用 */
 export default function DefaultsDialog({
   initial,
   document,
@@ -33,6 +34,7 @@ export default function DefaultsDialog({
   const dialog = useRef<HTMLDialogElement>(null);
   const content = useRef<HTMLElement>(null);
   const navigation = useRef<HTMLElement>(null);
+  const baseline = useRef("");
   const [value, setValue] = useState<ResumeDefaults>(
     /* 创建可取消的独立副本 */ () =>
       structuredClone(initial ?? builtinDefaults()),
@@ -56,10 +58,12 @@ export default function DefaultsDialog({
         /* 读取完成前禁止编辑以保证不会覆盖本地输入 */ (saved) => {
           if (active) {
             const current = saved ?? builtinDefaults();
-            setValue({
+            const ordered = {
               ...current,
               sections: orderDefaultSections(current.sections, document),
-            });
+            };
+            baseline.current = JSON.stringify(ordered);
+            setValue(loadLocal("rm.settings.defaults", ordered));
             setLoading(false);
           }
         },
@@ -100,6 +104,13 @@ export default function DefaultsDialog({
     [selected, target, query],
   );
   const orderedSections = orderDefaultSections(value.sections);
+  useEffect(() => {
+    if (!loading) {
+      if (JSON.stringify(value) === baseline.current)
+        storage.removeItem("rm.settings.defaults");
+      else storage.setItem("rm.settings.defaults", JSON.stringify(value));
+    }
+  }, [value, loading]);
   const results = searchDefaultFields(value, query);
   const searching = !!query.trim();
   const section = value.sections.find(
@@ -182,12 +193,25 @@ export default function DefaultsDialog({
     setError("");
     try {
       await onSave({ ...value, sections: orderedSections });
+      storage.removeItem("rm.settings.defaults");
       onClose();
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : String(failure));
     } finally {
       setBusy(false);
     }
+  }
+  /** 用户明确取消时清除本份草稿，意外刷新仍可恢复输入 */
+  function close() {
+    if (busy) return;
+    if (
+      !loading &&
+      JSON.stringify(value) !== baseline.current &&
+      !window.confirm("有尚未保存的栏目设置，确定放弃修改吗？")
+    )
+      return;
+    storage.removeItem("rm.settings.defaults");
+    onClose();
   }
   return (
     <>
@@ -198,7 +222,7 @@ export default function DefaultsDialog({
         onCancel={
           /* 保存完成前保持窗口打开 */ (event) => {
             event.preventDefault();
-            if (!busy) onClose();
+            close();
           }
         }
       >
@@ -244,7 +268,7 @@ export default function DefaultsDialog({
             className="icon-button"
             aria-label="关闭默认栏目设置"
             disabled={busy}
-            onClick={onClose}
+            onClick={close}
           >
             <X size={18} />
           </button>
@@ -547,7 +571,7 @@ export default function DefaultsDialog({
             )
           )}
           <div className="actions">
-            <button disabled={busy} onClick={onClose}>
+            <button disabled={busy} onClick={close}>
               取消
             </button>
             <button

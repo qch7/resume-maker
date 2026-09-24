@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Download, Save, X } from "lucide-react";
 import { api, download } from "../../shared/lib/api";
+import { loadLocal, storage } from "../../shared/lib/storage";
 import HonorImage from "./HonorImage";
 import {
   CATEGORIES,
@@ -35,26 +36,40 @@ export default function HonorEditor({
   onSaved,
   resumeEntry,
   onSaveEntry,
+  draftScope = "library",
 }: {
   honor: Honor | null;
   onClose: () => void;
   onSaved: (honor: Honor) => void;
   resumeEntry?: SectionEntry;
   onSaveEntry?: (entry: SectionEntry) => Promise<void>;
+  draftScope?: string;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const initialFields =
     honor?.fields ??
     (resumeEntry ? honorFieldsFromEntry(resumeEntry) : emptyHonor());
-  const [fields, setFields] = useState(initialFields);
-  const [baseline, setBaseline] = useState(initialFields);
-  const [version, setVersion] = useState(honor?.version ?? 0);
+  const draftKey = `rm.honor.draft.${draftScope}.${resumeEntry?.id ?? honor?.id ?? "new"}`;
+  const cached = useRef(
+    loadLocal<{
+      fields: HonorFields;
+      baseline: HonorFields;
+      version: number;
+      entry?: SectionEntry;
+      sourceSaved: boolean;
+    } | null>(draftKey, null),
+  ).current;
+  const [fields, setFields] = useState(cached?.fields ?? initialFields);
+  const [baseline, setBaseline] = useState(cached?.baseline ?? initialFields);
+  const [version, setVersion] = useState(
+    cached?.version ?? honor?.version ?? 0,
+  );
   const [page, setPage] = useState(1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [entry, setEntry] = useState(resumeEntry);
+  const [entry, setEntry] = useState(cached?.entry ?? resumeEntry);
   const [expanded, setExpanded] = useState(true);
-  const [sourceSaved, setSourceSaved] = useState(false);
+  const [sourceSaved, setSourceSaved] = useState(cached?.sourceSaved ?? false);
   const [appliedRecognitionVersion, setAppliedRecognitionVersion] = useState<
     number | null
   >(null);
@@ -62,6 +77,14 @@ export default function HonorEditor({
   const dirty =
     contentDirty || JSON.stringify(entry) !== JSON.stringify(resumeEntry);
   const recognizing = honor ? isRecognizing(honor) : false;
+  useEffect(() => {
+    if (dirty)
+      storage.setItem(
+        draftKey,
+        JSON.stringify({ fields, baseline, version, entry, sourceSaved }),
+      );
+    else storage.removeItem(draftKey);
+  }, [draftKey, fields, baseline, version, entry, sourceSaved, dirty]);
   useEffect(
     /* 原生模态框提供焦点约束和 Escape 关闭 */ () => {
       const element = dialog.current;
@@ -85,8 +108,10 @@ export default function HonorEditor({
     if (
       !busy &&
       (!dirty || window.confirm("有尚未保存的荣誉信息，确定放弃修改吗？"))
-    )
+    ) {
+      storage.removeItem(draftKey);
       onClose();
+    }
   }
   /** 显隐和自定义字段只留在本次简历表单，正文沿用荣誉库字段 */
   function changeEntry(value: SectionEntry) {
@@ -116,6 +141,7 @@ export default function HonorEditor({
       }
       if (entry && onSaveEntry)
         await onSaveEntry(entryWithHonorFields(entry, fields));
+      storage.removeItem(draftKey);
       onClose();
     } catch (reason) {
       setError(

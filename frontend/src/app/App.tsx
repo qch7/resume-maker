@@ -56,6 +56,7 @@ import SectionOrganizer from "../features/profile/SectionOrganizer";
 import { newDocument } from "../features/profile/document";
 import {
   NEW_RESUME,
+  loadCurrentResume,
   useResumeComposition,
 } from "../features/resumes/useResumeComposition";
 import TemplateAdapter from "../features/templates/TemplateAdapter";
@@ -68,7 +69,7 @@ import { useRemote } from "../shared/hooks/useRemote";
 import { api } from "../shared/lib/api";
 import { flushDrafts } from "../shared/lib/draftRegistry";
 import { clamp, DEFAULT_LAYOUT } from "../shared/lib/layout";
-import { loadLocal } from "../shared/lib/storage";
+import { loadLocal, storage } from "../shared/lib/storage";
 import type {
   Conversation,
   ConversationDetail,
@@ -152,7 +153,7 @@ export default function App() {
   const firstProject = sortedSidebar.rootProjects[0];
   useEffect(
     /* 记住用户选择的排序方式，供下次打开页面使用 */ () => {
-      localStorage.setItem("rm.sidebarSort", JSON.stringify(sidebarSort));
+      storage.setItem("rm.sidebarSort", JSON.stringify(sidebarSort));
     },
     [sidebarSort],
   );
@@ -236,7 +237,7 @@ export default function App() {
     setLoaded(true);
     if (!initialized.current) {
       initialized.current = true;
-      const cached = loadLocal<Resume>("rm.resume.v2.last", {
+      const cached = loadCurrentResume({
         ...NEW_RESUME,
         document: newDocument(value.resume_defaults),
       });
@@ -1454,6 +1455,7 @@ export default function App() {
         <HonorEditor
           key={`${editingHonor.resumeId}:${editingHonor.entry.id}`}
           honor={editingHonor.honor}
+          draftScope={editingHonor.resumeId || "new-resume"}
           resumeEntry={editingHonor.entry}
           onSaveEntry={
             /* 只提交当前荣誉条目的草稿 */ async (entry) => {

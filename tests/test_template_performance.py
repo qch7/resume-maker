@@ -121,7 +121,7 @@ def test_progress_is_incremental_bounded_and_freezes_on_cancel(tmp_path, monkeyp
     simple_template(source)
     provider = TemplateProvider(block=True)
     app = create_app(Config(data_dir=tmp_path / "data", token="test"), provider)
-    with TestClient(app) as client:
+    with TestClient(app) as client, provider:
         service = app.state.services.templates
         task = service.analyze(source, simple_document())
         assert provider.started.wait(2)
@@ -148,6 +148,10 @@ def test_progress_is_incremental_bounded_and_freezes_on_cancel(tmp_path, monkeyp
             "output_tokens": 45,
             "cached_input_tokens": 100,
         }
+        retained = service.db.setting(f"template-task:{task['id']}")["task"]
+        assert retained["status"] == "running"
+        assert retained["usage"] == progress["usage"]
+        assert retained["events"] == progress["events"]
         assert not client.get(endpoint + f"?after={progress['cursor']}", headers=headers).json()[
             "events"
         ]

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError } from "../../shared/lib/api";
-import { loadLocal } from "../../shared/lib/storage";
+import { loadLocal, storage } from "../../shared/lib/storage";
 import type { ProjectDetail, Working } from "../../shared/types/index";
 
 import { registerDraft } from "../../shared/lib/draftRegistry";
@@ -8,8 +8,8 @@ import { registerDraft } from "../../shared/lib/draftRegistry";
 /** 清理指定项目版本的本机字段缓存以免发布后恢复旧草稿 */
 export function clearLocalDrafts(project: string, revision: string) {
   const prefix = `rm.field.${project}.${revision}.`;
-  for (const key of Object.keys(localStorage))
-    if (key.startsWith(prefix)) localStorage.removeItem(key);
+  for (const key of storage.keys())
+    if (key.startsWith(prefix)) storage.removeItem(key);
 }
 
 /** 管理单字段草稿的本机恢复、串行写入、防抖保存和并发冲突处理 */
@@ -59,9 +59,9 @@ export function useField<T>(
             version.current;
           saved.current = encoded;
           if (JSON.stringify(current.current) === encoded)
-            localStorage.removeItem(key);
+            storage.removeItem(key);
           else
-            localStorage.setItem(
+            storage.setItem(
               key,
               JSON.stringify({
                 value: current.current,
@@ -112,7 +112,7 @@ export function useField<T>(
     current.current = next;
     setValue(next);
     setStatus("已保留到本机，正在同步草稿");
-    localStorage.setItem(
+    storage.setItem(
       key,
       JSON.stringify({ value: next, version: version.current }),
     );
@@ -136,7 +136,7 @@ export function useField<T>(
             : content.highlights.find((h) => h.id === field.slice(10))
       ) as T | undefined;
       // 覆盖冲突的本机编辑前保存恢复副本，便于用户取回未合并的内容
-      localStorage.setItem(`${key}.recovery`, JSON.stringify(current.current));
+      storage.setItem(`${key}.recovery`, JSON.stringify(current.current));
       current.current = next ?? initial;
       saved.current = JSON.stringify(current.current);
       version.current =
@@ -145,7 +145,7 @@ export function useField<T>(
       setConflict(false);
       setFailed(false);
       setStatus("已载入服务器草稿");
-      localStorage.removeItem(key);
+      storage.removeItem(key);
       return current.current;
     } catch (e) {
       setStatus((e as Error).message);

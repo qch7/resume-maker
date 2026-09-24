@@ -71,6 +71,18 @@ def analyze_template(services: ServicesDep, body: TemplateAnalysisInput):
     return services.templates.analyze(Path(body.path), body.document, body.items)
 
 
+@router.get("/templates/analyses")
+def list_analyses(services: ServicesDep):
+    """列出已留存的模板分析及人工核对工作"""
+    return services.templates.list_tasks()
+
+
+@router.post("/templates/analyses/{analysis_id}/retry")
+def retry_analysis(services: ServicesDep, analysis_id: str, body: TemplateEditInput):
+    """显式使用保存的原件重新分析，中断不会丢失输入文件"""
+    return services.templates.retry(analysis_id, body.document, body.items)
+
+
 @router.post("/templates/{template_id}/edit")
 def edit_template(services: ServicesDep, template_id: str, body: TemplateEditInput | None = None):
     """按当前资料打开并补齐独立副本，保留原模板版本及其所有简历引用"""

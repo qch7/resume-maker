@@ -19,6 +19,7 @@ from resume_maker.api.routes import (
     settings,
     system,
     templates,
+    workspace_storage,
 )
 from resume_maker.api.static import mount_frontend
 from resume_maker.core.config import Config
@@ -40,6 +41,7 @@ from resume_maker.services.settings import Settings
 from resume_maker.services.templates.library import TemplateLibrary
 from resume_maker.services.templates.tasks import Templates
 from resume_maker.services.workspace import Workspace
+from resume_maker.services.workspace_storage import WorkspaceStorage
 
 
 def create_app(config: Config | None = None, provider: Provider | None = None) -> FastAPI:
@@ -73,6 +75,7 @@ def create_app(config: Config | None = None, provider: Provider | None = None) -
         projects=Projects(catalog),
         conversations=Conversations(catalog),
         workspace=Workspace(catalog),
+        workspace_storage=WorkspaceStorage(db),
     )
 
     for name in (
@@ -88,6 +91,7 @@ def create_app(config: Config | None = None, provider: Provider | None = None) -
         "workspace",
         "settings",
         "privacy",
+        "workspace_storage",
     ):
         instrument_service(
             getattr(services, name),
@@ -129,6 +133,7 @@ def create_app(config: Config | None = None, provider: Provider | None = None) -
         settings,
         honors,
         privacy,
+        workspace_storage,
     ):
         app.include_router(module.router)
     mount_frontend(app, config)

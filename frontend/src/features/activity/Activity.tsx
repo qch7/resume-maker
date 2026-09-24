@@ -14,7 +14,7 @@ import { api, download } from "../../shared/lib/api";
 import ResizeHandle from "../../shared/components/ResizeHandle";
 import { useElementSize } from "../../shared/hooks/useElementSize";
 import { clamp } from "../../shared/lib/layout";
-import { loadLocal } from "../../shared/lib/storage";
+import { loadLocal, storage } from "../../shared/lib/storage";
 import ActivitySettings from "./ActivitySettings";
 import ActivityMultiSelect from "./ActivityMultiSelect";
 import ActivityTimeFilter from "./ActivityTimeFilter";
@@ -80,7 +80,7 @@ export default function Activity() {
   );
   useEffect(() => {
     try {
-      localStorage.setItem("rm.activity", JSON.stringify(preferences));
+      storage.setItem("rm.activity", JSON.stringify(preferences));
     } catch {
       setActionError("浏览器无法保存日志设置");
     }

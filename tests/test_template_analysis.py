@@ -43,17 +43,25 @@ class TemplateProvider(ProviderStub):
     """可控制取消及失败的结构化 AI 替身"""
 
     def __init__(self, block=False, failure=False):
-        """用事件同步后台分析以免依赖机器快慢或无界等待"""
+        """用事件同步后台分析，阻塞场景通过上下文退出保证释放"""
         self.block, self.failure = block, failure
         self.started, self.release = threading.Event(), threading.Event()
         self.calls = []
+
+    def __enter__(self):
+        """把阻塞替身的存活范围限定在测试上下文内"""
+        return self
+
+    def __exit__(self, *_):
+        """断言失败也释放后台线程，不依赖磁盘写入耗时来结束模型替身"""
+        self.release.set()
 
     def run_structured(self, **kwargs):
         """返回模板映射，故意允许取消后的迟到结果以检验服务保护"""
         self.calls.append(kwargs)
         self.started.set()
         if self.block:
-            assert self.release.wait(3)
+            self.release.wait()
         if self.failure:
             raise RuntimeError("模拟模型失败")
         nodes = TemplatePackage(kwargs["workspace"] / "original.docx").inventory()["nodes"]
@@ -112,11 +120,7 @@ def test_analysis_snapshot_save_restart_and_export(tmp_path, monkeypatch):
         assert client.get(preview_prefix + "/original.docx", headers=headers).status_code == 404
         assert client.get(preview_prefix + "/resume.docx").status_code == 401
         vector = (
-            config.data_dir
-            / "workspaces"
-            / f"template-{task['id']}"
-            / preview.json()["id"]
-            / "page-1.svg"
+            config.data_dir / "template-drafts" / task["id"] / preview.json()["id"] / "page-1.svg"
         )
         vector.write_text('<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0L10 10"/></svg>')
         response = client.get(preview_prefix + "/page-1.svg", headers=headers)
@@ -146,8 +150,7 @@ def test_analysis_snapshot_save_restart_and_export(tmp_path, monkeypatch):
         )
     restarted = create_app(config, TemplateProvider())
     with TestClient(restarted):
-        with pytest.raises(Problem, match="已不存在"):
-            restarted.state.services.templates.get(task["id"])
+        assert restarted.state.services.templates.get(task["id"])["plan"] == task["plan"]
         exported = restarted.state.services.documents.export(resume["id"])
         assert exported["manifest"]["layout"] == "adaptive-template"
         output = config.data_dir / "exports" / exported["id"] / "resume.docx"
@@ -162,21 +165,21 @@ def test_cancel_and_stop_discard_late_analysis(catalog, tmp_path):
     """取消后不能保存迟到方案，也不能在旧分析线程退出前启动另一项分析"""
     source = tmp_path / "source.docx"
     simple_template(source)
-    provider = TemplateProvider(block=True)
-    service = Templates(catalog, tmp_path / "data", provider)
-    task = service.analyze(source, simple_document())
-    assert provider.started.wait(2)
-    assert service.cancel(task["id"])["status"] == "cancelled"
-    with pytest.raises(Problem, match="已有模板"):
-        service.analyze(source, simple_document())
-    provider.release.set()
-    assert completed(service, task["id"])["plan"] is None
-    with pytest.raises(Problem, match="先完成"):
-        service.source(task["id"])
-    service.stop()
-    with pytest.raises(Problem, match="关闭"):
-        service.analyze(source, simple_document())
-    assert not catalog.db.all("SELECT * FROM templates")
+    with TemplateProvider(block=True) as provider:
+        service = Templates(catalog, tmp_path / "data", provider)
+        task = service.analyze(source, simple_document())
+        assert provider.started.wait(2)
+        assert service.cancel(task["id"])["status"] == "cancelled"
+        with pytest.raises(Problem, match="已有模板"):
+            service.analyze(source, simple_document())
+        provider.release.set()
+        assert completed(service, task["id"])["plan"] is None
+        with pytest.raises(Problem, match="先完成"):
+            service.source(task["id"])
+        service.stop()
+        with pytest.raises(Problem, match="关闭"):
+            service.analyze(source, simple_document())
+        assert not catalog.db.all("SELECT * FROM templates")
 
 
 def test_reopen_saved_mapping_preserves_versions_and_checks_hash(tmp_path):
@@ -224,7 +227,7 @@ def test_reopen_saved_mapping_preserves_versions_and_checks_hash(tmp_path):
     with TestClient(create_app(config, TemplateProvider())) as restarted:
         assert (
             restarted.get(f"/api/templates/analyses/{opened['id']}", headers=headers).status_code
-            == 404
+            == 200
         )
         assert (
             restarted.post(f"/api/templates/{saved['id']}/edit", headers=headers).status_code == 200
@@ -282,7 +285,9 @@ def test_template_image_preview_is_embedded_and_authenticated(tmp_path):
         image_id = next(row["id"] for row in result["inventory"]["nodes"] if row["kind"] == "image")
         image_input = service.provider.calls[0]["images"]
         assert image_input and image_input[0].read_bytes().startswith(b"\x89PNG")
-        assert image_input[0].parent == service.source(task["id"]).parent
+        assert image_input[0].parent == (
+            app.state.services.config.data_dir / "workspaces" / f"template-{task['id']}"
+        )
         assert (
             image_id
             in json.loads(service.provider.calls[0]["prompt"].split("\n")[-1])["visible_images"]

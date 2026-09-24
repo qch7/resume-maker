@@ -1,3 +1,4 @@
+import { storage } from "../../shared/lib/storage";
 import { Check, FileText, Sparkles, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../../shared/lib/api";
@@ -180,7 +181,7 @@ export default function HighlightEditor({
                       version: editor.version.current,
                     },
                   );
-                  localStorage.removeItem(
+                  storage.removeItem(
                     `rm.field.${detail.project.id}.${revisionId}.${field}`,
                   );
                   props.onRefresh();

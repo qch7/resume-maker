@@ -7,7 +7,7 @@ import {
   type SetStateAction,
 } from "react";
 import { api } from "../../shared/lib/api";
-import { loadLocal } from "../../shared/lib/storage";
+import { loadLocal, storage } from "../../shared/lib/storage";
 import type {
   Experience,
   Export,
@@ -39,6 +39,14 @@ export const NEW_RESUME: Resume = {
   document: newDocument(),
 };
 
+/** 当前选择只保存标识，正文草稿按方案独立保存以免窗口间互相覆盖 */
+export function loadCurrentResume(fallback: Resume) {
+  const key = storage.getItem("rm.resume.current");
+  return key
+    ? loadLocal<Resume>(`rm.resume.v2.${key}`, fallback)
+    : loadLocal<Resume>("rm.resume.v2.last", fallback);
+}
+
 interface Options {
   state: State;
   activeProject: string;
@@ -64,7 +72,7 @@ export function useResumeComposition({
   notify,
 }: Options) {
   const [storedDraft, setDraft] = useState<Resume>(() =>
-    loadLocal("rm.resume.v2.last", NEW_RESUME),
+    loadCurrentResume(NEW_RESUME),
   );
   const draft = useMemo(
     /* 固定组合和编辑区分别维护顺序以保证取消草稿后预览和导出一致 */ () =>
@@ -157,8 +165,8 @@ export function useResumeComposition({
   }, [draft.id, notify]);
   useEffect(() => {
     try {
-      localStorage.setItem("rm.resume.v2.last", JSON.stringify(draft));
-      localStorage.setItem(
+      storage.setItem("rm.resume.current", draft.id || "new");
+      storage.setItem(
         `rm.resume.v2.${draft.id || "new"}`,
         JSON.stringify(draft),
       );
@@ -416,7 +424,7 @@ export function useResumeComposition({
     setDeleting(true);
     try {
       await api(`/resumes/${resume.id}?version=${resume.version}`, "DELETE");
-      localStorage.removeItem(`rm.resume.v2.${resume.id}`);
+      storage.removeItem(`rm.resume.v2.${resume.id}`);
       const remaining = state.resumes.find(
         /* 按方案列表顺序选择下一个仍存在的方案 */ (item) =>
           item.id !== resume.id,

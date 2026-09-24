@@ -14,7 +14,7 @@ import {
   SortableList,
 } from "../../shared/components/SortableList";
 import { api } from "../../shared/lib/api";
-import { loadLocal } from "../../shared/lib/storage";
+import { loadLocal, storage } from "../../shared/lib/storage";
 import type {
   Highlight,
   Meta,
@@ -36,7 +36,14 @@ export default function Editor(props: EditorProps) {
   const { detail, revisionId, run } = props;
   const current = detail.revisions.find((r) => r.id === revisionId)!;
   const snapshot = detail.revision_snapshot;
-  const [roots, setRoots] = useState(detail.project.roots.join("\n"));
+  const rootsKey = `rm.sources.${detail.project.id}`;
+  const [roots, setRoots] = useState(() =>
+    loadLocal(rootsKey, detail.project.roots.join("\n")),
+  );
+  useEffect(() => {
+    if (roots === detail.project.roots.join("\n")) storage.removeItem(rootsKey);
+    else storage.setItem(rootsKey, JSON.stringify(roots));
+  }, [rootsKey, roots, detail.project.roots]);
   const content = detail.working.content;
   const [ordering, setOrdering] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
@@ -122,7 +129,7 @@ export default function Editor(props: EditorProps) {
   function updateProfile(key: keyof Profile, value: string) {
     const next = { ...profile, [key]: value };
     setProfile(next);
-    localStorage.setItem(profileKey, JSON.stringify(next));
+    storage.setItem(profileKey, JSON.stringify(next));
   }
   /** 将排序缓存并保存为草稿 */
   async function move(from: number, to: number) {
@@ -452,7 +459,7 @@ export default function Editor(props: EditorProps) {
                 "PUT",
                 profile,
               );
-              localStorage.removeItem(profileKey);
+              storage.removeItem(profileKey);
               props.onRefresh();
             })
           }

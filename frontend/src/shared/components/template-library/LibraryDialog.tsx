@@ -1,3 +1,4 @@
+import { storage } from "../../lib/storage";
 import {
   ChevronRight,
   Folder,
@@ -31,7 +32,7 @@ import {
 /** 读取上次视图偏好，浏览器禁止本地存储时仍默认展示卡片 */
 function initialView(): "cards" | "list" {
   try {
-    return localStorage.getItem("rm.template.library.view") === "list"
+    return storage.getItem("rm.template.library.view") === "list"
       ? "list"
       : "cards";
   } catch {
@@ -169,7 +170,7 @@ export default function LibraryDialog({
   function changeView(next: "cards" | "list") {
     setView(next);
     try {
-      localStorage.setItem("rm.template.library.view", next);
+      storage.setItem("rm.template.library.view", next);
     } catch {
       /* 存储不可用时保留本次偏好 */
     }

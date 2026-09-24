@@ -1,6 +1,7 @@
 import { ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../../shared/lib/api";
+import { loadLocal, storage } from "../../shared/lib/storage";
 
 interface RequestRecord {
   id: string;
@@ -32,13 +33,26 @@ export default function Privacy() {
   const [loaded, setLoaded] = useState(false);
   const dirty = terms !== savedTerms;
   useEffect(() => {
+    if (!loaded) return;
+    if (dirty)
+      storage.setItem(
+        "rm.settings.privacy",
+        JSON.stringify({ terms, version }),
+      );
+    else storage.removeItem("rm.settings.privacy");
+  }, [terms, version, dirty, loaded]);
+  useEffect(() => {
     let active = true;
     void api<PrivacyTerms>("/privacy")
       .then((value) => {
         if (active) {
-          setTerms(value.terms.join("\n"));
+          const cached = loadLocal<{ terms: string; version: number } | null>(
+            "rm.settings.privacy",
+            null,
+          );
+          setTerms(cached?.terms ?? value.terms.join("\n"));
           setSavedTerms(value.terms.join("\n"));
-          setVersion(value.version);
+          setVersion(cached?.version ?? value.version);
           setLoaded(true);
         }
       })

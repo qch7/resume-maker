@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useElementSize } from "../shared/hooks/useElementSize";
 import { columnSizes, restoreLayout, type Layout } from "../shared/lib/layout";
-import { loadLocal } from "../shared/lib/storage";
+import { loadLocal, storage } from "../shared/lib/storage";
 
 /** 集中管理布局偏好、可见区域边界、分隔条和放大预览退出行为 */
 export function useWorkspaceLayout() {
@@ -23,7 +23,7 @@ export function useWorkspaceLayout() {
     setLayout((previous) => ({ ...previous, [key]: value }));
   }
   useEffect(() => {
-    localStorage.setItem("rm.layout", JSON.stringify(layout));
+    storage.setItem("rm.layout", JSON.stringify(layout));
   }, [layout]);
   useEffect(() => {
     if (!previewFocused) return;

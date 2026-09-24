@@ -69,6 +69,8 @@ def test_recycle_restore_and_permanent_delete_api(tmp_path):
             json={"document": document, "items": []},
         )
         assert adapted.status_code == 200
+        draft_key = f"rm.template.editor.{adapted.json()['id']}"
+        services.workspace_storage.save(draft_key, "synthetic manual draft", 0)
         adapted_source = services.templates.source(adapted.json()["id"])
         assert adapted_source.read_bytes() != original
         assert (
@@ -87,6 +89,10 @@ def test_recycle_restore_and_permanent_delete_api(tmp_path):
         assert not services.db.one("SELECT * FROM templates WHERE id='mapped'")
         assert not services.templates.tasks
         assert not adapted_source.parent.exists()
+        assert not services.db.all("SELECT * FROM settings WHERE key LIKE 'template-task:%'")
+        assert services.workspace_storage.state()["values"][draft_key]["value"] is None
+        with pytest.raises(Problem, match="其他窗口"):
+            services.workspace_storage.save(draft_key, "stale manual draft", 1)
         assert (
             client.delete(
                 "/api/template-library/items/mapped?permanent=true", headers=headers

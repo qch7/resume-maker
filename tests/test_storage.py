@@ -1,8 +1,11 @@
+import threading
 from zipfile import ZipFile
 
 import pytest
+from test_resume_previews import register_template
 
 from resume_maker.core.errors import Problem
+from resume_maker.infrastructure import storage
 from resume_maker.infrastructure.database import Database
 from resume_maker.infrastructure.storage import create_backup, instance_lock, restore_backup
 from resume_maker.services.catalog import Catalog
@@ -58,3 +61,68 @@ def test_restore_rejects_unsupported_schema_without_changing_target(catalog, tmp
         restore_backup(backup, target)
     assert (target / "instance.json").read_text() == "unchanged"
     assert not list(tmp_path.glob(".restored-restore-*"))
+
+
+def test_backup_blocks_concurrent_attachment_deletion(catalog, tmp_path, monkeypatch):
+    """附件删除等待数据库及文件备份完成，恢复不会遇到悬空模板记录"""
+    root = catalog.db.path.parent
+    source = register_template(catalog, root)
+    attempted, deleted = threading.Event(), threading.Event()
+
+    def delete():
+        """模拟业务删除事务，文件清理必须持有同一数据库写锁"""
+        attempted.set()
+        with catalog.db.transaction() as conn:
+            conn.execute("DELETE FROM templates WHERE id='mapped'")
+            source.unlink()
+        deleted.set()
+
+    worker = threading.Thread(target=delete)
+
+    class ConcurrentZip(ZipFile):
+        """在数据库快照完成后启动附件删除"""
+
+        def __enter__(self):
+            """删除已发起但不能在 ZIP 完成前拿到数据库写锁"""
+            result = super().__enter__()
+            worker.start()
+            assert attempted.wait(2)
+            assert not deleted.wait(0.1)
+            return result
+
+    with monkeypatch.context() as patch:
+        patch.setattr(storage, "ZipFile", ConcurrentZip)
+        archive = create_backup(catalog.db, root)
+    worker.join(3)
+    assert deleted.is_set()
+    restored = tmp_path / "restored"
+    restore_backup(archive, restored)
+    assert (restored / "templates" / "mapped" / "template.docx").is_file()
+
+
+def test_corrupted_attachment_is_rejected_without_replacing_data(catalog, tmp_path):
+    """ZIP 自身有效但附件正文被修改时，校验和阻止覆盖原数据"""
+    register_template(catalog, catalog.db.path.parent)
+    archive = create_backup(catalog.db, catalog.db.path.parent)
+    corrupt = tmp_path / "corrupt.zip"
+    with ZipFile(archive) as source, ZipFile(corrupt, "w") as target:
+        for name in source.namelist():
+            target.writestr(
+                name, b"changed" if name.endswith("template.docx") else source.read(name)
+            )
+    existing = tmp_path / "existing"
+    existing.mkdir()
+    (existing / "instance.json").write_text("preserved")
+    with pytest.raises(Problem, match="校验失败"):
+        restore_backup(corrupt, existing)
+    assert (existing / "instance.json").read_text() == "preserved"
+
+
+def test_nested_backup_metadata_name_remains_an_attachment(catalog, tmp_path):
+    """附件中的同名文件照常校验，只有 ZIP 根目录清单不属于附件"""
+    source = register_template(catalog, catalog.db.path.parent)
+    (source.parent / "backup.json").write_text("synthetic attachment")
+    archive = create_backup(catalog.db, catalog.db.path.parent)
+    restored = tmp_path / "restored"
+    restore_backup(archive, restored)
+    assert (restored / "templates" / "mapped" / "backup.json").read_text() == "synthetic attachment"

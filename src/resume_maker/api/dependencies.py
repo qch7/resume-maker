@@ -19,6 +19,7 @@ from resume_maker.services.settings import Settings
 from resume_maker.services.templates.library import TemplateLibrary
 from resume_maker.services.templates.tasks import Templates
 from resume_maker.services.workspace import Workspace
+from resume_maker.services.workspace_storage import WorkspaceStorage
 
 
 @dataclass(frozen=True)
@@ -39,6 +40,7 @@ class Services:
     resume_previews: ResumePreviews
     settings: Settings
     privacy: Privacy
+    workspace_storage: WorkspaceStorage
 
 
 def get_services(request: Request) -> Services:

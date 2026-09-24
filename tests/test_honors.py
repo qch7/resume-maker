@@ -273,7 +273,7 @@ def test_honors_backup_restore_and_delete_preserve_resume_snapshot(tmp_path):
             for name in source.namelist():
                 if not name.endswith("original.png"):
                     broken.writestr(name, source.read(name))
-        with pytest.raises(Problem, match="备份缺少荣誉证书文件"):
+        with pytest.raises(Problem, match="备份文件清单不完整"):
             restore_backup(incomplete, tmp_path / "incomplete-restore")
         with TestClient(
             create_app(Config(data_dir=target, token="restored"), CertificateProvider()),
