@@ -28,6 +28,15 @@ export default function PersistenceStatus() {
   const issue = storage.issues()[0];
   const copies = storage.recoveries();
   const pending = storage.pending();
+  const [showSaved, setShowSaved] = useState(false);
+  useEffect(() => {
+    if (pending) {
+      setShowSaved(true);
+      return;
+    }
+    const timer = setTimeout(() => setShowSaved(false), 2000);
+    return () => clearTimeout(timer);
+  }, [pending]);
   /** 处理保存及冲突，载入远端前确保其他输入已经落盘 */
   async function perform(work: () => Promise<void>, reload = false) {
     setBusy(true);
@@ -44,16 +53,19 @@ export default function PersistenceStatus() {
       setBusy(false);
     }
   }
+  if (!pending && !issue && !error && !copies.length && !showSaved) return null;
   return createPortal(
     <aside
       className={`persistence-status ${issue || error ? "warning" : ""}`}
       aria-live="polite"
     >
-      <span>
-        {error ||
-          issue?.error ||
-          (pending ? "正在保存草稿…" : "草稿已保存到本机")}
-      </span>
+      {(pending || issue || error || showSaved) && (
+        <span>
+          {error ||
+            issue?.error ||
+            (pending ? "正在保存草稿…" : "草稿已保存到本机")}
+        </span>
+      )}
       {pending && storage.warning() && <span>{storage.warning()}</span>}
       {issue?.conflict ? (
         <>
