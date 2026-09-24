@@ -235,7 +235,7 @@ export default function Settings(props: Props) {
         <div className="settings-body">
           <h3>模型连接配置</h3>
           <PathInput
-            label="Codex 可执行文件（已验证 0.154.0）"
+            label="Codex 可执行文件"
             kind="executable"
             value={provider.executable}
             disabled={busy || !loaded}

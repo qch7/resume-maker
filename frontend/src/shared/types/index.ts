@@ -271,13 +271,7 @@ export interface Export {
   created_at: string;
   manifest?: { resume: Resume };
 }
-export type ReasoningEffort =
-  | ""
-  | "minimal"
-  | "low"
-  | "medium"
-  | "high"
-  | "xhigh";
+export type ReasoningEffort = string;
 export type AIFunction =
   | "project_analysis"
   | "conversation"

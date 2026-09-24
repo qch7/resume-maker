@@ -153,7 +153,7 @@ flowchart LR
 
 `ProviderSettings` 的功能覆盖在提交时固化。模型、推理强度和供应商字段从配置白名单读取，鉴权由 CLI 处理；不加载插件、记忆、任意 shell、环境上下文或旧会话。具体边界见 [隐私保护](privacy.md)。
 
-模板缓存键包含已解析的模型、思考强度、CLI Profile 与程序路径，设置变化后重新识别。支持的强度为 `minimal`、`low`、`medium`、`high`、`xhigh`；具体支持范围由所选模型决定。参数依据 [OpenAI 配置参考](https://developers.openai.com/codex/config-reference/)。
+模板缓存键包含已解析的模型、思考强度、CLI Profile 与程序路径，设置变化后重新识别。思考强度使用开放标识，设置和配置继承均清除首尾空白、限制长度及字符格式，具体值是否支持由 CLI 和模型判断；前端提供常见候选并允许自定义输入。Profile 按完整 TOML 键查找，含空格、点号和中文的独立配置文件也可使用，文件范围限定在 CLI home 内。参数依据 [OpenAI 配置参考](https://developers.openai.com/codex/config-reference/)。
 
 模板导入在异步任务中处理已复制的原文件快照。`integrations/word/templates/prepare.py` 接受修订、解除绑定与锁定、清理失效注释引用；`integrations/word/templates/fields.py` 保留页码并冻结其他动态域的显示结果。`integrations/word/recovery.py` 优先保留原生 DOCX 结构，旧格式使用独立 Word 进程自动修复转换；可编辑 DOCX 保留 OOXML 资源和原生图形，尚不支持的对象报告具体问题；扫描 Word 通过声明式 `RecoveredPage` 恢复内容，有可靠文字层的 PDF 通过独立版面转换器恢复，再重新分配节点供 `TemplatePlan` 映射。页面恢复有一次自动重试，取消后不发布迟到内容；不可读的原文件明确失败，空白内容使用字段占位框架。独立图片模板和 PDF 扫描页通过本地 OCR 和脱敏整页图恢复文字、照片及装饰，字体和复杂装饰需要人工核对；可编辑 DOCX 和可靠文字层 PDF 继续走本地结构解析。原生解析仍保留包资源上限，鉴权、项目引用、资料覆盖及映射完整性校验不变。识别每轮结构和资料覆盖通过后先执行本机 DOCX 试填，栏目容器或分页冲突参与下一轮映射修正；正式预览和导出共用通过检查的原生模板。`integrations/word/templates/anchors.py` 为借用正文段落的独立浮动绘图分出极小高度锚点，保留原坐标和组合关系；组合中的照片仅更换或删除其叶子图片，图形编号在外层绘图和组合子图形之间保持唯一，防止 Word 打开失败。
 

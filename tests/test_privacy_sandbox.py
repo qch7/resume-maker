@@ -345,7 +345,8 @@ def test_native_cli_tool_boundary(tmp_path, model, with_mosaic):
         f'model="{model}"\nmodel_provider="test"\ndeveloper_instructions="CONFIG-CANARY"\n'
         '[mcp_servers.untrusted]\ncommand="SHOULD-NOT-START"\n'
         '[model_providers.test]\nname="test"\nwire_api="responses"\nenv_key="SYNTHETIC_KEY"\n'
-        f'base_url="http://127.0.0.1:{server.server_port}/v1"\n',
+        f'base_url="http://127.0.0.1:{server.server_port}/v1"\n'
+        '[profiles."团队 profile.v2"]\nmodel_reasoning_effort="none"\n',
         encoding="utf-8",
     )
     try:
@@ -359,7 +360,9 @@ def test_native_cli_tool_boundary(tmp_path, model, with_mosaic):
             prompt="SAFE-MATERIAL\n姓名：合成测试甲\n电话：13800004726\n"
             "邮箱：synthetic4726@example.invalid\n颁发单位\n合成测试委员会",
             thread_id="PRIVATE-OLD-SESSION",
-            settings=ProviderSettings(timeout_seconds=60),
+            settings=ProviderSettings(
+                timeout_seconds=60, profile="团队 profile.v2" if with_mosaic else ""
+            ),
             cancelled=threading.Event(),
             emit=lambda *_: None,
             images=images,
@@ -414,6 +417,9 @@ def test_native_cli_tool_boundary(tmp_path, model, with_mosaic):
         if item["type"] == "function_call_output"
     )
     for request in requests:
+        assert request["model"] == model
+        if with_mosaic:
+            assert request["reasoning"]["effort"] == "none"
         assert {item["name"] for item in request["tools"]} <= {
             "mcp__resume_materials",
             "list_mcp_resources",

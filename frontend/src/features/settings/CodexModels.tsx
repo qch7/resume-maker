@@ -1,3 +1,4 @@
+import { useId } from "react";
 import type {
   AIFunction,
   AISettings,
@@ -44,11 +45,14 @@ const functions: { id: AIFunction; title: string; description: string }[] = [
 ];
 
 const efforts: { value: ReasoningEffort; label: string }[] = [
+  { value: "none", label: "关闭 · none" },
   { value: "minimal", label: "最低 · minimal" },
   { value: "low", label: "低 · low" },
   { value: "medium", label: "中 · medium" },
   { value: "high", label: "高 · high" },
-  { value: "xhigh", label: "最高 · xhigh" },
+  { value: "xhigh", label: "很高 · xhigh" },
+  { value: "max", label: "最大 · max" },
+  { value: "ultra", label: "极高 · ultra" },
 ];
 
 interface FieldsProps {
@@ -60,8 +64,9 @@ interface FieldsProps {
   onChange: (value: AISettings) => void;
 }
 
-/** 复用模型输入和思考强度选择，空值明确显示其继承来源 */
+/** 复用模型和自定义强度输入，空值明确显示其继承来源 */
 function ModelFields(props: FieldsProps) {
+  const effortOptions = useId();
   return (
     <>
       <label>
@@ -79,19 +84,22 @@ function ModelFields(props: FieldsProps) {
       </label>
       <label>
         思考强度
-        <select
+        <input
           aria-label={`${props.title}思考强度`}
+          list={effortOptions}
+          maxLength={64}
           value={props.value.reasoning_effort}
+          placeholder={props.inheritedEffort}
           disabled={props.disabled}
           onChange={
-            /* 选择受支持的强度，空值恢复继承 */ (event) =>
+            /* 保留 CLI 支持的自定义强度，空值恢复继承 */ (event) =>
               props.onChange({
                 ...props.value,
-                reasoning_effort: event.target.value as ReasoningEffort,
+                reasoning_effort: event.target.value,
               })
           }
-        >
-          <option value="">{props.inheritedEffort}</option>
+        />
+        <datalist id={effortOptions}>
           {efforts.map(
             /* 显示和 CLI 参数一一对应的强度选项 */ (effort) => (
               <option key={effort.value} value={effort.value}>
@@ -99,7 +107,7 @@ function ModelFields(props: FieldsProps) {
               </option>
             ),
           )}
-        </select>
+        </datalist>
       </label>
     </>
   );
@@ -115,7 +123,9 @@ export default function CodexModels(props: {
   return (
     <section className="codex-models" aria-label="Codex 模型与思考强度">
       <h3>全局默认</h3>
-      <p className="subtle">留空继承 CLI / Profile 配置。</p>
+      <p className="subtle">
+        留空继承 CLI / Profile 配置。思考强度可选常见值或填写当前模型支持的值。
+      </p>
       <div className="form-grid">
         <ModelFields
           title="全局默认"
