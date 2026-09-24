@@ -7,7 +7,7 @@ import { useElementSize } from "../../shared/hooks/useElementSize";
 import { api } from "../../shared/lib/api";
 import { registerDraft } from "../../shared/lib/draftRegistry";
 import { clamp, DEFAULT_LAYOUT } from "../../shared/lib/layout";
-import { loadLocal } from "../../shared/lib/storage";
+import { loadLocal, storage } from "../../shared/lib/storage";
 import type {
   ConversationDetail,
   Job,
@@ -62,7 +62,7 @@ export default function Chat(props: Props) {
           input_draft: value,
         });
         saved.current = value;
-        if (value === current.current) localStorage.removeItem(key);
+        if (value === current.current) storage.removeItem(key);
         if (alive.current) setDraftStatus("输入草稿已保存");
       });
     chain.current = promise;
@@ -112,7 +112,7 @@ export default function Chat(props: Props) {
       saved.current = "";
       setInput("");
       setDraftStatus("");
-      localStorage.removeItem(key);
+      storage.removeItem(key);
     } finally {
       sendingRef.current = false;
       setSending(false);
@@ -263,7 +263,7 @@ export default function Chat(props: Props) {
             current.current = e.target.value;
             setInput(e.target.value);
             setDraftStatus("正在保存输入草稿");
-            localStorage.setItem(key, JSON.stringify(e.target.value));
+            storage.setItem(key, JSON.stringify(e.target.value));
           }}
           onKeyDown={
             /* 处理方向键和边界快捷键，提供无鼠标的尺寸调整 */ (e) => {

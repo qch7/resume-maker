@@ -1,3 +1,4 @@
+import { loadLocal, storage } from "../../shared/lib/storage";
 import {
   useEffect,
   useMemo,
@@ -58,15 +59,17 @@ export default function TemplateAdapter({
   const workspace = useRef<HTMLElement>(null);
   const size = useElementSize(workspace);
   const sizes = templateSizes(size.width, size.height, layout);
-  const [path, setPath] = useState("");
+  const [path, setPath] = useState(
+    () => storage.getItem("rm.template.path") ?? "",
+  );
   const [name, setName] = useState("");
   const [libraryId, setLibraryId] = useState<string | null>(
     /* 未显式选择时跟随当前简历，空字符串明确表示内置版式 */ () =>
-      sessionStorage.getItem("rm.template.library"),
+      storage.getItem("rm.template.library"),
   );
   const [taskId, setTaskId] = useState(
     /* 恢复同一服务实例中尚未确认的分析 */ () =>
-      sessionStorage.getItem("rm.template.analysis") ?? "",
+      storage.getItem("rm.template.analysis") ?? "",
   );
   const [analysis, setAnalysis] = useState<TemplateAnalysis | null>(null);
   const [plan, setPlan] = useState<TemplatePlan | null>(null);
@@ -86,6 +89,25 @@ export default function TemplateAdapter({
     message: string;
   } | null>(null);
   const [feedback, setFeedback] = useState("");
+  const [tasks, setTasks] = useState<
+    { id: string; file_name: string; status: string }[]
+  >([]);
+  useEffect(() => {
+    if (active)
+      void api<typeof tasks>("/templates/analyses")
+        .then(setTasks)
+        .catch((error) => setNotice(error.message));
+  }, [active, taskId, analysis?.status]);
+  useEffect(() => {
+    storage.setItem("rm.template.path", path);
+  }, [path]);
+  useEffect(() => {
+    if (plan && analysis?.id === taskId)
+      storage.setItem(
+        `rm.template.editor.${taskId}`,
+        JSON.stringify({ plan, name, feedback }),
+      );
+  }, [taskId, plan, name, feedback, analysis?.id]);
   const autoPreview = useRef(true);
   const document = useMemo(
     /* 空白简历也保持资料对象稳定以免异步响应被误判为过期 */ () =>
@@ -260,13 +282,19 @@ export default function TemplateAdapter({
           setAnalysis(value);
           if (value.status === "running") timer = setTimeout(poll, 800);
           else {
-            setPlan(value.plan);
+            const draft = loadLocal<{
+              plan: TemplatePlan;
+              name: string;
+              feedback: string;
+            } | null>(`rm.template.editor.${taskId}`, null);
+            setPlan(draft?.plan ?? value.plan);
             setReview(value.review);
             const templateName = value.file_name.replace(
               /\.(docx?|docm|rtf|pdf|png|jpe?g)$/i,
               "",
             );
-            setName(templateName);
+            setName(draft?.name ?? templateName);
+            setFeedback(draft?.feedback ?? "");
             setSavedSnapshot(
               value.from_library
                 ? JSON.stringify([templateName.trim(), value.plan])
@@ -293,7 +321,7 @@ export default function TemplateAdapter({
                     ? { ...previous, status: "failed", activity: error.message }
                     : previous,
               );
-              sessionStorage.removeItem("rm.template.analysis");
+              storage.removeItem("rm.template.analysis");
               if (error.status === 404) {
                 requestedId.current = "";
                 setTaskId("");
@@ -444,8 +472,8 @@ export default function TemplateAdapter({
     setOpenedId("");
     setSavedSnapshot(null);
     setTaskId("");
-    sessionStorage.removeItem("rm.template.analysis");
-    sessionStorage.setItem("rm.template.library", id);
+    storage.removeItem("rm.template.analysis");
+    storage.setItem("rm.template.library", id);
     if (!id) return;
     try {
       const value = await api<TemplateAnalysis>(
@@ -477,9 +505,9 @@ export default function TemplateAdapter({
     setView("summary");
     setPreviewStale(false);
     setTaskId(value.id);
-    sessionStorage.setItem("rm.template.analysis", value.id);
-    if (templateId) sessionStorage.setItem("rm.template.library", templateId);
-    else sessionStorage.removeItem("rm.template.library");
+    storage.setItem("rm.template.analysis", value.id);
+    if (templateId) storage.setItem("rm.template.library", templateId);
+    else storage.removeItem("rm.template.library");
   }
   /** 点选文字、图片或同级范围，禁止跨单元格或跨部件拼接范围 */
   function select(id: string, extend = false) {
@@ -546,9 +574,9 @@ export default function TemplateAdapter({
       setOpenedId(value.id);
       setLibraryId(value.id);
       setSavedSnapshot(currentSnapshot);
-      sessionStorage.setItem("rm.template.library", value.id);
+      storage.setItem("rm.template.library", value.id);
       // 刷新后重开包含人工修正的已保存版本
-      sessionStorage.removeItem("rm.template.analysis");
+      storage.removeItem("rm.template.analysis");
       setNotice("识别结果已保存到模板库。");
     }
   }
@@ -599,6 +627,41 @@ export default function TemplateAdapter({
             </button>
           </div>
           <div className="template-library-controls">
+            {!!tasks.length && (
+              <label>
+                继续模板工作
+                <select
+                  value={taskId}
+                  disabled={busy || running || loading}
+                  onChange={(event) => {
+                    libraryRequest.current?.abort();
+                    selectionVersion.current++;
+                    setAnalysis(null);
+                    setPlan(null);
+                    setPreview(null);
+                    setOpenedId("");
+                    setLibraryId("");
+                    setSavedSnapshot(null);
+                    setTaskId(event.target.value);
+                    storage.setItem("rm.template.analysis", event.target.value);
+                  }}
+                >
+                  <option value="" disabled>
+                    选择已保留的工作
+                  </option>
+                  {tasks.map((task) => (
+                    <option key={task.id} value={task.id}>
+                      {task.file_name} ·{" "}
+                      {task.status === "completed"
+                        ? "可继续核对"
+                        : task.status === "running"
+                          ? "分析中"
+                          : "可重试"}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <TemplatePicker
               label="模板库"
               templates={templates}
@@ -661,6 +724,23 @@ export default function TemplateAdapter({
                 )
             }
           />
+        )}
+        {analysis && ["failed", "cancelled"].includes(analysis.status) && (
+          <button
+            disabled={busy}
+            onClick={() =>
+              void perform(async () => {
+                const value = await api<TemplateAnalysis>(
+                  `/templates/analyses/${taskId}/retry`,
+                  "POST",
+                  { document, items: resume.items },
+                );
+                openTask(value);
+              })
+            }
+          >
+            用保存的原件重新分析
+          </button>
         )}
         {notice && (
           <p className="template-notice template-banner" role="status">

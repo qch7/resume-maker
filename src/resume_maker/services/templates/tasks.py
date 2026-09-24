@@ -1,5 +1,6 @@
 """模板分析、映射核对、试填和登记，复用现有 Provider 并支持取消"""
 
+import shutil
 import threading
 import time
 from copy import deepcopy
@@ -42,6 +43,80 @@ class Templates:
         self.origins = {}
         self.lock = threading.RLock()
         self.stopped = False
+        self.inputs = {}
+        for row in self.db.all("SELECT value_json FROM settings WHERE key LIKE 'template-task:%'"):
+            saved = row["value"]
+            task = saved["task"]
+            identifier = task["id"]
+            self.tasks[identifier] = task
+            self.artifacts[identifier] = saved.get("artifacts", [])
+            self.origins[identifier] = saved.get("origin")
+            self.inputs[identifier] = saved.get("input", {})
+            if task["status"] == "running":
+                task.update(
+                    status="failed",
+                    phase="interrupted",
+                    error="上次分析被中断，原件和输入已保留，可以重新分析。",
+                )
+                self._persist(identifier)
+
+    def _persist(self, identifier, source=None):
+        """先原子保存可恢复文档再登记状态，CLI 临时材料继续留在工作目录"""
+        folder = self.data_dir / "template-drafts" / identifier
+        folder.mkdir(parents=True, exist_ok=True)
+        task = self.tasks[identifier]
+        task["elapsed_ms"] = self._elapsed(task)
+        with self.db.transaction() as conn:
+            if source is not None:
+                temporary = folder / "original.tmp"
+                shutil.copyfile(source, temporary)
+                temporary.replace(folder / "original.docx")
+            conn.execute(
+                "INSERT OR REPLACE INTO settings VALUES (?,?)",
+                (
+                    f"template-task:{identifier}",
+                    dump(
+                        {
+                            "task": task,
+                            "artifacts": self.artifacts.get(identifier, []),
+                            "origin": self.origins.get(identifier),
+                            "input": self.inputs.get(identifier, {}),
+                        }
+                    ),
+                ),
+            )
+
+    def list_tasks(self):
+        """列出可恢复的模板工作，已保存版本仍在独立模板库中"""
+        with self.lock:
+            return [
+                {key: task.get(key) for key in ("id", "file_name", "status", "created_at")}
+                for task in sorted(
+                    self.tasks.values(), key=lambda item: item.get("created_at", ""), reverse=True
+                )
+            ]
+
+    def retry(self, identifier, document, items):
+        """使用留存原件显式重试中断任务，不在启动时自动发送模型请求"""
+        with self.lock:
+            task = self.get(identifier)
+            if task["status"] not in {"failed", "cancelled"}:
+                raise Problem("仅中断或失败的分析可以重试。", 409)
+            folder = self.data_dir / "template-drafts" / identifier
+            uploaded = next(folder.glob("uploaded.*"), None)
+            saved = self.inputs.get(identifier, {})
+            result = self._start(
+                None if uploaded else TemplatePackage(folder / "original.docx"),
+                task["file_name"],
+                document,
+                items,
+                TemplatePlan.model_validate(saved["initial"]) if saved.get("initial") else None,
+                saved.get("feedback", ""),
+                uploaded.read_bytes() if uploaded else None,
+            )
+            self.origins[result["id"]] = self.origins.get(identifier)
+            self._persist(result["id"])
+            return result
 
     def analyze(
         self, path: Path, document: ResumeDocument, items: list[ResumeItem] | None = None
@@ -62,6 +137,7 @@ class Templates:
                 feedback,
             )
             self.origins[task["id"]] = self.origins.get(identifier)
+            self._persist(task["id"])
             return task
 
     def _start(self, package, file_name, document, items, initial=None, feedback="", raw=None):
@@ -82,11 +158,12 @@ class Templates:
             if package is not None:
                 package.write(source)
             else:
-                suffix = Path(file_name).suffix.lower()
+                suffix = Path(file_name).suffix.lower() or ".bin"
                 (directory / ("uploaded" + suffix)).write_bytes(raw)
             task = {
                 **new_progress(),
                 "id": identifier,
+                "created_at": now(),
                 "file_name": file_name,
                 "status": "running",
                 "activity": "正在自动整理模板格式…",
@@ -98,6 +175,16 @@ class Templates:
             self.started[identifier] = time.monotonic()
             self.tasks[identifier] = task
             self.artifacts[identifier] = [directory.relative_to(self.data_dir).as_posix()]
+            durable = self.data_dir / "template-drafts" / identifier
+            durable.mkdir(parents=True)
+            self.artifacts[identifier].append(durable.relative_to(self.data_dir).as_posix())
+            if raw is not None:
+                (durable / ("uploaded" + suffix)).write_bytes(raw)
+            self.inputs[identifier] = {
+                "initial": initial.model_dump() if initial is not None else None,
+                "feedback": feedback,
+            }
+            self._persist(identifier, source if package is not None else None)
             flag = self.flags[identifier] = threading.Event()
             settings = ProviderSettings.model_validate(
                 self.db.setting("provider", {})
@@ -155,6 +242,7 @@ class Templates:
                     task["metrics"].append(
                         {key: data[key] for key in ("round", "prompt_chars", "images", "resumed")}
                     )
+                self._persist(identifier)
 
         try:
             provider = self.provider.with_private_data(document.model_dump())
@@ -242,6 +330,7 @@ class Templates:
                     attempts=attempts,
                     repair_error=redact(repair_error)[:2000] if repair_error else None,
                 )
+                self._persist(identifier, source)
             record("task", "completed", "模板分析完成", {"review": review, "attempts": attempts})
         except Exception as exc:
             record(
@@ -259,9 +348,10 @@ class Templates:
                     status="cancelled" if flag.is_set() else "failed",
                     error=redact(str(exc))[:2000],
                 )
+                self._persist(identifier)
 
     def get(self, identifier: str) -> dict:
-        """读取当前实例的分析结果，关闭应用后需重新分析，已登记模板不受影响"""
+        """读取可跨服务重启恢复的分析结果"""
         with self.lock:
             task = need(self.tasks.get(identifier), "模板分析已不存在，请重新分析。")
             return {**deepcopy(task), "elapsed_ms": self._elapsed(task)}
@@ -336,6 +426,7 @@ class Templates:
                 **new_progress(),
                 **analysis_record(mapping.get("analysis", {})),
                 "id": identifier,
+                "created_at": now(),
                 "file_name": template["name"],
                 "status": "completed",
                 "activity": "已打开保存的映射，修改后将保存为新版本。",
@@ -353,6 +444,8 @@ class Templates:
                 )
             )
             self.origins[identifier] = template_id
+            self.artifacts[identifier].append(f"template-drafts/{identifier}")
+            self._persist(identifier, directory / "original.docx")
             return deepcopy(task)
 
     def cancel(self, identifier: str) -> dict:
@@ -363,13 +456,14 @@ class Templates:
                 self.flags[identifier].set()
                 task["elapsed_ms"] = self._elapsed(task)
                 task.update(status="cancelled", phase="cancelled", activity="已取消")
+                self._persist(identifier)
         return self.get(identifier)
 
     def source(self, identifier: str) -> Path:
         """确认任务属于当前实例且分析完成，再取得内部快照路径"""
         if self.get(identifier)["status"] != "completed":
             raise Problem("请先完成模板分析。", 409)
-        return self.data_dir / "workspaces" / f"template-{identifier}" / "original.docx"
+        return self.data_dir / "template-drafts" / identifier / "original.docx"
 
     def review(
         self,

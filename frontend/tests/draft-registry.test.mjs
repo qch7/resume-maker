@@ -68,3 +68,25 @@ test("unmounted drafts are no longer flushed", /* 验证卸载解除登记后不
   await flushDrafts();
   assert.equal(writes, 0);
 });
+
+test("backup waits for recovery writes created by business draft saves", async () => {
+  const steps = [];
+  const removeStorage = registerDraft(
+    "test-storage",
+    async () => {
+      steps.push("storage");
+    },
+    true,
+  );
+  const removeBusiness = registerDraft("test-business", async () => {
+    await Promise.resolve();
+    steps.push("business");
+  });
+  try {
+    await flushDrafts();
+    assert.deepEqual(steps, ["business", "storage"]);
+  } finally {
+    removeStorage();
+    removeBusiness();
+  }
+});

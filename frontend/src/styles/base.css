@@ -33,6 +33,31 @@
 body {
   margin: 0;
 }
+.persistence-status {
+  position: fixed;
+  right: 12px;
+  bottom: 8px;
+  z-index: 100;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  max-width: min(640px, calc(100vw - 24px));
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 11px;
+}
+.persistence-status.warning {
+  color: var(--danger);
+}
+.persistence-status textarea {
+  display: block;
+  width: 100%;
+  min-height: 100px;
+}
 button,
 input,
 textarea,

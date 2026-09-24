@@ -1,3 +1,4 @@
+import { storage } from "../lib/storage";
 import { Monitor, Moon, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -17,7 +18,7 @@ export default function ThemeSwitch() {
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     try {
-      localStorage.setItem("rm.theme", theme);
+      storage.setItem("rm.theme", theme);
     } catch {
       // 存储不可用时仍切换本次主题
     }

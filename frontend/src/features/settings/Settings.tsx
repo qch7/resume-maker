@@ -2,6 +2,7 @@ import { FolderPlus, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import PathInput from "../../shared/components/PathInput";
 import { api, download } from "../../shared/lib/api";
+import { loadLocal, storage } from "../../shared/lib/storage";
 import type { Conversation, ProviderSettings } from "../../shared/types/index";
 import CodexModels from "./CodexModels";
 import Privacy from "./Privacy";
@@ -35,6 +36,13 @@ export default function Settings(props: Props) {
     functions: {},
   });
   const [loaded, setLoaded] = useState(false);
+  const baseline = useRef("");
+  useEffect(() => {
+    if (!loaded) return;
+    if (JSON.stringify(provider) === baseline.current)
+      storage.removeItem("rm.settings.provider");
+    else storage.setItem("rm.settings.provider", JSON.stringify(provider));
+  }, [provider, loaded]);
   const [dataDir, setDataDir] = useState(""),
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false);
@@ -50,7 +58,8 @@ export default function Settings(props: Props) {
   useEffect(() => {
     void api<{ provider: ProviderSettings; data_dir: string }>("/settings")
       .then((value) => {
-        setProvider(value.provider);
+        baseline.current = JSON.stringify(value.provider);
+        setProvider(loadLocal("rm.settings.provider", value.provider));
         setDataDir(value.data_dir);
         setLoaded(true);
       })
@@ -279,6 +288,8 @@ export default function Settings(props: Props) {
                     provider,
                   );
                   setProvider(saved);
+                  baseline.current = JSON.stringify(saved);
+                  storage.removeItem("rm.settings.provider");
                   setNotice("Codex 设置已保存，将用于新提交的 AI 任务。");
                 })
               }
@@ -295,6 +306,8 @@ export default function Settings(props: Props) {
                     provider,
                   );
                   setProvider(saved);
+                  baseline.current = JSON.stringify(saved);
+                  storage.removeItem("rm.settings.provider");
                   const value = await api<{ reply: string }>(
                     "/providers/codex/check",
                     "POST",

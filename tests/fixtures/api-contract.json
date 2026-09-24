@@ -237,14 +237,14 @@
       },
       "delete": {
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ActivityDeletion"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -2098,6 +2098,18 @@
       }
     },
     "/api/templates/analyses": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
       "post": {
         "requestBody": {
           "content": {
@@ -2108,6 +2120,51 @@
             }
           },
           "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/templates/analyses/{analysis_id}/retry": {
+      "post": {
+        "parameters": [
+          {
+            "name": "analysis_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Analysis Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TemplateEditInput"
+              }
+            }
+          }
         },
         "responses": {
           "200": {
@@ -3137,6 +3194,65 @@
         }
       }
     },
+    "/api/workspace-storage": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspace-storage/{key}": {
+      "put": {
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceValueInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/": {
       "get": {
         "responses": {
@@ -3200,7 +3316,8 @@
       "required": [
         "before"
       ],
-      "title": "ActivityDeletion"
+      "title": "ActivityDeletion",
+      "description": "明确传入带时区的删除截止时间，空值表示删除全部日志"
     },
     "AdaptiveTemplateInput": {
       "properties": {
@@ -4944,6 +5061,34 @@
         "type"
       ],
       "title": "ValidationError"
+    },
+    "WorkspaceValueInput": {
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 8000000
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 0.0,
+          "title": "Version"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "version"
+      ],
+      "title": "WorkspaceValueInput",
+      "description": "空值表示删除，版本仍保留以拒绝旧窗口写入"
     }
   }
 }

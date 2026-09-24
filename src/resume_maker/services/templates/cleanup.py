@@ -5,6 +5,7 @@ import shutil
 from pathlib import Path
 
 from resume_maker.core.errors import Problem
+from resume_maker.infrastructure.database import dump, now, unpack
 from resume_maker.integrations.sources import digest
 
 
@@ -28,7 +29,7 @@ def artifact_paths(template):
     return set(template["mapping"].get("artifacts", []))
 
 
-def cleanup_template(root, template, others, tasks=None, previews=None):
+def cleanup_template(root, template, others, tasks=None, previews=None, conn=None):
     """在调用方锁和事务中清理专属文件，再使旧任务失效，失败时保留回收站记录"""
     if tasks and any(thread.is_alive() for thread in tasks.threads):
         raise Problem("正在识别模板，请等待识别完成后再永久删除。", 409)
@@ -39,6 +40,9 @@ def cleanup_template(root, template, others, tasks=None, previews=None):
             relative = f"workspaces/template-{key}"
             if origin == template["id"] and relative not in shared:
                 paths.add(root / relative)
+                durable = f"template-drafts/{key}"
+                if durable not in shared:
+                    paths.add(root / durable)
     same_hash = any(item["hash"] == template["hash"] for item in others)
     if not same_hash:
         paths.add(root / "templates" / ".previews" / template["hash"])
@@ -83,6 +87,18 @@ def cleanup_template(root, template, others, tasks=None, previews=None):
             tasks.flags.pop(key, None)
             tasks.artifacts.pop(key, None)
             tasks.origins.pop(key, None)
+            tasks.inputs.pop(key, None)
+            if conn is not None:
+                conn.execute("DELETE FROM settings WHERE key=?", (f"template-task:{key}",))
+                draft_key = f"workspace-value:rm.template.editor.{key}"
+                previous = unpack(
+                    conn.execute("SELECT * FROM settings WHERE key=?", (draft_key,)).fetchone()
+                )
+                version = previous["value"]["version"] if previous else 0
+                conn.execute(
+                    "INSERT OR REPLACE INTO settings VALUES (?,?)",
+                    (draft_key, dump({"value": None, "version": version + 1, "updated_at": now()})),
+                )
     if previews:
         for key in preview_ids:
             previews.results.pop(key, None)
