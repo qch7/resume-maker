@@ -1,42 +1,67 @@
-# Resume Maker
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/branding/resume-maker-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="docs/branding/resume-maker-light.png">
+    <img src="docs/branding/resume-maker-light.png" alt="ResumeMaker" width="600">
+  </picture>
+</p>
 
-[![CI](https://github.com/qch7/resume-maker/actions/workflows/ci.yml/badge.svg)](https://github.com/qch7/resume-maker/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+<p align="center">
+  <strong>从项目源码，到可编辑的 Word 简历。</strong>
+</p>
 
-从项目源码整理经历，按岗位保存版本，用自己的模板生成 Word 简历。
+<p align="center">
+  AI 整理项目经历 · 按岗位管理版本 · 沿用你的简历模板
+</p>
 
-Resume Maker 是运行在本机的简历工作台，可以管理项目经历、个人资料、荣誉证书和模板，在编辑时查看排版，再保存不同的简历方案。
+<p align="center">
+  <a href="https://github.com/qch7/resume-maker/actions/workflows/ci.yml"><img src="https://github.com/qch7/resume-maker/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
+</p>
 
-[快速开始](#快速开始) · [功能预览](#功能预览) · [运行说明](#运行说明) · [开发说明](#开发说明)
+<p align="center">
+  <a href="#快速开始">快速开始</a> ·
+  <a href="#功能预览">功能预览</a> ·
+  <a href="docs/user-guide.md">使用文档</a> ·
+  <a href="https://github.com/qch7/resume-maker/issues">反馈问题</a> ·
+  <a href="CONTRIBUTING.md">参与贡献</a>
+</p>
 
-![项目经历工作台，左侧选择项目，中间编辑经历，右侧查看简历排版](docs/screenshot/项目经历页.png)
+## 简介
 
-- **从源码整理经历**：关联本机项目目录，让 AI 根据实际代码梳理亮点，再核对引用和个人贡献。
-- **为不同岗位保留版本**：经历支持分支、历史对比和恢复，每份简历固定引用选定的版本及亮点。
-- **沿用已有模板**：导入可编辑 Word 或带文字层的 PDF，识别填写位置并试填，也可以直接使用内置模板。
-- **按投递需要组合内容**：编辑个人资料、挑选荣誉、调整栏目和显隐，保存多份方案及导出记录。
-- **观察系统活动**：在“系统日志”查看 API、AI 消息、工具参数及结果和后台任务的时间线，按关键词、类别、级别和时间筛选，展开详情或导出 JSONL，见 [系统日志](docs/system-activity.md)。
+ResumeMaker 是面向开发者的开源简历工作台，在本机运行。导入项目源码，让 AI 根据代码整理经历；按岗位选择内容和版本，再用自己的模板生成可编辑的 Word 简历。
 
-## 隐私保护
+它适合需要持续积累项目经历、为不同岗位维护多份简历，以及希望沿用已有 Word 模板的求职者。
 
-资料先在本机进行文字提取或 OCR，再由统一隐私网关替换个人信息。保留 Windows 原生 Codex CLI，通过专用只读工具搜索脱敏副本，关闭任意 shell、外部工具和原图输入；无需 WSL、虚拟机或 GPU。结果在本机还原后继续核验引用。
+[![项目经历工作台：左侧管理项目，中间编辑经历，右侧预览简历](docs/screenshot/项目经历页.png)](docs/screenshot/项目经历页.png)
 
-在“工作台设置 → 隐私保护”补充学校、单位等敏感词，检查本地替换效果及最近 10 份脱敏材料包。自动规则和 OCR 可能漏检，工具沙箱属于应用层边界；详见 [隐私保护](docs/privacy.md) 和 [OCR 开销评测](docs/ocr-benchmark.md)。
+## 功能特性
+
+| 核心能力 | 使用方式 |
+| --- | --- |
+| **源码分析** | 关联多个源码目录或子项目，让 AI 梳理技术亮点，通过文件引用核对事实和个人贡献。 |
+| **经历版本** | 按岗位创建分支、查看历史和恢复内容，每份简历固定引用选定的版本及亮点。 |
+| **模板适配** | 使用内置模板，或导入 Word、PDF、图片，识别填写位置并用当前资料试填。 |
+| **资料和荣誉** | 集中管理照片、教育、技能和自定义信息，批量识别证书，核对后用于多份简历。 |
+| **编排和导出** | 调整栏目顺序、层级和显隐，保存多份方案，导出 Word、可用的 PDF 和版本清单。 |
+| **本机数据** | 自动保存草稿，支持 ZIP 备份和离线恢复；发送给 AI 的材料先经过本地脱敏。 |
 
 ## 快速开始
 
-### 环境要求
+### 1. 安装并启动
 
-| 依赖 | 用途 |
-| --- | --- |
-| Python 3.12+、[uv](https://docs.astral.sh/uv/getting-started/installation/) | 安装依赖并运行本机服务 |
-| Node.js 22.16+、npm | 构建前端界面 |
-| Codex CLI（文件登录或 Responses 供应商配置） | 使用隔离的脱敏材料及专用只读工具分析 |
-| Windows + Microsoft Word | 真实排版预览、精确页数和 PDF 导出 |
+推荐使用 **Windows + Microsoft Word**，以获得完整的排版预览和 PDF 导出能力。Linux 和 macOS 可运行工作台并生成 DOCX。
 
-**完整预览体验推荐 Windows + Microsoft Word；其他平台仍可生成 DOCX。**
+从源码运行需要 [Git](https://git-scm.com/downloads)，以及以下工具：
 
-### 启动
+| 工具 | 用途 | 何时需要 |
+| --- | --- | --- |
+| Python 3.12+、[uv](https://docs.astral.sh/uv/getting-started/installation/) | 安装锁定依赖，运行本机服务 | 必需 |
+| [Node.js](https://nodejs.org/) 22.16+、npm | 安装前端依赖，构建界面 | 必需 |
+| [Codex CLI](https://github.com/openai/codex) | 使用已配置的模型分析项目、识别模板和证书 | 使用 AI 功能时 |
+| Microsoft Word（Windows） | 真实排版预览、精确页数和 PDF 导出 | 使用完整预览和 PDF 导出时 |
+
+**Windows：**
 
 ```powershell
 git clone https://github.com/qch7/resume-maker.git
@@ -44,173 +69,203 @@ cd resume-maker
 .\start.cmd
 ```
 
-Windows 启动脚本会安装锁定依赖、按需构建界面，并打开 [本机工作台](http://127.0.0.1:8765)。关闭运行终端或执行 `stop.cmd` 可停止本实例。
+启动脚本会安装 Python 依赖、按需安装前端依赖并构建界面，然后打开 [本机工作台](http://127.0.0.1:8765)。关闭运行终端或执行 `.\stop.cmd` 可停止实例。
 
-也可以在 Windows、Linux 或 macOS 的终端运行：
+<details>
+<summary>手动启动（Windows / Linux / macOS）</summary>
 
 ```sh
+git clone https://github.com/qch7/resume-maker.git
+cd resume-maker
 uv sync --locked
 npm --prefix frontend ci
 npm --prefix frontend run build
 uv run resume-maker
 ```
 
-### 制作第一份简历
+默认地址为 <http://127.0.0.1:8765>。更多启动参数见[开发指南](docs/development.md)。
 
-1. **选模板**：使用“内置 · 完整简历”，或在“Word 模板”中导入文件、识别并核对试填结果。
-2. **填资料**：在“个人信息”中填写照片、联系方式、教育经历和技能，需要时添加自定义信息。
-3. **整理项目**：从左侧项目库导入源码目录，在 AI 会话中整理经历，核对后“提交为新版本”并“用于当前简历”。
-4. **选荣誉**：上传证书保存在本机，PDF 和图片先本地提取文字，脱敏后由 CLI 整理字段，核对后加入简历。
-5. **排内容**：在“栏目编排”中调整顺序、层级和显隐，对照右侧预览检查版面。
-6. **保存导出**：从右上角打开简历库，保存组合并导出 Word，需要时下载同次导出的 PDF 和版本清单。
+</details>
+
+### 2. 连接 AI（可选）
+
+如需使用 AI 功能，先在本机完成 Codex CLI 的文件登录或 Responses 供应商配置，再打开“工作台设置 → Codex 与数据”：
+
+1. 确认“Codex 可执行文件”路径，按需填写模型、思考强度和 CLI Profile；模型和 Profile 留空时沿用 CLI 配置。
+2. 点击“测试实际连接”。该操作会保存设置，并向所选供应商发起一次真实请求。
+3. 在“隐私保护”中补充学校、单位等敏感词，使用本地检测和脱敏材料预览核对效果。
+
+暂不使用 AI 时，可以先用内置模板填写资料、编排和导出简历。各项功能的模型配置见[使用指南](docs/user-guide.md)。
+
+### 3. 制作第一份简历
+
+1. **选模板**：选择“内置 · 完整简历”，或导入自己的模板并核对识别、试填结果。
+2. **填资料**：填写联系方式、照片、教育和技能，按需增加自定义信息。
+3. **整理项目**：导入源码目录，在 AI 会话中整理经历，核对后“提交为新版本”并“用于当前简历”。
+4. **选荣誉**：上传证书并核对识别结果，或手动录入，再选择加入当前简历。
+5. **排内容**：调整栏目和条目的顺序、层级、显隐，对照预览检查版面。
+6. **保存导出**：打开简历库，保存方案并导出 Word；具备 Word 环境时，可下载同次导出的 PDF。
 
 ## 功能预览
 
-### 模板识别
+### 源码分析和经历版本
 
-导入可编辑 Word 或有可靠文字层的 PDF 后，AI 根据脱敏文字、布局结构和带节点编号的马赛克图片识别填写位置，再在本机用真实资料试填。图片模板和 PDF 扫描页先本地 OCR、遮盖敏感文字并为图像区域打码，再发送脱敏重绘的整页图和坐标，让 AI 恢复版面；原文及照片只在本机放回 Word。混合 PDF 逐页选择处理方式并保留纸张尺寸；字体、OCR 和复杂装饰需核对，原图不外发。
+在 AI 会话中讨论整段经历或某条亮点，建议经你采用后进入草稿。经历更新后，已有简历继续引用原版本，点击“用于当前简历”才更新当前方案。
 
-下图展示原模板和试填后的效果，黑色栏目标题、分隔线和页首布局沿用原版设计，资料替换为当前简历内容，点击图片可查看原图。
+<details>
+<summary>查看 AI 会话和经历版本管理</summary>
+
+**结合源码讨论项目经历**
+
+![项目 AI 会话：讨论经历并查看右侧简历预览](docs/screenshot/项目经历AI会话.png)
+
+**查看分支、修订和历史内容**
+
+![经历历史树：查看版本内容并从所选版本创建分支](docs/screenshot/项目经历版本管理.png)
+
+</details>
+
+### 模板识别和试填
+
+可编辑 Word 模板沿用原有结构，PDF 和图片通过恢复流程生成可编辑模板。下图展示原模板和试填结果；字体、照片位置、OCR 结果和复杂装饰需要人工核对。
 
 | 原模板 | 识别后的试填预览 |
 | --- | --- |
-| [![导入前的原始简历模板](docs/screenshot/原模板.png)](docs/screenshot/原模板.png) | [![模板识别后的 Word 试填和字段修正界面](docs/screenshot/模板识别结果.png)](docs/screenshot/模板识别结果.png) |
+| [![导入前的简历模板](docs/screenshot/原模板.png)](docs/screenshot/原模板.png) | [![模板识别后的 Word 试填和字段修正界面](docs/screenshot/模板识别结果.png)](docs/screenshot/模板识别结果.png) |
 
 <details>
 <summary>查看模板库：分类、收藏和缩略图</summary>
 
-已保存的模板可以搜索、改名、分类和收藏，支持卡片或列表浏览，也可以从回收站恢复删除的模板。
+已保存的模板支持搜索、改名、分类、收藏和回收站恢复，可按卡片或列表浏览。
 
-![模板库中的分类、收藏、模板卡片和选中模板预览](docs/screenshot/模板库.png)
+![模板库：分类、收藏、模板卡片和选中模板预览](docs/screenshot/模板库.png)
 
 </details>
 
-### 个人资料
+### 个人资料、荣誉和栏目编排
 
-照片、联系方式、教育经历和技能集中编辑，基本信息和每条经历均可单独保存；字段旁的眼睛按钮控制当前简历是否显示该项，自定义信息可以补充表单之外的内容。
-
-![个人资料编辑界面，可修改基本信息、照片和教育经历并查看排版](docs/screenshot/个人信息编辑1.png)
+资料和荣誉统一管理，栏目支持拖动排序、两级编排和独立显隐。隐藏内容仍保留，便于下一份简历重新使用。
 
 <details>
-<summary>查看荣誉资料和专业技能编辑</summary>
+<summary>查看个人资料、荣誉证书和栏目编排</summary>
 
-荣誉条目可以展开更多信息，专业技能支持多条正文，每条资料都可以单独编辑和调整显隐。
+**个人信息和教育经历**
 
-![个人信息页中的荣誉条目和专业技能编辑](docs/screenshot/个人信息编辑2.png)
+![个人资料编辑：基本信息、照片和教育经历](docs/screenshot/个人信息编辑1.png)
+
+**荣誉资料和专业技能**
+
+![个人资料编辑：荣誉信息和多条专业技能](docs/screenshot/个人信息编辑2.png)
+
+**证书识别和人工核对**
+
+![荣誉证书库：批量上传、分类筛选、信息核对和加入简历](docs/screenshot/荣誉识别管理.png)
+
+**栏目顺序、层级和显隐**
+
+![栏目编排：调整大栏目、子栏目和条目顺序](docs/screenshot/栏目编排.png)
 
 </details>
 
-### 项目经历
+### 简历方案和历史成品
 
-一个项目可以关联多个仓库，也可以分别整理子项目；在独立 AI 会话中说明希望突出的部分，讨论整段经历或某条亮点，采用的建议先进入草稿。
-
-![项目 AI 会话，根据源码讨论项目经历，右侧保留简历预览](docs/screenshot/项目经历AI会话.png)
-
-经历支持按岗位创建分支，历史树展示版本关系、修改摘要和未提交的改动；提交新版本后，已有简历继续引用原版本，点击“用于当前简历”才更新当前方案。
+为不同岗位保存模板、经历版本和亮点的组合。每次导出独立留档，可重新下载历史成品及其版本清单。
 
 <details>
-<summary>查看经历历史和分支</summary>
+<summary>查看简历方案和历史导出记录</summary>
 
-![经历历史树，可查看版本内容并从所选版本创建分支](docs/screenshot/项目经历版本管理.png)
+![简历库：方案管理、模板选择和历史导出记录](docs/screenshot/简历库.png)
 
 </details>
 
-### 荣誉证书
+## 数据和隐私
 
-批量拖入 PDF 或图片后自动提取证书信息，对照原件核对名称、奖项、单位和日期，再按分类、状态或关键词筛选并加入简历；也支持手动录入。
+**本机保存。** 应用面向单用户，仅监听 `127.0.0.1`。源码运行的数据保存在项目下的 `data/`，独立安装包默认使用用户目录下的 `.resume-maker/`。编辑会自动保存为草稿，正式版本仍需保存或提交。
 
-![荣誉证书库，支持批量上传、分类筛选、信息核对和加入简历](docs/screenshot/荣誉识别管理.png)
+**AI 请求先脱敏。** 文本在本机提取并替换敏感信息；图片和扫描页经过本地 OCR、身份遮盖和图像打码，模板原图及照片不外发。处理后的材料会交给配置的模型供应商，结果在本机还原。自动规则和 OCR 可能漏检，请补充敏感词并核对发送记录。详见[隐私保护](docs/privacy.md)和[安全说明](SECURITY.md)。
 
-### 栏目编排
+**备份和恢复。** 在设置中导出 ZIP，包含资料、草稿、经历、会话、模板和荣誉原件，停止服务后可离线恢复。原项目源码和系统日志不在备份中；换机时需另行迁移源码并重新关联目录。详见[数据持久化](docs/persistence.md)。
 
-通过拖动或上下箭头调整栏目和条目顺序，把课程放进教育背景，或添加实习、自定义栏目；隐藏大栏目时一并隐藏其子栏目，内容仍保留供下次使用。
+<details>
+<summary>自定义端口和数据目录</summary>
 
-![栏目编排界面，支持调整大栏目、子栏目和条目顺序](docs/screenshot/栏目编排.png)
-
-### 简历库和导出
-
-在简历库中保存不同方案，为每份方案选择模板和经历版本；每次导出独立留档，可以查看历史成品并下载 Word、可用的 PDF 和版本清单。
-
-![简历库中的方案管理、模板选择和历史导出记录](docs/screenshot/简历库.png)
-
-## 运行说明
-
-### 本机数据和备份
-
-服务仅监听本机回环地址，源码运行时的数据保存在 `data/`，包含 `resume.db`、模板、来源快照、导出文件和备份；独立安装包默认使用用户目录下的 `.resume-maker`。
-
-AI 运行沙箱位于源码项目根目录下的 `ResumeMakerSandbox/`，不随启动位置或数据目录设置改变，也不会提交到 Git 或作为源码材料读取；每轮任务结束清理对应临时目录。独立安装包没有源码项目时使用用户目录下的 `.resume-maker-sandbox/`。
-
-设置中可导出 ZIP 备份，包含资料、经历、会话、模板和荣誉原件；恢复采用离线方式，原项目源码需要另行保存。
-
-未提交的简历组合、个人资料、模板映射、荣誉核对及设置输入会自动保存为独立草稿，并进入备份；页面下方显示保存状态，正式版本仍需点击保存或提交。模板页的“继续模板工作”可恢复之前的分析和人工核对，中断任务保留原件供重试。备份会等待当前页面草稿写入，并在数据库和附件保持一致时打包，恢复前核验文件完整性。具体范围见[数据持久化](docs/persistence.md)。
-
-可用 `RESUME_MAKER_DATA_DIR` 更改数据目录，也可以通过命令行指定端口和目录：
+在仓库根目录运行：
 
 ```sh
-uv run resume-maker --port 8768 --data-dir /path/to/resume-data --no-browser
+uv run resume-maker --port 8768 --data-dir ./my-resume-data --no-browser
 ```
 
-### AI 配置
+也可以通过 `RESUME_MAKER_DATA_DIR` 设置数据目录；命令行参数优先。更多选项见[开发指南](docs/development.md)。
 
-AI 功能使用原生 Codex CLI，复用文件登录和供应商配置，不限定具体版本号；CLI 需支持严格配置、受控模型目录和只读 MCP 材料工具，不兼容时保留具体错误并停止调用。“测试实际连接”会调用所选供应商。CLI 按需列出、搜索和读取关联目录的脱敏源码，分页可以继续，不因项目文件数、总量或单文件大小省略源码；完成后留存引用文件和证据。
+</details>
 
-AI 请求中的内容会交给所配置的 Provider 处理，个人资料和任务记录仍保存在本机。
+## 常见问题
 
-### 模板和排版
+<details>
+<summary>没有 Microsoft Word 可以使用吗？</summary>
 
-- DOCX 支持正文、表格、文本框、页眉页脚和内嵌照片，PDF 和图片使用对应的恢复流程生成可编辑模板。
-- 识别后需要核对字段和试填结果，复杂结构或无法定位的内容会显示具体问题，可通过人工调整继续修正。
-- Word 不可用时仍可下载已生成的 DOCX，页面会显示预览失败的原因，PDF 和精确分页需要本机 Word。
+可以管理资料、编辑经历并生成 DOCX。真实排版预览、模板缩略图、精确分页和 PDF 导出依赖 Windows 上的 Microsoft Word。Word 不可用时，页面会说明预览失败的原因，已生成的 DOCX 仍可下载。
+
+</details>
+
+<details>
+<summary>AI 连接失败时，先检查什么？</summary>
+
+先确认本机 Codex CLI 的路径、登录或供应商配置，再点击“测试实际连接”。项目按 CLI 的配置和工具能力检查兼容性，不限定固定版本号；失败时显示具体错误。关联请求和任务详情可在“系统日志”查看，见[系统日志说明](docs/system-activity.md)。
+
+</details>
+
+<details>
+<summary>启动后提示前端尚未构建怎么办？</summary>
+
+Windows 下可运行 `.\start.cmd -Rebuild`。也可以在仓库根目录执行以下命令，完成后重新启动服务：
+
+```sh
+npm --prefix frontend ci
+npm --prefix frontend run build
+```
+
+更多排查方法见[开发指南](docs/development.md)。
+
+</details>
 
 ## 文档
 
 | 文档 | 内容 |
 | --- | --- |
-| [Agent 开发约定](AGENTS.md) | 项目功能、代码规则、注释写法、分支流程和验证要求 |
-| [使用指南](docs/user-guide.md) | 编辑、独立会话、模板、主题、布局和数据恢复 |
-| [开发指南](docs/development.md) | 环境、检查命令、构建包和常见问题 |
-| [架构说明](docs/architecture.md) | 目录职责、依赖方向、数据流和扩展位置 |
-| [贡献指南](CONTRIBUTING.md) | 修改规范、中文注释、测试和 PR 要求 |
-| [安全说明](SECURITY.md) | 本机访问边界、敏感材料和漏洞报告 |
-| [更新记录](CHANGELOG.md) | 面向使用者的版本变化 |
+| [使用指南](docs/user-guide.md) | 完整操作流程、AI 设置和模板适配 |
+| [隐私保护](docs/privacy.md) | 脱敏机制、发送范围和能力边界 |
+| [数据持久化](docs/persistence.md) | 草稿、备份和离线恢复 |
+| [系统日志](docs/system-activity.md) | API、AI 和后台任务的记录及排查 |
+| [开发指南](docs/development.md) | 开发环境、检查、打包和常见问题 |
+| [架构说明](docs/architecture.md) | 模块职责、依赖和数据流 |
+| [更新记录](CHANGELOG.md) | 功能更新和问题修复 |
 
-## 开发说明
+## 开发和贡献
 
-后端使用 Python、FastAPI 和 SQLite，前端使用 React、TypeScript 和 Vite，文档处理使用 python-docx、PyMuPDF、pdf2docx 和 Word 自动化。
-
-### 项目结构
+后端使用 **Python / FastAPI / SQLite**，前端使用 **React / TypeScript / Vite**，文档处理使用 python-docx、PyMuPDF、pdf2docx 和 Word 自动化。
 
 ```text
-src/resume_maker/
-  api/                 # 应用工厂、请求模型、依赖注入、分组路由
-  core/                # 实例配置和业务异常
-  domain/              # 数据模型和经历字段规则
-  services/            # 经历、项目、会话、队列及导出业务
-  infrastructure/      # SQLite、初始结构、实例锁和备份恢复
-  integrations/        # 源码证据、Provider、PDF、图片和 Word 适配
-  cli.py               # 本机命令行入口
-frontend/src/
-  app/                 # 跨业务协调和工作台布局
-  features/            # 项目、经历、资料、荣誉、简历、模板等功能
-  shared/              # 通用控件、hooks、网络、缓存和数据类型
-  styles/              # 按功能拆分的样式
-tests/                 # 后端业务、HTTP 契约和生命周期回归测试
-frontend/tests/        # 纯逻辑和共享草稿注册表测试
-scripts/               # 启停、质量检查和构建维护脚本
-docs/                  # 使用说明、开发文档和历史记录
-  screenshot/          # README 中的界面截图
-.github/               # CI 和贡献模板
+src/resume_maker/   # 后端 API、业务逻辑、存储和外部集成
+frontend/src/      # 工作台界面、功能模块和共享组件
+tests/             # 后端回归测试
+frontend/tests/    # 前端逻辑测试
+scripts/           # 启停、检查、构建和模板评测
+docs/              # 使用指南、架构、品牌资源和界面截图
 ```
 
-### 验证
+完成快速开始中的依赖安装后，在仓库根目录运行完整检查：
 
 ```sh
 uv run python scripts/check.py
 ```
 
-该入口检查中文函数说明、模块依赖、格式、类型、测试和生产构建，自动测试使用临时目录和 AI 替身；GitHub Actions 在 Windows 和 Ubuntu 上执行检查，并验证 wheel 内的前端资源和数据库初始结构。
+该命令覆盖代码规范、模块依赖、后端测试、前端类型和格式检查、前端测试及生产构建。CI 在 Windows 和 Ubuntu 上执行检查，并额外验证 wheel 中的资源。
 
-新功能从 `main` 创建独立分支，通过 PR 合并，确认合并后删除功能分支，具体规则见 [AGENTS.md](AGENTS.md)。
+欢迎通过 [Issue](https://github.com/qch7/resume-maker/issues) 反馈问题，也欢迎提交代码、文档改进或可复现的模板适配案例。开始前请阅读[贡献指南](CONTRIBUTING.md)和 [Agent 开发约定](AGENTS.md)。
 
-本项目采用 [MIT 许可证](LICENSE)。欢迎通过 [Issue](https://github.com/qch7/resume-maker/issues) 反馈问题或按[贡献指南](CONTRIBUTING.md)提交改进。
+问题报告请附上运行环境、复现步骤和脱敏截图；安全问题按[安全说明](SECURITY.md)中的流程提交。
+
+## 许可证
+
+本项目采用 [MIT 许可证](LICENSE)。
