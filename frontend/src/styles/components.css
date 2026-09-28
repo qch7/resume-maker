@@ -451,6 +451,60 @@
 .point-order button {
   padding: 4px;
 }
+.move-buttons {
+  display: inline-flex;
+  flex-direction: column;
+  flex: 0 0 27px;
+  width: 27px;
+  height: 28px;
+}
+.move-buttons > button.icon-button {
+  width: 100%;
+  height: 14px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 2px;
+}
+.move-buttons > button:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.field-copy {
+  display: inline-flex;
+  position: relative;
+  flex-shrink: 0;
+}
+.field-copy[data-status="copied"] > button {
+  color: var(--accent);
+}
+.field-copy[data-status="error"] > button {
+  color: var(--danger);
+}
+.field-copy-feedback:not(:empty) {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 5;
+  width: max-content;
+  max-width: 180px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 2px 8px #0002;
+  font-size: 11px;
+  line-height: 1.5;
+  pointer-events: none;
+}
+.highlight-field {
+  margin: 12px 0;
+}
+.highlight-field > label {
+  margin: 0 0 6px;
+}
 .sortable-list {
   display: flow-root;
 }

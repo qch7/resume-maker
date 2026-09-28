@@ -1,13 +1,6 @@
-import {
-  ArrowDown,
-  ArrowUp,
-  Eye,
-  EyeOff,
-  LockKeyhole,
-  Plus,
-  Trash2,
-} from "lucide-react";
+import { Eye, EyeOff, LockKeyhole, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
+import MoveButtons from "../../shared/components/MoveButtons";
 import {
   SortableItem,
   SortableList,
@@ -188,11 +181,11 @@ export default function SectionOrganizer({
                             添加子栏目
                           </button>
                         )}
-                        <button
-                          className="icon-button"
-                          aria-label={`上移栏目 ${section.title}`}
-                          disabled={index === 0}
-                          onClick={
+                        <MoveButtons
+                          label={`栏目 ${section.title}`}
+                          upDisabled={index === 0}
+                          downDisabled={index === group.length - 1}
+                          onUp={
                             /* 上移当前栏目 */ () =>
                               change(
                                 moveSection(
@@ -203,14 +196,7 @@ export default function SectionOrganizer({
                                 ),
                               )
                           }
-                        >
-                          <ArrowUp size={14} />
-                        </button>
-                        <button
-                          className="icon-button"
-                          aria-label={`下移栏目 ${section.title}`}
-                          disabled={index === group.length - 1}
-                          onClick={
+                          onDown={
                             /* 下移当前栏目 */ () =>
                               change(
                                 moveSection(
@@ -221,9 +207,7 @@ export default function SectionOrganizer({
                                 ),
                               )
                           }
-                        >
-                          <ArrowDown size={14} />
-                        </button>
+                        />
                         <button
                           className="icon-button"
                           aria-label={`${section.visible ? "隐藏" : "显示"}栏目 ${section.title}`}

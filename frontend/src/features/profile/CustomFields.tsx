@@ -1,4 +1,5 @@
 import { Trash2 } from "lucide-react";
+import CopyButton from "../../shared/components/CopyButton";
 import { hasDefault } from "./defaults/model";
 import type { CustomInfoField, DefaultField } from "../../shared/types";
 import { VisibilityButton } from "./VisibilityField";
@@ -78,6 +79,13 @@ export default function CustomFields({
                     /* 内容和名称一并进入当前资料草稿 */ (event) =>
                       updateField({ ...field, value: event.target.value })
                   }
+                />
+                <CopyButton
+                  label={
+                    field.label ||
+                    `${scope}自定义信息 ${index + indexOffset + 1}`
+                  }
+                  text={field.value}
                 />
                 <VisibilityButton
                   label={

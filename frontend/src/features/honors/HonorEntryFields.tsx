@@ -90,6 +90,7 @@ export default function HonorEntryFields({
       <VisibilityField
         key={field.key}
         id={id}
+        copyText={value}
         label={defaultLabel(entry.field_definitions, fieldId, field.label)}
         hidden={honorFieldHidden(entry, field.key)}
         disabled={disabled}

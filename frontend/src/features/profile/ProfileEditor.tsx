@@ -345,6 +345,7 @@ export default function ProfileEditor({
                 <VisibilityField
                   key={field.key}
                   id={`personal-${field.key}`}
+                  copyText={value.personal[field.key]}
                   label={defaultLabel(
                     value.personal.field_definitions,
                     field.key,

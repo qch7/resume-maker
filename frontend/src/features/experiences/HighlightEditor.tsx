@@ -8,6 +8,7 @@ import { useField } from "./useField";
 import EvidenceDialog from "./EvidenceDialog";
 import { editHighlightText, fieldChanged } from "./changes";
 import { VisibilityButton } from "../profile/VisibilityField";
+import CopyButton from "../../shared/components/CopyButton";
 /** 编辑亮点和证据并将增删改暂存为草稿 */
 export default function HighlightEditor({
   item,
@@ -51,6 +52,10 @@ export default function HighlightEditor({
       <div className="highlight-heading">
         <strong className="grow">{value.title || "新亮点"}</strong>
         <div className="highlight-tools">
+          <CopyButton
+            label={`亮点 ${value.title || "新亮点"}`}
+            text={[value.title, value.text].filter(Boolean).join("\n")}
+          />
           <VisibilityButton
             label={`亮点 ${value.title || "新亮点"}`}
             hidden={!props.included.includes(item.id)}
@@ -125,34 +130,42 @@ export default function HighlightEditor({
       )}
       {editing && (
         <div className="highlight-form">
-          <label>
-            亮点标题
-            <input
-              value={value.title}
-              onChange={(e) =>
-                editor.update({ ...value, title: e.target.value })
-              }
-            />
-          </label>
-          <label>
-            亮点正文
-            <textarea
-              rows={4}
-              value={value.text}
-              onChange={(e) =>
-                editor.update(
-                  editHighlightText(
-                    value,
-                    e.target.value,
-                    base.highlights.find(
-                      /* 同时恢复原文对应的证据核实状态 */ (point) =>
-                        point.id === item.id,
+          <div className="highlight-field">
+            <label htmlFor={`highlight-${item.id}-title`}>亮点标题</label>
+            <div className="field-control">
+              <input
+                id={`highlight-${item.id}-title`}
+                value={value.title}
+                onChange={(e) =>
+                  editor.update({ ...value, title: e.target.value })
+                }
+              />
+              <CopyButton label="亮点标题" text={value.title} />
+            </div>
+          </div>
+          <div className="highlight-field">
+            <label htmlFor={`highlight-${item.id}-text`}>亮点正文</label>
+            <div className="field-control">
+              <textarea
+                id={`highlight-${item.id}-text`}
+                rows={4}
+                value={value.text}
+                onChange={(e) =>
+                  editor.update(
+                    editHighlightText(
+                      value,
+                      e.target.value,
+                      base.highlights.find(
+                        /* 同时恢复原文对应的证据核实状态 */ (point) =>
+                          point.id === item.id,
+                      ),
                     ),
-                  ),
-                )
-              }
-            />
-          </label>
+                  )
+                }
+              />
+              <CopyButton label="亮点正文" text={value.text} />
+            </div>
+          </div>
           <div className="actions">
             <button
               className="primary"

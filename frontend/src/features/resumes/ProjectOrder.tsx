@@ -1,5 +1,6 @@
 import { arrayMove } from "@dnd-kit/sortable";
-import { ArrowDown, ArrowUp, Pencil, X } from "lucide-react";
+import { Pencil, X } from "lucide-react";
+import MoveButtons from "../../shared/components/MoveButtons";
 import {
   SortableItem,
   SortableList,
@@ -81,29 +82,14 @@ export default function ProjectOrder({
                         >
                           <Pencil size={14} />
                         </button>
-                        <button
-                          className="icon-button"
-                          aria-label={`上移项目 ${title}`}
-                          disabled={index === 0}
-                          onClick={
-                            /* 将当前项目向前移动一位 */ () =>
-                              move(index, index - 1)
-                          }
-                        >
-                          <ArrowUp size={14} />
-                        </button>
+                        <MoveButtons
+                          label={`项目 ${title}`}
+                          upDisabled={index === 0}
+                          downDisabled={index === draft.items.length - 1}
+                          onUp={() => move(index, index - 1)}
+                          onDown={() => move(index, index + 1)}
+                        />
                         {handle}
-                        <button
-                          className="icon-button"
-                          aria-label={`下移项目 ${title}`}
-                          disabled={index === draft.items.length - 1}
-                          onClick={
-                            /* 将当前项目向后移动一位 */ () =>
-                              move(index, index + 1)
-                          }
-                        >
-                          <ArrowDown size={14} />
-                        </button>
                         <button
                           className="icon-button"
                           aria-label={`移除项目 ${title}`}
