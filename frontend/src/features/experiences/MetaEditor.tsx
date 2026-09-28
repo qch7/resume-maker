@@ -1,12 +1,6 @@
-import {
-  ArrowDown,
-  ArrowUp,
-  FilePenLine,
-  List,
-  Plus,
-  Save,
-} from "lucide-react";
+import { FilePenLine, List, Plus, Save } from "lucide-react";
 import { useState, type ChangeEvent } from "react";
+import MoveButtons from "../../shared/components/MoveButtons";
 import type {
   ExperienceField,
   DefaultField,
@@ -128,6 +122,7 @@ export default function MetaEditor({
       <VisibilityField
         key={field.key}
         id={id}
+        copyText={props.value}
         label={defaultLabel(definitions, field.key, field.label)}
         hidden={!fieldVisible(value, visibility, field.key)}
         onToggle={
@@ -314,31 +309,14 @@ export default function MetaEditor({
                           )}
                         </div>
                         <div className="project-info-order">
-                          <button
-                            className="icon-button"
-                            aria-label={`上移${label}`}
-                            title={`上移${label}`}
-                            disabled={index === 0}
-                            onClick={
-                              /* 向上移动一位，随内容一起提交版本 */ () =>
-                                move(index, index - 1)
-                            }
-                          >
-                            <ArrowUp size={13} />
-                          </button>
+                          <MoveButtons
+                            label={label}
+                            upDisabled={index === 0}
+                            downDisabled={index === order.length - 1}
+                            onUp={() => move(index, index - 1)}
+                            onDown={() => move(index, index + 1)}
+                          />
                           {handle}
-                          <button
-                            className="icon-button"
-                            aria-label={`下移${label}`}
-                            title={`下移${label}`}
-                            disabled={index === order.length - 1}
-                            onClick={
-                              /* 向下移动一位，随内容一起提交版本 */ () =>
-                                move(index, index + 1)
-                            }
-                          >
-                            <ArrowDown size={13} />
-                          </button>
                         </div>
                       </>
                     )

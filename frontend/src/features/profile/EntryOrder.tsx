@@ -1,5 +1,6 @@
 import { arrayMove } from "@dnd-kit/sortable";
-import { ArrowDown, ArrowUp, Pencil, X } from "lucide-react";
+import { Pencil, X } from "lucide-react";
+import MoveButtons from "../../shared/components/MoveButtons";
 import {
   SortableItem,
   SortableList,
@@ -89,31 +90,14 @@ export default function EntryOrder({
                             <Pencil size={14} />
                           </button>
                         )}
-                        <button
-                          type="button"
-                          className="icon-button"
-                          aria-label={`上移${section.title}条目 ${title}`}
-                          disabled={index === 0}
-                          onClick={
-                            /* 向前移动一位，个人信息立即读取相同顺序 */ () =>
-                              move(index, index - 1)
-                          }
-                        >
-                          <ArrowUp size={14} />
-                        </button>
+                        <MoveButtons
+                          label={`${section.title}条目 ${title}`}
+                          upDisabled={index === 0}
+                          downDisabled={index === section.entries.length - 1}
+                          onUp={() => move(index, index - 1)}
+                          onDown={() => move(index, index + 1)}
+                        />
                         {handle}
-                        <button
-                          type="button"
-                          className="icon-button"
-                          aria-label={`下移${section.title}条目 ${title}`}
-                          disabled={index === section.entries.length - 1}
-                          onClick={
-                            /* 向后移动一位，保持其他栏目不变 */ () =>
-                              move(index, index + 1)
-                          }
-                        >
-                          <ArrowDown size={14} />
-                        </button>
                         {honor && (
                           <button
                             type="button"

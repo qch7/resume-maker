@@ -17,6 +17,7 @@ import HonorEntryFields from "./HonorEntryFields";
 import { entryWithHonorFields, honorFieldsFromEntry } from "./entry";
 import { newCustomField } from "../profile/document";
 import { VisibilityButton } from "../profile/VisibilityField";
+import CopyButton from "../../shared/components/CopyButton";
 
 const FIELDS = HONOR_FIELDS.filter(
   /* 分类和多行说明使用各自的专用控件 */ (field) =>
@@ -348,7 +349,7 @@ export default function HonorEditor({
               <div className="honor-fields">
                 {FIELDS.map(
                   /* 每个字段都有固定标签和明确的长度限制 */ (field) => (
-                    <label
+                    <div
                       key={field.key}
                       className={
                         field.key === "name" || field.key === "issuer"
@@ -356,60 +357,84 @@ export default function HonorEditor({
                           : ""
                       }
                     >
-                      {field.label}
-                      {field.key === "name" ? " *" : ""}
-                      <input
-                        required={field.key === "name"}
-                        maxLength={field.max}
-                        value={fields[field.key]}
-                        placeholder={field.placeholder}
-                        onChange={
-                          /* 只更新当前输入字段 */ (event) =>
-                            setFields({
-                              ...fields,
-                              [field.key]: event.target.value,
-                            })
-                        }
-                      />
-                    </label>
+                      <label htmlFor={`honor-library-${field.key}`}>
+                        {field.label}
+                        {field.key === "name" ? " *" : ""}
+                      </label>
+                      <div className="field-control">
+                        <input
+                          id={`honor-library-${field.key}`}
+                          required={field.key === "name"}
+                          maxLength={field.max}
+                          value={fields[field.key]}
+                          placeholder={field.placeholder}
+                          onChange={
+                            /* 只更新当前输入字段 */ (event) =>
+                              setFields({
+                                ...fields,
+                                [field.key]: event.target.value,
+                              })
+                          }
+                        />
+                        <CopyButton
+                          label={field.label}
+                          text={fields[field.key]}
+                        />
+                      </div>
+                    </div>
                   ),
                 )}
-                <label>
-                  {CATEGORY.label}
-                  <select
-                    value={fields.category}
-                    onChange={
-                      /* 分类和原件内容分开维护 */ (event) =>
-                        setFields({
-                          ...fields,
-                          category: event.target
-                            .value as HonorFields["category"],
-                        })
-                    }
-                  >
-                    {CATEGORIES.map(
-                      /* 列出荣誉分类 */ (category) => (
-                        <option key={category}>{category}</option>
-                      ),
-                    )}
-                  </select>
-                </label>
-                <label className="honor-field-wide">
-                  {DESCRIPTION.label}
-                  <textarea
-                    rows={4}
-                    maxLength={DESCRIPTION.max}
-                    value={fields.description}
-                    placeholder={DESCRIPTION.placeholder}
-                    onChange={
-                      /* 保留说明中的换行 */ (event) =>
-                        setFields({
-                          ...fields,
-                          description: event.target.value,
-                        })
-                    }
-                  />
-                </label>
+                <div>
+                  <label htmlFor="honor-library-category">
+                    {CATEGORY.label}
+                  </label>
+                  <div className="field-control">
+                    <select
+                      id="honor-library-category"
+                      value={fields.category}
+                      onChange={
+                        /* 分类和原件内容分开维护 */ (event) =>
+                          setFields({
+                            ...fields,
+                            category: event.target
+                              .value as HonorFields["category"],
+                          })
+                      }
+                    >
+                      {CATEGORIES.map(
+                        /* 列出荣誉分类 */ (category) => (
+                          <option key={category}>{category}</option>
+                        ),
+                      )}
+                    </select>
+                    <CopyButton label={CATEGORY.label} text={fields.category} />
+                  </div>
+                </div>
+                <div className="honor-field-wide">
+                  <label htmlFor="honor-library-description">
+                    {DESCRIPTION.label}
+                  </label>
+                  <div className="field-control">
+                    <textarea
+                      id="honor-library-description"
+                      rows={4}
+                      maxLength={DESCRIPTION.max}
+                      value={fields.description}
+                      placeholder={DESCRIPTION.placeholder}
+                      onChange={
+                        /* 保留说明中的换行 */ (event) =>
+                          setFields({
+                            ...fields,
+                            description: event.target.value,
+                          })
+                      }
+                    />
+                    <CopyButton
+                      label={DESCRIPTION.label}
+                      text={fields.description}
+                    />
+                  </div>
+                </div>
               </div>
             )}
           </fieldset>

@@ -371,6 +371,7 @@ function EntryEditor({
                   <VisibilityField
                     key={field.key}
                     id={`entry-${section.id}-${entry.id}-${field.key}`}
+                    copyText={entry[field.key]}
                     label={defaultLabel(
                       entry.field_definitions ?? section.field_definitions,
                       field.key,
@@ -424,6 +425,7 @@ function EntryEditor({
           ) && (
             <VisibilityField
               id={`entry-${section.id}-${entry.id}-details`}
+              copyText={entry.details}
               label={defaultLabel(
                 entry.field_definitions ?? section.field_definitions,
                 "details",

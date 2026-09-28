@@ -1,5 +1,6 @@
 import { Eye, EyeOff } from "lucide-react";
 import type { ReactNode } from "react";
+import CopyButton from "../../shared/components/CopyButton";
 
 /** 以睁眼和闭眼展示显隐状态，编辑时可切换，正文始终保留 */
 export function VisibilityButton({
@@ -35,11 +36,13 @@ export default function VisibilityField({
   label,
   hidden,
   disabled,
+  copyText,
   onToggle,
   children,
 }: {
   id: string;
   label: string;
+  copyText: string;
   hidden?: boolean;
   disabled?: boolean;
   onToggle: () => void;
@@ -50,6 +53,7 @@ export default function VisibilityField({
       <label htmlFor={id}>{label}</label>
       <div className="field-control">
         {children}
+        <CopyButton label={label} text={copyText} />
         <VisibilityButton
           label={label}
           hidden={hidden}

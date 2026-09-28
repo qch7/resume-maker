@@ -1,14 +1,8 @@
 import PathInput from "../../shared/components/PathInput";
 import { arrayMove } from "@dnd-kit/sortable";
-import {
-  ArrowDown,
-  ArrowUp,
-  CircleCheck,
-  CircleDashed,
-  Plus,
-  Undo2,
-} from "lucide-react";
+import { CircleCheck, CircleDashed, Plus, Undo2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import MoveButtons from "../../shared/components/MoveButtons";
 import {
   SortableItem,
   SortableList,
@@ -312,25 +306,16 @@ export default function Editor(props: EditorProps) {
                     onPreview={updateHighlightPreview}
                   />
                   <div className="point-order">
-                    <button
-                      className="icon-button"
-                      aria-label={`上移 ${item.title}`}
-                      disabled={ordering || index === 0}
-                      onClick={() => run(() => move(index, index - 1))}
-                    >
-                      <ArrowUp size={13} />
-                    </button>
-                    {handle}
-                    <button
-                      className="icon-button"
-                      aria-label={`下移 ${item.title}`}
-                      disabled={
+                    <MoveButtons
+                      label={`亮点 ${item.title || "未命名亮点"}`}
+                      upDisabled={ordering || index === 0}
+                      downDisabled={
                         ordering || index === content.highlights.length - 1
                       }
-                      onClick={() => run(() => move(index, index + 1))}
-                    >
-                      <ArrowDown size={13} />
-                    </button>
+                      onUp={() => run(() => move(index, index - 1))}
+                      onDown={() => run(() => move(index, index + 1))}
+                    />
+                    {handle}
                   </div>
                 </>
               )
