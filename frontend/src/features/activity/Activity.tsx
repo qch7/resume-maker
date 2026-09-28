@@ -14,15 +14,10 @@ import { api, download } from "../../shared/lib/api";
 import ResizeHandle from "../../shared/components/ResizeHandle";
 import { useElementSize } from "../../shared/hooks/useElementSize";
 import { clamp } from "../../shared/lib/layout";
-import { loadLocal, storage } from "../../shared/lib/storage";
-import ActivitySettings from "./ActivitySettings";
+import type { useActivityPreferences } from "./useActivityPreferences";
 import ActivityMultiSelect from "./ActivityMultiSelect";
 import ActivityTimeFilter from "./ActivityTimeFilter";
-import {
-  DEFAULT_ACTIVITY_PREFERENCES,
-  restoreActivityPreferences,
-  type SavedActivityPreferences,
-} from "./preferences";
+import { DEFAULT_ACTIVITY_PREFERENCES } from "./preferences";
 import {
   CATEGORIES,
   eventPosition,
@@ -37,13 +32,20 @@ import { activityQueryTime, useActivityTime } from "./useActivityTime";
 const ROW_HEIGHT = 32;
 
 /** 在独立全宽区域展示统一活动轨道、实时列表和单条详情 */
-export default function Activity() {
-  const [preferences, setPreferences] = useState(() =>
-    restoreActivityPreferences(
-      loadLocal<SavedActivityPreferences | null>("rm.activity", null),
-    ),
-  );
-  const [settings, setSettings] = useState(false);
+export default function Activity({
+  preferencesState,
+  onOpenSettings,
+  refreshVersion,
+}: {
+  preferencesState: ReturnType<typeof useActivityPreferences>;
+  onOpenSettings: () => void;
+  refreshVersion: number;
+}) {
+  const {
+    preferences,
+    setPreferences,
+    error: preferencesError,
+  } = preferencesState;
   const [category, setCategory] = useState<string[]>([]);
   const [level, setLevel] = useState<string[]>([]);
   const [search, setSearch] = useState("");
@@ -78,14 +80,6 @@ export default function Activity() {
     stacked ? 80 : 260,
     detailMax,
   );
-  useEffect(() => {
-    try {
-      storage.setItem("rm.activity", JSON.stringify(preferences));
-    } catch {
-      setActionError("浏览器无法保存日志设置");
-    }
-  }, [preferences]);
-
   /** 保存单项偏好，窗口缩小时只约束显示尺寸 */
   function resize(
     key: "overviewHeight" | "detailWidth" | "detailHeight",
@@ -119,7 +113,7 @@ export default function Activity() {
     preferences.hidePolling,
     preferences.hiddenRules,
   ]);
-  const feed = useActivity(query, live);
+  const feed = useActivity(query, live, refreshVersion);
   const { events, page } = feed;
   useEffect(() => {
     if (selected && isHiddenPolling(selected, new Set(page?.hidden_trace_ids)))
@@ -131,9 +125,10 @@ export default function Activity() {
   }, [events, follow]);
   useEffect(() => {
     setSelected(null);
+    setActionError("");
     setScrollTop(0);
     if (scroll.current) scroll.current.scrollTop = 0;
-  }, [query]);
+  }, [query, refreshVersion]);
   const start = Math.max(
     0,
     Math.min(events.length - 1, Math.floor(scrollTop / ROW_HEIGHT) - 8),
@@ -198,36 +193,9 @@ export default function Activity() {
             <Download size={15} />
             {exporting ? "导出中…" : "导出"}
           </button>
-          <button
-            aria-label="日志设置"
-            aria-expanded={settings}
-            onClick={() => setSettings(!settings)}
-          >
+          <button aria-label="日志设置" onClick={onOpenSettings}>
             <Settings2 size={15} />
           </button>
-          {settings && (
-            <ActivitySettings
-              rules={preferences.hiddenRules}
-              onDeleted={() => {
-                setSelected(null);
-                setActionError("");
-                feed.refresh();
-              }}
-              onClose={() => setSettings(false)}
-              onResetLayout={() =>
-                setPreferences((current) => ({
-                  ...current,
-                  overviewHeight: DEFAULT_ACTIVITY_PREFERENCES.overviewHeight,
-                  detailWidth: DEFAULT_ACTIVITY_PREFERENCES.detailWidth,
-                  detailHeight: DEFAULT_ACTIVITY_PREFERENCES.detailHeight,
-                }))
-              }
-              onSave={(hiddenRules) => {
-                setPreferences((current) => ({ ...current, hiddenRules }));
-                setSettings(false);
-              }}
-            />
-          )}
         </div>
       </header>
       <div className="activity-filters">
@@ -348,10 +316,14 @@ export default function Activity() {
             )
           }
         />
-        {(feed.error || actionError || !!page?.write_failures) && (
+        {(feed.error ||
+          actionError ||
+          preferencesError ||
+          !!page?.write_failures) && (
           <div className="activity-error" role="alert">
             {feed.error ||
               actionError ||
+              preferencesError ||
               `有 ${page?.write_failures} 条日志写入失败：${page?.last_error}`}
             <button onClick={feed.refresh}>重试</button>
           </div>

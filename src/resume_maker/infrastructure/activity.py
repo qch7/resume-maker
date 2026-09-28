@@ -9,6 +9,7 @@ from contextlib import closing
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from resume_maker.domain.activity import ActivityCaptureSettings
 from resume_maker.infrastructure.database import dump, now
 
 SECRET_KEY = re.compile(
@@ -132,6 +133,11 @@ class ActivityLog:
         with closing(self.connect()) as conn:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.executescript(SCHEMA)
+            row = conn.execute(
+                "SELECT value FROM metadata WHERE key='capture_categories'"
+            ).fetchone()
+            settings = ActivityCaptureSettings(categories=json.loads(row[0]) if row else ["ai"])
+            self.capture_categories = frozenset(settings.categories)
             conn.execute("BEGIN IMMEDIATE")
             self._remember_cursor(conn, self._cursor(conn))
             self._prune(conn)
@@ -170,43 +176,50 @@ class ActivityLog:
         )
 
     def write(self, category, event, title, payload=None, **fields) -> bool:
-        """持久化脱敏事件并返回成功状态，失败计数供界面提示"""
+        """仅持久化已启用类别，跳过记录视为成功且不推进游标"""
         try:
-            values = {
-                "created_at": fields.pop("created_at", None),
-                "category": category,
-                "level": fields.pop("level", "info"),
-                "source": fields.pop("source", "system"),
-                "event": event,
-                "title": safe_text(str(title))[:500],
-                "payload_json": detail_json(payload),
-                **fields,
-            }
-            with self.lock, closing(self.connect()) as conn:
-                conn.execute("BEGIN IMMEDIATE")
-                values["id"] = self._cursor(conn) + 1
-                values["created_at"] = values["created_at"] or now()
-                if self.secrets:
-                    values["title"] = mask_secrets(values["title"], self.secrets)
-                    values["payload_json"] = dump(
-                        mask_secrets(json.loads(values["payload_json"]), self.secrets)
-                    )
-                columns = ",".join(values)
-                cursor = conn.execute(
-                    f"INSERT OR IGNORE INTO activity({columns}) "
-                    f"VALUES ({','.join('?' for _ in values)})",
-                    tuple(values.values()),
-                )
-                if cursor.rowcount:
-                    self._remember_cursor(conn, values["id"])
-                    if values["id"] % min(100, self.max_records) == 0:
-                        self._prune(conn)
-                conn.commit()
-            return True
+            with self.lock:
+                if category not in self.capture_categories:
+                    return True
+                values = {
+                    "created_at": fields.pop("created_at", None),
+                    "category": category,
+                    "level": fields.pop("level", "info"),
+                    "source": fields.pop("source", "system"),
+                    "event": event,
+                    "title": safe_text(str(title))[:500],
+                    "payload_json": detail_json(payload),
+                    **fields,
+                }
+                return self._write(values)
         except (OSError, sqlite3.Error, ValueError, TypeError) as exc:
             self.write_failures += 1
             self.last_error = safe_text(str(exc))[:500]
             return False
+
+    def _write(self, values):
+        """持有写锁时提交事件，配置保存后不再写入已关闭的类别"""
+        with closing(self.connect()) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            values["id"] = self._cursor(conn) + 1
+            values["created_at"] = values["created_at"] or now()
+            if self.secrets:
+                values["title"] = mask_secrets(values["title"], self.secrets)
+                values["payload_json"] = dump(
+                    mask_secrets(json.loads(values["payload_json"]), self.secrets)
+                )
+            columns = ",".join(values)
+            cursor = conn.execute(
+                f"INSERT OR IGNORE INTO activity({columns}) "
+                f"VALUES ({','.join('?' for _ in values)})",
+                tuple(values.values()),
+            )
+            if cursor.rowcount:
+                self._remember_cursor(conn, values["id"])
+                if values["id"] % min(100, self.max_records) == 0:
+                    self._prune(conn)
+            conn.commit()
+        return True
 
     def filters(
         self,
@@ -464,17 +477,25 @@ class ActivityLog:
             if conn.execute("SELECT 1 FROM metadata WHERE key='history_imported'").fetchone():
                 return
         cutoff = (datetime.now(UTC) - timedelta(days=self.retention_days)).isoformat()
-        rows = db.all(
-            "SELECT m.*,c.project_id FROM messages m "
-            "LEFT JOIN conversations c ON c.id=m.conversation_id "
-            "WHERE m.created_at>=? ORDER BY m.created_at DESC LIMIT ?",
-            (cutoff, self.max_records),
+        rows = (
+            db.all(
+                "SELECT m.*,c.project_id FROM messages m "
+                "LEFT JOIN conversations c ON c.id=m.conversation_id "
+                "WHERE m.created_at>=? ORDER BY m.created_at DESC LIMIT ?",
+                (cutoff, self.max_records),
+            )
+            if "ai" in self.capture_categories
+            else []
         )
-        events = db.all(
-            "SELECT e.*,j.project_id,j.conversation_id FROM events e "
-            "LEFT JOIN jobs j ON j.id=e.job_id "
-            "WHERE e.created_at>=? ORDER BY e.created_at DESC LIMIT ?",
-            (cutoff, self.max_records),
+        events = (
+            db.all(
+                "SELECT e.*,j.project_id,j.conversation_id FROM events e "
+                "LEFT JOIN jobs j ON j.id=e.job_id "
+                "WHERE e.created_at>=? ORDER BY e.created_at DESC LIMIT ?",
+                (cutoff, self.max_records),
+            )
+            if "task" in self.capture_categories
+            else []
         )
         pending = [
             (row["created_at"], f"message:{row['id']}", "ai", row["role"], row["text"], row)

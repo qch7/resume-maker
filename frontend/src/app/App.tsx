@@ -26,6 +26,7 @@ import {
 } from "react";
 import Chat from "../features/conversations/Chat";
 import Activity from "../features/activity/Activity";
+import { useActivityPreferences } from "../features/activity/useActivityPreferences";
 import Editor from "../features/experiences/Editor";
 import { clearLocalDrafts } from "../features/experiences/useField";
 import { experienceContent } from "../features/experiences/visibility";
@@ -96,6 +97,8 @@ const EMPTY: State = {
 };
 /** 组装工作台并协调项目导航、经历发布、会话和简历组合之间的状态 */
 export default function App() {
+  const activityPreferences = useActivityPreferences();
+  const [activityRefresh, setActivityRefresh] = useState(0);
   const [area, setArea] = useState<
     "projects" | "personal" | "structure" | "templates" | "honors" | "activity"
   >("projects");
@@ -169,7 +172,9 @@ export default function App() {
   const [mode, setMode] = useState<"edit" | "chat">("edit");
   const [folded, setFolded] = useState<Record<string, boolean>>({});
   const [guideTarget, setGuideTarget] = useState<GuideTarget | null>(null);
-  const [modal, setModal] = useState<"projects" | "settings" | null>(null);
+  const [modal, setModal] = useState<
+    "projects" | "settings" | "activity" | null
+  >(null);
   const [refresh, setRefresh] = useState(0),
     [toast, setToast] = useState<{ text: string; error?: boolean } | null>(
       null,
@@ -1310,7 +1315,13 @@ export default function App() {
           run={run}
         />
       </div>
-      {area === "activity" && <Activity />}
+      {area === "activity" && (
+        <Activity
+          preferencesState={activityPreferences}
+          refreshVersion={activityRefresh}
+          onOpenSettings={() => setModal("activity")}
+        />
+      )}
       {resumeLibraryOpen && (
         <ResumeLibrary
           notice={toast}
@@ -1527,6 +1538,8 @@ export default function App() {
       {modal && (
         <Settings
           initial={modal}
+          activityPreferences={activityPreferences}
+          onActivityDeleted={() => setActivityRefresh((value) => value + 1)}
           onClose={
             /* 处理 onClose 回调，将变化同步到工作台状态 */ () => setModal(null)
           }

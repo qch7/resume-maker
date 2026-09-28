@@ -4,22 +4,35 @@ import PathInput from "../../shared/components/PathInput";
 import { api, download } from "../../shared/lib/api";
 import { loadLocal, storage } from "../../shared/lib/storage";
 import type { Conversation, ProviderSettings } from "../../shared/types/index";
+import ActivitySettings from "./ActivitySettings";
+import { DEFAULT_ACTIVITY_PREFERENCES } from "../activity/preferences";
+import type { useActivityPreferences } from "../activity/useActivityPreferences";
 import CodexModels from "./CodexModels";
 import Privacy from "./Privacy";
 
 interface Props {
-  initial: "projects" | "settings";
+  initial: "projects" | "settings" | "activity";
+  activityPreferences: ReturnType<typeof useActivityPreferences>;
+  onActivityDeleted: () => void;
   onClose: () => void;
   onChanged: () => Promise<void>;
   run: (work: () => Promise<void>) => void;
 }
 
-/** 分页管理项目导入、模型连接、隐私保护和本机数据 */
+/** 分页管理项目导入、模型连接、隐私保护、系统日志和本机数据 */
 export default function Settings(props: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
-  const [tab, setTab] = useState<"projects" | "settings" | "privacy">(
-    props.initial,
+  const [tab, setTab] = useState<
+    "projects" | "settings" | "privacy" | "activity"
+  >(props.initial);
+  const [activityVisited, setActivityVisited] = useState(
+    props.initial === "activity",
   );
+  const {
+    preferences,
+    setPreferences,
+    error: activityError,
+  } = props.activityPreferences;
   const [archived, setArchived] = useState<Conversation[]>([]);
   const [root, setRoot] = useState("");
   const [candidates, setCandidates] = useState<
@@ -107,6 +120,15 @@ export default function Settings(props: Props) {
           onClick={() => setTab("privacy")}
         >
           隐私保护
+        </button>
+        <button
+          className={tab === "activity" ? "active" : ""}
+          onClick={() => {
+            setTab("activity");
+            setActivityVisited(true);
+          }}
+        >
+          系统日志
         </button>
       </nav>
       {tab === "projects" && (
@@ -361,7 +383,27 @@ export default function Settings(props: Props) {
       <div className="settings-body" hidden={tab !== "privacy"}>
         <Privacy />
       </div>
-      {notice && tab !== "privacy" && (
+      {activityVisited && (
+        <div className="settings-body" hidden={tab !== "activity"}>
+          <ActivitySettings
+            rules={preferences.hiddenRules}
+            onDeleted={props.onActivityDeleted}
+            onSave={(hiddenRules) =>
+              setPreferences((current) => ({ ...current, hiddenRules }))
+            }
+            onResetLayout={() =>
+              setPreferences((current) => ({
+                ...current,
+                overviewHeight: DEFAULT_ACTIVITY_PREFERENCES.overviewHeight,
+                detailWidth: DEFAULT_ACTIVITY_PREFERENCES.detailWidth,
+                detailHeight: DEFAULT_ACTIVITY_PREFERENCES.detailHeight,
+              }))
+            }
+          />
+          {activityError && <p role="alert">{activityError}</p>}
+        </div>
+      )}
+      {notice && ["projects", "settings"].includes(tab) && (
         <p className="dialog-notice" role="status">
           {notice}
         </p>

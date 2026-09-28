@@ -470,6 +470,52 @@
         }
       }
     },
+    "/api/activity/settings": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActivityCaptureSettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/activity/{identifier}": {
       "get": {
         "parameters": [
@@ -3290,6 +3336,34 @@
       "type": "object",
       "title": "AISettings",
       "description": "模型和思考强度覆盖，空值表示继承上一级配置"
+    },
+    "ActivityCaptureSettings": {
+      "properties": {
+        "categories": {
+          "items": {
+            "type": "string",
+            "enum": [
+              "api",
+              "ai",
+              "tool",
+              "task",
+              "service",
+              "system",
+              "client"
+            ]
+          },
+          "type": "array",
+          "maxItems": 7,
+          "title": "Categories"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "categories"
+      ],
+      "title": "ActivityCaptureSettings",
+      "description": "只允许已知类别，空列表表示暂停全部日志采集"
     },
     "ActivityDeletion": {
       "properties": {

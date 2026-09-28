@@ -12,14 +12,27 @@ from test_jobs import FakeProvider, wait_job
 
 from resume_maker.api import create_app
 from resume_maker.core.config import Config
+from resume_maker.domain.activity import ACTIVITY_CATEGORIES, ActivityCaptureSettings
 from resume_maker.infrastructure.activity import MAX_DETAIL, ActivityLog
 from resume_maker.infrastructure.database import now, uid
 from resume_maker.infrastructure.observability import activity_scope, record
+from resume_maker.services.activity import save_capture_settings
+
+
+def enable_all_categories(log):
+    """完整轨迹回归显式开启全部类别，生产默认行为另行验证"""
+    save_capture_settings(log, ActivityCaptureSettings(categories=list(ACTIVITY_CATEGORIES)))
+
+
+def create_logged_app(config, provider=None):
+    """在应用启动前保存全部类别，使历史补录和生命周期轨迹可验证"""
+    enable_all_categories(ActivityLog(config.data_dir / "logs" / "activity.sqlite"))
+    return create_app(config, provider)
 
 
 def test_http_activity_captures_success_denial_validation_and_exceptions(tmp_path):
     """所有业务 API 状态可定位到请求，读取日志本身不增加新记录"""
-    app = create_app(Config(data_dir=tmp_path, token="instance-secret"))
+    app = create_logged_app(Config(data_dir=tmp_path, token="instance-secret"))
 
     @app.get("/api/test-crash")
     def crash():
@@ -71,6 +84,7 @@ def test_activity_cursor_filter_search_export_and_restart(tmp_path):
     """分页和筛选在新事件插入后不漏条，字面搜索及重启后详情保持一致"""
     path = tmp_path / "activity.sqlite"
     log = ActivityLog(path)
+    enable_all_categories(log)
     for number in range(6):
         log.write(
             "tool" if number % 2 else "api", "done", f"event-{number}", {"text": "100%_literal"}
@@ -93,12 +107,13 @@ def test_activity_cursor_filter_search_export_and_restart(tmp_path):
     exported = [json.loads(line) for line in log.export(category="tool")]
     assert len(exported) == 4 and all(row["category"] == "tool" for row in exported)
     restarted = ActivityLog(path)
+    enable_all_categories(restarted)
     assert restarted.detail(5)["title"] == "event-4"
 
 
 def test_successful_polling_filter_preserves_failures_and_raw_trace(tmp_path):
     """默认路径只隐藏成功 GET 的普通轨迹，错误请求和关联详情仍可查看"""
-    app = create_app(Config(data_dir=tmp_path, token="synthetic-token"))
+    app = create_logged_app(Config(data_dir=tmp_path, token="synthetic-token"))
     with TestClient(app) as client:
         headers = {"x-resume-token": "synthetic-token"}
         success = client.get("/api/state", headers=headers)
@@ -137,6 +152,7 @@ def test_successful_polling_filter_preserves_failures_and_raw_trace(tmp_path):
 def test_polling_live_retraction_pagination_and_path_rules(tmp_path):
     """跨轮询批次撤回先到的开始事件，分页计数和导出保持同一过滤语义"""
     log = ActivityLog(tmp_path / "log.sqlite")
+    enable_all_categories(log)
     log.write("api", "request", "GET /api/state", trace_id="pending")
     log.write("service", "started", "workspace.state", trace_id="pending")
     first = log.page(hide_polling=True)
@@ -180,6 +196,7 @@ def test_polling_live_retraction_pagination_and_path_rules(tmp_path):
 def test_hidden_rules_hide_every_normal_response_and_keep_diagnostic_events(tmp_path):
     """统一规则隐藏首条及重复响应，搜索、翻页、增量和导出保持一致"""
     log = ActivityLog(tmp_path / "log.sqlite")
+    enable_all_categories(log)
     query = {"hide_polling": True, "hidden_rules": "/api/state\nPOST /api/templates/*/review"}
     log.write("api", "request", "GET /api/state", trace_id="first")
     initial = log.page(**query)
@@ -240,6 +257,7 @@ def test_hidden_rules_hide_every_normal_response_and_keep_diagnostic_events(tmp_
 def test_filtered_export_keeps_snapshot_when_stream_worker_changes(tmp_path):
     """流式下载跨工作线程仍可继续，晚到的响应不改变导出中的过滤快照"""
     log = ActivityLog(tmp_path / "log.sqlite")
+    enable_all_categories(log)
     for index in range(201):
         log.write("system", "done", f"event-{index}")
     log.write("api", "request", "GET /api/state", trace_id="pending")
@@ -257,7 +275,7 @@ def test_filtered_export_keeps_snapshot_when_stream_worker_changes(tmp_path):
 
 def test_maintenance_filter_covers_existing_and_live_service_records(tmp_path, monkeypatch):
     """隐藏例行检查及内部读取，保留独立读取、实际删除和失败链路"""
-    app = create_app(Config(data_dir=tmp_path, token="synthetic-token"))
+    app = create_logged_app(Config(data_dir=tmp_path, token="synthetic-token"))
     library = app.state.services.template_library
     log = app.state.services.db.activity
     library.purge_expired()
@@ -321,6 +339,7 @@ def test_maintenance_filter_covers_existing_and_live_service_records(tmp_path, m
 def test_sensitive_values_binary_and_large_details_are_bounded(tmp_path):
     """嵌套密钥、文本鉴权、编码查询和大型内容不泄漏到列表详情及导出"""
     log = ActivityLog(tmp_path / "log.sqlite")
+    enable_all_categories(log)
     log.write(
         "ai",
         "message",
@@ -351,6 +370,7 @@ def test_sensitive_values_binary_and_large_details_are_bounded(tmp_path):
     assert log.detail(2)["payload"]["_truncated"]
     assert "payload" not in log.page()["events"][0]
     known = ActivityLog(tmp_path / "known.sqlite", secrets=("t", "12345678"))
+    enable_all_categories(known)
     known.write("ai", "context", "test", {"text": "12345678", "value": 12345678, "ok": True})
     assert known.detail(1)["payload"] == {"text": "[已遮盖]", "value": 12345678, "ok": True}
 
@@ -370,7 +390,7 @@ def test_job_messages_and_tool_events_share_request_trace(tmp_path):
     source = tmp_path / "source"
     source.mkdir()
     (source / "README.md").write_text("synthetic", encoding="utf-8")
-    app = create_app(Config(data_dir=tmp_path / "data", token="synthetic-token"), Provider())
+    app = create_logged_app(Config(data_dir=tmp_path / "data", token="synthetic-token"), Provider())
     with TestClient(app) as client:
         catalog = app.state.services.catalog
         project = catalog.create_project("Example", [str(source)])
@@ -423,6 +443,7 @@ def test_history_import_is_dated_idempotent_and_survives_message_deletion(
             (uid(), conversation["id"], "旧消息", stamp),
         )
     log = ActivityLog(tmp_path / "activity.sqlite")
+    enable_all_categories(log)
     log.import_history(catalog.db)
     log.import_history(catalog.db)
     assert log.page()["total"] == 1
@@ -440,6 +461,7 @@ def test_history_import_is_dated_idempotent_and_survives_message_deletion(
         )
     catalog.db.event(job_id, "error", {"text": "历史工具调用失败"})
     imported = ActivityLog(tmp_path / "historical-error.sqlite")
+    enable_all_categories(imported)
     imported.import_history(catalog.db)
     assert imported.page(level="error")["events"][0]["job_id"] == job_id
 
@@ -456,6 +478,7 @@ def test_partial_history_import_can_retry_without_duplicates(catalog, project, t
                 (identifier, conversation["id"], f"合成历史 {index}", now()),
             )
     log = ActivityLog(tmp_path / "history.sqlite")
+    enable_all_categories(log)
     # 补录前已有故障不能决定本次补录是否成功
     assert not log.write("system", "test", "无效字段", unknown_column="synthetic")
     with closing(log.connect()) as conn, conn:
@@ -474,6 +497,7 @@ def test_partial_history_import_can_retry_without_duplicates(catalog, project, t
         assert log.delete(before=None) == 2
     if finish in {"restart", "delete"}:
         log = ActivityLog(log.path)
+        enable_all_categories(log)
     log.import_history(catalog.db)
     log.import_history(catalog.db)
     assert log.page()["total"] == (0 if finish == "delete" else 3)
@@ -487,7 +511,9 @@ def test_partial_history_import_can_retry_without_duplicates(catalog, project, t
 def test_concurrent_instances_retention_and_write_failure(tmp_path, monkeypatch):
     """并发活动不串实例，过期清理保持游标，日志写失败仍允许业务继续"""
     left = ActivityLog(tmp_path / "left.sqlite", max_records=3)
+    enable_all_categories(left)
     right = ActivityLog(tmp_path / "right.sqlite")
+    enable_all_categories(right)
 
     def worker(log, label):
         """在线程内建立独立上下文以验证日志不会跨请求混用"""
@@ -576,6 +602,7 @@ def test_cli_trace_records_tool_arguments_result_and_agent_message(tmp_path, mon
     )
     monkeypatch.setattr(cli, "execute", execute)
     log = ActivityLog(tmp_path / "log.sqlite")
+    enable_all_categories(log)
     with activity_scope(log, trace_id="cli-test"):
         reply = cli.run_cli(
             {"input": "synthetic context", "schema": {}},
@@ -597,7 +624,7 @@ def test_cli_trace_records_tool_arguments_result_and_agent_message(tmp_path, mon
 @pytest.mark.parametrize("params", [{"limit": 501}, {"after": -1}, {"q": "x" * 501}])
 def test_log_query_limits_are_enforced(tmp_path, params):
     """拒绝无界日志查询，避免浏览器误操作读取全部详情"""
-    app = create_app(Config(data_dir=tmp_path, token="synthetic-token"))
+    app = create_logged_app(Config(data_dir=tmp_path, token="synthetic-token"))
     with TestClient(app) as client:
         response = client.get(
             "/api/activity", params=params, headers={"x-resume-token": "synthetic-token"}

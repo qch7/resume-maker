@@ -3,7 +3,7 @@ import { api } from "../../shared/lib/api";
 import { mergeEvents, type ActivityEvent, type ActivityPage } from "./model";
 
 /** 用串行增量请求跟随日志，筛选变化或离开页面时取消旧请求 */
-export function useActivity(query: string, live: boolean) {
+export function useActivity(query: string, live: boolean, refreshVersion = 0) {
   const [events, setEvents] = useState<ActivityEvent[]>([]);
   const [page, setPage] = useState<ActivityPage | null>(null);
   const [error, setError] = useState("");
@@ -65,7 +65,7 @@ export function useActivity(query: string, live: boolean) {
       controller.abort();
       clearTimeout(timer);
     };
-  }, [query, refresh]);
+  }, [query, refresh, refreshVersion]);
 
   /** 向前加载较早记录，后端过滤和当前筛选保持一致 */
   async function loadOlder() {
