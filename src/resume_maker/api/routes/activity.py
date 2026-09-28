@@ -10,7 +10,9 @@ from pydantic import AwareDatetime, BaseModel, Field, field_validator
 
 from resume_maker.api.dependencies import ServicesDep
 from resume_maker.core.errors import need
+from resume_maker.domain.activity import ActivityCaptureSettings
 from resume_maker.infrastructure.activity import DEFAULT_POLLING_PATHS
+from resume_maker.services.activity import capture_settings, save_capture_settings
 
 router = APIRouter(prefix="/api/activity", tags=["activity"])
 
@@ -86,6 +88,18 @@ def export_activity(services: ServicesDep, query: Annotated[ActivityQuery, Query
         media_type="application/x-ndjson",
         headers={"Content-Disposition": 'attachment; filename="system-activity.jsonl"'},
     )
+
+
+@router.get("/settings")
+def activity_settings(services: ServicesDep):
+    """读取后端实际采集类别，不受页面隐藏规则影响"""
+    return capture_settings(services.db.activity)
+
+
+@router.put("/settings")
+def update_activity_settings(body: ActivityCaptureSettings, services: ServicesDep):
+    """保存采集类别并立即用于后续日志写入"""
+    return save_capture_settings(services.db.activity, body)
 
 
 @router.get("/{identifier}")

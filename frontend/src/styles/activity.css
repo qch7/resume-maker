@@ -79,6 +79,32 @@
 .activity-settings .row {
   justify-content: flex-end;
 }
+.activity-capture-settings {
+  margin: 0;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  min-width: 0;
+}
+.activity-capture-settings legend {
+  padding-inline: 4px;
+}
+.activity-capture-categories {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.activity-capture-categories label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+.activity-capture-categories input {
+  width: auto;
+  margin: 0;
+}
 .activity-delete-settings {
   display: grid;
   gap: 8px;

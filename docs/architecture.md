@@ -22,7 +22,7 @@ flowchart LR
 
 统一活动链路由 `api/activity.py` 的 ASGI 包装采集全部业务 API 的开始、状态、耗时和有界正文；`infrastructure/observability.py` 为服务公开入口和后台执行边界建立请求、跨度、项目、会话及任务关联。后台队列入队前登记关联，工作线程恢复自己的上下文。Provider 保留本机原始输入、脱敏模型上下文、CLI 公开事件和工具调用，原进度接口继续使用简要消息。
 
-`infrastructure/activity.py` 使用独立的 `logs/activity.sqlite`，在落盘前统一遮盖凭据并标注正文截断，不更改业务库结构。`/api/activity` 提供有界摘要分页、按需详情、筛选和 JSONL 快照导出；日志自身的查询不回写日志，避免递归增长。前端 `features/activity` 通过增量游标串行轮询，轨道按实际时间排列，列表仅渲染可见窗口。详见 [系统日志](system-activity.md)。
+`infrastructure/activity.py` 使用独立的 `logs/activity.sqlite`，默认仅采集 AI 类别，在正文序列化和连接数据库前跳过未启用类别，落盘前统一遮盖凭据并标注正文截断，不更改业务库结构。`services/activity.py` 在日志写锁内持久保存采集配置，提交成功后切换内存策略；`GET/PUT /api/activity/settings` 读取和保存类别，配置操作自身不产生日志。`/api/activity` 提供有界摘要分页、按需详情、筛选和 JSONL 快照导出；日志自身的查询不回写日志，避免递归增长。前端 `features/activity` 通过增量游标串行轮询，轨道按实际时间排列，列表仅渲染可见窗口。详见 [系统日志](system-activity.md)。
 
 | 位置 | 职责与修改入口 |
 | --- | --- |

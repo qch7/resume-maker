@@ -8,6 +8,9 @@ export const CATEGORIES = {
   client: "浏览器",
 } as const;
 
+export type ActivityCategory = keyof typeof CATEGORIES;
+export type ActivityCaptureSettings = { categories: ActivityCategory[] };
+
 export type ActivityEvent = {
   id: number;
   created_at: string;
