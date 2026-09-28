@@ -4,21 +4,19 @@ import {
   CATEGORIES,
   type ActivityCaptureSettings,
   type ActivityCategory,
-} from "./model";
-import { DEFAULT_HIDDEN_RULES, hiddenRuleError } from "./preferences";
-import { localDayRange } from "./useActivityTime";
+} from "../activity/model";
+import { DEFAULT_HIDDEN_RULES, hiddenRuleError } from "../activity/preferences";
+import { localDayRange } from "../activity/useActivityTime";
 
 /** 保存后端采集类别和页面过滤规则，并提供日志删除入口 */
 export default function ActivitySettings({
   rules,
   onSave,
-  onClose,
   onResetLayout,
   onDeleted,
 }: {
   rules: string;
   onSave: (rules: string) => void;
-  onClose: () => void;
   onResetLayout: () => void;
   onDeleted: () => void;
 }) {
@@ -28,11 +26,16 @@ export default function ActivitySettings({
   const [loadError, setLoadError] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [saved, setSaved] = useState(false);
   const [deleteScope, setDeleteScope] = useState("before_today");
   const [deleting, setDeleting] = useState(false);
   const [deleteResult, setDeleteResult] = useState("");
   const [deleteError, setDeleteError] = useState("");
   const error = hiddenRuleError(draft);
+
+  useEffect(() => {
+    setSaved(false);
+  }, [capture, draft]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -57,6 +60,7 @@ export default function ActivitySettings({
     if (!capture || saving || error) return;
     setSaving(true);
     setSaveError("");
+    setSaved(false);
     try {
       await api<ActivityCaptureSettings>("/activity/settings", "PUT", capture);
       onSave(
@@ -69,6 +73,7 @@ export default function ActivitySettings({
           ),
         ].join("\n"),
       );
+      setSaved(true);
     } catch (failure) {
       setSaveError((failure as Error).message);
     } finally {
@@ -104,12 +109,12 @@ export default function ActivitySettings({
     }
   }
   return (
-    <div className="activity-settings" role="dialog" aria-label="日志设置">
+    <section className="activity-settings" aria-label="日志设置">
       <fieldset
         className="activity-capture-settings"
         disabled={!capture || saving}
       >
-        <legend>采集类别（保存到磁盘）</legend>
+        <legend>采集类别</legend>
         <div className="activity-capture-categories">
           {(Object.keys(CATEGORIES) as ActivityCategory[]).map((category) => (
             <label key={category}>
@@ -159,13 +164,12 @@ export default function ActivitySettings({
         </div>
       )}
       <small>
-        默认仅采集 AI 消息。保存后立即生效，重启后保留。
-        未勾选类别的所有级别均不记录；已有日志和 AI 会话不受影响。
+        只记录勾选类别，默认仅 AI 消息。保存后立即生效，已有日志保留。
       </small>
       {capture?.categories.length === 0 && (
         <small role="status">保存后将暂停全部日志采集。</small>
       )}
-      <label htmlFor="activity-hidden-rules">隐藏日志</label>
+      <label htmlFor="activity-hidden-rules">隐藏规则</label>
       <textarea
         id="activity-hidden-rules"
         value={draft}
@@ -175,8 +179,8 @@ export default function ActivitySettings({
         rows={9}
       />
       <small>
-        每行一条，支持 *、GET/POST 路径、操作名和 ai:turn.started。
-        仅影响已采集日志的显示，保留警告、错误和 ≥1 秒操作，不减少磁盘占用。
+        每行一条，支持路径、操作名、类型:事件和 *。只影响显示，不减少存储。
+        警告、错误和 ≥1 秒操作仍显示。
       </small>
       {error && <span role="alert">{error}</span>}
       {saveError && <span role="alert">保存失败：{saveError}</span>}
@@ -190,17 +194,16 @@ export default function ActivitySettings({
         >
           恢复默认
         </button>
-        <button onClick={onResetLayout}>重置布局</button>
-        <button disabled={saving} onClick={onClose}>
-          取消
-        </button>
+        <button onClick={onResetLayout}>重置日志布局</button>
         <button
+          className="primary"
           disabled={!!error || !capture || saving}
           onClick={() => void saveSettings()}
         >
-          {saving ? "保存中…" : "保存"}
+          {saving ? "保存中…" : "保存日志设置"}
         </button>
       </div>
+      {saved && <small role="status">日志设置已保存</small>}
       <div className="activity-delete-settings">
         <label htmlFor="activity-delete-scope">删除日志</label>
         <div className="row">
@@ -225,10 +228,10 @@ export default function ActivitySettings({
             {deleting ? "删除中…" : "删除"}
           </button>
         </div>
-        <small>含隐藏记录，删除后无法恢复；后续按采集设置记录。</small>
+        <small>永久删除所选范围，不影响简历和 AI 会话。</small>
         {deleteResult && <small role="status">{deleteResult}</small>}
         {deleteError && <span role="alert">{deleteError}</span>}
       </div>
-    </div>
+    </section>
   );
 }
