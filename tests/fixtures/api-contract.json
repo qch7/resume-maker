@@ -3299,6 +3299,173 @@
         }
       }
     },
+    "/api/recruitment": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveBookmarks"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recruitment/import/preview": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportBookmarks"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recruitment/import": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportBookmarks"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recruitment/export": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recruitment/examples/{name}": {
+      "get": {
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "internet",
+                "technology"
+              ],
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/": {
       "get": {
         "responses": {
@@ -3981,6 +4148,37 @@
       "title": "HonorSave",
       "description": "用户确认的资料和乐观并发版本"
     },
+    "ImportBookmarks": {
+      "properties": {
+        "revision": {
+          "type": "integer",
+          "minimum": 0.0,
+          "title": "Revision"
+        },
+        "content": {
+          "type": "string",
+          "maxLength": 8000000,
+          "title": "Content"
+        },
+        "policy": {
+          "type": "string",
+          "enum": [
+            "keep",
+            "update"
+          ],
+          "title": "Policy",
+          "default": "keep"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "revision",
+        "content"
+      ],
+      "title": "ImportBookmarks",
+      "description": "同一文件和冲突策略用于预览和确认，旧预览不能覆盖新数据"
+    },
     "MessageInput": {
       "properties": {
         "text": {
@@ -4408,6 +4606,189 @@
       "title": "ProviderSettings",
       "description": "CLI 连接、全局默认值和各 AI 功能的可保存配置"
     },
+    "RecruitmentBookmark": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_.:-]{1,100}$",
+          "title": "Id"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Name"
+        },
+        "domain_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_.:-]{1,100}$"
+            },
+            {
+              "type": "string",
+              "const": ""
+            }
+          ],
+          "title": "Domain Id",
+          "default": ""
+        },
+        "category": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_.:-]{1,100}$"
+            },
+            {
+              "type": "string",
+              "const": ""
+            }
+          ],
+          "title": "Category",
+          "default": ""
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 2000,
+          "title": "Description",
+          "default": ""
+        },
+        "tags": {
+          "items": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1
+          },
+          "type": "array",
+          "maxItems": 30,
+          "title": "Tags"
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 10000,
+          "title": "Notes",
+          "default": ""
+        },
+        "favorite": {
+          "type": "boolean",
+          "title": "Favorite",
+          "default": false
+        },
+        "links": {
+          "items": {
+            "$ref": "#/components/schemas/RecruitmentLink"
+          },
+          "type": "array",
+          "maxItems": 30,
+          "minItems": 1,
+          "title": "Links"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "links"
+      ],
+      "title": "RecruitmentBookmark",
+      "description": "企业或自定义招聘网站，可保存多个入口和个人备注"
+    },
+    "RecruitmentFile": {
+      "properties": {
+        "format": {
+          "type": "string",
+          "const": "resume-maker.recruitment-bookmarks",
+          "title": "Format"
+        },
+        "schema_version": {
+          "type": "integer",
+          "const": 1,
+          "title": "Schema Version"
+        },
+        "domains": {
+          "items": {
+            "$ref": "#/components/schemas/RecruitmentGroup"
+          },
+          "type": "array",
+          "maxItems": 100,
+          "title": "Domains"
+        },
+        "categories": {
+          "items": {
+            "$ref": "#/components/schemas/RecruitmentGroup"
+          },
+          "type": "array",
+          "maxItems": 100,
+          "title": "Categories"
+        },
+        "bookmarks": {
+          "items": {
+            "$ref": "#/components/schemas/RecruitmentBookmark"
+          },
+          "type": "array",
+          "maxItems": 3000,
+          "title": "Bookmarks"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "format",
+        "schema_version",
+        "domains",
+        "categories",
+        "bookmarks"
+      ],
+      "title": "RecruitmentFile",
+      "description": "独立于本机保存版本的 JSON 交换格式，数组顺序即展示顺序"
+    },
+    "RecruitmentGroup": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_.:-]{1,100}$",
+          "title": "Id"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Name"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "RecruitmentGroup",
+      "description": "用户自行维护的领域或分类，稳定标识允许改名后继续导入"
+    },
+    "RecruitmentLink": {
+      "properties": {
+        "label": {
+          "type": "string",
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Label"
+        },
+        "url": {
+          "type": "string",
+          "maxLength": 4096,
+          "title": "Url"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "label",
+        "url"
+      ],
+      "title": "RecruitmentLink",
+      "description": "一个收藏条目中的命名网址，只允许浏览器打开网页"
+    },
     "RepeatBinding": {
       "properties": {
         "section": {
@@ -4729,6 +5110,26 @@
       ],
       "title": "RevealSourceInput",
       "description": "通过项目快照和来源相对路径定位文件"
+    },
+    "SaveBookmarks": {
+      "properties": {
+        "revision": {
+          "type": "integer",
+          "minimum": 0.0,
+          "title": "Revision"
+        },
+        "data": {
+          "$ref": "#/components/schemas/RecruitmentFile"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "revision",
+        "data"
+      ],
+      "title": "SaveBookmarks",
+      "description": "保存版本属于本机，交换文件仅保留格式版本"
     },
     "SaveInput": {
       "properties": {

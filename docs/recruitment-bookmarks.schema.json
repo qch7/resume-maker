@@ -1,0 +1,185 @@
+{
+  "$defs": {
+    "RecruitmentBookmark": {
+      "additionalProperties": false,
+      "description": "企业或自定义招聘网站，可保存多个入口和个人备注",
+      "properties": {
+        "id": {
+          "pattern": "^[a-zA-Z0-9_.:-]{1,100}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "domain_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-zA-Z0-9_.:-]{1,100}$",
+              "type": "string"
+            },
+            {
+              "const": "",
+              "type": "string"
+            }
+          ],
+          "default": "",
+          "title": "Domain Id"
+        },
+        "category": {
+          "anyOf": [
+            {
+              "pattern": "^[a-zA-Z0-9_.:-]{1,100}$",
+              "type": "string"
+            },
+            {
+              "const": "",
+              "type": "string"
+            }
+          ],
+          "default": "",
+          "title": "Category"
+        },
+        "description": {
+          "default": "",
+          "maxLength": 2000,
+          "title": "Description",
+          "type": "string"
+        },
+        "tags": {
+          "items": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 30,
+          "title": "Tags",
+          "type": "array"
+        },
+        "notes": {
+          "default": "",
+          "maxLength": 10000,
+          "title": "Notes",
+          "type": "string"
+        },
+        "favorite": {
+          "default": false,
+          "title": "Favorite",
+          "type": "boolean"
+        },
+        "links": {
+          "items": {
+            "$ref": "#/$defs/RecruitmentLink"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "title": "Links",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "links"
+      ],
+      "title": "RecruitmentBookmark",
+      "type": "object"
+    },
+    "RecruitmentGroup": {
+      "additionalProperties": false,
+      "description": "用户自行维护的领域或分类，稳定标识允许改名后继续导入",
+      "properties": {
+        "id": {
+          "pattern": "^[a-zA-Z0-9_.:-]{1,100}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "RecruitmentGroup",
+      "type": "object"
+    },
+    "RecruitmentLink": {
+      "additionalProperties": false,
+      "description": "一个收藏条目中的命名网址，只允许浏览器打开网页",
+      "properties": {
+        "label": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "url": {
+          "maxLength": 4096,
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "url"
+      ],
+      "title": "RecruitmentLink",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "独立于本机保存版本的 JSON 交换格式，数组顺序即展示顺序",
+  "properties": {
+    "format": {
+      "const": "resume-maker.recruitment-bookmarks",
+      "title": "Format",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "domains": {
+      "items": {
+        "$ref": "#/$defs/RecruitmentGroup"
+      },
+      "maxItems": 100,
+      "title": "Domains",
+      "type": "array"
+    },
+    "categories": {
+      "items": {
+        "$ref": "#/$defs/RecruitmentGroup"
+      },
+      "maxItems": 100,
+      "title": "Categories",
+      "type": "array"
+    },
+    "bookmarks": {
+      "items": {
+        "$ref": "#/$defs/RecruitmentBookmark"
+      },
+      "maxItems": 3000,
+      "title": "Bookmarks",
+      "type": "array"
+    }
+  },
+  "required": [
+    "format",
+    "schema_version",
+    "domains",
+    "categories",
+    "bookmarks"
+  ],
+  "title": "RecruitmentFile",
+  "type": "object"
+}

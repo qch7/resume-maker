@@ -15,6 +15,7 @@ from resume_maker.api.routes import (
     jobs,
     privacy,
     projects,
+    recruitment,
     resumes,
     settings,
     system,
@@ -36,6 +37,7 @@ from resume_maker.services.honors import Honors
 from resume_maker.services.jobs import Jobs
 from resume_maker.services.privacy import Privacy
 from resume_maker.services.projects import Projects
+from resume_maker.services.recruitment import Recruitment
 from resume_maker.services.resume_previews import ResumePreviews
 from resume_maker.services.settings import Settings
 from resume_maker.services.templates.library import TemplateLibrary
@@ -76,6 +78,7 @@ def create_app(config: Config | None = None, provider: Provider | None = None) -
         conversations=Conversations(catalog),
         workspace=Workspace(catalog),
         workspace_storage=WorkspaceStorage(db),
+        recruitment=Recruitment(db),
     )
 
     for name in (
@@ -92,6 +95,7 @@ def create_app(config: Config | None = None, provider: Provider | None = None) -
         "settings",
         "privacy",
         "workspace_storage",
+        "recruitment",
     ):
         instrument_service(
             getattr(services, name),
@@ -134,6 +138,7 @@ def create_app(config: Config | None = None, provider: Provider | None = None) -
         honors,
         privacy,
         workspace_storage,
+        recruitment,
     ):
         app.include_router(module.router)
     mount_frontend(app, config)

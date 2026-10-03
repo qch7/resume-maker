@@ -15,6 +15,7 @@ import {
   ListTree,
   Award,
   Activity as ActivityIcon,
+  Bookmark as BookmarkIcon,
 } from "lucide-react";
 import {
   useCallback,
@@ -62,6 +63,7 @@ import {
 } from "../features/resumes/useResumeComposition";
 import TemplateAdapter from "../features/templates/TemplateAdapter";
 import Settings from "../features/settings/Settings";
+import RecruitmentPage from "../features/recruitment/RecruitmentPage";
 import { getWorkflow, type GuideTarget } from "../features/workflow/state";
 import Workflow from "../features/workflow/Workflow";
 import ResizeHandle from "../shared/components/ResizeHandle";
@@ -100,7 +102,13 @@ export default function App() {
   const activityPreferences = useActivityPreferences();
   const [activityRefresh, setActivityRefresh] = useState(0);
   const [area, setArea] = useState<
-    "projects" | "personal" | "structure" | "templates" | "honors" | "activity"
+    | "projects"
+    | "personal"
+    | "structure"
+    | "templates"
+    | "honors"
+    | "activity"
+    | "recruitment"
   >("projects");
   const [defaultsOpen, setDefaultsOpen] = useState(false);
   const [resumeLibraryOpen, setResumeLibraryOpen] = useState(false);
@@ -779,7 +787,7 @@ export default function App() {
   const error = remoteProject.error || remoteChat.error;
   return (
     <div
-      className={`app-shell ${area === "activity" ? "activity-area" : ""} ${sidebar && area === "projects" ? "" : "sidebar-hidden"} ${previewFocused ? "preview-focused" : ""} ${area === "honors" ? "honor-area" : area === "templates" ? "template-area" : area !== "projects" ? "profile-area" : ""}`}
+      className={`app-shell ${area === "recruitment" ? "recruitment-area" : ""} ${area === "activity" ? "activity-area" : ""} ${sidebar && area === "projects" ? "" : "sidebar-hidden"} ${previewFocused ? "preview-focused" : ""} ${area === "honors" ? "honor-area" : area === "templates" ? "template-area" : area !== "projects" ? "profile-area" : ""}`}
       style={
         {
           "--sidebar-width": `${columns.sidebar}px`,
@@ -826,6 +834,7 @@ export default function App() {
               },
               { id: "honors", label: "荣誉证书", icon: Award },
               { id: "templates", label: "Word 模板", icon: FileScan },
+              { id: "recruitment", label: "招聘收藏夹", icon: BookmarkIcon },
               { id: "activity", label: "系统日志", icon: ActivityIcon },
             ] as const
           ).map(
@@ -1315,6 +1324,7 @@ export default function App() {
           run={run}
         />
       </div>
+      <RecruitmentPage active={area === "recruitment"} />
       {area === "activity" && (
         <Activity
           preferencesState={activityPreferences}
