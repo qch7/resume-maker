@@ -44,6 +44,8 @@ npm --prefix frontend run build
 
 后端测试使用 pytest 临时目录和可控 Provider，自动隔离 CODEX_HOME 并禁止真实 HTTP 传输；模型出口测试必须注入 MockTransport，不需要真实凭据或 Microsoft Word。文档测试使用 DOCX 内容对比验证区域保留，并替换渲染器；真实 Word 排版和真实 Provider 连通性须在有对应环境的本机另行验收。Windows 和 Ubuntu 的 CI 均执行核心测试与安装包检查。
 
+后端测试按功能分目录，共享构造器和模型替身放在 `tests/support/`。可运行 `uv run pytest tests/projects -q` 或指定单个测试文件；目录归属、夹具约定和整理依据见 [测试说明](../tests/README.md)。
+
 ## 真实模板与供应商对照
 
 隐私保护保留 Windows 原生 CLI，不限定具体版本号，以严格配置和只读材料服务提供脱敏副本；调整 CLI 兼容性时运行真实 CLI 对本机假服务的工具边界验收。评测同样经过本地 OCR 和脱敏，原始像素不外发；支持文件登录。本地输出仍可能包含原件和还原结果。OCR 合成评测运行 `uv run python scripts/benchmark_ocr.py`，非 Windows 环境通过 `--font` 指定本机中文字体。真实 CLI 边界验收见 [隐私保护](privacy.md)。

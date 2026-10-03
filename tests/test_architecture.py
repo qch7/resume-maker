@@ -1,7 +1,6 @@
 """分层约束覆盖不同导入写法，避免包入口绕过依赖检查"""
 
 import runpy
-from pathlib import Path
 
 import pytest
 
@@ -16,11 +15,9 @@ import pytest
         ("from resume_maker.core.errors import Problem", False),
     ],
 )
-def test_layer_check_covers_package_imports(tmp_path, source, forbidden):
+def test_layer_check_covers_package_imports(tmp_path, source, forbidden, pytestconfig):
     """领域模块拒绝反向依赖，合法下层导入仍可通过"""
-    check = runpy.run_path(str(Path(__file__).resolve().parents[1] / "scripts/check_quality.py"))[
-        "check_file"
-    ]
+    check = runpy.run_path(str(pytestconfig.rootpath / "scripts/check_quality.py"))["check_file"]
     package = tmp_path / "src" / "resume_maker"
     check.__globals__.update(ROOT=tmp_path, PACKAGE=package)
     path = package / "domain" / "example.py"

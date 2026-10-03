@@ -49,7 +49,7 @@ Resume Maker 是单用户本机简历工作台，将项目源码整理成有引�
 | `frontend/src/features/` | 各功能的组件、状态和业务规则 |
 | `frontend/src/shared/` | 通用控件、hooks、网络、本机缓存和 API 类型 |
 | `frontend/src/styles/` | 按功能拆分的样式，导入顺序由 `index.css` 管理 |
-| `tests/`、`frontend/tests/` | 后端回归测试和前端逻辑测试 |
+| `tests/`、`frontend/tests/` | 按功能分组的后端回归测试和前端逻辑测试，后端共享辅助代码在 `tests/support/` |
 | `scripts/` | 启停、检查、构建和模板评测脚本 |
 
 后端依赖约束由 `scripts/check_quality.py` 检查：`core` 独立于业务模块，`domain` 不依赖存储或适配器，`infrastructure` 和 `integrations` 不导入 `services` 或 `api`，`services` 不导入 `api`。
@@ -145,6 +145,7 @@ uv run python scripts/check_wheel.py
 
 - Python 使用 Ruff，TypeScript 和 CSS 使用仓库 Prettier 配置，依赖变更同步更新对应锁文件。
 - 新功能和缺陷修复优先测试用户可观察的行为，避免添加逐行复述实现的测试。
+- 后端用例按 [测试说明](tests/README.md) 放入对应功能目录，共享构造器从 `tests.support` 导入，禁止测试文件互相导入或显式导入 `conftest.py`；合并时保留边界场景和参数化组合。
 - 排版改动检查实际 DOCX 或分页效果，自动测试中的 Word 替身不代表真实排版验收。
 - 交付时简要说明改动和验证结果，未执行的检查说明原因，创建 PR 后附上链接，合并后说明分支清理情况。
 
