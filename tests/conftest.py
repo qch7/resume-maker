@@ -1,9 +1,17 @@
+from pathlib import Path
+
 import httpx
 import pytest
 
 from resume_maker.infrastructure.database import Database
-from resume_maker.integrations.sources import capture_evidence, project_sources
 from resume_maker.services.catalog import Catalog
+from tests.support.data import experience
+
+
+@pytest.fixture(scope="session")
+def fixtures_dir():
+    """提供固定测试资料目录，测试移动后仍从同一位置读取"""
+    return Path(__file__).parent / "fixtures"
 
 
 @pytest.fixture(autouse=True)
@@ -34,17 +42,6 @@ def isolate_template_visual_renderer(monkeypatch):
     )
 
 
-def record_source_files(db, data_dir, project, paths=("README.md",)):
-    """仅为测试指定的来源文件建立证据记录以免夹具依赖已经移除的整库采集"""
-    return capture_evidence(
-        db,
-        data_dir,
-        project,
-        project_sources(project),
-        [{"source": "source-0", "path": path, "status": "document"} for path in paths],
-    )
-
-
 @pytest.fixture
 def catalog(tmp_path):
     """在临时数据目录创建业务服务，让每个测试的数据相互隔离"""
@@ -60,22 +57,6 @@ def project(catalog, tmp_path):
         "# Example\nA project for document processing.\n", encoding="utf-8"
     )
     return catalog.create_project("Example", [str(source)])
-
-
-def experience(title="Example"):
-    """构造含两条亮点的最小经历，用于测试保存、排序和固定引用"""
-    return {
-        "title": title,
-        "period": "",
-        "role": "",
-        "stack": ["Python"],
-        "description": "Document processing",
-        "body_order": None,
-        "highlights": [
-            {"id": "one", "title": "Parser", "text": "Parse documents", "evidence": []},
-            {"id": "two", "title": "Export", "text": "Export Word", "evidence": []},
-        ],
-    }
 
 
 @pytest.fixture
