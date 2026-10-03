@@ -11,6 +11,7 @@ PREFERENCES = {
     "rm.theme",
     "rm.layout",
     "rm.sidebarSort",
+    "rm.recruitment.display",
     "rm.activity",
     "rm.template.library.view",
     "rm.resume.current",

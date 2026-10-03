@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  ArrowDown,
-  ArrowUp,
   Bookmark as BookmarkIcon,
   Download,
   ExternalLink,
   FolderOpen,
   Globe,
+  LayoutGrid,
+  List,
   Pencil,
   Plus,
   RefreshCw,
@@ -16,14 +16,18 @@ import {
   Upload,
 } from "lucide-react";
 import { api, download } from "../../shared/lib/api";
+import { loadLocal, storage } from "../../shared/lib/storage";
 import BookmarkEditor from "./BookmarkEditor";
 import GroupsEditor from "./GroupsEditor";
 import ImportDialog from "./ImportDialog";
 import Dialog from "./Dialog";
 import {
   filterBookmarks,
-  moveBookmark,
   newBookmark,
+  scopeCategories,
+  sortBookmarks,
+  restoreDisplayPreferences,
+  type BookmarkSort,
   type Bookmark,
   type BookmarkFile,
   type Snapshot,
@@ -36,6 +40,12 @@ export default function RecruitmentPage({ active }: { active: boolean }) {
   const [category, setCategory] = useState("");
   const [favorites, setFavorites] = useState(false);
   const [query, setQuery] = useState("");
+  const [display, setDisplay] = useState(() =>
+    restoreDisplayPreferences(loadLocal("rm.recruitment.display", {})),
+  );
+  useEffect(() => {
+    storage.setItem("rm.recruitment.display", JSON.stringify(display));
+  }, [display]);
   const [editing, setEditing] = useState<Bookmark | null>(null);
   const [groupsOpen, setGroupsOpen] = useState<"domains" | "categories" | null>(
     null,
@@ -47,6 +57,17 @@ export default function RecruitmentPage({ active }: { active: boolean }) {
   const readGeneration = useRef(0);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const data = snapshot?.data;
+  const items = data?.bookmarks ?? [];
+  const categories = scopeCategories(
+    data?.categories ?? [],
+    items,
+    domain,
+    favorites,
+  );
+  const selectedCategory = categories.some((item) => item.id === category)
+    ? category
+    : "";
   useEffect(() => {
     if (!active || locked.current) return;
     const generation = ++readGeneration.current;
@@ -76,13 +97,8 @@ export default function RecruitmentPage({ active }: { active: boolean }) {
       setDomain("");
   }, [snapshot, domain]);
   useEffect(() => {
-    if (
-      snapshot &&
-      category &&
-      !snapshot.data.categories.some((item) => item.id === category)
-    )
-      setCategory("");
-  }, [snapshot, category]);
+    if (category !== selectedCategory) setCategory(selectedCategory);
+  }, [category, selectedCategory]);
   /** 刷新服务器版本，供并发冲突恢复和用户主动同步 */
   async function refresh() {
     if (locked.current) throw new Error("另一个操作仍在处理中，请稍后重试。");
@@ -149,12 +165,13 @@ export default function RecruitmentPage({ active }: { active: boolean }) {
   function add() {
     if (!snapshot) return;
     const item = newBookmark(domain);
-    item.category = category;
+    item.category = selectedCategory;
     setEditing(item);
   }
-  const data = snapshot?.data;
-  const items = data?.bookmarks ?? [];
-  const filtered = filterBookmarks(items, domain, category, favorites, query);
+  const filtered = sortBookmarks(
+    filterBookmarks(items, domain, selectedCategory, favorites, query),
+    display.sort,
+  );
   const scoped = filterBookmarks(items, domain, "", favorites, query);
   return (
     <section
@@ -246,6 +263,43 @@ export default function RecruitmentPage({ active }: { active: boolean }) {
                 onChange={(e) => setQuery(e.target.value)}
               />
             </label>
+            <select
+              className="recruitment-sort"
+              aria-label="排序方式"
+              value={display.sort}
+              onChange={(event) =>
+                setDisplay({
+                  ...display,
+                  sort: event.target.value as BookmarkSort,
+                })
+              }
+            >
+              <option value="default">默认顺序</option>
+              <option value="asc">字母升序</option>
+              <option value="desc">字母降序</option>
+            </select>
+            <div
+              className="recruitment-view-toggle"
+              role="group"
+              aria-label="显示方式"
+            >
+              <button
+                aria-label="卡片视图"
+                aria-pressed={display.view === "cards"}
+                onClick={() => setDisplay({ ...display, view: "cards" })}
+              >
+                <LayoutGrid size={15} />
+                卡片
+              </button>
+              <button
+                aria-label="列表视图"
+                aria-pressed={display.view === "list"}
+                onClick={() => setDisplay({ ...display, view: "list" })}
+              >
+                <List size={15} />
+                列表
+              </button>
+            </div>
             <button
               className="icon-button"
               title="刷新收藏夹"
@@ -259,15 +313,15 @@ export default function RecruitmentPage({ active }: { active: boolean }) {
           <div className="recruitment-filter-row">
             <nav aria-label="企业分类">
               <button
-                className={!category ? "selected" : ""}
+                className={!selectedCategory ? "selected" : ""}
                 onClick={() => setCategory("")}
               >
                 全部<span>{scoped.length}</span>
               </button>
-              {data?.categories.map((entry) => (
+              {categories.map((entry) => (
                 <button
                   key={entry.id}
-                  className={category === entry.id ? "selected" : ""}
+                  className={selectedCategory === entry.id ? "selected" : ""}
                   onClick={() => setCategory(entry.id)}
                 >
                   {entry.name}
@@ -332,8 +386,14 @@ export default function RecruitmentPage({ active }: { active: boolean }) {
               </div>
             </div>
           ) : (
-            <div className="recruitment-grid">
-              {filtered.map((item, index) => (
+            <div
+              className={
+                display.view === "cards"
+                  ? "recruitment-grid"
+                  : "recruitment-list"
+              }
+            >
+              {filtered.map((item) => (
                 <article className="recruitment-card" key={item.id}>
                   <header>
                     <span className="recruitment-monogram">
@@ -371,24 +431,26 @@ export default function RecruitmentPage({ active }: { active: boolean }) {
                       />
                     </button>
                   </header>
-                  {item.description && (
-                    <p className="recruitment-description">
-                      {item.description}
-                    </p>
-                  )}
-                  {!!item.tags.length && (
-                    <div className="recruitment-tags">
-                      {item.tags.map((tag, i) => (
-                        <button
-                          key={i}
-                          className="tag"
-                          onClick={() => setQuery(tag)}
-                        >
-                          {tag}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  <div className="recruitment-summary">
+                    {item.description && (
+                      <p className="recruitment-description">
+                        {item.description}
+                      </p>
+                    )}
+                    {!!item.tags.length && (
+                      <div className="recruitment-tags">
+                        {item.tags.map((tag, i) => (
+                          <button
+                            key={i}
+                            className="tag"
+                            onClick={() => setQuery(tag)}
+                          >
+                            {tag}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <div className="recruitment-links">
                     {item.links.map((link, i) => (
                       <a
@@ -419,46 +481,6 @@ export default function RecruitmentPage({ active }: { active: boolean }) {
                       编辑
                     </button>
                     <div className="row">
-                      <button
-                        className="icon-button"
-                        aria-label={`上移${item.name}`}
-                        disabled={busy || index === 0}
-                        onClick={() =>
-                          void perform(() =>
-                            save({
-                              ...snapshot.data,
-                              bookmarks: moveBookmark(
-                                items,
-                                filtered,
-                                item.id,
-                                -1,
-                              ),
-                            }),
-                          )
-                        }
-                      >
-                        <ArrowUp size={14} />
-                      </button>
-                      <button
-                        className="icon-button"
-                        aria-label={`下移${item.name}`}
-                        disabled={busy || index === filtered.length - 1}
-                        onClick={() =>
-                          void perform(() =>
-                            save({
-                              ...snapshot.data,
-                              bookmarks: moveBookmark(
-                                items,
-                                filtered,
-                                item.id,
-                                1,
-                              ),
-                            }),
-                          )
-                        }
-                      >
-                        <ArrowDown size={14} />
-                      </button>
                       <button
                         className="icon-button"
                         aria-label={`删除${item.name}`}

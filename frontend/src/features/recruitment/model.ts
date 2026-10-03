@@ -5,6 +5,24 @@ export interface Domain {
 export interface RecruitmentPreferences {
   import_policy: "keep" | "update";
 }
+export type BookmarkSort = "default" | "asc" | "desc";
+export interface DisplayPreferences {
+  view: "cards" | "list";
+  sort: BookmarkSort;
+}
+
+/** 恢复视图和排序偏好，损坏或过期的值回退到卡片及原始顺序 */
+export function restoreDisplayPreferences(value: unknown): DisplayPreferences {
+  const saved =
+    value && typeof value === "object"
+      ? (value as Partial<DisplayPreferences>)
+      : {};
+  return {
+    view: saved.view === "list" ? "list" : "cards",
+    sort:
+      saved.sort === "asc" || saved.sort === "desc" ? saved.sort : "default",
+  };
+}
 export interface Bookmark {
   id: string;
   name: string;
@@ -80,19 +98,36 @@ export function filterBookmarks(
   });
 }
 
-/** 在当前可见列表中交换相邻收藏，其他领域和过滤条目保持位置 */
-export function moveBookmark(
+/** 全部网站保留完整分类，领域和星标只显示当前范围实际使用的分类 */
+export function scopeCategories(
+  categories: Domain[],
   items: Bookmark[],
-  visible: Bookmark[],
-  id: string,
-  direction: number,
+  domain: string,
+  favorites: boolean,
 ) {
-  const index = visible.findIndex((item) => item.id === id);
-  const neighbor = visible[index + direction];
-  if (!neighbor) return items;
-  const next = [...items];
-  const from = next.findIndex((item) => item.id === id);
-  const to = next.findIndex((item) => item.id === neighbor.id);
-  [next[from], next[to]] = [next[to], next[from]];
-  return next;
+  if (!domain && !favorites) return categories;
+  const used = new Set(
+    items
+      .filter(
+        (item) =>
+          (!domain || item.domain_id === domain) &&
+          (!favorites || item.favorite),
+      )
+      .map((item) => item.category),
+  );
+  return categories.filter((category) => used.has(category.id));
+}
+
+/** 星标优先置顶，组内按文件顺序或名称拼音排序，保持源数组不变 */
+export function sortBookmarks(items: Bookmark[], order: BookmarkSort) {
+  const names = new Intl.Collator("zh-CN-u-co-pinyin", {
+    numeric: true,
+    sensitivity: "base",
+  });
+  return [...items].sort((left, right) => {
+    const starred = Number(right.favorite) - Number(left.favorite);
+    if (starred || order === "default") return starred;
+    const compared = names.compare(left.name, right.name);
+    return order === "desc" ? -compared : compared;
+  });
 }

@@ -22,6 +22,7 @@ def test_drafts_survive_restart_backup_without_publishing(catalog, tmp_path):
         "rm.template.editor.test": {"name": "未保存映射", "plan": {"fields": []}},
         "rm.honor.draft.new": {"fields": {"name": "人工核对中"}},
         "rm.settings.privacy": {"terms": "测试学校", "version": 0},
+        "rm.recruitment.display": {"view": "list", "sort": "desc"},
     }
     for key, value in values.items():
         service.save(key, json.dumps(value), 0)
@@ -50,6 +51,16 @@ def test_conflicts_deletions_and_lost_acknowledgement(catalog):
     with pytest.raises(Problem, match="其他窗口"):
         storage.save("rm.resume.v2.new", "stale", first["version"])
     assert storage.state()["values"]["rm.resume.v2.new"]["value"] is None
+
+
+def test_recruitment_display_preferences_use_latest_choice(catalog):
+    """多个窗口切换招聘视图和排序时保留最新选择，不触发草稿冲突"""
+    storage = WorkspaceStorage(catalog.db)
+    storage.save("rm.recruitment.display", '{"view":"cards","sort":"default"}', 0)
+    selection = '{"view":"list","sort":"asc"}'
+    saved = storage.save("rm.recruitment.display", selection, 0)
+    assert saved["version"] == 2
+    assert storage.state()["values"]["rm.recruitment.display"]["value"] == selection
 
 
 def test_storage_http_auth_bounds_and_isolation(tmp_path):
