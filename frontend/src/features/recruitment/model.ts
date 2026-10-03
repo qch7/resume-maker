@@ -55,6 +55,19 @@ export interface ImportSummary {
   changes: { name: string; action: "added" | "updated" | "skipped" }[];
 }
 
+/** 描述仅由已有标签组成时省略重复文字，其他说明完整保留 */
+export function bookmarkDescription(item: Bookmark): string {
+  const description = item.description.trim();
+  const tags = new Set(item.tags.map((tag) => tag.trim().toLocaleLowerCase()));
+  const parts = description
+    .split(/[、,，;；\n|｜]+/)
+    .map((part) => part.trim().toLocaleLowerCase())
+    .filter(Boolean);
+  return parts.length > 0 && parts.every((part) => tags.has(part))
+    ? ""
+    : description;
+}
+
 /** 创建空白收藏，领域和分类均可不选 */
 export function newBookmark(domain: string): Bookmark {
   return {

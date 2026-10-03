@@ -2,12 +2,47 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readImportFile } from "../src/features/recruitment/importFile.ts";
 import {
+  bookmarkDescription,
   filterBookmarks,
   newBookmark,
   restoreDisplayPreferences,
   scopeCategories,
   sortBookmarks,
 } from "../src/features/recruitment/model.ts";
+
+test("标签已经包含的描述只展示一次，保留原数据及标签搜索", () => {
+  const item = {
+    ...newBookmark("internet"),
+    description: "网络安全、浏览器、AI",
+    tags: ["网络安全", "浏览器", "AI"],
+  };
+  const original = structuredClone(item);
+  assert.equal(bookmarkDescription(item), "");
+  assert.equal(
+    bookmarkDescription({ ...item, description: " ai，浏览器；网络安全 " }),
+    "",
+  );
+  assert.equal(bookmarkDescription({ ...item, description: "网络安全" }), "");
+  assert.deepEqual(filterBookmarks([item], "", "", false, "网络安全"), [item]);
+  assert.deepEqual(item, original);
+});
+
+test("有额外信息或没有标签时保留完整描述，避免按子串误删", () => {
+  const item = { ...newBookmark("internet"), tags: ["AI"] };
+  for (const description of [
+    "AI，支持远程实习",
+    "AI 研发",
+    "AI/机器人",
+    "招聘官网",
+  ]) {
+    assert.equal(bookmarkDescription({ ...item, description }), description);
+  }
+  assert.equal(
+    bookmarkDescription({ ...item, description: "AI", tags: [] }),
+    "AI",
+  );
+  assert.equal(bookmarkDescription({ ...item, description: "" }), "");
+});
 
 test("按领域、企业分类和收藏筛选，搜索同时覆盖备注及链接", () => {
   const first = {

@@ -2,22 +2,20 @@ import { useEffect, useRef, useState } from "react";
 import {
   Bookmark as BookmarkIcon,
   Download,
-  ExternalLink,
   FolderOpen,
   Globe,
   LayoutGrid,
   List,
-  Pencil,
   Plus,
   RefreshCw,
   Search,
   Star,
-  Trash2,
   Upload,
 } from "lucide-react";
 import { api, download } from "../../shared/lib/api";
 import { loadLocal, storage } from "../../shared/lib/storage";
 import BookmarkEditor from "./BookmarkEditor";
+import BookmarkCard from "./BookmarkCard";
 import GroupsEditor from "./GroupsEditor";
 import ImportDialog from "./ImportDialog";
 import Dialog from "./Dialog";
@@ -394,104 +392,27 @@ export default function RecruitmentPage({ active }: { active: boolean }) {
               }
             >
               {filtered.map((item) => (
-                <article className="recruitment-card" key={item.id}>
-                  <header>
-                    <span className="recruitment-monogram">
-                      {item.name.slice(0, 1)}
-                    </span>
-                    <div className="grow">
-                      <h2>{item.name}</h2>
-                      <small>
-                        {[
-                          data?.domains.find(
-                            (entry) => entry.id === item.domain_id,
-                          )?.name,
-                          data?.categories.find(
-                            (entry) => entry.id === item.category,
-                          )?.name,
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </small>
-                    </div>
-                    <button
-                      className={`icon-button ${item.favorite ? "is-favorite" : ""}`}
-                      aria-label={`${item.favorite ? "取消收藏" : "收藏"}${item.name}`}
-                      aria-pressed={item.favorite}
-                      disabled={busy}
-                      onClick={() =>
-                        void perform(() =>
-                          saveItem({ ...item, favorite: !item.favorite }),
-                        )
-                      }
-                    >
-                      <Star
-                        size={18}
-                        fill={item.favorite ? "currentColor" : "none"}
-                      />
-                    </button>
-                  </header>
-                  <div className="recruitment-summary">
-                    {item.description && (
-                      <p className="recruitment-description">
-                        {item.description}
-                      </p>
-                    )}
-                    {!!item.tags.length && (
-                      <div className="recruitment-tags">
-                        {item.tags.map((tag, i) => (
-                          <button
-                            key={i}
-                            className="tag"
-                            onClick={() => setQuery(tag)}
-                          >
-                            {tag}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <div className="recruitment-links">
-                    {item.links.map((link, i) => (
-                      <a
-                        key={i}
-                        href={link.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title={link.url}
-                      >
-                        {link.label}
-                        <ExternalLink size={12} />
-                      </a>
-                    ))}
-                  </div>
-                  {item.notes && (
-                    <details className="recruitment-notes">
-                      <summary>备注和来源</summary>
-                      <p>{item.notes}</p>
-                    </details>
-                  )}
-                  <footer>
-                    <button
-                      className="text-button"
-                      disabled={busy}
-                      onClick={() => setEditing(item)}
-                    >
-                      <Pencil size={13} />
-                      编辑
-                    </button>
-                    <div className="row">
-                      <button
-                        className="icon-button"
-                        aria-label={`删除${item.name}`}
-                        disabled={busy}
-                        onClick={() => setDeleting(item)}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </footer>
-                </article>
+                <BookmarkCard
+                  key={item.id}
+                  item={item}
+                  group={[
+                    data?.domains.find((entry) => entry.id === item.domain_id)
+                      ?.name,
+                    data?.categories.find((entry) => entry.id === item.category)
+                      ?.name,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                  busy={busy}
+                  onTag={setQuery}
+                  onFavorite={() =>
+                    void perform(() =>
+                      saveItem({ ...item, favorite: !item.favorite }),
+                    )
+                  }
+                  onEdit={() => setEditing(item)}
+                  onDelete={() => setDeleting(item)}
+                />
               ))}
             </div>
           )}
