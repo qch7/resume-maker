@@ -255,3 +255,41 @@ def test_empty_collection_custom_categories_and_ungrouped_bookmarks(tmp_path):
         exported = client.get("/api/recruitment/export", headers=HEADERS).json()
         assert exported["domains"] == exported["categories"] == []
         assert len(exported["bookmarks"]) == 1
+
+
+def test_import_preferences_persist_and_do_not_enter_exchange_files(tmp_path):
+    """独立设置重启及备份后保留，导入采用读取的规则且网址文件不含偏好"""
+    config = Config(data_dir=tmp_path / "data", token="test")
+    app = create_app(config)
+    with TestClient(app) as client:
+        path = "/api/settings/recruitment"
+        assert client.get(path).status_code == 401
+        assert client.get(path, headers=HEADERS).json() == {"import_policy": "keep"}
+        assert (
+            client.put(path, headers=HEADERS, json={"import_policy": "invalid"}).status_code == 422
+        )
+        assert client.get(path, headers=HEADERS).json() == {"import_policy": "keep"}
+        saved = client.put(path, headers=HEADERS, json={"import_policy": "update"})
+        assert saved.status_code == 200
+        assert saved.json() == {"import_policy": "update"}
+        data = sample()
+        first = client.post(
+            "/api/recruitment/import", headers=HEADERS, json=import_body(data)
+        ).json()
+        data["bookmarks"][0]["notes"] = "按设置更新备注"
+        policy = client.get(path, headers=HEADERS).json()["import_policy"]
+        body = import_body(data, first["snapshot"]["revision"], policy)
+        preview = client.post("/api/recruitment/import/preview", headers=HEADERS, json=body).json()
+        assert preview["updated"] == 1
+        client.put(path, headers=HEADERS, json={"import_policy": "keep"})
+        result = client.post("/api/recruitment/import", headers=HEADERS, json=body).json()
+        assert result["snapshot"]["data"]["bookmarks"][0]["notes"] == "按设置更新备注"
+        assert "import_policy" not in client.get("/api/recruitment/export", headers=HEADERS).json()
+        client.put(path, headers=HEADERS, json={"import_policy": "update"})
+    with TestClient(create_app(config)) as client:
+        assert client.get(path, headers=HEADERS).json() == {"import_policy": "update"}
+    archive = create_backup(app.state.services.db, config.data_dir)
+    restored = tmp_path / "restored"
+    restore_backup(archive, restored)
+    with TestClient(create_app(Config(data_dir=restored, token="test"))) as client:
+        assert client.get(path, headers=HEADERS).json() == {"import_policy": "update"}

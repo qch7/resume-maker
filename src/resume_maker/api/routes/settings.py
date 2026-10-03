@@ -4,9 +4,22 @@ from fastapi import APIRouter
 
 from resume_maker.api.dependencies import ServicesDep
 from resume_maker.domain.models import ProviderSettings
+from resume_maker.domain.recruitment import RecruitmentPreferences
 from resume_maker.domain.resume_defaults import ResumeDefaults
 
 router = APIRouter(prefix="/api", tags=["settings"])
+
+
+@router.get("/settings/recruitment")
+def recruitment_settings(services: ServicesDep):
+    """读取招聘收藏夹的独立导入设置"""
+    return services.settings.recruitment()
+
+
+@router.put("/settings/recruitment")
+def save_recruitment_settings(services: ServicesDep, body: RecruitmentPreferences):
+    """校验并保存收藏夹导入偏好"""
+    return services.settings.save_recruitment(body)
 
 
 @router.get("/settings/resume-defaults")

@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FileJson, Upload } from "lucide-react";
 import { api } from "../../shared/lib/api";
 import Dialog from "./Dialog";
-import type { ImportSummary, Snapshot } from "./model";
+import type { ImportSummary, RecruitmentPreferences, Snapshot } from "./model";
+import { readImportFile } from "./importFile";
 
 const ACTIONS = { added: "新增", updated: "更新", skipped: "跳过" };
 
@@ -20,14 +21,54 @@ export default function ImportDialog({
 }) {
   const [content, setContent] = useState("");
   const [name, setName] = useState("");
-  const [policy, setPolicy] = useState<"keep" | "update">("keep");
+  const [policy, setPolicy] = useState<
+    RecruitmentPreferences["import_policy"] | null
+  >(null);
+  const [settingsError, setSettingsError] = useState("");
+  const [settingsAttempt, setSettingsAttempt] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const dragDepth = useRef(0);
+  const working = useRef(false);
   const [preview, setPreview] = useState<ImportSummary | null>(null);
   const [checking, setChecking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
-    if (!content) return;
+    const controller = new AbortController();
+    setSettingsError("");
+    void api<RecruitmentPreferences>(
+      "/settings/recruitment",
+      "GET",
+      undefined,
+      controller.signal,
+    )
+      .then((value) => {
+        if (!controller.signal.aborted) setPolicy(value.import_policy);
+      })
+      .catch((failure: Error) => {
+        if (!controller.signal.aborted) setSettingsError(failure.message);
+      });
+    return () => controller.abort();
+  }, [settingsAttempt]);
+  useEffect(() => {
+    /** 拖放到窗口其他位置时也阻止浏览器直接打开文件 */
+    function preventNavigation(event: DragEvent) {
+      if (event.dataTransfer?.types.includes("Files")) event.preventDefault();
+      if (event.type === "drop") {
+        dragDepth.current = 0;
+        setDragging(false);
+      }
+    }
+    window.addEventListener("dragover", preventNavigation);
+    window.addEventListener("drop", preventNavigation);
+    return () => {
+      window.removeEventListener("dragover", preventNavigation);
+      window.removeEventListener("drop", preventNavigation);
+    };
+  }, []);
+  useEffect(() => {
+    if (!content || !policy) return;
     const controller = new AbortController();
     setChecking(true);
     setPreview(null);
@@ -51,6 +92,8 @@ export default function ImportDialog({
   }, [content, policy, snapshot.revision, attempt]);
   /** 冲突或网络失败后刷新版本并重新预览当前文件 */
   async function retry() {
+    if (working.current) return;
+    working.current = true;
     setBusy(true);
     try {
       await onRefresh();
@@ -58,34 +101,36 @@ export default function ImportDialog({
     } catch (failure) {
       setError((failure as Error).message);
     } finally {
+      working.current = false;
       setBusy(false);
     }
   }
-  /** 读取用户选择的 UTF-8 文件，读取期间禁止再次选择以避免迟到结果覆盖 */
-  async function readFile(file?: File) {
+  /** 文件选择和拖放走同一读取流程，处理期间拒绝新文件避免预览串位 */
+  async function readFile(files: File[]) {
+    if (!files.length || working.current || busy || checking || !policy) return;
+    working.current = true;
     setContent("");
     setPreview(null);
     setError("");
-    setName(file?.name ?? "");
-    if (!file) return;
-    if (file.size > 8_000_000) {
-      setError("文件超过 8 MB，请拆分后导入。");
-      return;
-    }
+    setName("");
     setBusy(true);
     try {
-      const text = await file.text();
-      if (!text.trim()) throw new Error("文件为空，请选择收藏夹 JSON 文件。");
-      setContent(text);
+      const file = await readImportFile(files);
+      if (file) {
+        setName(file.name);
+        setContent(file.content);
+      }
     } catch (failure) {
       setError((failure as Error).message);
     } finally {
+      working.current = false;
       setBusy(false);
     }
   }
   /** 使用已经预览的版本和策略确认导入，失败时保留文件供重试 */
   async function confirm() {
-    if (!preview) return;
+    if (!preview || !policy || working.current) return;
+    working.current = true;
     setBusy(true);
     setError("");
     try {
@@ -100,42 +145,73 @@ export default function ImportDialog({
       setError((failure as Error).message);
       setPreview(null);
     } finally {
+      working.current = false;
       setBusy(false);
     }
   }
   return (
     <Dialog title="导入收藏夹" busy={busy} onClose={onClose}>
       <div className="recruitment-fields">
-        <label className="recruitment-upload">
+        <label
+          className={`recruitment-upload ${dragging ? "dragging" : ""}`}
+          aria-disabled={busy || checking || !policy}
+          onDragEnter={(event) => {
+            event.preventDefault();
+            if (
+              !busy &&
+              !checking &&
+              policy &&
+              event.dataTransfer.types.includes("Files")
+            ) {
+              dragDepth.current += 1;
+              setDragging(true);
+            }
+          }}
+          onDragOver={(event) => {
+            event.preventDefault();
+            event.dataTransfer.dropEffect =
+              busy || checking || !policy ? "none" : "copy";
+          }}
+          onDragLeave={(event) => {
+            event.preventDefault();
+            dragDepth.current = Math.max(0, dragDepth.current - 1);
+            if (!dragDepth.current) setDragging(false);
+          }}
+          onDrop={(event) => {
+            event.preventDefault();
+            dragDepth.current = 0;
+            setDragging(false);
+            void readFile(Array.from(event.dataTransfer.files));
+          }}
+        >
           <FileJson size={30} />
-          <strong>选择收藏夹 JSON 文件</strong>
+          <strong>{dragging ? "松开以导入" : "拖入或选择 JSON 文件"}</strong>
           <span>最大 8 MB</span>
           <input
             type="file"
             accept=".json,application/json"
             aria-label="选择导入文件"
-            disabled={busy || checking}
+            disabled={busy || checking || !policy}
             onChange={(e) => {
-              void readFile(e.target.files?.[0]);
+              void readFile(Array.from(e.target.files ?? []));
               e.target.value = "";
             }}
           />
         </label>
-        <label>
-          遇到相同 ID 的收藏
-          <select
-            value={policy}
-            disabled={busy}
-            onChange={(e) => {
-              setPreview(null);
-              setPolicy(e.target.value as "keep" | "update");
-            }}
-          >
-            <option value="keep">保留本机内容，跳过重复项</option>
-            <option value="update">使用文件内容更新重复项</option>
-          </select>
-        </label>
-        <p className="subtle">更新会覆盖同 ID 条目的全部内容。</p>
+        {policy && (
+          <p className="subtle">
+            重复项：{policy === "keep" ? "保留本机" : "使用文件更新"}
+          </p>
+        )}
+        {!policy && !settingsError && <p role="status">加载设置…</p>}
+        {settingsError && (
+          <p className="recruitment-error" role="alert">
+            {settingsError}
+            <button onClick={() => setSettingsAttempt((value) => value + 1)}>
+              重新加载设置
+            </button>
+          </p>
+        )}
         {name && <p className="recruitment-file-name">{name}</p>}
         {checking && <p role="status">正在检查文件…</p>}
         {preview && (

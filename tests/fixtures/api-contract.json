@@ -2679,6 +2679,52 @@
         }
       }
     },
+    "/api/settings/recruitment": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecruitmentPreferences"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/settings/resume-defaults": {
       "get": {
         "responses": {
@@ -4788,6 +4834,23 @@
       ],
       "title": "RecruitmentLink",
       "description": "一个收藏条目中的命名网址，只允许浏览器打开网页"
+    },
+    "RecruitmentPreferences": {
+      "properties": {
+        "import_policy": {
+          "type": "string",
+          "enum": [
+            "keep",
+            "update"
+          ],
+          "title": "Import Policy",
+          "default": "keep"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "title": "RecruitmentPreferences",
+      "description": "收藏夹导入偏好独立保存在本机，不随网址交换文件传递"
     },
     "RepeatBinding": {
       "properties": {

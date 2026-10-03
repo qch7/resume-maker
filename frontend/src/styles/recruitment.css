@@ -400,6 +400,17 @@
   align-items: center;
   background: var(--accent-soft);
   text-align: center;
+  cursor: pointer;
+}
+.recruitment-upload.dragging {
+  border-style: solid;
+  background: var(--selected);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.recruitment-upload[aria-disabled="true"] {
+  cursor: wait;
+  opacity: 0.65;
 }
 .recruitment-upload span {
   color: var(--subtle);

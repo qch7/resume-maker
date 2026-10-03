@@ -2,6 +2,9 @@ export interface Domain {
   id: string;
   name: string;
 }
+export interface RecruitmentPreferences {
+  import_policy: "keep" | "update";
+}
 export interface Bookmark {
   id: string;
   name: string;

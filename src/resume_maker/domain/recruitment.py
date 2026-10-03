@@ -18,6 +18,12 @@ Label = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, ma
 HTTP_URL = TypeAdapter(HttpUrl)
 
 
+class RecruitmentPreferences(Model):
+    """收藏夹导入偏好独立保存在本机，不随网址交换文件传递"""
+
+    import_policy: Literal["keep", "update"] = "keep"
+
+
 class RecruitmentGroup(Model):
     """用户自行维护的领域或分类，稳定标识允许改名后继续导入"""
 

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readImportFile } from "../src/features/recruitment/importFile.ts";
 import {
   filterBookmarks,
   moveBookmark,
@@ -57,4 +58,28 @@ test("过滤后排序只交换可见邻居，保留其他领域和原始数组",
   ]);
   assert.deepEqual(moveBookmark(items, visible, items[0].id, -1), items);
   assert.deepEqual(items, original);
+});
+
+test("选择或拖放单个 JSON 保留 UTF-8 内容，取消选择不改变文件", async () => {
+  const content = '{"name":"招聘清单"}';
+  const file = new File([content], "list.JSON", { type: "application/json" });
+  assert.deepEqual(await readImportFile([file]), {
+    name: "list.JSON",
+    content,
+  });
+  assert.equal(await readImportFile([]), null);
+});
+
+test("拖入多文件、错误类型、超限或空文件时拒绝读取导入", async () => {
+  const file = new File(["{}"], "list.json");
+  await assert.rejects(readImportFile([file, file]), /一个文件/);
+  await assert.rejects(readImportFile([new File(["{}"], "list.txt")]), /JSON/);
+  await assert.rejects(
+    readImportFile([new File([" \n"], "empty.json")]),
+    /为空/,
+  );
+  await assert.rejects(
+    readImportFile([new File([new Uint8Array(8_000_001)], "large.json")]),
+    /8 MB/,
+  );
 });

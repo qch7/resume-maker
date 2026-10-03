@@ -5,6 +5,7 @@ from pathlib import Path
 
 from resume_maker.core.errors import Problem
 from resume_maker.domain.models import ProviderSettings
+from resume_maker.domain.recruitment import RecruitmentPreferences
 from resume_maker.domain.resume_defaults import ResumeDefaults
 from resume_maker.infrastructure.database import Database, dump, uid, unpack
 from resume_maker.integrations.providers.base import Provider
@@ -29,6 +30,15 @@ class Settings:
     def save_provider(self, settings: ProviderSettings):
         """保存已校验的模型参数，后续任务读取新的配置"""
         self.db.set_setting("provider", settings.model_dump())
+        return settings
+
+    def recruitment(self):
+        """读取收藏夹导入偏好，首次使用时保留本机重复项"""
+        return RecruitmentPreferences.model_validate(self.db.setting("recruitment-preferences", {}))
+
+    def save_recruitment(self, settings: RecruitmentPreferences):
+        """保存收藏夹偏好，重新打开导入窗口时读取最新配置"""
+        self.db.set_setting("recruitment-preferences", settings.model_dump())
         return settings
 
     def resume_defaults(self):

@@ -1190,6 +1190,13 @@
   background: #152b234d;
   backdrop-filter: blur(3px);
 }
+.settings-dialog > .tabs {
+  overflow-x: auto;
+}
+.settings-dialog > .tabs button {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
 .dialog-title {
   margin-bottom: 12px;
 }

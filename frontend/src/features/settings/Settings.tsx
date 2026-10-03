@@ -9,6 +9,7 @@ import { DEFAULT_ACTIVITY_PREFERENCES } from "../activity/preferences";
 import type { useActivityPreferences } from "../activity/useActivityPreferences";
 import CodexModels from "./CodexModels";
 import Privacy from "./Privacy";
+import RecruitmentSettings from "./RecruitmentSettings";
 
 interface Props {
   initial: "projects" | "settings" | "activity";
@@ -19,15 +20,16 @@ interface Props {
   run: (work: () => Promise<void>) => void;
 }
 
-/** 分页管理项目导入、模型连接、隐私保护、系统日志和本机数据 */
+/** 分页管理项目导入、模型连接、隐私保护、收藏夹和系统日志 */
 export default function Settings(props: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [tab, setTab] = useState<
-    "projects" | "settings" | "privacy" | "activity"
+    "projects" | "settings" | "privacy" | "activity" | "recruitment"
   >(props.initial);
   const [activityVisited, setActivityVisited] = useState(
     props.initial === "activity",
   );
+  const [recruitmentVisited, setRecruitmentVisited] = useState(false);
   const {
     preferences,
     setPreferences,
@@ -129,6 +131,15 @@ export default function Settings(props: Props) {
           }}
         >
           系统日志
+        </button>
+        <button
+          className={tab === "recruitment" ? "active" : ""}
+          onClick={() => {
+            setTab("recruitment");
+            setRecruitmentVisited(true);
+          }}
+        >
+          招聘收藏夹
         </button>
       </nav>
       {tab === "projects" && (
@@ -383,6 +394,11 @@ export default function Settings(props: Props) {
       <div className="settings-body" hidden={tab !== "privacy"}>
         <Privacy />
       </div>
+      {recruitmentVisited && (
+        <div className="settings-body" hidden={tab !== "recruitment"}>
+          <RecruitmentSettings />
+        </div>
+      )}
       {activityVisited && (
         <div className="settings-body" hidden={tab !== "activity"}>
           <ActivitySettings
