@@ -301,35 +301,6 @@ export default function RecruitmentPage({ active }: { active: boolean }) {
               </button>
             </div>
           )}
-          <div className="recruitment-examples">
-            <span>示例文件</span>
-            <button
-              onClick={() =>
-                void perform(() =>
-                  download(
-                    "/recruitment/examples/internet",
-                    "internet.bookmarks.json",
-                  ),
-                )
-              }
-            >
-              <Download size={14} />
-              互联网 · 30 家
-            </button>
-            <button
-              onClick={() =>
-                void perform(() =>
-                  download(
-                    "/recruitment/examples/technology",
-                    "technology.bookmarks.json",
-                  ),
-                )
-              }
-            >
-              <Download size={14} />
-              科技企业 · 6 家
-            </button>
-          </div>
           {!snapshot ? (
             <div className="recruitment-empty">
               <RefreshCw size={28} />

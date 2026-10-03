@@ -154,35 +154,6 @@
   font-weight: 400;
   opacity: 0.75;
 }
-.recruitment-examples {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 13px 16px;
-  background: var(--accent-soft);
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  margin-bottom: 22px;
-  flex-wrap: wrap;
-}
-.recruitment-examples > div {
-  flex: 1;
-  min-width: 200px;
-}
-.recruitment-examples b {
-  display: block;
-  font-size: 12px;
-  margin-bottom: 3px;
-}
-.recruitment-examples span {
-  color: var(--subtle);
-  font-size: 11px;
-}
-.recruitment-examples button {
-  font-size: 11px;
-  padding: 6px 9px;
-  border-radius: 5px;
-}
 .recruitment-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(290px, 100%), 1fr));

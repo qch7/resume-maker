@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { FileJson, Upload } from "lucide-react";
-import { api, download } from "../../shared/lib/api";
+import { api } from "../../shared/lib/api";
 import Dialog from "./Dialog";
 import type { ImportSummary, Snapshot } from "./model";
 
@@ -103,24 +103,13 @@ export default function ImportDialog({
       setBusy(false);
     }
   }
-  /** 下载示例文件，失败时在当前窗口显示原因 */
-  async function example() {
-    try {
-      await download(
-        "/recruitment/examples/internet",
-        "internet.bookmarks.json",
-      );
-    } catch (failure) {
-      setError((failure as Error).message);
-    }
-  }
   return (
     <Dialog title="导入收藏夹" busy={busy} onClose={onClose}>
       <div className="recruitment-fields">
         <label className="recruitment-upload">
           <FileJson size={30} />
           <strong>选择收藏夹 JSON 文件</strong>
-          <span>支持本页导出的文件及示例清单，最大 8 MB</span>
+          <span>最大 8 MB</span>
           <input
             type="file"
             accept=".json,application/json"
@@ -132,11 +121,6 @@ export default function ImportDialog({
             }}
           />
         </label>
-        <div className="row">
-          <button type="button" onClick={() => void example()}>
-            下载互联网示例（30 家）
-          </button>
-        </div>
         <label>
           遇到相同 ID 的收藏
           <select

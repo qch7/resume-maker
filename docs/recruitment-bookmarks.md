@@ -4,7 +4,7 @@
 
 ## 测试导入
 
-1. 打开“招聘收藏夹”，下载互联网示例。
+1. 保存单独提供的互联网 JSON 文件，打开“招聘收藏夹”。
 2. 点击“导入”，选择文件。空收藏夹应预览：新增 30 条、1 个领域、3 个分类。
 3. 确认后出现互联网领域，以及大厂 20 条、中厂 10 条、小厂 0 条。
 4. 重复导入应跳过 30 条。
@@ -13,11 +13,13 @@
 
 | 文件 | 内容 |
 | --- | --- |
-| [互联网示例](../src/resume_maker/resources/recruitment/internet.bookmarks.json) | 互联网领域；大厂、中厂、小厂；30 家企业 |
-| [科技企业示例](../src/resume_maker/resources/recruitment/technology.bookmarks.json) | 科技领域；大厂、中厂、小厂；6 家企业 |
+| [互联网清单](../src/resume_maker/resources/recruitment/internet.bookmarks.json) | 互联网领域；大厂、中厂、小厂；30 家企业 |
+| [科技企业清单](../src/resume_maker/resources/recruitment/technology.bookmarks.json) | 科技领域；大厂、中厂、小厂；6 家企业 |
 | [JSON Schema](recruitment-bookmarks.schema.json) | v1 文件校验结构 |
 
 企业和链接来自 [原始清单](recruitment-navigation-proposal.md)，保留 2026-09-26 的核验备注，本次开发未重新逐一核验。企业归类可修改，小厂未预填企业。
+
+两份清单单独提供，页面不展示文件入口。
 
 ## 文件格式
 
