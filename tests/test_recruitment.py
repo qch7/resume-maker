@@ -7,9 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from resume_maker.api import create_app
-from resume_maker.api.routes.recruitment import EXAMPLES
 from resume_maker.core.config import Config
-from resume_maker.domain.recruitment import RecruitmentFile
 from resume_maker.infrastructure.database import Database
 from resume_maker.infrastructure.storage import create_backup, restore_backup
 from resume_maker.services.recruitment import Recruitment
@@ -205,25 +203,16 @@ def test_same_name_domains_merge_and_edit_delete_preserve_references(tmp_path):
         assert client.get("/api/recruitment/export", headers=HEADERS).json()["bookmarks"] == []
 
 
-def test_example_files_and_routes_are_complete_and_authenticated(tmp_path):
-    """两份企业清单通过同一格式校验，下载和导出遵守本机访问边界"""
+def test_recruitment_routes_are_authenticated_without_bundled_lists(tmp_path):
+    """收藏接口遵守本机访问边界，不依赖本地企业清单或提供下载入口"""
     with TestClient(create_app(Config(data_dir=tmp_path, token="test"))) as client:
-        for name, count in [("internet", 30), ("technology", 6)]:
-            response = client.get(f"/api/recruitment/examples/{name}", headers=HEADERS)
-            assert response.status_code == 200
-            data = RecruitmentFile.model_validate(response.json())
-            assert len(data.bookmarks) == count
-            assert data == RecruitmentFile.model_validate_json(
-                (EXAMPLES / f"{name}.bookmarks.json").read_text(encoding="utf-8")
+        for name in ["internet", "technology"]:
+            assert (
+                client.get(f"/api/recruitment/examples/{name}", headers=HEADERS).status_code == 404
             )
-            if name == "internet":
-                assert sum(item.category == "large" for item in data.bookmarks) == 20
-                assert sum(item.category == "medium" for item in data.bookmarks) == 10
-            assert client.get(f"/api/recruitment/examples/{name}").status_code == 401
         assert client.get("/api/recruitment/export").status_code == 401
         assert client.get("/api/recruitment").status_code == 401
         assert client.post("/api/recruitment/import", json=import_body(sample())).status_code == 401
-        assert client.get("/api/recruitment/examples/unknown", headers=HEADERS).status_code == 422
 
 
 def test_empty_collection_custom_categories_and_ungrouped_bookmarks(tmp_path):

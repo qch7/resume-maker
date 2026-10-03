@@ -1,6 +1,5 @@
 """招聘收藏夹页面的保存、交换文件和导入预览入口"""
 
-from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, Response
@@ -11,7 +10,6 @@ from resume_maker.domain.models import Model
 from resume_maker.domain.recruitment import RecruitmentFile
 
 router = APIRouter(prefix="/api/recruitment", tags=["recruitment"])
-EXAMPLES = Path(__file__).resolve().parents[2] / "resources" / "recruitment"
 
 
 class SaveBookmarks(Model):
@@ -67,9 +65,3 @@ def export_bookmarks(services: ServicesDep):
     """导出全部领域、收藏、链接和备注，保留稳定标识和顺序"""
     data = RecruitmentFile.model_validate(services.recruitment.get()["data"])
     return json_download(data.model_dump_json(indent=2), "recruitment")
-
-
-@router.get("/examples/{name}")
-def example_bookmarks(name: Literal["internet", "technology"]):
-    """下载随安装包分发的清单，让用户通过正常导入流程自行加载"""
-    return json_download((EXAMPLES / f"{name}.bookmarks.json").read_text(encoding="utf-8"), name)

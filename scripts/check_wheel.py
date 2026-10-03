@@ -29,8 +29,6 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path.cwd() / "package"))
 from resume_maker.api import create_app
-from resume_maker.api.routes.recruitment import EXAMPLES
-from resume_maker.domain.recruitment import RecruitmentFile
 from resume_maker.core.config import Config, sandbox_directory
 from resume_maker.infrastructure.database import SCHEMA_VERSION
 from resume_maker.services.templates.analysis import INSTRUCTIONS
@@ -65,11 +63,10 @@ assert list((config.frontend / "assets").glob("*.js"))
 app = create_app(config)
 assert app.state.services.db.one("PRAGMA user_version")["user_version"] == SCHEMA_VERSION
 assert "/api/state" in app.openapi()["paths"]
-for name, count in [("internet", 30), ("technology", 6)]:
-    data = RecruitmentFile.model_validate_json(
-        (EXAMPLES / f"{name}.bookmarks.json").read_text(encoding="utf-8")
-    )
-    assert len(data.bookmarks) == count
+assert app.state.services.recruitment.get()["data"]["bookmarks"] == []
+recruitment_resources = Path.cwd() / "package/resume_maker/resources/recruitment"
+for name in ["internet", "technology"]:
+    assert not (recruitment_resources / f"{name}.bookmarks.json").exists()
 print("Wheel 验证通过：应用、静态资源、数据库、只读材料服务和本地 OCR 模型完整。")
 """
         # 隔离模式忽略 PYTHONUTF8，因此通过解释器参数启用 UTF-8

@@ -13,13 +13,13 @@
 
 | 文件 | 内容 |
 | --- | --- |
-| [互联网清单](../src/resume_maker/resources/recruitment/internet.bookmarks.json) | 互联网领域；大厂、中厂、小厂；30 家企业 |
-| [科技企业清单](../src/resume_maker/resources/recruitment/technology.bookmarks.json) | 科技领域；大厂、中厂、小厂；6 家企业 |
+| 互联网清单（单独提供） | 互联网领域；大厂、中厂、小厂；30 家企业 |
+| 科技企业清单（单独提供） | 科技领域；大厂、中厂、小厂；6 家企业 |
 | [JSON Schema](recruitment-bookmarks.schema.json) | v1 文件校验结构 |
 
 企业和链接来自 [原始清单](recruitment-navigation-proposal.md)，保留 2026-09-26 的核验备注，本次开发未重新逐一核验。企业归类可修改，小厂未预填企业。
 
-两份清单单独提供，页面不展示文件入口。
+两份清单单独提供，不纳入 Git 或安装包，页面和 API 均不提供清单下载入口。
 
 ## 文件格式
 
