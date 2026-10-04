@@ -54,6 +54,10 @@ class Documents:
         """列出当前可选择的生成及渲染能力，停用贡献立即从列表撤销"""
         return self.registry.describe() if self.registry else {"engines": [], "renderers": []}
 
+    def importers(self, purpose):
+        """读取统一导入目录，证书和模板页面使用相同格式描述"""
+        return self.registry.importers(purpose) if self.registry else []
+
     def export(self, resume_id: str, *, engine_id=None, renderer_id=None) -> dict:
         """读取固定资料及项目引用，按所选完整模板或内置版式生成文件和清单"""
         inputs = freeze_export(self.catalog, self.data_dir, resume_id)

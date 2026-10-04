@@ -212,7 +212,7 @@ class Honors(Protocol):
         """保存人工填写和核对后的完整字段，识别中和版本过期时拒绝覆盖"""
         ...
 
-    def upload(self, raw, filename):
+    def upload(self, raw, filename, importer_id=None):
         """完整校验并保存原件后创建待识别条目，失败上传不留下半条记录"""
         ...
 
@@ -238,6 +238,10 @@ class Documents(Protocol):
 
     def engines(self) -> dict:
         """列出当前已注册的文档引擎及渲染器"""
+        ...
+
+    def importers(self, purpose) -> list[dict]:
+        """列出当前可选的文件处理器和支持格式"""
         ...
 
     def export(self, resume_id: str, *, engine_id=None, renderer_id=None) -> dict:
@@ -401,7 +405,12 @@ class Templates(Protocol):
         ...
 
     def analyze(
-        self, path: Path, document: ResumeDocument, items: list[ResumeItem] | None = None
+        self,
+        path: Path,
+        document: ResumeDocument,
+        items: list[ResumeItem] | None = None,
+        *,
+        importer_id=None,
     ) -> dict:
         """先复制源文档为受控快照，再异步分析，源文件后续变化不影响确认结果"""
         ...

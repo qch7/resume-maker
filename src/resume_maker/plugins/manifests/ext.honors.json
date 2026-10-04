@@ -19,7 +19,8 @@
       "db": ">=1.0.0 <2.0.0",
       "config": ">=1.0.0 <2.0.0",
       "activity": ">=1.0.0 <2.0.0",
-      "resume": ">=1.0.0 <2.0.0"
+      "resume": ">=1.0.0 <2.0.0",
+      "document.registry": ">=1.0.0 <2.0.0"
     }
   },
   "provides": {
@@ -48,10 +49,6 @@
     "folders": [
       "honors"
     ]
-  },
-  "optional": {
-    "import.image": ">=1.0.0 <2.0.0",
-    "import.pdf": ">=1.0.0 <2.0.0"
   },
   "enhances": [
     "resume"

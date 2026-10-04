@@ -167,6 +167,13 @@ def resolve(manifests: dict[str, Manifest], selected: set[str], required: set[st
         name: tuple(owners) for name, owners in indexes["host"].items() if name not in providers
     }
     for identifier in selected:
+        # 集合消费只影响排空，不改变注册顺序，新增提供方同样纳入变更范围
+        for point in manifests[identifier].consumes:
+            edges[identifier].update(
+                owner
+                for owner in selected
+                if owner != identifier and manifests[owner].contributes.get(point)
+            )
         for name in manifests[identifier].enhances:
             if (
                 name not in manifests[identifier].requires.get("host", {})

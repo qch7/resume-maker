@@ -179,6 +179,21 @@
 .template-import-controls {
   grid-template-columns: minmax(0, 1fr) auto;
 }
+.template-import-controls > .path-field,
+.template-import-controls > .import-details {
+  grid-column: 1 / -1;
+}
+.template-import-controls > .importer-select {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 4px 8px;
+  max-width: none;
+}
+.template-import-controls > .importer-select small {
+  grid-column: 2;
+  white-space: normal;
+}
 .template-library-controls {
   grid-template-columns: minmax(0, 1fr);
   padding-left: 20px;

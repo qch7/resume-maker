@@ -28,10 +28,17 @@ export default function TemplatePicker({
       <div className="template-library-picker">
         <span>{label}</span>
         <p>
-          {value ? "所选模板引擎尚未启用，原引用仍保留。" : "内置 · 完整简历"}
+          {placeholder ??
+            (value
+              ? hasPlugin("ext.template-adapter")
+                ? "模板库未启用，当前模板仍保留。"
+                : "所选模板引擎尚未启用，原引用仍保留。"
+              : "内置 · 完整简历")}
         </p>
         {value && (
-          <button onClick={() => onChange("")}>明确改用内置版式</button>
+          <button disabled={disabled} onClick={() => onChange("")}>
+            明确改用内置版式
+          </button>
         )}
       </div>
     );

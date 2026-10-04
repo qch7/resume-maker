@@ -94,7 +94,9 @@ def analyze_template(
     dep_templates: Annotated[Templates, Depends(service("templates"))], body: TemplateAnalysisInput
 ):
     """启动可取消的模板分析并返回任务标识"""
-    return dep_templates.analyze(Path(body.path), body.document, body.items)
+    return dep_templates.analyze(
+        Path(body.path), body.document, body.items, importer_id=body.importer_id
+    )
 
 
 @router.get("/templates/analyses")

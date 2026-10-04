@@ -1,9 +1,11 @@
 """独立荣誉库：持久条目、证书附件和可取消的串行视觉识别"""
 
 import queue
+import re
 import shutil
 import threading
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from uuid import UUID
 
 from resume_maker.core.errors import Problem, need
@@ -13,6 +15,7 @@ from resume_maker.infrastructure.database import dump, now, uid, unpack
 from resume_maker.infrastructure.filesystem import remove_owned_directory
 from resume_maker.infrastructure.observability import record, record_event, remember_task
 from resume_maker.integrations.sources import redact
+from resume_maker.sdk.imports import ImportContext, ImportSource
 from resume_maker.sdk.model import Cancelled
 from resume_maker.services.honor_links import preserve_deleted_honor
 
@@ -41,6 +44,7 @@ class Honors:
         self.stopped = threading.Event()
         self.worker = None
         self.importers = None
+        self.import_registry = None
         self.execution_queue = None
         self.cleanup_pending = {}
 
@@ -140,23 +144,38 @@ class Honors:
             self._write(conn, item)
             return item
 
-    def upload(self, raw, filename):
+    def upload(self, raw, filename, importer_id=None):
         """完整校验并保存原件后创建待识别条目，失败上传不留下半条记录"""
         filename = Path(filename.replace("\\", "/")).name[:240]
         item = self._new(HonorFields())
         directory = self.root / item["id"]
         directory.mkdir(parents=True)
         try:
-            importer = (
-                prepare_certificate
-                if self.importers is None
-                else self.importers.get(
-                    "pdf" if Path(filename).suffix.lower() == ".pdf" else "image"
+            if self.import_registry:
+                selected = self.import_registry.select_importer(
+                    ImportSource(filename, raw, "certificate"), importer_id
                 )
-            )
-            if importer is None:
-                raise Problem("对应的文件导入插件未启用。", 409)
-            metadata = importer(raw, filename, directory)
+                self.workspaces.mkdir(parents=True, exist_ok=True)
+                with TemporaryDirectory(prefix="certificate-import-", dir=self.workspaces) as stage:
+                    result = self.import_registry.run_import(
+                        selected, ImportContext(Path(stage), self.stopped)
+                    )
+                suffix = Path(filename).suffix.lower()
+                suffix = suffix if re.fullmatch(r"\.[a-z0-9]{1,16}", suffix) else ".bin"
+                (directory / ("original" + suffix)).write_bytes(raw)
+                for number, page in enumerate(result.pages, 1):
+                    (directory / f"page-{number}.png").write_bytes(page)
+                metadata = {
+                    "pages": len(result.pages),
+                    "extension": suffix,
+                    "text": result.text,
+                    "notices": list(result.notices),
+                    "importer": selected.trace,
+                }
+            else:
+                if importer_id:
+                    raise Problem("当前荣誉服务未连接导入注册表。", 409)
+                metadata = prepare_certificate(raw, filename, directory)
             item.update(
                 attachment={"name": filename, "size": len(raw), **metadata},
                 reviewed=False,
@@ -302,14 +321,15 @@ class Honors:
             images = []
             allow_images = self.provider.supports_images
             local_ocr = self.provider.preprocess_images
-            if local_ocr:
+            if local_ocr and not item["attachment"].get("importer"):
                 source, _ = self.file(identifier)
                 images.append(source)
             if not allow_images and not local_ocr and not item["attachment"]["text"].strip():
                 raise Problem(
                     "隐私保护未发送证书图片。此文件没有可提取的文字，请对照原件手动录入。"
                 )
-            for page in range(1, item["attachment"]["pages"] + 1) if allow_images else []:
+            use_pages = allow_images or (local_ocr and item["attachment"].get("importer"))
+            for page in range(1, item["attachment"]["pages"] + 1) if use_pages else []:
                 source, _ = self.file(identifier, page)
                 target = workspace / source.name
                 shutil.copyfile(source, target)

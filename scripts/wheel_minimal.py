@@ -1,8 +1,10 @@
 """在仅安装系统依赖的解释器内验证实际制作、导出和恢复闭环"""
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
+from threading import Event
 from zipfile import ZipFile
 
 from resume_maker.api import create_app
@@ -11,6 +13,7 @@ from resume_maker.domain.models import ResumeItem
 from resume_maker.domain.resume import ResumeDocument
 from resume_maker.infrastructure.storage import create_backup, restore_backup
 from resume_maker.sdk.context import ServiceKey
+from resume_maker.sdk.imports import ImportContext, ImportSource
 
 
 def main():
@@ -47,6 +50,17 @@ def main():
             ),
         )
         exported = host.require(ServiceKey("documents")).export(resume["id"])
+        registry = host.require(ServiceKey("document.registry"))
+        assert registry.importers("certificate") == []
+        original = directory / "exports" / exported["id"] / "resume.docx"
+        selected = registry.select_importer(ImportSource("resume.docx", original.read_bytes()))
+        stage = directory / "workspaces" / "minimal-import"
+        stage.mkdir()
+        result = registry.run_import(
+            selected, ImportContext(stage, Event(), document_json=json.dumps(resume["document"]))
+        )
+        assert result.template.startswith(b"PK")
+        assert selected.trace["id"] == "sys.docx/import"
         with ZipFile(directory / "exports" / exported["id"] / "resume.docx") as archive:
             content = archive.read("word/document.xml").decode()
             assert "最小安装" in content and "物理最小安装完成制作闭环" in content

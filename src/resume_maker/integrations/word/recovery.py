@@ -282,6 +282,7 @@ def prepare_template(
     renderer=DEFAULT_PROCESSOR,
     converter=DEFAULT_PROCESSOR,
     importers=None,
+    source_format=None,
 ):
     """可编辑 DOCX 始终保留原生版式且只有无可编辑文字的来源才逐页恢复"""
     renderer = render_word if renderer is DEFAULT_PROCESSOR else renderer
@@ -289,48 +290,76 @@ def prepare_template(
     package, notices = None, []
     native_pdf = False
     emit("activity", {"type": "prepare", "text": "正在自动整理模板格式"})
-    try:
+    if source_format == "image":
+        from resume_maker.integrations.word.image.recovery import rebuild_image
+
+        notices = rebuild_image(source, output, provider, settings, flag, emit)
+        return TemplatePackage(output), notices
+    if source_format == "docx":
         package = TemplatePackage(source)
-    except Problem:
-        if importers is None or "image" in importers:
-            from PIL import Image, UnidentifiedImageError
+    elif source_format == "pdf":
+        import pymupdf
 
-            try:
-                with Image.open(source) as image:
-                    image.verify()
-            except (UnidentifiedImageError, OSError):
-                pass
-            else:
-                from resume_maker.integrations.word.image.recovery import rebuild_image
-
-                notices = rebuild_image(source, output, provider, settings, flag, emit)
-                return TemplatePackage(output), notices
-        # PDF 和图片可直接成为识别页面，旧 Word 或损坏的 DOCX 由 Word 修复转换
+        with pymupdf.open(source) as input_pdf:
+            if not input_pdf.is_pdf or input_pdf.needs_pass:
+                raise Problem("PDF 内容无效或已加密。")
+            pdf = output.parent / "recovery.pdf"
+            input_pdf.save(pdf)
+        native_pdf = True
+    elif source_format == "word":
+        if converter is None:
+            raise Problem("Word 转换插件未启用。", 409)
+        converted = output.parent / "converted.docx"
+        error = converter(source, converted)
+        if error:
+            raise Problem("自动修复仍无法读取此文件：" + error)
+        package = TemplatePackage(converted)
+        notices.append("已自动转换为可编辑 DOCX 副本。")
+    elif source_format is not None:
+        raise Problem("导入器指定了未知源格式。", 409)
+    else:
         try:
-            if importers is not None and "pdf" not in importers:
-                raise ValueError("PDF 插件未启用")
-            import pymupdf
+            package = TemplatePackage(source)
+        except Problem:
+            if importers is None or "image" in importers:
+                from PIL import Image, UnidentifiedImageError
 
-            with pymupdf.open(source) as input_pdf:
-                if input_pdf.needs_pass:
-                    raise Problem("PDF 已加密，请先移除密码再导入。")
-                pdf = output.parent / "recovery.pdf"
-                if input_pdf.is_pdf:
-                    native_pdf = True
-                    input_pdf.save(pdf)
+                try:
+                    with Image.open(source) as image:
+                        image.verify()
+                except (UnidentifiedImageError, OSError):
+                    pass
                 else:
-                    pdf.write_bytes(input_pdf.convert_to_pdf())
-        except (RuntimeError, ValueError):
-            if converter is None:
-                raise Problem(
-                    "文件无法由已启用的格式处理器读取，请启用对应的导入或 Word 插件。", 409
-                ) from None
-            converted = output.parent / "converted.docx"
-            error = converter(source, converted)
-            if error:
-                raise Problem("自动修复仍无法读取此文件：" + error) from None
-            package = TemplatePackage(converted)
-            notices.append("已自动转换为可编辑 DOCX 副本。")
+                    from resume_maker.integrations.word.image.recovery import rebuild_image
+
+                    notices = rebuild_image(source, output, provider, settings, flag, emit)
+                    return TemplatePackage(output), notices
+            # PDF 和图片可直接成为识别页面，旧 Word 或损坏的 DOCX 由 Word 修复转换
+            try:
+                if importers is not None and "pdf" not in importers:
+                    raise ValueError("PDF 插件未启用")
+                import pymupdf
+
+                with pymupdf.open(source) as input_pdf:
+                    if input_pdf.needs_pass:
+                        raise Problem("PDF 已加密，请先移除密码再导入。")
+                    pdf = output.parent / "recovery.pdf"
+                    if input_pdf.is_pdf:
+                        native_pdf = True
+                        input_pdf.save(pdf)
+                    else:
+                        pdf.write_bytes(input_pdf.convert_to_pdf())
+            except (RuntimeError, ValueError):
+                if converter is None:
+                    raise Problem(
+                        "文件无法由已启用的格式处理器读取，请启用对应的导入或 Word 插件。", 409
+                    ) from None
+                converted = output.parent / "converted.docx"
+                error = converter(source, converted)
+                if error:
+                    raise Problem("自动修复仍无法读取此文件：" + error) from None
+                package = TemplatePackage(converted)
+                notices.append("已自动转换为可编辑 DOCX 副本。")
     if flag.is_set():
         raise Cancelled("模板自动整理已取消。")
     if package is not None:

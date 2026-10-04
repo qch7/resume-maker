@@ -43,6 +43,7 @@ async def upload_honor(
     request: Request,
     dep_honors: Annotated[Honors, Depends(service("honors"))],
     filename: str = Query(min_length=1, max_length=240),
+    importer_id: str | None = None,
 ):
     """流式接收一个原件，先限制实际字节数，再在工作线程解码和入队"""
     content = bytearray()
@@ -50,7 +51,7 @@ async def upload_honor(
         if len(content) + len(chunk) > MAX_BYTES:
             raise Problem("单个证书文件不得超过 20 MB。", 413)
         content.extend(chunk)
-    return await run_in_threadpool(dep_honors.upload, bytes(content), filename)
+    return await run_in_threadpool(dep_honors.upload, bytes(content), filename, importer_id)
 
 
 @router.put("/{honor_id}")

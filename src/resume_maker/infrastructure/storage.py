@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import re
 import shutil
 import sqlite3
 import tempfile
@@ -138,16 +139,13 @@ def validate_database(path: Path):
                 continue
             identifier = item["id"]
             extension = attachment["extension"]
-            if str(UUID(identifier)) != identifier or extension not in {
-                ".pdf",
-                ".png",
-                ".jpg",
-                ".jpeg",
-                ".webp",
-                ".bmp",
-                ".tif",
-                ".tiff",
-            }:
+            if (
+                str(UUID(identifier)) != identifier
+                or not isinstance(extension, str)
+                or not re.fullmatch(r"\.[a-z0-9]{1,16}", extension)
+                or type(attachment["pages"]) is not int
+                or not 1 <= attachment["pages"] <= 12
+            ):
                 raise Problem("备份中的荣誉附件信息无效。")
             folder = path.parent / "honors" / identifier
             files = ["original" + extension] + [
@@ -155,6 +153,14 @@ def validate_database(path: Path):
             ]
             if not all((folder / file).is_file() for file in files):
                 raise Problem(f"备份缺少荣誉证书文件：{identifier}")
+            trace = attachment.get("importer")
+            if trace is not None and (
+                not isinstance(trace, dict)
+                or trace.get("pages") != attachment["pages"]
+                or hashlib.sha256((folder / ("original" + extension)).read_bytes()).hexdigest()
+                != trace.get("source_sha256")
+            ):
+                raise Problem("证书原件与导入记录不一致，恢复已停止。")
         for (identifier,) in conn.execute("SELECT id FROM exports"):
             if not all(
                 (path.parent / "exports" / identifier / name).is_file()

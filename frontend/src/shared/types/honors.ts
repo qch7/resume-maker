@@ -1,3 +1,5 @@
+import type { ImportTrace } from "./imports";
+
 export const CATEGORIES = [
   "竞赛获奖",
   "资格证书",
@@ -35,6 +37,8 @@ export interface Honor {
     pages: number;
     extension: string;
     text: string;
+    importer?: ImportTrace;
+    notices?: string[];
   } | null;
   status: "queued" | "running" | "review" | "ready" | "failed" | "cancelled";
   reviewed: boolean;

@@ -2972,6 +2972,22 @@
               "maxLength": 240,
               "title": "Filename"
             }
+          },
+          {
+            "name": "importer_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Importer Id"
+            }
           }
         ],
         "responses": {
@@ -4224,6 +4240,42 @@
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/document-importers": {
+      "get": {
+        "parameters": [
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "template",
+              "title": "Purpose"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -6010,6 +6062,17 @@
         "path": {
           "type": "string",
           "title": "Path"
+        },
+        "importer_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Importer Id"
         },
         "document": {
           "$ref": "#/components/schemas/ResumeDocument"

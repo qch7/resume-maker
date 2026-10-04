@@ -2,15 +2,18 @@
 
 from resume_maker.core.errors import Problem
 from resume_maker.sdk.documents import DocumentEngine, DocumentRenderer
+from resume_maker.sdk.imports import DocumentImporter
 from resume_maker.sdk.manifest import compatible
+from resume_maker.services.document_imports import ImporterRegistry
 
 
-class DocumentRegistry:
+class DocumentRegistry(ImporterRegistry):
     """注册表每次调用读取当前代次的贡献，实例作用域负责撤销"""
 
-    def __init__(self, contributions):
+    def __init__(self, contributions, provenance=None):
         """注入通用贡献查询，文档流程不导入具体插件"""
         self.contributions = contributions
+        self.provenance = provenance or (lambda _owner: {})
 
     def entries(self, point, expected):
         """校验声明和实际接口，并保留贡献所有者用于追溯"""
@@ -20,7 +23,10 @@ class DocumentRegistry:
                 not item.identifier.startswith(item.owner + "/")
                 or item.identifier in result
                 or not isinstance(item.value, expected)
-                or not compatible(item.value.version, ">=1.0.0 <2.0.0")
+                or not compatible(
+                    item.value.api_version if expected is DocumentImporter else item.value.version,
+                    ">=1.0.0 <2.0.0",
+                )
             ):
                 raise Problem(f"文档贡献协议无效：{item.owner}/{item.identifier}", 409)
             result[item.identifier] = item

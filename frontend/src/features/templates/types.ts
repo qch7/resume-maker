@@ -1,3 +1,5 @@
+import type { ImportTrace } from "../../shared/types/imports";
+
 export interface TemplateNode {
   id: string;
   parent: string;
@@ -68,6 +70,7 @@ export interface TemplateProgressData {
   from_library: boolean;
 }
 export interface TemplateAnalysis extends TemplateProgressData {
+  importer?: ImportTrace | null;
   file_name: string;
   inventory: { nodes: TemplateNode[]; warnings: string[]; notices?: string[] };
   plan: TemplatePlan | null;

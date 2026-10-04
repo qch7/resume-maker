@@ -118,6 +118,7 @@ class Manifest(Contract):
     plugins: dict[str, str] = Field(default_factory=dict)
     provides: dict[str, dict[str, Service]] = Field(default_factory=dict)
     contributes: dict[str, list[str]] = Field(default_factory=dict)
+    consumes: list[str] = Field(default_factory=list)
     permissions: list[str] = Field(default_factory=list)
     dependencies: list[str] = Field(default_factory=list)
     environment_lock: str | None = None

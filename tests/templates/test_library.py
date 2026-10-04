@@ -292,6 +292,7 @@ def test_saved_recognition_history_survives_restart_and_resave(tmp_path):
             task["id"], "保存记录", TemplatePlan.model_validate(task["plan"]), simple_document(), []
         )
         assert saved["mapping"]["analysis"] == history
+        assert saved["mapping"]["importer"] == task["importer"]
 
     restarted_provider = TemplateProvider(failure=True)
     with TestClient(create_app(config, restarted_provider)) as client:
@@ -300,10 +301,12 @@ def test_saved_recognition_history_survives_restart_and_resave(tmp_path):
         assert opened["from_library"] and opened["status"] == "completed"
         assert opened["id"] != task["id"]
         assert {key: opened[key] for key in keys} == history
+        assert opened["importer"] == task["importer"]
         plan = TemplatePlan.model_validate(opened["plan"])
         plan.summary = "已人工核对"
         resaved = service.save(opened["id"], "人工另存", plan, simple_document(), [])
         assert resaved["mapping"]["analysis"] == history
+        assert resaved["mapping"]["importer"] == task["importer"]
         opened["events"].clear()
         assert service.get(opened["id"])["events"] == history["events"]
         assert not restarted_provider.calls

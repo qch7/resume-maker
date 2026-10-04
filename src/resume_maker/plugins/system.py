@@ -124,7 +124,19 @@ def documents(context):
     catalog = dependency(context, "resume")
     directory = dependency(context, "config").data_dir
     engine = dependency(context, "docx")
-    registry = DocumentRegistry(context.host.collection)
+
+    def provenance(owner):
+        """重试绑定插件版本、已安装产物摘要和配置摘要，配置原文不进入业务记录"""
+        from resume_maker.runtime.state import fingerprint
+
+        location = context.host.bootstrap.get("packages", {}).get(owner)
+        return {
+            "plugin_version": context.host.manifests[owner].version,
+            "artifact_sha256": location.name if location else None,
+            "config_sha256": fingerprint(context.host.configs.get(owner, {})),
+        }
+
+    registry = DocumentRegistry(context.host.collection, provenance)
     documents = Documents(
         catalog, directory, render=None, templates=False, engine=engine, registry=registry
     )
@@ -146,6 +158,7 @@ def documents(context):
 
 def docx(context):
     """发布只依赖本地 OOXML 的内置简历引擎"""
+    from resume_maker.integrations.document_importers import importer
     from resume_maker.integrations.word.full_resume import write_full_resume
     from resume_maker.sdk.documents import DocumentEngine
 
@@ -154,6 +167,7 @@ def docx(context):
         resume, projects, _template = inputs.values()
         write_full_resume(output, resume["document"], projects)
 
+    context.contribute("documents.importers", "sys.docx/import", importer("docx"))
     publish(context, "docx", write_full_resume, observed=False)
     context.contribute("documents.engines", "sys.docx/default", DocumentEngine("1.0.0", generate))
 

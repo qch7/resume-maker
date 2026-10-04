@@ -24,6 +24,9 @@
   "contributes": {
     "documents.engines": [
       "sys.docx/default"
+    ],
+    "documents.importers": [
+      "sys.docx/import"
     ]
   },
   "permissions": [

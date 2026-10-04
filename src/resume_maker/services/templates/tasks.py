@@ -18,6 +18,7 @@ from resume_maker.integrations.word.templates.completion import complete_templat
 from resume_maker.integrations.word.templates.fill import fill_template
 from resume_maker.integrations.word.templates.mapping import TemplatePackage
 from resume_maker.integrations.word.templates.values import missing_targets
+from resume_maker.sdk.imports import ImportContext, ImportSource
 from resume_maker.sdk.model import Cancelled, Provider
 from resume_maker.services.catalog import Catalog
 from resume_maker.services.document_inputs import generate_docx
@@ -72,6 +73,7 @@ class Templates:
         self.stopped = False
         self.inputs = {}
         self.importers = None
+        self.import_registry = None
         self.renderer = DEFAULT_RENDERER
         self.converter = DEFAULT_RENDERER
         self.execution_queue = None
@@ -146,17 +148,25 @@ class Templates:
                 TemplatePlan.model_validate(saved["initial"]) if saved.get("initial") else None,
                 saved.get("feedback", ""),
                 uploaded.read_bytes() if uploaded else None,
+                expected_importer=saved.get("importer"),
             )
             self.origins[result["id"]] = self.origins.get(identifier)
             self._persist(result["id"])
             return result
 
     def analyze(
-        self, path: Path, document: ResumeDocument, items: list[ResumeItem] | None = None
+        self,
+        path: Path,
+        document: ResumeDocument,
+        items: list[ResumeItem] | None = None,
+        *,
+        importer_id=None,
     ) -> dict:
         """先复制源文档为受控快照，再异步分析，源文件后续变化不影响确认结果"""
         path = path.expanduser().resolve(strict=True)
-        return self._start(None, path.name, document, items or [], raw=path.read_bytes())
+        with path.open("rb") as handle:
+            raw = handle.read(100_000_001)
+        return self._start(None, path.name, document, items or [], raw=raw, importer_id=importer_id)
 
     def repair(self, identifier, plan, document, items, feedback=""):
         """根据当前人工方案新建独立修正任务"""
@@ -168,20 +178,36 @@ class Templates:
                 items,
                 plan,
                 feedback,
+                expected_importer=self.get(identifier).get("importer"),
             )
             self.origins[task["id"]] = self.origins.get(identifier)
             self._persist(task["id"])
             return task
 
-    def _start(self, package, file_name, document, items, initial=None, feedback="", raw=None):
-        """统一准备分析副本和异步任务，校验项目引用后才调用模型"""
+    def _start(
+        self,
+        package,
+        file_name,
+        document,
+        items,
+        initial=None,
+        feedback="",
+        raw=None,
+        *,
+        importer_id=None,
+        expected_importer=None,
+    ):
+        """固定导入器和原件后准备异步任务，校验项目引用后才调用模型"""
         if self.provider is None:
             raise Problem("模板 AI 插件未启用。", 409)
-        if raw is not None and self.importers is not None:
-            suffix = Path(file_name).suffix.lower()
-            kind = "pdf" if suffix == ".pdf" else "image"
-            if suffix not in {".docx", ".doc"} and kind not in self.importers:
-                raise Problem("对应的文件导入插件未启用。", 409)
+        trace = expected_importer
+        if raw is not None and self.import_registry:
+            selected = self.import_registry.select_importer(
+                ImportSource(file_name, raw, "template"), importer_id, expected=expected_importer
+            )
+            trace = selected.trace
+        elif importer_id:
+            raise Problem("当前模板服务未连接导入注册表。", 409)
         inventory = package.inventory() if package else {"nodes": [], "warnings": [], "notices": []}
         projects = self.projects(items)
         with self.lock:
@@ -205,6 +231,7 @@ class Templates:
                 "id": identifier,
                 "created_at": now(),
                 "file_name": file_name,
+                "importer": trace,
                 "status": "running",
                 "activity": "正在自动整理模板格式…",
                 "plan": None,
@@ -223,6 +250,7 @@ class Templates:
             self.inputs[identifier] = {
                 "initial": initial.model_dump() if initial is not None else None,
                 "feedback": feedback,
+                "importer": trace,
             }
             flag = self.flags[identifier] = threading.Event()
             settings = ProviderSettings.model_validate(
@@ -313,22 +341,47 @@ class Templates:
                 package = TemplatePackage(source)
             else:
                 uploaded = next(directory.glob("uploaded*"))
-                processors = {"importers": self.importers}
-                if self.renderer is not DEFAULT_RENDERER:
-                    processors["renderer"] = self.renderer
-                if self.converter is not DEFAULT_RENDERER:
-                    processors["converter"] = self.converter
-                package, notices = prepare_template(
-                    uploaded,
-                    source,
-                    provider,
-                    settings,
-                    flag,
-                    emit,
-                    document,
-                    projects,
-                    **processors,
-                )
+                if self.import_registry:
+                    selected = self.import_registry.select_importer(
+                        ImportSource(
+                            self.tasks[identifier]["file_name"], uploaded.read_bytes(), "template"
+                        ),
+                        expected=self.inputs[identifier]["importer"],
+                    )
+                    stage = directory / "import"
+                    stage.mkdir()
+                    result = self.import_registry.run_import(
+                        selected,
+                        ImportContext(
+                            stage,
+                            flag,
+                            provider,
+                            settings,
+                            dump(document.model_dump()),
+                            dump(projects),
+                            emit,
+                            self.renderer if self.renderer is not DEFAULT_RENDERER else None,
+                        ),
+                    )
+                    source.write_bytes(result.template)
+                    package, notices = TemplatePackage(source), list(result.notices)
+                else:
+                    processors = {"importers": self.importers}
+                    if self.renderer is not DEFAULT_RENDERER:
+                        processors["renderer"] = self.renderer
+                    if self.converter is not DEFAULT_RENDERER:
+                        processors["converter"] = self.converter
+                    package, notices = prepare_template(
+                        uploaded,
+                        source,
+                        provider,
+                        settings,
+                        flag,
+                        emit,
+                        document,
+                        projects,
+                        **processors,
+                    )
                 with self.lock:
                     if flag.is_set():
                         raise Cancelled("模板分析已取消。")
@@ -503,6 +556,7 @@ class Templates:
                 "id": identifier,
                 "created_at": now(),
                 "file_name": template["name"],
+                "importer": mapping.get("importer"),
                 "status": "completed",
                 "activity": "已打开保存的映射，修改后将保存为新版本。",
                 "plan": plan.model_dump(),
@@ -600,6 +654,7 @@ class Templates:
                         {
                             "plan": plan.model_dump(),
                             "analysis": analysis_record(task),
+                            "importer": task.get("importer"),
                             "artifacts": self.artifacts.get(identifier, []),
                         }
                     ),

@@ -448,3 +448,166 @@ def test_inspect_rejects_hash_mismatch_and_identity_conflict(tmp_path):
             target.writestr(name, data)
     with pytest.raises(PluginError, match="摘要"):
         store.inspect(archive)
+
+
+def test_external_importer_full_upload_template_cancel_disable_restore(tmp_path):
+    """真实外部格式接入两条导入路径，任务排空、停用和恢复均保留原件及处理记录"""
+    import base64
+    from io import BytesIO
+
+    from PIL import Image
+
+    from resume_maker.core.errors import Problem
+    from resume_maker.infrastructure.storage import restore_backup
+    from resume_maker.plugins.discovery import selection
+    from tests.support.templates import (
+        TemplateProvider,
+        completed,
+        simple_document,
+        simple_template,
+    )
+
+    png = BytesIO()
+    Image.new("RGB", (10, 10), "white").save(png, format="PNG")
+    code = '''import base64
+from resume_maker.sdk.imports import DocumentImporter, ImportProbe, ImportResult
+
+PAGE = base64.b64decode("PNG_BASE64")
+
+def probe(source):
+    """自定义格式以实际文件头识别，两种用途分别声明页数"""
+    if source.data.startswith(b"SYNTHETIC:"):
+        return ImportProbe("synthetic", 2 if source.purpose == "certificate" else None)
+    return None
+
+def prepare(source, context):
+    """通过公开协议返回字节，不接触主项目目录或业务数据库"""
+    if source.purpose == "certificate":
+        return ImportResult(pages=(PAGE,) if source.data.endswith(b"partial") else (PAGE, PAGE))
+    return ImportResult(template=source.data.removeprefix(b"SYNTHETIC:"))
+
+def activate(context):
+    """提供两个同格式处理器以验证明确选择，生命周期由消费声明自动连接"""
+    for identifier in ("first", "second"):
+        context.contribute("documents.importers", "community.example/" + identifier,
+            DocumentImporter("1.0.0", "合成格式 " + identifier,
+                ("template", "certificate"), (".synthetic",), probe, prepare))
+'''.replace("PNG_BASE64", base64.b64encode(png.getvalue()).decode())
+    archive = tmp_path / "importer.rmp"
+    bundle(
+        archive,
+        extra={
+            "entrypoints": {"host": {"mode": "trusted-host", "entry": "python/plugin.py:activate"}},
+            "provides": {},
+            "contributes": {
+                "documents.importers": ["community.example/first", "community.example/second"]
+            },
+        },
+        artifacts_extra={"python/plugin.py": code.encode()},
+    )
+    selected = selection("minimal")[1] | {
+        "ext.honors",
+        "ext.template-adapter",
+        "ext.template-ai",
+        "ext.ai-runtime",
+        "ext.provider-codex",
+    }
+    config = Config(data_dir=tmp_path / "data", plugins=tuple(selected), token="test")
+    with TemplateProvider(block=True) as provider:
+        app = create_app(config, provider)
+        manager = app.state.runtime.require(ServiceKey("plugins"))
+        inspected = app.state.runtime.bootstrap["package_store"].inspect(archive)
+        manager.install(archive, inspected["digest"], set(inspected["trust_modes"]))
+        with TestClient(app) as client:
+            enable(client, "community.example")
+            entries = client.get(
+                "/api/document-importers?purpose=certificate", headers=HEADERS
+            ).json()
+            assert {row["id"] for row in entries} == {
+                "community.example/first",
+                "community.example/second",
+            }
+            upload = "/api/honors/upload?filename=certificate.synthetic"
+            assert (
+                client.post(upload, content=b"SYNTHETIC:example", headers=HEADERS).status_code
+                == 409
+            )
+            upload += "&importer_id=community.example/first"
+            response = client.post(upload, content=b"SYNTHETIC:example", headers=HEADERS)
+            assert response.status_code == 201, response.text
+            honor = response.json()
+            assert honor["attachment"]["pages"] == 2
+            trace = honor["attachment"]["importer"]
+            assert trace["artifact_sha256"] == inspected["digest"]
+            assert trace["source_sha256"] == hashlib.sha256(b"SYNTHETIC:example").hexdigest()
+            assert (
+                client.post(upload, content=b"SYNTHETIC:partial", headers=HEADERS).status_code
+                == 409
+            )
+            assert len(client.get("/api/honors", headers=HEADERS).json()) == 1
+            original = f"/api/honors/{honor['id']}/original"
+            assert client.get(original, headers=HEADERS).content == b"SYNTHETIC:example"
+            assert (
+                client.get(f"/api/honors/{honor['id']}/pages/2", headers=HEADERS).content
+                == png.getvalue()
+            )
+
+            source = tmp_path / "template.docx"
+            simple_template(source)
+            custom = tmp_path / "template.synthetic"
+            raw = b"SYNTHETIC:" + source.read_bytes()
+            custom.write_bytes(raw)
+            body = {"path": str(custom), "document": simple_document().model_dump(), "items": []}
+            assert (
+                client.post("/api/templates/analyses", json=body, headers=HEADERS).status_code
+                == 409
+            )
+            body["importer_id"] = "community.example/first"
+            response = client.post("/api/templates/analyses", json=body, headers=HEADERS)
+            assert response.status_code == 200, response.text
+            task_id = response.json()["id"]
+            assert provider.started.wait(10)
+            custom.write_bytes(b"source changed after task started")
+            plan = manager.plan(sorted(selected), app.state.runtime.generation)
+            assert {"sys.documents", "ext.honors", "ext.template-ai"} <= set(plan["affected"])
+            manager.prepare(plan["id"], plan["digest"])
+            with pytest.raises(Problem):
+                manager.apply(plan["id"], plan["digest"])
+            manager.cancel_tasks(plan["id"], plan["digest"])
+            with pytest.raises(Problem):
+                manager.apply(plan["id"], plan["digest"])
+            provider.release.set()
+            task = completed(app.state.services.templates, task_id)
+            assert task["status"] == "cancelled"
+            manager.apply(plan["id"], plan["digest"])
+            assert client.get(original, headers=HEADERS).content == b"SYNTHETIC:example"
+            retry = f"/api/templates/analyses/{task_id}/retry"
+            retry_body = {"document": simple_document().model_dump(), "items": []}
+            assert client.post(retry, json=retry_body, headers=HEADERS).status_code == 409
+            enable(client, "community.example")
+            provider.block = False
+            response = client.post(retry, json=retry_body, headers=HEADERS)
+            assert response.status_code == 200, response.text
+            retried = completed(app.state.services.templates, response.json()["id"])
+            assert retried["status"] == "completed", retried
+            assert retried["importer"] == task["importer"]
+            assert retried["importer"]["source_sha256"] == hashlib.sha256(raw).hexdigest()
+            assert not list((config.data_dir / "workspaces").glob("certificate-import-*"))
+            response = client.post("/api/backups", headers=HEADERS)
+            assert response.status_code == 200, response.text
+            backup = tmp_path / "backup.zip"
+            backup.write_bytes(response.content)
+    restored = tmp_path / "restored"
+    restore_backup(backup, restored)
+    with TestClient(
+        create_app(
+            Config(data_dir=restored, plugins=tuple(selected), token="test"), TemplateProvider()
+        )
+    ) as client:
+        assert client.get(original, headers=HEADERS).content == b"SYNTHETIC:example"
+        saved = client.get("/api/honors", headers=HEADERS).json()[0]
+        assert saved["attachment"]["importer"] == trace
+        restored_task = client.get(
+            f"/api/templates/analyses/{retried['id']}", headers=HEADERS
+        ).json()
+        assert restored_task["importer"] == retried["importer"]

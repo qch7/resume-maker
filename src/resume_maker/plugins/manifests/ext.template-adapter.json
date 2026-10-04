@@ -20,7 +20,8 @@
       "documents": ">=1.0.0 <2.0.0",
       "resume_previews": ">=1.0.0 <2.0.0",
       "activity": ">=1.0.0 <2.0.0",
-      "resume": ">=1.0.0 <2.0.0"
+      "resume": ">=1.0.0 <2.0.0",
+      "document.registry": ">=1.0.0 <2.0.0"
     }
   },
   "provides": {
@@ -54,10 +55,6 @@
       "templates",
       "template-drafts"
     ]
-  },
-  "optional": {
-    "import.image": ">=1.0.0 <2.0.0",
-    "import.pdf": ">=1.0.0 <2.0.0"
   },
   "enhances": [
     "documents",

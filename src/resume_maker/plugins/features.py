@@ -74,11 +74,7 @@ def honors(context):
         Honors(dependency(context, "db"), dependency(context, "config").data_dir, None),
     )
     context.scope.barriers.append(service.stop)
-    service.importers = {
-        kind: dependency(context, f"import.{kind}")
-        for kind in ("pdf", "image")
-        if f"import.{kind}" in context.host.services
-    }
+    service.import_registry = dependency(context, "document.registry")
     routes(context, "honors", exclude={"recognize_honor"})
     catalog = dependency(context, "resume")
     catalog.honor_resolver = resolve_honor_document
@@ -144,11 +140,7 @@ def template_adapter(context):
         Templates(dependency(context, "resume"), dependency(context, "config").data_dir, None),
     )
     context.scope.barriers.append(service.stop)
-    service.importers = {
-        kind: dependency(context, f"import.{kind}")
-        for kind in ("pdf", "image")
-        if f"import.{kind}" in context.host.services
-    }
+    service.import_registry = dependency(context, "document.registry")
     service.renderer = None
     service.converter = None
     for name in ("documents", "resume_previews"):
@@ -230,6 +222,7 @@ def template_ai(context):
 
 def word(context):
     """将精确排版器附接到文档流程，DOCX 生成保持独立"""
+    from resume_maker.integrations.document_importers import importer
     from resume_maker.integrations.word.controlled import ControlledWord
     from resume_maker.sdk.documents import DocumentRenderer
 
@@ -237,6 +230,9 @@ def word(context):
         dependency(context, "execution"), dependency(context, "sandbox"), context.generation
     )
     context.scope.barriers.append(engine.close)
+    context.contribute(
+        "documents.importers", "ext.word/import", importer("word", converter=engine.convert)
+    )
     publish(context, "word.renderer", engine.render, observed=False)
     context.contribute(
         "documents.renderers", "ext.word/default", DocumentRenderer("1.0.0", engine.render)

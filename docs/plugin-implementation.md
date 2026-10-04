@@ -4,6 +4,10 @@
 
 本分支实现了可运行的本地插件宿主、现有能力的插件组合及外部包入口。最小产品可独立制作简历，标准组合保留原有能力。**它还没有达到[完整目标架构](plugin-architecture-proposal.md)的全部条件**；第 6 节列出差距，不能把通过回归或已有清单解释为这些项目已经完成。完整目标保留，不以实施顺序缩减设计。
 
+这次继续补上了文件导入的实际扩展能力：以前证书和模板内部仍只认识写死的格式，现在插件可以登记新格式，直接出现在原有上传界面。文件有多个处理器可用时由用户选择；缺页、取消、处理失败不会保存半份结果。已导入原件会记住采用的处理器，重试不会悄悄换版本，停用插件后原件仍能查看和备份恢复。
+
+完整设计仍然保留。文末未完成项继续按原目标推进，不能把这次补齐导入功能解释成整个插件化已经完成。
+
 ## 1. 使用方式
 
 首次启动默认 standard，包含 41 个插件定义。minimal 包含 18 个系统插件和 5 个本地提供方，共 23 个；隐私、sandbox、执行、凭据、任务、草稿和备份仍在其中。没有 AI、OCR、PDF 恢复及 Word 时，手工经历、不可变版本、资料编排、内容预览和 DOCX 导出仍可使用。
@@ -33,6 +37,7 @@ uv run resume-maker --profile standard --data-dir ./output/standard-demo
 | 凭据 | 不透明引用、受限借用和撤销，最小系统无需模型登录 | `infrastructure/credential_vault.py` |
 | 数据和附件 | SQLite v7、v6 备份迁移、持久所有权目录册、资源发布/租约/墓碑/回收计划 | `infrastructure/data_catalog.py`、`assets.py`、`storage.py` |
 | 文档 | 冻结输入，DOCX 引擎和渲染器注册表，预览/导出共用契约，历史成品追溯 | `sdk/documents.py`、`services/document_registry.py`、`document_inputs.py` |
+| 文件导入 | 模板和证书共用导入注册表；实际内容探测、冲突选择、完整结果校验、取消保护及持久来源记录 | `sdk/imports.py`、`services/document_imports.py`、`integrations/document_importers.py` |
 | 外部包 | 摘要和信任检查、不可变安装目录、卸载保留资料、离线 wheel 独立环境 | `runtime/packages.py`、`environments.py` |
 | 外部执行 | Host 服务、worker JSON RPC、共享 React ESM、隔离 iframe 消息桥 | `runtime/worker.py`、`frontend/src/plugins/` |
 | 客户端 | 壳处理页面和窗口控制；组件、设置页、样式和客户端服务随插件注册 | `frontend/src/app/`、各 feature 的 `plugin.ts` |
@@ -59,16 +64,17 @@ uv run resume-maker --profile standard --data-dir ./output/standard-demo
 | 项目 | 已取得的结果 | 本机证据 |
 | --- | --- | --- |
 | 改造前基线 | 后端 941 passed、12 skipped | 初始基线记录 |
-| 最终全量检查 | 后端 1006 passed、12 skipped；前端 180 passed，质量/格式/类型/生产构建通过 | `output/plugin-extension-full-check2.log` |
+| 最终全量检查 | 后端 1015 passed、12 skipped；前端 180 passed，质量/格式/类型/生产构建通过 | `output/plugin-importer-full-check2.log` |
 | 前端扩展契约 | 清单/快捷键冲突拒绝、取消排空、超时重试、只读状态计算、未知资料保留及新旧比较 | `frontend/tests/plugin-extensions.test.mjs` |
 | 逐项组合 | 每个非系统条目移除均验证依赖拒绝或系统手工/DOCX 闭环；组合用例 32 passed | `output/plugin-composition-matrix.log` |
 | 整套组合往返 | HTTP 标准→最小→标准→最小，确认通道、连续路由发布及代次有效；相关回归 38 passed | `output/plugin-profile-roundtrip.log` |
-| wheel | 构建成功；安装资源及真正的基础依赖 venv 验证通过 | `output/plugin-extension-wheel-build.log`、`plugin-extension-wheel-check.log` |
-| 物理最小安装 | 无 PIL、PyMuPDF、pdf2docx、RapidOCR、httpx、pytest，完成手工经历→修订→简历→DOCX→ZIP→恢复→再次导出 | `scripts/wheel_minimal.py` 的执行结果 |
+| wheel | 构建成功；安装资源及真正的基础依赖 venv 验证通过 | `output/plugin-importer-wheel-build-final.log`、`plugin-importer-wheel-check-final.log` |
+| 物理最小安装 | 无 PIL、PyMuPDF、pdf2docx、RapidOCR、httpx、pytest，完成手工经历→修订→简历→DOCX→本地 DOCX 导入→ZIP→恢复→再次导出 | `scripts/wheel_minimal.py` 的执行结果 |
 | 原生 CLI | 对本机假 Responses 服务验证普通模型/GPT-5.5/GPT-6-Astra及受控图片组合，6 passed | `output/plugin-native-cli-final.log` |
 | 实际 Word | 注册表路径下正式导出及临时预览均 1 页、无 render_error；分页图已人工查看 | `output/plugin-word-registry/report.json`、`page-1.png` |
 | 外部代码 | 实际包安装后 Host/React、worker 返回 42、独立环境 worker 返回 42、隔离 iframe 返回 42且父页面访问被阻止 | `tests/plugins/test_packages.py`、`output/playwright/plugin-final-rpc.yml`、`plugin-final-isolated-rpc.yml` |
 | 外部文档引擎 | 不改主工程安装新的 DOCX 引擎，预览/导出成功；停用后拒绝重新生成，历史文件可下载 | `tests/plugins/test_packages.py` |
+| 外部文件导入 | 独立包接入合成新格式；真实模板/证书 API、多个处理器选择、缺页拒绝、取消后等待实际结束、停用后原件保留、备份恢复均通过；浏览器实际上传两页证书并完成模板分析，控制台无错误或警告 | `tests/plugins/test_importers.py`、`tests/plugins/test_packages.py`、`output/plugin-importer-browser-report.json`、`output/playwright/plugin-importer-template-final.png` |
 | 外部客户端细分贡献 | 安装包提供字段编辑器、命令和工作流，实际填写→保存→DOCX→停用后资料保留；系统管理快捷键有效，控制台 0 错误/警告 | `output/plugin-extension-browser/report.json`、`output/playwright/plugin-extension-retained.yml`、`plugin-extension-fields.png` |
 | 真实浏览器闭环 | 手工项目→保存 r2→固定简历引用→资料→DOCX；备份恢复后再次导出包含保存内容 | `output/plugin-browser-restore-report.json` |
 | 多窗口 | 第二窗口未提交草稿先刷新再确认；切换后恢复草稿，固定修订仍为 r2 | `output/playwright/plugin-final-two-window.png`、`plugin-window2-recovered.yml` |
@@ -84,14 +90,14 @@ uv run resume-maker --profile standard --data-dir ./output/standard-demo
 
 审查优先检查：系统依赖闭包、管理控制通道、清理失败的依赖保护、任务持久意图和实际租约、隐私策略换代、来源材料权限、版本/草稿冲突，以及备份恢复后的缺插件状态。安装受信任 Host 或 React 代码意味着授予对应宿主权限，清单不能替代 OS 权限隔离。
 
-## 6. 完整目标尚未达标的部分
+## 6. 离完整设计还差什么
 
-以下保持在完整设计范围内，本次不能宣称已经实现：
+下面这些仍要做，不能因为现在的功能能跑、测试通过，就说已经全部完成：
 
-1. **通用多实例容器。** 当前每本地 Host、每定义一个实例；任务级实例及 multiple 明确拒绝。尚无按 application/workspace/task 选择多实例、独立配置及实例间服务绑定的完整容器。
-2. **全部公开扩展点。** 页面、设置、组件、服务、查询和文档引擎已可贡献；命令/快捷键、命名空间资料编辑器、附加工作流步骤/状态贡献已补齐公开接口和实际用户路径。来源贡献、完整文档导入器、事件展示及所有内置细分入口的统一注册仍未全部形成可独立发布 SDK。外部页面和 RPC 不能替代这些契约。
-3. **彻底的内部实现隔离。** API 已使用公开领域 Protocol；存储/事务及部分基础设施还依赖 SQLite 和具体对象。混合路由文件仍按端点归属注册；静态检查覆盖分层、runtime 和 SDK 方向，尚不是覆盖每个插件内部路径的完整导入图门禁。
-4. **所有资料统一进入资源后端。** 新成品使用 assets；历史模板、荣誉、证据目录依然由持久描述保护。首次建库仍包含内置插件的完整表集合。成品保留历史目录和 assets 两份文件，尚未进行带迁移验收的去重归并。
-5. **完整升级运维。** 本地包、不可变环境和停机资料迁移已存在；尚无自动候选 Host 健康监督/失败回切、在线下载适配、安装进度取消，以及版本固定/联合升级/提供方选择的完整交互。当前 Host 更新要求明确重启。
+1. **同一个插件运行多个独立实例。** 现在一个本地项目里，同一种插件只能开一个实例。还不能分别给不同工作区或不同任务开实例、使用独立配置、绑定各自的服务。清单中的 `multiple: true` 和任务级作用域会明确报错，不会假装支持。
+2. **其余模块的正式扩展接口。** 页面、设置、命令、资料字段、工作流、文档生成和这次的文件导入已经能接入外部插件。源码以外的资料来源、日志事件的自定义展示，以及部分内置功能的细分入口还要继续统一。能加一个外部页面，不代表已经能扩展这些内部流程。
+3. **切断模块之间剩下的直接调用。** HTTP 接口已经通过公开服务调用业务，但部分业务仍直接使用 SQLite 和具体的内部对象。现有检查能管住大层级，还不能检查每个插件是否越过了另一个插件的公开接口。
+4. **把所有附件交给同一套文件管理。** 新成品已经接入资源服务；模板、证书和源码证据仍使用原来的目录，由备份目录册保护。数据库第一次建立时仍会创建全部内置插件的表，成品也还有两份存储。这些需要连同老数据迁移、校验和恢复一起解决。统一了导入接口，不等于已完成文件迁移。
+5. **完整的安装和升级体验。** 现在能安装本地包、准备固定依赖环境，并在停机时迁移资料。还缺新版本先试运行、健康检查失败后自动退回旧版本、在线下载、进度和取消，以及版本锁定、多插件一起升级、提供方选择的完整界面。宿主更新目前仍需要明确重启。
 
-因此该分支可用于验证和审查本地插件化的运行结果；在以上边界闭合前，应保持 Draft PR，不标记“完整插件化完成”，不自动合并 main。
+完整目标保留在设计文档里。当前分支继续作为可运行、可审查的改造分支，PR 保持草稿，不把剩余工作改成“以后再考虑”，也不自动合并到 main。

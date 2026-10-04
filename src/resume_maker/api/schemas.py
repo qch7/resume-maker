@@ -107,6 +107,7 @@ class TemplateAnalysisInput(Model):
     """分析本机模板时只发送栏目名称"""
 
     path: str
+    importer_id: str | None = None
     document: ResumeDocument
     items: list[ResumeItem] = Field(default_factory=list)
 

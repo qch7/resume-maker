@@ -33,6 +33,9 @@
   "contributes": {
     "documents.renderers": [
       "ext.word/default"
+    ],
+    "documents.importers": [
+      "ext.word/import"
     ]
   },
   "permissions": [

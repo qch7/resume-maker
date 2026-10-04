@@ -83,6 +83,43 @@ def activate(context):
 
 `GET /api/document-engines` 列出活动引擎和渲染器；导出及预览接受可选查询参数 `engine_id`、`renderer_id`。引擎停用后重新生成返回明确错误，历史成品仍可下载。现有简历界面沿用默认引擎；外部页面可通过公开 API 提供自己的选择交互。
 
+## 文档导入贡献
+
+`sdk/imports.py` 定义 `DocumentImporter`、`ImportSource`、`ImportProbe`、`ImportContext` 和 `ImportResult`。模板分析和证书上传实际使用 `documents.importers` 集合；外部插件不需要增加主工程路由或修改后缀判断。
+
+清单登记自己的标识，例如：
+
+```json
+{"contributes": {"documents.importers": ["community.example/custom"]}}
+```
+
+Host 入口通过 `context.contribute("documents.importers", "community.example/custom", importer)` 注册，`importer` 的字段如下。
+
+| 字段 | 要求 |
+| --- | --- |
+| `version` | 处理器实现的语义版本；行为升级时更新，不等同于协议版本 |
+| `api_version` | 默认 `1.0.0`，当前支持第一版协议 |
+| `title` | 界面显示名称 |
+| `purposes` | `("template",)`、`("certificate",)` 或两者 |
+| `extensions` | 小写后缀元组，用于界面说明和文件选择提示，不作为内容验证依据 |
+| `probe(source)` | 检查冻结的原件字节，返回 `ImportProbe(format, pages)` 或 `None`；不得调用模型、写文件或修改业务资料 |
+| `prepare(source, context)` | 在提供的暂存目录处理本轮副本，返回 `ImportResult`；必须响应取消 |
+| `uses_renderer` | 默认 false；需要系统渲染器时设为 true，选中的渲染器及版本随本次处理固定 |
+
+`ImportSource` 含文件名、不可变字节及用途。证书探测必须声明完整页数（1–12），模板 DOCX 无法预先确定分页时可省略页数。模板结果使用 `ImportResult(template=docx_bytes, notices=(...))`；证书结果使用 `ImportResult(pages=(page1_png_bytes, ...), text="本机提取文字")`。结果只接受字节，不能返回任意路径。宿主核验结果类型、大小、DOCX 结构、PNG 头部和像素尺寸，并核对返回页数与探测页数；取消或失败不会发布记录。具体解码质量仍由处理器负责，受信任 Host 插件具备宿主权限，这个契约不能代替操作系统隔离。
+
+模板处理上下文包含本轮独立的隐私 `provider`、设置、冻结资料 JSON、进度回调及可选渲染器。需要模型恢复的处理器必须经过该出口，不得自行发送原件或读取用户凭据。证书导入先在本机生成分页，后续识别只读取已生成页面，再经已有隐私网关处理；不要求 OCR 认识外部插件的私有原件格式。
+
+`GET /api/document-importers?purpose=template|certificate` 返回当前活动目录。`POST /api/templates/analyses` 请求体可带 `importer_id`，证书上传接受同名查询参数。两处原有界面都能选择处理器；只有一个匹配项时允许自动选择，多个匹配项返回 409 并列出候选，不按加载先后接管。扩展名与内容不同仍按实际字节选择。
+
+模板任务、已保存模板及证书附件记录处理器标识、实现版本、插件版本、外部包摘要、配置摘要及原件 SHA-256。重试原始导入会核对这些记录，也会核对需要的渲染器；变更后须保留旧任务并明确重新导入。已经转换完成的模板编辑只操作保存的 DOCX，不重新调用原导入器。历史记录和原件跟随备份，缺包恢复无需执行原插件。
+
+内置贡献为 `sys.docx/import`（可编辑或空白 DOCX）、`ext.import-image/default`、`ext.import-pdf/default`、`ext.import-pdf/scanned-docx`（图片型 DOCX）及 `ext.word/import`（旧版或损坏 Word）。自动分流的兼容函数仅供独立调用；生产流程进入已选处理器的明确格式分支。`import.image`、`import.pdf` 能力暂保留给现有可选依赖，业务导入不再通过它们选择格式。
+
+### 集合贡献的生命周期
+
+Host 清单的 `consumes: ["集合名"]` 声明会执行哪些贡献。宿主按清单自动建立从消费者到所有活动贡献者的排空依赖；它不改变入口注册顺序，也不要求消费时集合非空。`sys.documents` 消费 `documents.importers`，模板和荣誉库依赖 `document.registry`，所以新增、配置变更或停用任意外部导入器都会覆盖它们的请求和任务。旧任务实际结束前不会卸载其提供方，插件作者不必另外猜测所有业务消费者。
+
 ## 客户端入口
 
 客户端导出 `activate(context)`。共享入口为 `react`、`react-dom`、`react-dom/client`、`react/jsx-runtime` 和 `@resume-maker/plugin-sdk`；插件构建把它们设为 externals，禁止携带第二份 React。宿主提供 import map 和固定共享资源。

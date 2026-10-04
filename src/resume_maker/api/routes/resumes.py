@@ -82,6 +82,14 @@ def document_engines(dep_documents: Annotated[Documents, Depends(service("docume
     return dep_documents.engines()
 
 
+@router.get("/document-importers")
+def document_importers(
+    dep_documents: Annotated[Documents, Depends(service("documents"))], purpose: str = "template"
+):
+    """公开已启用的格式和处理器，上传时仍须探测实际内容"""
+    return dep_documents.importers(purpose)
+
+
 @router.delete("/resumes/{resume_id}")
 def delete_resume(
     dep_resume: Annotated[Resumes, Depends(service("resume"))],

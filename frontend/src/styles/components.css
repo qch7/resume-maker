@@ -1362,3 +1362,33 @@
     display: none;
   }
 }
+
+/* 文件处理方式在模板和证书入口共用，长格式列表允许换行 */
+.importer-select {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 180px;
+  max-width: 340px;
+  font-size: 12px;
+}
+.importer-select select {
+  width: 100%;
+  min-width: 0;
+}
+.importer-select small {
+  color: var(--subtle);
+  overflow-wrap: anywhere;
+}
+.import-details {
+  margin: 6px 0;
+  font-size: 12px;
+  color: var(--subtle);
+}
+.import-details code {
+  overflow-wrap: anywhere;
+}
+
+.honor-original > .import-details {
+  padding: 0 16px;
+}

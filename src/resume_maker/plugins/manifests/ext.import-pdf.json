@@ -21,5 +21,11 @@
     "pymupdf>=1.25,<2",
     "pdf2docx>=0.5.8,<0.6",
     "pillow>=11,<13"
-  ]
+  ],
+  "contributes": {
+    "documents.importers": [
+      "ext.import-pdf/default",
+      "ext.import-pdf/scanned-docx"
+    ]
+  }
 }

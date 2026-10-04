@@ -1,3 +1,4 @@
+import ImportDetails from "../../shared/components/ImportDetails";
 import type { HonorEditorProps } from "../../plugins/slots";
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Download, Save, X } from "lucide-react";
@@ -224,6 +225,7 @@ export default function HonorEditor({
                 原件
               </button>
             </div>
+            <ImportDetails trace={honor.attachment.importer} />
             <HonorImage
               id={honor.id}
               page={page}

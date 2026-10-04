@@ -1,3 +1,4 @@
+import ImportDetails from "../../shared/components/ImportDetails";
 import type { TemplateAdapterProps } from "../../plugins/slots";
 import { loadLocal, storage } from "../../shared/lib/storage";
 import {
@@ -9,6 +10,8 @@ import {
 } from "react";
 import { FileScan, LoaderCircle, Sparkles } from "lucide-react";
 import PathInput from "../../shared/components/PathInput";
+import ImporterSelect from "../../shared/components/ImporterSelect";
+import { useDocumentImporters } from "../../shared/hooks/useDocumentImporters";
 import ResizeHandle from "../../shared/components/ResizeHandle";
 import TemplatePicker from "../../shared/components/TemplatePicker";
 import { useElementSize } from "../../shared/hooks/useElementSize";
@@ -42,6 +45,7 @@ export default function TemplateAdapter({
   onChanged,
   onSelected,
 }: TemplateAdapterProps) {
+  const importers = useDocumentImporters("template", active);
   const workspace = useRef<HTMLElement>(null);
   const size = useElementSize(workspace);
   const sizes = templateSizes(size.width, size.height, layout);
@@ -425,6 +429,7 @@ export default function TemplateAdapter({
     try {
       const value = await api<TemplateAnalysis>("/templates/analyses", "POST", {
         path,
+        importer_id: importers.selected || null,
         document,
         items: resume.items,
       });
@@ -590,7 +595,7 @@ export default function TemplateAdapter({
             <PathInput
               label="模板文件"
               kind="docx"
-              placeholder="Word、PDF 或图片文件路径"
+              placeholder="填写需要导入的文件路径"
               value={path}
               disabled={busy || loading || running}
               onChange={
@@ -600,9 +605,19 @@ export default function TemplateAdapter({
                 }
               }
             />
+            <ImporterSelect
+              value={importers}
+              disabled={busy || loading || running}
+            />
             <button
               className="primary"
-              disabled={busy || loading || running || !path.trim()}
+              disabled={
+                busy ||
+                loading ||
+                running ||
+                !path.trim() ||
+                !importers.available
+              }
               onClick={
                 /* 将所选文件交给 AI 识别，失败信息和当前模板分开呈现 */ () =>
                   void recognize()
@@ -611,6 +626,7 @@ export default function TemplateAdapter({
               <Sparkles size={16} />
               AI 识别
             </button>
+            <ImportDetails trace={analysis?.importer} />
           </div>
           <div className="template-library-controls">
             {!!tasks.length && (

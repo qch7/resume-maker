@@ -13,11 +13,12 @@ import {
 } from "lucide-react";
 import { api, ApiError, request } from "../../shared/lib/api";
 import HonorEditor from "./HonorEditor";
+import ImporterSelect from "../../shared/components/ImporterSelect";
+import { useDocumentImporters } from "../../shared/hooks/useDocumentImporters";
 import HonorImage from "./HonorImage";
 import HonorSortControls from "./HonorSortControls";
 import { DEFAULT_HONOR_SORT, sortHonors } from "./sort";
 import {
-  ACCEPT,
   CATEGORIES,
   hasHonor,
   isRecognizing,
@@ -35,6 +36,7 @@ export default function HonorLibrary({
   onRemove,
   onSaved,
 }: HonorLibraryProps) {
+  const importers = useDocumentImporters("certificate", active);
   const [items, setItems] = useState<Honor[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
@@ -114,7 +116,7 @@ export default function HonorLibrary({
   }
   /** 逐个上传，每个文件独立报告结果，失败文件不阻断其他证书 */
   async function upload(files: File[]) {
-    if (uploadLock.current || !files.length) return;
+    if (uploadLock.current || !files.length || !importers.available) return;
     uploadLock.current = true;
     setUploadErrors([]);
     setNotice("");
@@ -125,7 +127,7 @@ export default function HonorLibrary({
         if (file.size > 20 * 1024 * 1024)
           throw new Error("超过 20 MB，请压缩后上传。");
         const response = await request(
-          `/honors/upload?filename=${encodeURIComponent(file.name)}`,
+          `/honors/upload?filename=${encodeURIComponent(file.name)}${importers.selected ? `&importer_id=${encodeURIComponent(importers.selected)}` : ""}`,
           {
             method: "POST",
             body: file,
@@ -322,7 +324,8 @@ export default function HonorLibrary({
             <Upload size={20} />
             <div>
               <h2>{uploading || "拖入证书，提取可用文字"}</h2>
-              <p>PDF / 图片 · 支持批量 · 单文件 ≤20 MB · PDF ≤12 页</p>
+              <p>支持批量 · 单文件 ≤20 MB · 每份证书 ≤12 页</p>
+              <ImporterSelect value={importers} disabled={!!uploading} />
               <p>
                 图片和 PDF 先在本机提取文字，再脱敏识别。
                 原图不外发，识别结果需对照原件核对。
@@ -331,7 +334,7 @@ export default function HonorLibrary({
             <button
               className="primary"
               title="上传原件至本机；仅可提取的文字经过脱敏后交给 AI"
-              disabled={!!uploading}
+              disabled={!!uploading || !importers.available}
               onClick={
                 /* 通过原生文件选择器选择本机附件 */ () =>
                   input.current?.click()
@@ -349,7 +352,7 @@ export default function HonorLibrary({
               type="file"
               hidden
               multiple
-              accept={ACCEPT}
+              accept={importers.extensions.join(",")}
               aria-label="选择证书文件"
               onChange={
                 /* 清空选择器以允许再次选择同名文件 */ (event) => {
