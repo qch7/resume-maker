@@ -8,6 +8,7 @@ from resume_maker.core.config import Config
 from resume_maker.core.errors import Problem
 from resume_maker.domain.models import ResumeItem
 from resume_maker.infrastructure.database import Database, uid
+from resume_maker.integrations.source_service import SourceService
 from resume_maker.services.catalog import Catalog
 from resume_maker.services.conversations import Conversations
 from resume_maker.services.jobs import Jobs
@@ -34,7 +35,7 @@ def test_fork_drafts_save_restore_and_pinned_resume(catalog, project, populated)
     assert catalog.working(p, saved["id"])["content"]["highlights"][1]["text"] == "Pending"
     assert catalog.working(p, base)["content"]["highlights"][0]["text"] == "Copied draft"
     assert catalog.project(p)["head_revision"] == base
-    resume = Resumes(catalog).save_resume(
+    resume = Resumes(catalog, storage=catalog.db).save_resume(
         "分支简历", None, [ResumeItem(project_id=p, revision_id=saved["id"], highlight_ids=["one"])]
     )
     main_saved = catalog.save_revision(p, base, base)
@@ -101,8 +102,14 @@ def test_ai_adoption_tracks_branch_head(catalog, project, tmp_path):
     p, base = project["id"], project["head_revision"]
     branch = catalog.history.create(p, base, "AI 岗位版", False)
     provider = FakeProvider()
-    jobs = Jobs(catalog.db, catalog, tmp_path / "data", provider)
-    conv = Conversations(catalog).create_conversation(p, "讨论岗位经历")
+    jobs = Jobs(
+        catalog.db,
+        catalog,
+        tmp_path / "data",
+        provider,
+        source_service=SourceService(catalog, tmp_path / "data", storage=catalog.db),
+    )
+    conv = Conversations(catalog, storage=catalog.db).create_conversation(p, "讨论岗位经历")
     jobs.start()
     try:
         job = jobs.submit(conv["id"], "分析分支", "analysis", branch["head_revision"], "all", uid())
@@ -111,7 +118,7 @@ def test_ai_adoption_tracks_branch_head(catalog, project, tmp_path):
         catalog.put_draft(p, base, "meta", {"title": "Main changed"}, 0)
         catalog.save_revision(p, base, base)
         proposal = catalog.db.one("SELECT * FROM proposals WHERE job_id=?", (job["id"],))
-        Conversations(catalog).adopt(proposal["id"])
+        Conversations(catalog, storage=catalog.db).adopt(proposal["id"])
         saved = catalog.save_revision(p, branch["head_revision"], branch["head_revision"])
         assert saved["content"]["description"] == "New analysis"
         assert saved["snapshot_id"] == proposal["snapshot_id"]
@@ -123,6 +130,6 @@ def test_ai_adoption_tracks_branch_head(catalog, project, tmp_path):
         catalog.put_draft(p, saved["id"], "meta", {"title": "Branch changed"}, 0)
         catalog.save_revision(p, saved["id"], saved["id"])
         with pytest.raises(Problem, match="原文已发生变化"):
-            Conversations(catalog).adopt(stale["id"])
+            Conversations(catalog, storage=catalog.db).adopt(stale["id"])
     finally:
         jobs.stop()

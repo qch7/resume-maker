@@ -5,7 +5,6 @@ import type {
   HonorEditorProps,
   TemplateAdapterProps,
   WorkflowProps,
-  WordPreviewProps,
 } from "./slots";
 import type { ComponentType } from "react";
 import type { ClientExtensionPoints } from "./extensions";
@@ -20,7 +19,6 @@ export interface Slots {
   templates: ComponentType<TemplateAdapterProps>;
   recruitment: ComponentType<{ active: boolean }>;
   workflow: ComponentType<WorkflowProps>;
-  wordPreview: ComponentType<WordPreviewProps>;
 }
 
 export interface Page {
@@ -46,6 +44,9 @@ export interface SettingsPage {
 
 export interface ClientContext {
   readonly id: string;
+  readonly plugin: string;
+  readonly scopeId: string;
+  readonly config: Readonly<Record<string, unknown>>;
   readonly generation: number;
   provide<T>(name: string, value: T, version?: string): void;
   require<T>(name: string): T;

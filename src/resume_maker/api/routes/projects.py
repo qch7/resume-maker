@@ -16,8 +16,7 @@ from resume_maker.api.schemas import (
     SaveInput,
 )
 from resume_maker.domain.models import ProjectProfile
-from resume_maker.integrations.sources import scan_collection
-from resume_maker.sdk.services import Catalog, Projects
+from resume_maker.sdk.services import Catalog, Projects, SourceAccess
 
 router = APIRouter(prefix="/api", tags=["projects"])
 
@@ -33,9 +32,9 @@ def create_branch(
 
 
 @router.post("/projects/scan")
-def scan(body: PathInput):
+def scan(body: PathInput, dep_sources: Annotated[SourceAccess, Depends(service("sources"))]):
     """将用户选择的路径交给来源扫描器，返回待确认的项目分组"""
-    return scan_collection(Path(body.path))
+    return dep_sources.scan(Path(body.path))
 
 
 @router.post("/projects")
@@ -97,7 +96,9 @@ def reveal_source(
     body: RevealSourceInput,
 ):
     """验证来源文件属于项目快照后，在本机文件管理器中定位"""
-    dep_projects.reveal_source(project_id, body.snapshot_id, body.source, body.path)
+    from resume_maker.integrations.desktop import reveal_file
+
+    reveal_file(dep_projects.source_path(project_id, body.snapshot_id, body.source, body.path))
     return {"ok": True}
 
 

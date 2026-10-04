@@ -3,41 +3,110 @@
 from resume_maker.core.errors import Problem, need
 from resume_maker.domain.models import ResumeItem
 from resume_maker.domain.resume import ResumeDocument
-from resume_maker.domain.templates import TEMPLATE_LIBRARY_KEY
-from resume_maker.infrastructure.database import dump, now, uid, unpack
+from resume_maker.sdk.observation import internal
+from resume_maker.sdk.records import dump, now, uid, unpack
 
 
 class Resumes:
     """简历插件拥有组合保存，经历服务仅提供不可变引用读取"""
 
-    def __init__(self, experience, *, honor_resolver=None):
+    def __init__(self, experience, *, storage, sources=None, assets=None):
         """持有独立经历读取依赖和可撤销的资料来源解析器"""
-        self.experience, self.db = experience, experience.db
-        self.honor_resolver = honor_resolver
+        self.experience, self.db = experience, storage
+        self.sources = sources
+        self.assets = assets
 
-    def revision(self, revision_id, project_id=None):
+    @internal
+    def workspace_state(self, conn):
+        """在调用方快照内返回本模块拥有的工作台资料"""
+        result = {
+            "resumes": [
+                unpack(row)
+                for row in conn.execute(
+                    "SELECT * FROM resumes WHERE id NOT IN "
+                    "(SELECT resume_id FROM resume_deletions) ORDER BY updated_at DESC"
+                )
+            ],
+        }
+        for resume in result["resumes"]:
+            resume["document"] = self.resolve_document(resume["document"], conn)
+        return result
+
+    def template_bytes(self, template, directory):
+        """通过统一资源读取模板原件，独立调用兼容旧文件布局"""
+        if self.assets:
+            return self.assets.read_file(f"templates/{template['id']}", "template.docx")
+        return (directory / "templates" / template["id"] / "template.docx").read_bytes()
+
+    def freeze_export(self, directory, identifier):
+        """在同一快照固定成品所需的简历、修订和模板输入"""
+        from resume_maker.services.document_inputs import freeze_export
+
+        return freeze_export(self, directory, identifier)
+
+    def freeze_preview(self, directory, template_id, document, items):
+        """在同一快照固定工作副本和可选模板输入"""
+        from resume_maker.services.document_inputs import freeze_preview
+
+        return freeze_preview(self, directory, template_id, document, items)
+
+    def revision(self, revision_id, project_id=None, conn=None):
         """核对不可变版本归属，不读取经历服务的内部状态"""
-        return self.experience.revision(revision_id, project_id)
+        return self.experience.revision(revision_id, project_id, conn)
 
     def resolve_document(self, document, conn=None):
         """只通过已注册的来源解析器刷新内容，停用后保留确认快照"""
-        if self.honor_resolver is None:
+        if self.sources is None:
             return document
-        return self.honor_resolver(self.db, document, conn)
+        return self.sources.resolve(document, conn)
 
-    def template(self, template_id: str, include_trashed: bool = False) -> dict:
-        """只允许引用具有完整映射的模板，失效引用由用户重新选择或识别"""
+    def source_catalog(self):
+        """列出当前可选择的资料提供方"""
+        return self.sources.describe() if self.sources else []
+
+    def source_items(self, provider, cursor=None, query="", limit=50):
+        """从明确选择的来源读取有界资料页"""
+        if self.sources is None:
+            raise Problem("资料来源未启用。", 409)
+        return self.sources.browse(provider, cursor, query, limit)
+
+    def preserve_sources(self, conn=None):
+        """来源停用或删除前保存最新确认内容，更新版本以保护已有草稿"""
+        if conn is None:
+            with self.db.transaction() as connection:
+                return self.preserve_sources(connection)
+        rows = conn.execute("SELECT id,document_json FROM resumes WHERE document_json IS NOT NULL")
+        for row in rows.fetchall():
+            resume = unpack(row)
+            updated = self.resolve_document(resume["document"], conn)
+            if updated != resume["document"]:
+                ResumeDocument.model_validate(updated)
+                conn.execute(
+                    "UPDATE resumes SET document_json=?,version=version+1,updated_at=? WHERE id=?",
+                    (dump(updated), now(), resume["id"]),
+                )
+
+    def template(self, template_id: str, include_trashed: bool = False, conn=None) -> dict:
+        """读取模板所有者发布的稳定引用，停用插件仍保留资料和引用校验"""
         template = need(
-            self.db.one(
-                "SELECT * FROM templates WHERE id=? AND json_type(mapping_json,'$.plan')='object'",
-                (template_id,),
-            ),
+            self.db.reference("template", template_id, conn),
             "完整简历模板不可用，请重新选择模板或导入 Word 进行 AI 识别。",
         )
-        library = self.db.setting(TEMPLATE_LIBRARY_KEY, {"items": {}})
-        if not include_trashed and library["items"].get(template_id, {}).get("deleted_at"):
+        if not isinstance(template.get("mapping", {}).get("plan"), dict):
+            raise Problem("完整简历模板不可用，请重新选择模板或导入 Word 进行 AI 识别。", 409)
+        if template.pop("_deleted_at", None) and not include_trashed:
             raise Problem("该模板已移入回收站，请先恢复。", 409)
         return template
+
+    def template_usage(self, conn, identifier):
+        """在模板维护事务内返回全部保存方案引用，包含历史成品所在方案"""
+        return [
+            row["name"]
+            for row in conn.execute(
+                "SELECT name FROM resumes WHERE template_id=? ORDER BY created_at",
+                (identifier,),
+            )
+        ]
 
     def save_resume(
         self,
@@ -64,13 +133,7 @@ class Resumes:
         with self.db.transaction() as conn:
             # 引用校验必须和写入持有同一把锁，避免校验后项目被另一窗口删除
             for item in items:
-                need(
-                    conn.execute(
-                        "SELECT id FROM revisions WHERE id=? AND project_id=?",
-                        (item.revision_id, item.project_id),
-                    ).fetchone(),
-                    "简历中的项目已删除，请刷新后重新选择。",
-                )
+                self.experience.revision(item.revision_id, item.project_id, conn)
             if conn.execute(
                 "SELECT 1 FROM resume_deletions WHERE resume_id=?", (resume_id,)
             ).fetchone():
@@ -80,21 +143,8 @@ class Resumes:
             )
             if version != (existing["version"] if existing else 0):
                 raise Problem("简历组合已在其他窗口修改，请刷新。", 409)
-            library = unpack(
-                conn.execute(
-                    "SELECT value_json FROM settings WHERE key=?", (TEMPLATE_LIBRARY_KEY,)
-                ).fetchone()
-            )
-            deleted = library and library["value"]["items"].get(template_id, {}).get("deleted_at")
-            if deleted:
-                raise Problem("该模板已移入回收站，请先恢复模板或选择其他模板。", 409)
-            if (
-                template_id
-                and not conn.execute(
-                    "SELECT 1 FROM templates WHERE id=?", (template_id,)
-                ).fetchone()
-            ):
-                raise Problem("该模板已永久删除，请选择其他模板。", 409)
+            if template_id:
+                self.template(template_id, conn=conn)
             resolved_document = self.resolve_document(
                 document.model_dump() if document is not None else None, conn
             )
@@ -103,6 +153,8 @@ class Resumes:
                     **existing["document"].get("extensions", {}),
                     **resolved_document.get("extensions", {}),
                 }
+            if resolved_document is not None:
+                ResumeDocument.model_validate(resolved_document)
             conn.execute(
                 "INSERT OR REPLACE INTO resumes "
                 "(id,name,template_id,items_json,version,created_at,updated_at,document_json) "

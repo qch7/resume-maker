@@ -3,20 +3,15 @@
 import threading
 from pathlib import Path
 
+from resume_maker.core.content import redact
 from resume_maker.core.errors import Problem, need
 from resume_maker.domain.experience import field_value
 from resume_maker.domain.models import ProviderSettings
-from resume_maker.infrastructure.database import Database, dump, now, uid
 from resume_maker.infrastructure.observability import record, record_event, remember_task
-from resume_maker.integrations.source_context import source_context
-from resume_maker.integrations.sources import (
-    capture_evidence,
-    check_evidence,
-    project_sources,
-    redact,
-)
 from resume_maker.sdk.model import Cancelled, Provider
-from resume_maker.services.catalog import Catalog
+from resume_maker.sdk.records import dump, now, uid
+from resume_maker.sdk.services import Catalog
+from resume_maker.sdk.storage import RelationalStore
 from resume_maker.services.conversations import Conversations
 
 INSTRUCTIONS = """你负责把项目材料整理为真实、可追溯的中文简历经历，并与用户持续讨论。
@@ -76,21 +71,39 @@ class Jobs:
 
     def __init__(
         self,
-        db: Database,
+        db: RelationalStore,
         catalog: Catalog,
         data_dir: Path,
         provider: Provider,
         *,
         conversations=None,
+        execution_queue=None,
+        source_service=None,
     ):
         """保存任务依赖，创建取消信号和工作线程状态，此时不启动队列"""
         self.db, self.catalog, self.data_dir = db, catalog, data_dir
         self.provider = provider
-        self.conversations = conversations or Conversations(catalog)
+        self.conversations = conversations or Conversations(catalog, storage=db)
         self.stopped, self.wakeup = threading.Event(), threading.Event()
         self.cancel_flags: dict[str, threading.Event] = {}
         self.worker: threading.Thread | None = None
-        self.execution_queue = None
+        self.execution_queue = execution_queue
+        self.sources = source_service
+
+    def event(self, job_id, kind, data):
+        """任务所有者持久化进度，项目删除后忽略迟到事件"""
+        with self.db.transaction() as conn:
+            conn.execute(
+                "INSERT INTO events(job_id,kind,data_json,created_at) "
+                "SELECT ?,?,?,? WHERE EXISTS (SELECT 1 FROM jobs WHERE id=?)",
+                (job_id, kind, dump(data), now(), job_id),
+            )
+
+    def active_tasks(self):
+        """返回尚未结束的任务标识，供宿主排空和取消"""
+        return self.db.all(
+            "SELECT id,status AS state FROM jobs WHERE status IN ('queued','running')"
+        )
 
     def start(self):
         """标记上次异常退出的运行任务，再启动单工作线程处理持久队列"""
@@ -269,6 +282,12 @@ class Jobs:
                 self.wakeup.wait(0.5)
                 self.wakeup.clear()
 
+    def _check_evidence(self, snapshot, evidence):
+        """未启用源码能力时不能把模型返回的引文认定为已核对证据"""
+        if self.sources:
+            return self.sources.check(snapshot, evidence)
+        return [{**item, "status": "unverified"} for item in evidence]
+
     def _run(self, job: dict):
         """传递当前来源目录、调用 Provider、验证引用并原子保存消息和结果"""
         job_id, conversation_id = job["id"], job["conversation_id"]
@@ -286,7 +305,7 @@ class Jobs:
 
         def emit(kind, data):
             """持久化任务事件，收到模型会话标识时立即保存以支持后续续聊"""
-            self.db.event(job_id, kind, data)
+            self.event(job_id, kind, data)
             record_event(kind, data)
             if kind == "thread":
                 with self.db.transaction() as conn:
@@ -299,7 +318,7 @@ class Jobs:
             project = self.catalog.project(job["project_id"])
             conversation = self.conversations.conversation(conversation_id)
             emit("status", {"text": "正在本机准备源码文字材料"})
-            sources = project_sources(project)
+            sources = self.sources.describe(project) if self.sources else []
             if cancelled.is_set() or self.stopped.is_set():
                 raise Cancelled("任务已取消")
             request = job["request"]
@@ -323,13 +342,15 @@ class Jobs:
                 ),
                 "profile": request["profile"],
                 "current_experience": request["content"],
-                "experience_branch": self.catalog.history.for_revision(
-                    project["id"], request["base_revision"]
-                )["name"],
+                "experience_branch": self.catalog.branch(project["id"], request["base_revision"])[
+                    "name"
+                ],
                 "target": request["scope"],
-                "source_access": "on-demand-redacted",
+                "source_access": "on-demand-redacted" if self.sources else "disabled",
                 "source_directories": [{"id": item["id"]} for item in sources],
-                "source_materials": source_context(sources, self.data_dir, cancelled),
+                "source_materials": self.sources.context(sources, cancelled)
+                if self.sources
+                else {},
                 "recent_messages": history,
                 "user_request": request["text"],
             }
@@ -360,11 +381,9 @@ class Jobs:
                 if evidence["status"] in {"code", "document"}
             ]
             snapshot = None
-            if references:
+            if references and self.sources:
                 emit("status", {"text": "正在核对引用并保存证据"})
-                snapshot = capture_evidence(
-                    self.db, self.data_dir, project, sources, references, cancelled
-                )
+                snapshot = self.sources.capture(project, sources, references, cancelled)
                 request["snapshot_id"] = snapshot["id"]
                 with self.db.transaction() as conn:
                     conn.execute(
@@ -382,7 +401,7 @@ class Jobs:
                 if len(ids) != len(set(ids)):
                     raise Problem("AI 返回了重复亮点 ID，结果未被采用。")
                 for h in payload["experience"]["highlights"]:
-                    h["evidence"] = check_evidence(self.data_dir, snapshot, h["evidence"])
+                    h["evidence"] = self._check_evidence(snapshot, h["evidence"])
                 proposals.append(
                     ("experience", request["content"], payload["experience"], "项目分析草稿")
                 )
@@ -399,7 +418,7 @@ class Jobs:
                     "id": before["id"],
                     "title": change["title"],
                     "text": change["text"],
-                    "evidence": check_evidence(self.data_dir, snapshot, change["evidence"]),
+                    "evidence": self._check_evidence(snapshot, change["evidence"]),
                 }
                 proposals.append((target, before, after, change["reason"]))
             stamp = now()
@@ -447,7 +466,7 @@ class Jobs:
                     "WHERE id=? AND status='running'",
                     (status, redact(str(exc))[:6000], now(), job_id),
                 )
-            self.db.event(job_id, "error", {"text": redact(str(exc))[:6000]})
+            self.event(job_id, "error", {"text": redact(str(exc))[:6000]})
             record(
                 "task",
                 status,

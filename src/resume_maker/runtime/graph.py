@@ -92,11 +92,6 @@ def resolve(manifests: dict[str, Manifest], selected: set[str], required: set[st
     scopes = {"application": 0, "workspace": 1, "task": 2}
     for identifier in sorted(selected):
         manifest = manifests[identifier]
-        if manifest.instances.multiple or manifest.instances.scope == "task":
-            raise PluginError(
-                f"{identifier} 请求了当前本地 Host 不支持的多实例或任务级实例，"
-                "请使用工作区单实例和 sys.jobs 任务作用域"
-            )
         for domain, constraint in (("host", manifest.host_api), ("client", manifest.client_api)):
             if not compatible("1.0.0", constraint):
                 raise PluginError(f"{identifier} 与 {domain} API 1.0.0 不兼容")
@@ -121,6 +116,8 @@ def resolve(manifests: dict[str, Manifest], selected: set[str], required: set[st
                 manifests[dependency].version, constraint
             ):
                 raise PluginError(f"{identifier} 需要插件 {dependency} {constraint}")
+            if scopes[manifest.instances.scope] < scopes[manifests[dependency].instances.scope]:
+                raise PluginError(f"{identifier} 的作用域不能持有更短生命周期的 {dependency}")
             if dependency != identifier:
                 edges[identifier].add(dependency)
                 graphs["host"][identifier].add(dependency)

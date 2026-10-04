@@ -1,18 +1,17 @@
 """独立会话查询、归档维护和模型上下文重建"""
 
 from resume_maker.core.errors import Problem, need
-from resume_maker.domain.experience import field_value, replace_field
-from resume_maker.infrastructure.database import dump, now, uid
 from resume_maker.infrastructure.observability import record
-from resume_maker.services.catalog import Catalog
+from resume_maker.sdk.records import now, uid, unpack
+from resume_maker.sdk.services import Catalog
 
 
 class Conversations:
     """会话详情、归档状态和模型上下文重建服务"""
 
-    def __init__(self, catalog: Catalog):
+    def __init__(self, catalog: Catalog, *, storage):
         """保存当前模块所需依赖，供后续业务操作共享使用"""
-        self.catalog, self.db = catalog, catalog.db
+        self.catalog, self.db = catalog, storage
 
     def archived_conversations(self):
         """按最近更新时间列出归档会话，供设置界面恢复使用"""
@@ -100,60 +99,29 @@ class Conversations:
 
     def adopt(self, proposal_id: str):
         """检查建议原文和当前内容一致后写入草稿以免覆盖后续人工编辑"""
-        proposal = need(self.db.one("SELECT * FROM proposals WHERE id=?", (proposal_id,)))
-        conversation = self.conversation(proposal["conversation_id"])
-        project_id = conversation["project_id"]
-        base_id = proposal["base_revision"]
-        branch = self.catalog.history.for_revision(project_id, base_id)
-        working = self.catalog.working(project_id, base_id)
-        if proposal["status"] != "pending":
-            raise Problem("建议已经处理。", 409)
-        if (
-            branch["head_revision"] != base_id
-            or field_value(working["content"], proposal["target"]) != proposal["before"]
-        ):
-            raise Problem("建议生成后原文已发生变化，请重新请求或手工合并。", 409)
-        replace_field(working["content"], proposal["target"], proposal["after"])
         with self.db.transaction() as conn:
-            head = conn.execute(
-                "SELECT head_revision FROM experience_branches WHERE id=?", (branch["id"],)
-            ).fetchone()[0]
-            status = conn.execute(
-                "SELECT status FROM proposals WHERE id=?", (proposal_id,)
-            ).fetchone()[0]
-            actual = conn.execute(
-                "SELECT field,version,value_json FROM drafts "
-                "WHERE project_id=? AND base_revision=?",
-                (project_id, base_id),
-            ).fetchall()
-            expected = [(d["field"], d["version"], dump(d["value"])) for d in working["drafts"]]
-            if (
-                head != base_id
-                or status != "pending"
-                or sorted(tuple(r) for r in actual) != sorted(expected)
-            ):
-                raise Problem("采用建议时内容发生变化，请刷新后合并。", 409)
-            if proposal["target"] == "experience":
-                # 建议原文已包含所有草稿，通过并发校验后可由整段建议统一替换
-                conn.execute(
-                    "DELETE FROM drafts WHERE project_id=? AND base_revision=?",
-                    (project_id, base_id),
+            proposal = need(
+                unpack(
+                    conn.execute("SELECT * FROM proposals WHERE id=?", (proposal_id,)).fetchone()
                 )
-            row = conn.execute(
-                "SELECT version FROM drafts WHERE project_id=? AND base_revision=? AND field=?",
-                (project_id, base_id, proposal["target"]),
-            ).fetchone()
-            conn.execute(
-                "INSERT OR REPLACE INTO drafts VALUES (?,?,?,?,?,?,?)",
-                (
-                    project_id,
-                    base_id,
-                    proposal["target"],
-                    dump(proposal["after"]),
-                    row[0] + 1 if row else 1,
-                    f"ai:{proposal['snapshot_id'] or ''}",
-                    now(),
-                ),
+            )
+            if proposal["status"] != "pending":
+                raise Problem("建议已经处理。", 409)
+            conversation = need(
+                conn.execute(
+                    "SELECT project_id FROM conversations WHERE id=?",
+                    (proposal["conversation_id"],),
+                ).fetchone()
+            )
+            project_id, base_id = conversation["project_id"], proposal["base_revision"]
+            self.catalog.apply_suggestion(
+                conn,
+                project_id,
+                base_id,
+                proposal["target"],
+                proposal["before"],
+                proposal["after"],
+                proposal["snapshot_id"],
             )
             conn.execute("UPDATE proposals SET status='adopted' WHERE id=?", (proposal_id,))
         return self.catalog.working(project_id, base_id)

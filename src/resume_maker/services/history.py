@@ -3,13 +3,14 @@
 import unicodedata
 
 from resume_maker.core.errors import Problem, need
-from resume_maker.infrastructure.database import Database, now, uid, unpack
+from resume_maker.sdk.records import now, uid, unpack
+from resume_maker.sdk.storage import RelationalStore
 
 
 class History:
     """维护命名分支，每个修订只有一个所属分支，简历继续引用修订 ID"""
 
-    def __init__(self, db: Database):
+    def __init__(self, db: RelationalStore):
         """复用业务数据库，分支移动和版本、草稿写入共享事务"""
         self.db = db
 

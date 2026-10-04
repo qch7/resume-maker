@@ -21,15 +21,20 @@ from resume_maker.runtime.state import StateStore, fingerprint
 class EnvironmentStore:
     """仅安装二进制 wheel，不下载最新版本、不执行源码构建、不修改现有 venv"""
 
-    def __init__(self, directory):
+    def __init__(self, directory, *, records=None):
         """解释器环境独立于资料备份，索引只引用已完成健康检查的环境"""
         self.root = directory / "plugin-environments"
         self.index = directory / "plugin-environments.json"
         self.writer = StateStore(directory)
         self.lock = threading.RLock()
+        self.record_override = records
 
     def records(self):
         """读取明确提交的环境引用，未完成目录不被选用"""
+        if self.record_override is not None:
+            from copy import deepcopy
+
+            return deepcopy(self.record_override)
         if not self.index.exists():
             return {}
         value = json.loads(self.index.read_text(encoding="utf-8"))
@@ -72,7 +77,17 @@ class EnvironmentStore:
             raise PluginError("共享 Host 环境锁必须同时包含 Resume Maker 和全部系统依赖")
         return specification, wheels
 
-    def prepare(self, manifest, location, execution, sandbox, host_manifests=()):
+    def prepare(
+        self,
+        manifest,
+        location,
+        execution,
+        sandbox,
+        host_manifests=(),
+        *,
+        cancelled=None,
+        commit=True,
+    ):
         """在独立目录完成环境安装和依赖检查，成功后才发布索引"""
         with self.lock:
             specification, wheels = self.inspect(manifest, location)
@@ -84,7 +99,7 @@ class EnvironmentStore:
             if target.parent != self.root.resolve() or target.exists():
                 raise PluginError("候选环境位置无效")
             target.mkdir(parents=True)
-            cancelled = threading.Event()
+            cancelled = cancelled or threading.Event()
             environment = {
                 key: value
                 for key, value in os.environ.items()
@@ -202,7 +217,8 @@ class EnvironmentStore:
                 self.writer.write(target / "operation.json", record)
                 records = self.records()
                 records[manifest.id] = record
-                self.writer.write(self.index, {"version": 1, "environments": records})
+                if commit:
+                    self.writer.write(self.index, {"version": 1, "environments": records})
                 return record
             except BaseException as exc:
                 self.writer.write(
@@ -210,6 +226,54 @@ class EnvironmentStore:
                     {**operation, "state": "failed", "error": type(exc).__name__},
                 )
                 raise
+
+    def prepare_host(self, candidates, execution, sandbox, host_manifests, *, cancelled=None):
+        """合并联合包的固定 wheel 集合，同名不同版本或不同产物立即拒绝"""
+        from resume_maker.sdk.manifest import Entry, Manifest
+
+        wheels = {}
+        for manifest, location in candidates:
+            _, artifacts = self.inspect(manifest, location)
+            for path, digest in artifacts:
+                name, version, _, _ = parse_wheel_filename(path.name)
+                if name in wheels and wheels[name][1:] != (str(version), digest):
+                    raise PluginError(f"联合 Host 环境存在固定依赖冲突：{name}")
+                wheels[name] = (path, str(version), digest)
+        lock = {
+            "version": 1,
+            "wheels": [
+                {"name": name, "version": version, "file": path.name, "sha256": digest}
+                for name, (path, version, digest) in sorted(wheels.items())
+            ],
+        }
+        directory = self.root / ("cohort-" + fingerprint(lock))
+        directory.mkdir(parents=True, exist_ok=True)
+        for path, _, digest in wheels.values():
+            if cancelled is not None and cancelled.is_set():
+                raise PluginError("联合环境准备已取消")
+            target = directory / path.name
+            if not target.exists():
+                shutil.copyfile(path, target)
+            if hashlib.sha256(target.read_bytes()).hexdigest() != digest:
+                raise PluginError("联合环境材料摘要不匹配")
+        self.writer.write(directory / "lock.json", lock)
+        manifest = Manifest(
+            id="host.cohort",
+            title="联合宿主环境",
+            version="1.0.0",
+            package="resume-maker",
+            entrypoints={"host": Entry(mode="trusted-host", entry="cohort:activate")},
+            environment_lock="lock.json",
+        )
+        return self.prepare(
+            manifest,
+            directory,
+            execution,
+            sandbox,
+            host_manifests,
+            cancelled=cancelled,
+            commit=False,
+        )
 
     def available(self, locations):
         """启动时只选择与当前包摘要匹配且解释器完整的已准备环境"""

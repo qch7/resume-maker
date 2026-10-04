@@ -30,3 +30,13 @@ def selection(profile: str, overrides: tuple[str, ...] | None = None):
     if profile not in profiles:
         raise PluginError(f"未知产品组合：{profile}")
     return manifests, set(overrides if overrides is not None else profiles[profile]), required
+
+
+def configuration_bundles(profile):
+    """按产品组合声明顺序读取配置包，组合配置不改变系统必需约束"""
+    policy = json.loads((ROOT / "profiles.json").read_text(encoding="utf-8"))
+    bundles = policy.get("bundles", {})
+    return [
+        {"name": "bundle:" + name, "edits": bundles[name]}
+        for name in policy.get("profile_bundles", {}).get(profile, [])
+    ]

@@ -17,12 +17,21 @@ from resume_maker.infrastructure.database import dump
 from resume_maker.integrations.word.full_resume import write_full_resume
 from resume_maker.integrations.word.ooxml import NS
 from resume_maker.integrations.word.templates.values import section_records
-from resume_maker.services.documents import Documents
-from resume_maker.services.honor_links import resolve_honor_document
-from resume_maker.services.resume_previews import ResumePreviews
+from resume_maker.runtime.host import Contribution
+from resume_maker.services.honor_links import resume_source
+from resume_maker.services.resume_sources import ResumeSources
 from resume_maker.services.resumes import Resumes
+from tests.support.document_services import Documents, ResumePreviews
 from tests.support.documents import resume_content
 from tests.support.templates import register_template
+
+
+def honor_registry(db):
+    """独立业务验收使用和生产相同的来源贡献"""
+    contribution = Contribution(
+        "ext.honors", "resume.sources", "ext.honors/library", resume_source()
+    )
+    return ResumeSources(db, lambda point: [contribution])
 
 
 def test_honor_snapshot_roundtrip_and_rendering(catalog, tmp_path, fixtures_dir):
@@ -37,7 +46,7 @@ def test_honor_snapshot_roundtrip_and_rendering(catalog, tmp_path, fixtures_dir)
             ]
         }
     )
-    saved = Resumes(catalog, honor_resolver=resolve_honor_document).save_resume(
+    saved = Resumes(catalog, sources=honor_registry(catalog.db), storage=catalog.db).save_resume(
         "荣誉测试", None, [], document=document
     )
     restored = ResumeDocument.model_validate(saved["document"])
@@ -233,8 +242,8 @@ def test_preview_and_export_resolve_current_honors_and_invalidate_cache(
         (output.parent / "page-1.png").write_bytes(b"png")
         return 1, None
 
-    monkeypatch.setattr("resume_maker.services.resume_previews.render_word", render)
-    monkeypatch.setattr("resume_maker.services.documents.render_word", render)
+    monkeypatch.setattr("tests.support.document_services.render_word", render)
+    monkeypatch.setattr("tests.support.document_services.render_word", render)
     data_dir = tmp_path / "data"
     register_template(catalog, data_dir)
     source = {"id": "linked", "fields": fields(), "reviewed": True, "version": 1}
@@ -253,15 +262,19 @@ def test_preview_and_export_resolve_current_honors_and_invalidate_cache(
             ],
         )
     )
-    saved = Resumes(catalog, honor_resolver=resolve_honor_document).save_resume(
+    saved = Resumes(catalog, sources=honor_registry(catalog.db), storage=catalog.db).save_resume(
         "合成简历", template_id, [], document=document
     )
-    service = ResumePreviews(Resumes(catalog, honor_resolver=resolve_honor_document), data_dir)
+    service = ResumePreviews(
+        Resumes(catalog, sources=honor_registry(catalog.db), storage=catalog.db), data_dir
+    )
     try:
         first = service.render(template_id, document.model_dump(), [])
         assert service.render(template_id, document.model_dump(), []) == first
         history = Documents(
-            Resumes(catalog, honor_resolver=resolve_honor_document), data_dir
+            Resumes(catalog, sources=honor_registry(catalog.db), storage=catalog.db),
+            data_dir,
+            storage=catalog.db,
         ).export(saved["id"])
         original_manifest = deepcopy(history["manifest"])
         source["fields"]["name"] = "修改后的共享证书"
@@ -270,7 +283,9 @@ def test_preview_and_export_resolve_current_honors_and_invalidate_cache(
         second = service.render(template_id, document.model_dump(), [])
         assert second["id"] != first["id"]
         exported = Documents(
-            Resumes(catalog, honor_resolver=resolve_honor_document), data_dir
+            Resumes(catalog, sources=honor_registry(catalog.db), storage=catalog.db),
+            data_dir,
+            storage=catalog.db,
         ).export(saved["id"])
         for path in [
             service.file(second["id"], "resume.docx"),

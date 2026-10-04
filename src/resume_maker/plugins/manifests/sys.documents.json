@@ -50,6 +50,9 @@
     ],
     "folders": [
       "exports"
+    ],
+    "schemas": [
+      "infrastructure/schemas/sys.documents.sql"
     ]
   },
   "consumes": [

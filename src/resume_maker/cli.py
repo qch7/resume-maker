@@ -9,6 +9,7 @@ import webbrowser
 from pathlib import Path
 
 import uvicorn
+from pydantic import ValidationError
 
 from resume_maker.core.config import Config
 from resume_maker.core.errors import Problem
@@ -24,7 +25,9 @@ def main():
     parser.add_argument("--data-dir", type=Path)
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--no-browser", action="store_true")
+    parser.add_argument("--host-child", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--profile", choices=("minimal", "standard"))
+    parser.add_argument("--plugin-config", type=Path, help="插件默认组合及本次启动覆盖 JSON")
     parser.add_argument("--restore", type=Path, metavar="BACKUP_ZIP", help="离线恢复备份后退出")
     maintenance = parser.add_mutually_exclusive_group()
     maintenance.add_argument(
@@ -41,7 +44,7 @@ def main():
     )
     parser.add_argument("--confirm-digest", help="确认迁移计划的完整摘要")
     args = parser.parse_args()
-    config = Config(port=args.port, profile=args.profile)
+    config = Config(port=args.port, profile=args.profile, plugin_config=args.plugin_config)
     if args.data_dir:
         config.data_dir = args.data_dir.resolve()
     try:
@@ -59,6 +62,11 @@ def main():
             if previous:
                 print(f"恢复前的数据保存在 {previous}")
             return
+        if not args.host_child:
+            from resume_maker.host_supervisor import supervise
+
+            supervise(config, args)
+            return
         with instance_lock(config.data_dir):
             config.prepare()
             with socket.socket() as probe:
@@ -74,11 +82,19 @@ def main():
             if not args.no_browser:
                 threading.Timer(1, lambda: webbrowser.open(f"http://127.0.0.1:{args.port}")).start()
             server = uvicorn.Server(
-                uvicorn.Config(app, host="127.0.0.1", port=args.port, log_level="info")
+                uvicorn.Config(
+                    app, host="127.0.0.1", port=args.port, log_level="error", access_log=False
+                )
             )
             app.state.stop_server = lambda: setattr(server, "should_exit", True)
-            server.run()
-    except (Problem, PluginError, OSError) as exc:
+            from resume_maker.host_supervisor import watch_host
+
+            stopped = watch_host(app, config, server)
+            try:
+                server.run()
+            finally:
+                stopped.set()
+    except (Problem, PluginError, OSError, ValidationError) as exc:
         parser.error(str(exc))
 
 

@@ -2,30 +2,14 @@
 
 from dataclasses import replace
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
+from resume_maker.core.content import digest
 from resume_maker.core.errors import Problem
 from resume_maker.domain.extensions import display_document
-from resume_maker.infrastructure.database import dump, now, uid
-from resume_maker.integrations.sources import digest
-from resume_maker.integrations.word.full_resume import write_full_resume
+from resume_maker.sdk.documents import generate_docx
+from resume_maker.sdk.records import dump, now, uid
 from resume_maker.sdk.services import Resumes
-from resume_maker.services.document_inputs import freeze_export, generate_docx
-
-DEFAULT_RENDERER = object()
-
-
-def render_word(*args):
-    """独立调用兼容入口按需加载 Word，系统组合显式注入渲染器"""
-    from resume_maker.integrations.word.rendering import render_word as render
-
-    return render(*args)
-
-
-def fill_template(*args):
-    """模板引擎仅在确实选择自定义模板时加载"""
-    from resume_maker.integrations.word.templates.fill import fill_template as fill
-
-    return fill(*args)
 
 
 class Documents:
@@ -36,19 +20,23 @@ class Documents:
         catalog: Resumes,
         data_dir: Path,
         *,
-        render=DEFAULT_RENDERER,
-        templates=True,
-        engine=write_full_resume,
+        storage,
+        assets=None,
+        runtime_snapshot=None,
+        render=None,
+        templates=False,
+        engine,
+        template_engine=None,
         registry=None,
     ):
         """保存当前模块所需依赖，供后续业务操作共享使用"""
-        self.catalog, self.db, self.data_dir = catalog, catalog.db, data_dir
+        self.catalog, self.db, self.data_dir = catalog, storage, data_dir
         self.renderer, self.templates_enabled = render, templates
         self.engine = engine
         self.registry = registry
-        self.assets = None
-        self.template_engine = fill_template if templates else None
-        self.runtime_snapshot = None
+        self.assets = assets
+        self.template_engine = template_engine
+        self.runtime_snapshot = runtime_snapshot
 
     def engines(self):
         """列出当前可选择的生成及渲染能力，停用贡献立即从列表撤销"""
@@ -59,10 +47,21 @@ class Documents:
         return self.registry.importers(purpose) if self.registry else []
 
     def export(self, resume_id: str, *, engine_id=None, renderer_id=None) -> dict:
+        """使用临时工作目录生成成品，发布后只保留统一资源里的文件"""
+        if self.assets is None:
+            return self._export(resume_id, engine_id=engine_id, renderer_id=renderer_id)
+        root = self.data_dir / "workspaces"
+        root.mkdir(parents=True, exist_ok=True)
+        with TemporaryDirectory(prefix="export-", dir=root) as directory:
+            return self._export(
+                resume_id, engine_id=engine_id, renderer_id=renderer_id, directory=Path(directory)
+            )
+
+    def _export(self, resume_id, *, engine_id=None, renderer_id=None, directory=None):
         """读取固定资料及项目引用，按所选完整模板或内置版式生成文件和清单"""
-        inputs = freeze_export(self.catalog, self.data_dir, resume_id)
+        inputs = self.catalog.freeze_export(self.data_dir, resume_id)
         resume, manifest_items, template = inputs.values()
-        renderer = render_word if self.renderer is DEFAULT_RENDERER else self.renderer
+        renderer = self.renderer
         engine, template_engine = self.engine, self.template_engine
         selected_engine = (
             self.registry.engine(engine_id, template=bool(template)) if self.registry else None
@@ -77,8 +76,9 @@ class Documents:
             raise Problem("此简历引用了已停用的模板引擎，请启用后导出或另存内置版式。", 409)
         displayed = display_document(resume["document"])
         export_id = uid()
-        directory = self.data_dir / "exports" / export_id
-        directory.mkdir(parents=True)
+        if directory is None:
+            directory = self.data_dir / "exports" / export_id
+            directory.mkdir(parents=True)
         output = directory / "resume.docx"
         if selected_engine:
             selected_engine.value.generate(
@@ -139,8 +139,8 @@ class Documents:
             manifest["assets"] = {name: row["id"] for name, row in resources.items()}
             (directory / "manifest.json").write_text(dump(manifest), encoding="utf-8")
         with self.db.transaction() as conn:
-            for resource in resources.values():
-                self.assets.publish(conn, resource, [f"export:{export_id}"])
+            if self.assets:
+                self.assets.publish_bundle(conn, "sys.documents", f"exports/{export_id}", resources)
             conn.execute(
                 "INSERT INTO exports VALUES (?,?,?,?,?,?)",
                 (export_id, resume["id"], dump(manifest), pages, render_error, now()),

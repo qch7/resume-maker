@@ -12,10 +12,9 @@ from resume_maker.core.config import Config
 from resume_maker.core.errors import Problem
 from resume_maker.domain.models import ResumeItem
 from resume_maker.domain.resume import ResumeSection, SectionEntry
-from resume_maker.services import resume_previews
-from resume_maker.services.documents import Documents
-from resume_maker.services.resume_previews import ResumePreviews
 from resume_maker.services.resumes import Resumes
+from tests.support import document_services as resume_previews
+from tests.support.document_services import Documents, ResumePreviews
 from tests.support.documents import resume_content
 from tests.support.templates import register_template
 
@@ -33,9 +32,9 @@ def preview(catalog, tmp_path, monkeypatch):
         (output.parent / "page-1.svg").write_text('<svg xmlns="http://www.w3.org/2000/svg"/>')
         return 1, None
 
-    monkeypatch.setattr("resume_maker.services.resume_previews.render_word", render)
+    monkeypatch.setattr("tests.support.document_services.render_word", render)
     register_template(catalog, tmp_path / "data")
-    service = ResumePreviews(Resumes(catalog), tmp_path / "data")
+    service = ResumePreviews(Resumes(catalog, storage=catalog.db), tmp_path / "data")
     yield service, calls
     service.stop()
 
@@ -104,7 +103,9 @@ def test_complete_template_preview_matches_formal_export(
 ):
     """完整模板的预览和正式导出具有相同内容和版式，关闭只回收临时预览"""
     service, _ = preview
-    documents = Documents(Resumes(catalog), tmp_path / "data")
+    documents = Documents(
+        Resumes(catalog, storage=catalog.db), tmp_path / "data", storage=catalog.db
+    )
     document = resume_content()
     # 预览和正式导出均须自动补齐模板缺少的字段
     document.personal.website = "https://example.test/new-profile"
@@ -121,7 +122,7 @@ def test_complete_template_preview_matches_formal_export(
     )
     source = tmp_path / "data/templates/mapped/template.docx"
     original = source.read_bytes()
-    mapping = deepcopy(Resumes(catalog).template("mapped")["mapping"])
+    mapping = deepcopy(Resumes(catalog, storage=catalog.db).template("mapped")["mapping"])
     catalog.put_draft(
         project["id"],
         populated["id"],
@@ -138,9 +139,11 @@ def test_complete_template_preview_matches_formal_export(
     saved = catalog.save_revision(project["id"], populated["id"], populated["id"])
     item = ResumeItem(project_id=project["id"], revision_id=saved["id"], highlight_ids=["two"])
     result = service.render(template_id, document.model_dump(), [item.model_dump()])
-    resume = Resumes(catalog).save_resume("固定方案", template_id, [item], document=document)
+    resume = Resumes(catalog, storage=catalog.db).save_resume(
+        "固定方案", template_id, [item], document=document
+    )
     monkeypatch.setattr(
-        "resume_maker.services.documents.render_word", lambda *_: (None, "No renderer")
+        "tests.support.document_services.render_word", lambda *_: (None, "No renderer")
     )
     exported = documents.export(resume["id"])
     with (
@@ -157,7 +160,7 @@ def test_complete_template_preview_matches_formal_export(
         assert "仅保留的角色原文" not in xml and "Python" not in xml
     assert exported["manifest"]["items"][0]["content"]["role"] == "仅保留的角色原文"
     assert source.read_bytes() == original
-    assert Resumes(catalog).template("mapped")["mapping"] == mapping
+    assert Resumes(catalog, storage=catalog.db).template("mapped")["mapping"] == mapping
     workspace = Path(service.directory.name)
     service.stop()
     assert not workspace.exists()
@@ -170,13 +173,13 @@ def test_failed_render_can_download_word_and_retry(preview, monkeypatch):
     service, _ = preview
     renderer = resume_previews.render_word
     monkeypatch.setattr(
-        "resume_maker.services.resume_previews.render_word", lambda *_: (None, "Word unavailable")
+        "tests.support.document_services.render_word", lambda *_: (None, "Word unavailable")
     )
     result = service.render("mapped", resume_content().model_dump(), [])
     assert service.file(result["id"], "resume.docx").is_file()
     with pytest.raises(Problem, match="不存在"):
         service.file(result["id"], "resume.pdf")
-    monkeypatch.setattr("resume_maker.services.resume_previews.render_word", renderer)
+    monkeypatch.setattr("tests.support.document_services.render_word", renderer)
     retry = service.render("mapped", resume_content().model_dump(), [])
     assert retry["id"] != result["id"]
     assert retry["pages"] == 1

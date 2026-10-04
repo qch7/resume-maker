@@ -180,7 +180,9 @@ def test_library_review_save_and_reopen_share_completion(tmp_path, monkeypatch):
         folder.mkdir(parents=True)
         _, plan = generic_template(folder / "template.docx", "rows", 5)
         original = (folder / "template.docx").read_bytes()
+        staged = catalog.assets.stage_bundle("ext.template-adapter", {"template.docx": original})
         with catalog.db.transaction() as conn:
+            catalog.assets.publish_bundle(conn, "ext.template-adapter", "templates/generic", staged)
             conn.execute(
                 "INSERT INTO templates VALUES (?,?,?,?,?)",
                 ("generic", "任意模板", digest(original), dump({"plan": plan.model_dump()}), now()),
@@ -239,4 +241,7 @@ def test_library_review_save_and_reopen_share_completion(tmp_path, monkeypatch):
         assert (
             folder / "template.docx"
         ).read_bytes() == original and task_source.read_bytes() == task_bytes
-        assert Resumes(catalog).template("generic")["mapping"]["plan"] == plan.model_dump()
+        assert (
+            Resumes(catalog, storage=catalog.db).template("generic")["mapping"]["plan"]
+            == plan.model_dump()
+        )

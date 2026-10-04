@@ -7,7 +7,7 @@ from collections import Counter
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from json import loads
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from uuid import UUID
 
 from resume_maker.core.errors import Problem
@@ -67,6 +67,132 @@ class Assets:
         )
         return saved
 
+    def bundle(self, key, conn=None):
+        """逻辑资源名只定位索引，真实文件由不可变资源标识定位"""
+        self._logical_path(key)
+        if conn is None:
+            return self.db.setting(f"asset-bundle:{key}")
+        row = conn.execute(
+            "SELECT value_json FROM settings WHERE key=?", (f"asset-bundle:{key}",)
+        ).fetchone()
+        return loads(row[0]) if row else None
+
+    def _logical_path(self, name):
+        """逻辑目录和文件必须为规范相对路径且不包含特殊路径分量"""
+        path = PurePosixPath(name)
+        if (
+            not name
+            or path.is_absolute()
+            or path.as_posix() != name
+            or any(part in {".", ".."} for part in path.parts)
+            or any(char in name for char in ("\\", ":", "\x00"))
+        ):
+            raise Problem("资源逻辑路径无效。", 409)
+        return path
+
+    def stage_bundle(self, owner, files):
+        """暂存完整文件集合，失败时不发布部分文件或业务引用"""
+        result, by_digest = {}, {}
+        for name, data in files.items():
+            self._logical_path(name)
+            fingerprint = hashlib.sha256(data).hexdigest()
+            if fingerprint not in by_digest:
+                by_digest[fingerprint] = self.stage(owner, data, "application/octet-stream")
+            result[name] = by_digest[fingerprint]
+        return result
+
+    def publish_bundle(self, conn, owner, key, staged):
+        """在业务事务内替换完整文件索引并原子转移资源引用"""
+        previous = self.bundle(key, conn)
+        if previous and previous["owner"] != owner:
+            raise Problem("资源集合不属于当前插件。", 403)
+        reference = f"bundle:{key}"
+        files, published = {}, set()
+        for name, record in staged.items():
+            self._logical_path(name)
+            if record["owner"] != owner:
+                raise Problem("暂存资源不属于当前插件。", 403)
+            if record["id"] not in published:
+                if record["state"] == "published":
+                    row = conn.execute(
+                        "SELECT value_json FROM settings WHERE key=?", (f"asset:{record['id']}",)
+                    ).fetchone()
+                    current = loads(row[0]) if row else None
+                    if not current or current["state"] != "published" or current["owner"] != owner:
+                        raise Problem("资源已失效，不能附接引用。", 409)
+                    current["references"] = sorted(set(current["references"]) | {reference})
+                    conn.execute(
+                        "UPDATE settings SET value_json=? WHERE key=?",
+                        (dump(current), f"asset:{record['id']}"),
+                    )
+                else:
+                    self.publish(conn, record, [reference])
+                published.add(record["id"])
+            files[name] = record["id"]
+        if previous:
+            for identifier in set(previous["files"].values()) - published:
+                self.release_reference(conn, identifier, owner, reference)
+        result = {
+            "owner": owner,
+            "files": files,
+            "version": previous["version"] + 1 if previous else 1,
+        }
+        conn.execute(
+            "INSERT OR REPLACE INTO settings VALUES (?,?)", (f"asset-bundle:{key}", dump(result))
+        )
+        return result
+
+    def update_bundle(self, conn, owner, key, staged):
+        """只替换明确更新的文件，其余不可变文件继续复用原资源"""
+        previous = self.bundle(key, conn)
+        retained = {}
+        for name, identifier in (previous or {}).get("files", {}).items():
+            if name not in staged:
+                row = conn.execute(
+                    "SELECT value_json FROM settings WHERE key=?", (f"asset:{identifier}",)
+                ).fetchone()
+                if row is None:
+                    raise Problem("资源集合引用缺失。", 409)
+                retained[name] = loads(row[0])
+        return self.publish_bundle(conn, owner, key, {**retained, **staged})
+
+    def release_bundle(self, conn, owner, key):
+        """解除业务文件集合的全部引用，物理删除仍由维护计划决定"""
+        bundle = self.bundle(key, conn)
+        if not bundle:
+            return
+        if bundle["owner"] != owner:
+            raise Problem("资源集合不属于当前插件。", 403)
+        for identifier in bundle["files"].values():
+            self.release_reference(conn, identifier, owner, f"bundle:{key}")
+        conn.execute("DELETE FROM settings WHERE key=?", (f"asset-bundle:{key}",))
+
+    def file_id(self, key, name, conn=None):
+        """解析已发布集合里的文件，拒绝未登记文件名"""
+        self._logical_path(name)
+        bundle = self.bundle(key, conn)
+        identifier = bundle and bundle["files"].get(name)
+        if not identifier:
+            raise Problem("文件不存在或尚未发布。", 404)
+        return identifier
+
+    @contextmanager
+    def open_file(self, key, name):
+        """读取期间持有实际资源租约，删除业务记录也不回收在途下载"""
+        with self.lock:
+            identifier = self.file_id(key, name)
+            lease = self.lease(identifier)
+            path = lease.__enter__()
+        try:
+            yield path
+        finally:
+            lease.__exit__(None, None, None)
+
+    def read_file(self, key, name):
+        """在资源租约内返回不可变字节，不泄露可写原件路径"""
+        with self.open_file(key, name) as path:
+            return path.read_bytes()
+
     @contextmanager
     def lease(self, identifier: str):
         """读取前核验状态和摘要，释放前阻止清理文件"""
@@ -77,6 +203,8 @@ class Assets:
             path = (self.directory / record["path"]).resolve()
             if not path.is_relative_to((self.directory / "assets").resolve()):
                 raise Problem("资源位置无效。", 409)
+            if not path.is_file():
+                raise Problem("资源原件缺失，请从备份恢复。", 409)
             if hashlib.sha256(path.read_bytes()).hexdigest() != record["sha256"]:
                 raise Problem("资源摘要不匹配。", 409)
             self.leases[identifier] += 1

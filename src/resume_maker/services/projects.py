@@ -5,8 +5,7 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from resume_maker.core.errors import Problem, need
 from resume_maker.domain.experience import same_experience
 from resume_maker.domain.models import ProjectProfile
-from resume_maker.infrastructure.database import dump, now
-from resume_maker.integrations.desktop import reveal_file
+from resume_maker.sdk.records import dump, now
 from resume_maker.services.catalog import Catalog
 
 
@@ -62,37 +61,15 @@ class Projects:
                 )
             ]
             placeholders = ",".join("?" for _ in ids)
-            used = conn.execute(
-                "SELECT r.name FROM resumes r WHERE r.id NOT IN "
-                "(SELECT resume_id FROM resume_deletions) AND EXISTS "
-                "(SELECT 1 FROM json_each(r.items_json) item "
-                f"WHERE json_extract(item.value,'$.project_id') IN ({placeholders})) "
-                "ORDER BY r.created_at,r.id",
-                ids,
-            ).fetchall()
-            if used:
-                names = "、".join(row["name"] for row in used[:3])
-                raise Problem(
-                    f"项目或其子项目正在被 {len(used)} 份简历使用（{names}），不能删除。"
-                    "请先从这些简历中移除项目并保存组合。",
-                    409,
-                )
-            if conn.execute(
-                f"SELECT 1 FROM jobs WHERE project_id IN ({placeholders}) "
-                "AND status IN ('queued','running') LIMIT 1",
-                ids,
-            ).fetchone():
-                raise Problem("项目或其子项目仍有 AI 任务进行中，请等待完成或取消后再删除。", 409)
-
-            # 按外键依赖顺序清理目标项目数据并在任一步失败时回滚
-            conversations = f"SELECT id FROM conversations WHERE project_id IN ({placeholders})"
-            jobs = f"SELECT id FROM jobs WHERE project_id IN ({placeholders})"
+            self.db.prepare_delete("project", ids, conn)
             revisions = f"SELECT id FROM revisions WHERE project_id IN ({placeholders})"
-            conn.execute(f"DELETE FROM proposals WHERE conversation_id IN ({conversations})", ids)
-            conn.execute(f"DELETE FROM messages WHERE conversation_id IN ({conversations})", ids)
-            conn.execute(f"DELETE FROM events WHERE job_id IN ({jobs})", ids)
-            conn.execute(f"DELETE FROM jobs WHERE project_id IN ({placeholders})", ids)
-            conn.execute(f"DELETE FROM conversations WHERE project_id IN ({placeholders})", ids)
+            if self.catalog.assets:
+                for row in conn.execute(
+                    f"SELECT id FROM snapshots WHERE project_id IN ({placeholders})", ids
+                ).fetchall():
+                    self.catalog.assets.release_bundle(
+                        conn, "sys.experience", f"snapshots/{row['id']}"
+                    )
             conn.execute(f"DELETE FROM drafts WHERE project_id IN ({placeholders})", ids)
             conn.execute(f"DELETE FROM revision_branches WHERE revision_id IN ({revisions})", ids)
             conn.execute(
@@ -160,7 +137,7 @@ class Projects:
             self.catalog._sync_subprojects(conn, project["parent_id"] or project_id)
         return self.catalog.project(project_id)
 
-    def reveal_source(self, project_id: str, snapshot_id: str, source: str, path: str) -> None:
+    def source_path(self, project_id: str, snapshot_id: str, source: str, path: str) -> Path:
         """按历史快照解析来源，拒绝越界路径和已移走的文件以免打开错误仓库"""
         self.catalog.project(project_id)
         snapshot = need(
@@ -193,4 +170,4 @@ class Projects:
             raise Problem("来源文件路径必须位于项目目录内。")
         if not target.is_file():
             raise Problem("来源路径不是文件。", 404)
-        reveal_file(target)
+        return target

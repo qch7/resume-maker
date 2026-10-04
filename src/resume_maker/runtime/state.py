@@ -36,12 +36,43 @@ class StateStore:
             plan = json.loads(path.read_text(encoding="utf-8"))
             if path.stem != plan["id"]:
                 raise PluginError("插件操作记录身份不匹配")
+            if "package_updates" in plan and plan["state"] in {
+                "validating",
+                "restart-required",
+                "applying",
+                "booting",
+            }:
+                transition_path = self.path.parent / "host-transition.json"
+                transition = (
+                    json.loads(transition_path.read_text(encoding="utf-8"))
+                    if transition_path.exists()
+                    else {}
+                )
+                if transition.get("id") == plan["id"]:
+                    plan["state"] = (
+                        "restart-required"
+                        if transition["state"] == "prepared"
+                        else transition["state"]
+                    )
+                    plan["message"] = transition.get("message", plan.get("message", ""))
+                else:
+                    plan["state"] = "interrupted"
+                self.save_plan(plan)
+                result[plan["id"]] = plan
+                continue
             if plan["state"] in {"planned", "preparing", "restart-required"}:
                 committed = (
                     saved
                     and saved["generation"] == plan["generation"] + 1
                     and saved["selected"] == plan["selected"]
                     and saved.get("configs", {}) == plan["configs"]
+                    and saved.get("instances", []) == plan.get("instances", [])
+                    and saved.get("config_layers", [])
+                    == [
+                        layer
+                        for layer in plan.get("configuration", {}).get("layers", [])
+                        if layer["name"] != "startup"
+                    ]
                 )
                 plan["state"] = "committed" if committed else "interrupted"
                 self.save_plan(plan)
@@ -75,7 +106,16 @@ class StateStore:
         """切换前留下恢复判据，启动从已提交配置重新装配"""
         self.write(self.journal, {"version": 1, "state": "preparing", "plan": plan})
 
-    def commit(self, selected, generation, lock, configs=None, effective=None):
+    def commit(
+        self,
+        selected,
+        generation,
+        lock,
+        configs=None,
+        effective=None,
+        instances=None,
+        config_layers=None,
+    ):
         """配置文件的替换是运行时代次的持久提交点"""
         self.write(
             self.path,
@@ -86,6 +126,16 @@ class StateStore:
                 "lock": lock,
                 "configs": configs or {},
                 "effective": sorted(effective if effective is not None else selected),
+                "instances": instances or [],
+                **(
+                    {
+                        "config_layers": [
+                            layer for layer in config_layers if layer["name"] != "startup"
+                        ]
+                    }
+                    if config_layers is not None
+                    else {}
+                ),
             },
         )
         try:

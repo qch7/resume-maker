@@ -49,7 +49,8 @@ def test_failed_initialization_rolls_back_all_tables(tmp_path, monkeypatch):
     """建库途中失败时回滚全部结构，修正后可从空库重新初始化"""
     path = tmp_path / "resume.db"
     with monkeypatch.context() as patch:
-        patch.setattr(database, "SCHEMA", database.SCHEMA + "INVALID SQL;")
+        resources = database.resources
+        patch.setattr(database, "resources", lambda *args: resources(*args) + "\nINVALID SQL;")
         with pytest.raises(sqlite3.OperationalError):
             Database(path)
     with closing(sqlite3.connect(path)) as conn:

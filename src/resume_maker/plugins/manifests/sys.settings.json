@@ -39,6 +39,9 @@
   "data": {
     "tables": [
       "settings"
+    ],
+    "schemas": [
+      "infrastructure/schemas/sys.settings.sql"
     ]
   }
 }

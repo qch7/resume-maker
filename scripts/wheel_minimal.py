@@ -3,6 +3,7 @@
 import importlib.util
 import json
 import sys
+from io import BytesIO
 from pathlib import Path
 from threading import Event
 from zipfile import ZipFile
@@ -52,8 +53,10 @@ def main():
         exported = host.require(ServiceKey("documents")).export(resume["id"])
         registry = host.require(ServiceKey("document.registry"))
         assert registry.importers("certificate") == []
-        original = directory / "exports" / exported["id"] / "resume.docx"
-        selected = registry.select_importer(ImportSource("resume.docx", original.read_bytes()))
+        original = host.require(ServiceKey("assets")).read_file(
+            f"exports/{exported['id']}", "resume.docx"
+        )
+        selected = registry.select_importer(ImportSource("resume.docx", original))
         stage = directory / "workspaces" / "minimal-import"
         stage.mkdir()
         result = registry.run_import(
@@ -61,7 +64,7 @@ def main():
         )
         assert result.template.startswith(b"PK")
         assert selected.trace["id"] == "sys.docx/import"
-        with ZipFile(directory / "exports" / exported["id"] / "resume.docx") as archive:
+        with ZipFile(BytesIO(original)) as archive:
             content = archive.read("word/document.xml").decode()
             assert "最小安装" in content and "物理最小安装完成制作闭环" in content
         backup = create_backup(host.require(ServiceKey("db")), directory)

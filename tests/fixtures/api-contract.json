@@ -4281,6 +4281,339 @@
           }
         }
       }
+    },
+    "/api/plugins/packages/plans": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PackageBatchInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/plans/{plan_id}/cancel-validation": {
+      "post": {
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Plan Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/downloads": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DownloadInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/operations": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/downloads/{identifier}": {
+      "get": {
+        "parameters": [
+          {
+            "name": "identifier",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identifier"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/downloads/{identifier}/cancel": {
+      "post": {
+        "parameters": [
+          {
+            "name": "identifier",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identifier"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/packages/{plugin_id}/pin": {
+      "put": {
+        "parameters": [
+          {
+            "name": "plugin_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Plugin Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PinInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/resume-sources": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/resume-source-items": {
+      "get": {
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Provider"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 1000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "query",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "default": "",
+              "title": "Query"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "schemas": {
@@ -6047,6 +6380,16 @@
             }
           ],
           "title": "Field Definitions"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/components/schemas/SourceReference"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "additionalProperties": false,
@@ -6502,6 +6845,28 @@
             }
           ],
           "title": "Configs"
+        },
+        "instances": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/components/schemas/InstanceSpec"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Instances"
+        },
+        "config_edits": {
+          "items": {
+            "$ref": "#/components/schemas/ConfigurationEdit"
+          },
+          "type": "array",
+          "maxItems": 1000,
+          "title": "Config Edits"
         }
       },
       "additionalProperties": false,
@@ -6535,6 +6900,193 @@
       ],
       "title": "WindowInput",
       "description": "窗口身份独立于实体和工作区恢复代次"
+    },
+    "ConfigurationEdit": {
+      "properties": {
+        "instance": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$",
+          "title": "Instance"
+        },
+        "operation": {
+          "type": "string",
+          "enum": [
+            "replace",
+            "set",
+            "reset"
+          ],
+          "title": "Operation"
+        },
+        "path": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 20,
+          "title": "Path",
+          "default": []
+        },
+        "value": {
+          "$ref": "#/components/schemas/JsonValue"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "instance",
+        "operation"
+      ],
+      "title": "ConfigurationEdit",
+      "description": "字段路径使用属性名数组，数组值始终整体替换"
+    },
+    "DownloadInput": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "title": "Id"
+        },
+        "url": {
+          "type": "string",
+          "title": "Url"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Sha256"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "url",
+        "sha256"
+      ],
+      "title": "DownloadInput",
+      "description": "下载请求身份由客户端预先生成，重复发送不会创建第二个任务"
+    },
+    "InstanceSpec": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$",
+          "title": "Id"
+        },
+        "plugin": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$",
+          "title": "Plugin"
+        },
+        "bindings": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "type": "object",
+          "title": "Bindings"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "plugin"
+      ],
+      "title": "InstanceSpec",
+      "description": "实例使用稳定身份，提供方绑定按执行域和能力逐项声明"
+    },
+    "PackageBatchInput": {
+      "properties": {
+        "packages": {
+          "items": {
+            "$ref": "#/components/schemas/PackageInstallInput"
+          },
+          "type": "array",
+          "maxItems": 100,
+          "minItems": 1,
+          "title": "Packages"
+        },
+        "generation": {
+          "type": "integer",
+          "minimum": 1.0,
+          "title": "Generation"
+        },
+        "selected": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Selected"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "packages",
+        "generation"
+      ],
+      "title": "PackageBatchInput",
+      "description": "多插件更新固定为一组候选，整组依赖和权限一起审查"
+    },
+    "PinInput": {
+      "properties": {
+        "digest": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Digest"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "title": "PinInput",
+      "description": "空摘要解除锁定，否则只接受当前已安装版本"
+    },
+    "SourceReference": {
+      "properties": {
+        "provider": {
+          "type": "string",
+          "maxLength": 250,
+          "pattern": "^[a-z][a-z0-9._-]*/[a-zA-Z0-9._/-]+$",
+          "title": "Provider"
+        },
+        "id": {
+          "type": "string",
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Id"
+        },
+        "version": {
+          "type": "string",
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Version"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "provider",
+        "id",
+        "version"
+      ],
+      "title": "SourceReference",
+      "description": "简历固定保存来源身份和最后采用版本，缺包时原文字段仍可展示"
     }
   }
 }

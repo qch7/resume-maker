@@ -5,18 +5,71 @@ from pathlib import Path, PurePosixPath
 from resume_maker.core.errors import Problem, need
 from resume_maker.domain.experience import field_value, replace_field, same_experience
 from resume_maker.domain.models import Experience, ProjectProfile
-from resume_maker.infrastructure.database import Database, dump, now, uid, unpack
+from resume_maker.sdk.observation import internal
+from resume_maker.sdk.records import dump, now, uid, unpack
+from resume_maker.sdk.storage import RelationalStore
 from resume_maker.services.history import History
 
 
 class Catalog:
     """经历版本和草稿的核心事务服务"""
 
-    def __init__(self, db: Database):
+    def __init__(self, db: RelationalStore, *, assets=None):
         """保存当前模块所需依赖，供后续业务操作共享使用"""
-        self.db = db
+        self.db, self.assets = db, assets
         self.history = History(db)
         self.project_initializers = {}
+
+    @internal
+    def workspace_state(self, conn):
+        """在调用方快照内返回本模块拥有的工作台资料"""
+        result = {
+            "projects": [
+                unpack(row)
+                for row in conn.execute(
+                    "SELECT p.*, h.parent_id, b.head_revision, MAX(p.updated_at, "
+                    "COALESCE((SELECT MAX(updated_at) FROM drafts "
+                    "WHERE project_id=p.id), p.updated_at)) AS activity_at "
+                    "FROM projects p LEFT JOIN project_hierarchy h ON h.project_id=p.id "
+                    "JOIN experience_branches b ON b.project_id=p.id AND b.is_default=1 "
+                    "WHERE p.archived=0 ORDER BY p.created_at"
+                )
+            ],
+            "branches": [
+                unpack(row)
+                for row in conn.execute("SELECT * FROM experience_branches ORDER BY created_at,id")
+            ],
+        }
+        return result
+
+    def publish_evidence(self, project_id, identifier, fingerprint, manifest, files):
+        """经历插件在同一事务发布来源快照和不可变原件引用"""
+        staged = self.assets.stage_bundle("sys.experience", files)
+        with self.db.transaction() as conn:
+            need(
+                conn.execute("SELECT id FROM projects WHERE id=?", (project_id,)).fetchone(),
+                "项目已删除，证据未发布。",
+            )
+            self.assets.publish_bundle(conn, "sys.experience", f"snapshots/{identifier}", staged)
+            conn.execute(
+                "INSERT INTO snapshots VALUES (?,?,?,?,?)",
+                (identifier, project_id, fingerprint, dump(manifest), now()),
+            )
+        return self.db.one("SELECT * FROM snapshots WHERE id=?", (identifier,))
+
+    @internal
+    def on_project_created(self, owner, initialize):
+        """登记同事务的项目初始化回调并返回作用域撤销函数"""
+        if owner in self.project_initializers:
+            raise Problem("项目初始化贡献重复。", 409)
+        self.project_initializers[owner] = initialize
+
+        def detach():
+            """排空请求后移除当前所有者的初始化回调"""
+            if self.project_initializers.get(owner) is initialize:
+                del self.project_initializers[owner]
+
+        return detach
 
     def project(self, project_id: str) -> dict:
         """读取项目并在记录缺失时抛出业务异常"""
@@ -29,19 +82,74 @@ class Catalog:
             )
         )
 
-    def revision(self, revision_id: str, project_id: str | None = None) -> dict:
+    def revision(self, revision_id: str, project_id: str | None = None, conn=None) -> dict:
         """读取不可变经历版本并按需验证它属于指定项目"""
+        if conn is None:
+            with self.db.connect() as connection:
+                return self._revision(connection, revision_id, project_id)
+        return self._revision(conn, revision_id, project_id)
+
+    def _revision(self, conn, revision_id, project_id):
+        """在已有会话读取不可变修订，不重新进入公共事务入口"""
         row = need(
-            self.db.one(
-                "SELECT r.*,b.id AS branch_id,b.name AS branch_name FROM revisions r "
-                "JOIN revision_branches rb ON rb.revision_id=r.id "
-                "JOIN experience_branches b ON b.id=rb.branch_id WHERE r.id=?",
-                (revision_id,),
-            )
+            unpack(
+                conn.execute(
+                    "SELECT r.*,b.id AS branch_id,b.name AS branch_name FROM revisions r "
+                    "JOIN revision_branches rb ON rb.revision_id=r.id "
+                    "JOIN experience_branches b ON b.id=rb.branch_id WHERE r.id=?",
+                    (revision_id,),
+                ).fetchone()
+            ),
+            "经历版本已不存在或其项目已删除。",
         )
         if project_id and row["project_id"] != project_id:
             raise Problem("经历版本不属于该项目。", 409)
         return row
+
+    def branch(self, project_id, revision_id):
+        """公开读取修订所属分支，不暴露历史管理对象"""
+        return self.history.for_revision(project_id, revision_id)
+
+    def apply_suggestion(self, conn, project_id, revision_id, field, before, after, snapshot_id):
+        """在调用方写事务中核对当前分支和原文，再原子更新经历草稿"""
+        revision = self.revision(revision_id, project_id, conn)
+        head = conn.execute(
+            "SELECT head_revision FROM experience_branches WHERE id=?", (revision["branch_id"],)
+        ).fetchone()[0]
+        drafts = [
+            unpack(row)
+            for row in conn.execute(
+                "SELECT * FROM drafts WHERE project_id=? AND base_revision=? "
+                "ORDER BY CASE field WHEN 'experience' THEN 0 WHEN 'order' THEN 2 ELSE 1 END, "
+                "updated_at",
+                (project_id, revision_id),
+            )
+        ]
+        content = self._apply_drafts(revision["content"], drafts)
+        if head != revision_id or field_value(content, field) != before:
+            raise Problem("建议生成后原文已发生变化，请重新请求或手工合并。", 409)
+        replace_field(content, field, after)
+        if field == "experience":
+            conn.execute(
+                "DELETE FROM drafts WHERE project_id=? AND base_revision=?",
+                (project_id, revision_id),
+            )
+        row = conn.execute(
+            "SELECT version FROM drafts WHERE project_id=? AND base_revision=? AND field=?",
+            (project_id, revision_id, field),
+        ).fetchone()
+        conn.execute(
+            "INSERT OR REPLACE INTO drafts VALUES (?,?,?,?,?,?,?)",
+            (
+                project_id,
+                revision_id,
+                field,
+                dump(after),
+                row[0] + 1 if row else 1,
+                f"ai:{snapshot_id or ''}",
+                now(),
+            ),
+        )
 
     def create_project(self, name: str, roots: list[str]) -> dict:
         """规范化来源并去重登记项目，同时建立初始经历和已注册的扩展资料"""

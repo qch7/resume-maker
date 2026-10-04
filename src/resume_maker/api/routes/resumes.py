@@ -3,7 +3,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 
 from resume_maker.api.dependencies import service
 from resume_maker.api.resources import AssetResponse
@@ -12,6 +12,7 @@ from resume_maker.core.config import Config
 from resume_maker.core.errors import Problem, need
 from resume_maker.infrastructure.assets import Assets
 from resume_maker.infrastructure.database import Database
+from resume_maker.sdk.records import dump
 from resume_maker.sdk.services import Documents, ResumePreviews, Resumes
 
 router = APIRouter(prefix="/api", tags=["resumes"])
@@ -48,6 +49,24 @@ def preview_file(
 def new_resume(dep_resume: Annotated[Resumes, Depends(service("resume"))], body: ResumeInput):
     """创建新的简历组合，将项目经历引用固定到具体版本"""
     return dep_resume.save_resume(body.name, body.template_id, body.items, document=body.document)
+
+
+@router.get("/resume-sources")
+def resume_sources(dep_resume: Annotated[Resumes, Depends(service("resume"))]):
+    """列出可加入简历的资料来源，缺包不删除已经采用的文字"""
+    return dep_resume.source_catalog()
+
+
+@router.get("/resume-source-items")
+def resume_source_items(
+    dep_resume: Annotated[Resumes, Depends(service("resume"))],
+    provider: str,
+    cursor: str | None = Query(default=None, max_length=1000),
+    query: str = Query(default="", max_length=200),
+    limit: int = Query(default=50, ge=1, le=100),
+):
+    """读取已核对来源内容，客户端选择后仍须正常保存草稿"""
+    return dep_resume.source_items(provider, cursor, query, limit)
 
 
 @router.put("/resumes/{resume_id}")
@@ -123,6 +142,12 @@ def export_file(
     allowed.update(f"page-{i}.png" for i in range(1, (record["pages"] or 0) + 1))
     if file_name not in allowed:
         raise Problem("文件不存在。", 404)
+    if file_name == "manifest.json":
+        return Response(
+            dump(record["manifest"]),
+            media_type="application/json",
+            headers={"Content-Disposition": 'attachment; filename="manifest.json"'},
+        )
     if asset_id := record["manifest"].get("assets", {}).get(file_name):
         return AssetResponse(dep_assets, asset_id, file_name)
     path = dep_config.data_dir / "exports" / export_id / file_name

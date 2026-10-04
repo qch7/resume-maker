@@ -40,11 +40,31 @@ class Catalog(Protocol):
 
     history: History
 
+    def workspace_state(self, conn):
+        """在调用方快照内返回模块拥有的工作台查询"""
+        ...
+
+    def on_project_created(self, owner, initialize):
+        """登记项目创建事务内的扩展初始化并返回撤销函数"""
+        ...
+
+    def branch(self, project_id, revision_id):
+        """读取不可变修订所属分支"""
+        ...
+
+    def apply_suggestion(self, conn, project_id, revision_id, field, before, after, snapshot_id):
+        """在同一写事务核验分支和原文后应用建议草稿"""
+        ...
+
+    def publish_evidence(self, project_id, identifier, fingerprint, manifest, files):
+        """原子发布固定证据和不可变资源引用"""
+        ...
+
     def project(self, project_id: str) -> dict:
         """读取项目并在记录缺失时抛出业务异常"""
         ...
 
-    def revision(self, revision_id: str, project_id: str | None = None) -> dict:
+    def revision(self, revision_id: str, project_id: str | None = None, conn=None) -> dict:
         """读取不可变经历版本并按需验证它属于指定项目"""
         ...
 
@@ -104,7 +124,7 @@ class Projects(Protocol):
         """校验并重新绑定项目来源目录，保留已经生成的经历和历史"""
         ...
 
-    def reveal_source(self, project_id: str, snapshot_id: str, source: str, path: str) -> None:
+    def source_path(self, project_id: str, snapshot_id: str, source: str, path: str) -> Path:
         """按历史快照解析来源，拒绝越界路径和已移走的文件以免打开错误仓库"""
         ...
 
@@ -112,7 +132,39 @@ class Projects(Protocol):
 class Resumes(Protocol):
     """Resumes 的公开业务操作，插件消费者不依赖具体实现"""
 
-    def revision(self, revision_id, project_id=None):
+    def workspace_state(self, conn):
+        """在调用方快照内返回模块拥有的工作台查询"""
+        ...
+
+    def template_bytes(self, template, directory):
+        """读取不可变模板原件，不向消费者暴露持久文件位置"""
+        ...
+
+    def freeze_export(self, directory, identifier):
+        """固定同一事务快照中的简历、修订和模板输入"""
+        ...
+
+    def freeze_preview(self, directory, template_id, document, items):
+        """固定工作副本及其不可变引用"""
+        ...
+
+    def template_usage(self, conn, identifier):
+        """在同一维护事务内返回模板的已保存方案引用"""
+        ...
+
+    def source_catalog(self):
+        """列出已启用的资料来源"""
+        ...
+
+    def source_items(self, provider, cursor=None, query="", limit=50):
+        """读取来源的有界资料页"""
+        ...
+
+    def preserve_sources(self, conn=None):
+        """同一业务事务内保存最后核对的来源内容"""
+        ...
+
+    def revision(self, revision_id, project_id=None, conn=None):
         """核对不可变版本归属，不读取经历服务的内部状态"""
         ...
 
@@ -120,7 +172,7 @@ class Resumes(Protocol):
         """只通过已注册的来源解析器刷新内容，停用后保留确认快照"""
         ...
 
-    def template(self, template_id: str, include_trashed: bool = False) -> dict:
+    def template(self, template_id: str, include_trashed: bool = False, conn=None) -> dict:
         """只允许引用具有完整映射的模板，失效引用由用户重新选择或识别"""
         ...
 
@@ -200,6 +252,14 @@ class Jobs(Protocol):
 class Honors(Protocol):
     """Honors 的公开业务操作，插件消费者不依赖具体实现"""
 
+    def attach_recognition(self, provider, execution_queue):
+        """附接识别处理器，撤销等待实际任务和资源清理结束"""
+        ...
+
+    def file_reference(self, identifier, page=None):
+        """返回登记的资源标识和文件名，读取者须持有资源租约"""
+        ...
+
     def list(self):
         """返回独立荣誉条目，按最近更新排列"""
         ...
@@ -252,6 +312,18 @@ class Documents(Protocol):
 class ResumePreviews(Protocol):
     """ResumePreviews 的公开业务操作，插件消费者不依赖具体实现"""
 
+    def maintenance(self):
+        """返回阻止迟到预览生成的维护屏障"""
+        ...
+
+    def template_artifacts(self, template_id):
+        """返回目标模板的可清理预览路径"""
+        ...
+
+    def invalidate_template(self, template_id):
+        """撤销已清理模板的预览缓存"""
+        ...
+
     def render(self, template_id, document, items, *, engine_id=None, renderer_id=None):
         """核验固定版本归属后使用当前资料和可选工作副本试填"""
         ...
@@ -263,6 +335,10 @@ class ResumePreviews(Protocol):
 
 class Settings(Protocol):
     """Settings 的公开业务操作，插件消费者不依赖具体实现"""
+
+    def workspace_state(self, conn):
+        """在调用方快照内返回模块拥有的工作台查询"""
+        ...
 
     def get(self):
         """返回完整 Provider 配置和当前数据目录"""
@@ -288,8 +364,8 @@ class Settings(Protocol):
         """在同一事务内校验版本和保存默认栏目，防止多窗口覆盖"""
         ...
 
-    def inspect_provider(self):
-        """只检查本机 Codex CLI 的版本，不触发模型请求"""
+    def attach_provider(self, provider):
+        """附接模型出口并返回撤销函数"""
         ...
 
     def check_provider(self):
@@ -396,12 +472,28 @@ class TemplateLibrary(Protocol):
 class Templates(Protocol):
     """Templates 的公开业务操作，插件消费者不依赖具体实现"""
 
+    def maintenance(self):
+        """返回阻止新任务和保存交错的维护屏障"""
+        ...
+
+    def cleanup_paths(self, template_id, shared):
+        """核验没有在途任务后返回可清理路径"""
+        ...
+
+    def invalidate_artifacts(self, conn, paths):
+        """同事务撤销已清理任务和资源引用"""
+        ...
+
     def list_tasks(self):
         """列出可恢复的模板工作，已保存版本仍在独立模板库中"""
         ...
 
     def retry(self, identifier, document, items):
         """使用留存原件显式重试中断任务，不在启动时自动发送模型请求"""
+        ...
+
+    def attach_analysis(self, provider, execution_queue, analysis):
+        """附接分析处理器，撤销时等待实际任务结束"""
         ...
 
     def analyze(
@@ -468,4 +560,28 @@ class Templates(Protocol):
 
     def projects(self, items: list[ResumeItem]) -> list[dict]:
         """校验固定项目和亮点引用，保存和试填使用同一份资料覆盖规则"""
+        ...
+
+
+class SourceAccess(Protocol):
+    """源码插件公开能力，停用后不再扫描或传递源码材料"""
+
+    def scan(self, path: Path):
+        """扫描用户选择的目录并列出项目分组"""
+        ...
+
+    def describe(self, project):
+        """读取项目绑定的来源描述"""
+        ...
+
+    def context(self, sources, cancelled):
+        """建立有界只读材料上下文"""
+        ...
+
+    def capture(self, project, sources, references, cancelled):
+        """按实际引用核对并保存不可变证据"""
+        ...
+
+    def check(self, snapshot, evidence):
+        """依据保留原件校验行号和引文"""
         ...

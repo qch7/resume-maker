@@ -57,7 +57,7 @@ ResumeMaker 是面向开发者的开源简历工作台，在本机运行。导�
 uv run resume-maker --profile minimal --data-dir ./data-minimal
 ```
 
-最小组合支持手工经历、不可变版本、个人资料、简历编排、内容预览、DOCX 和备份恢复。Word 的精确分页和 PDF 属于可选能力。顶部“插件管理”可查看依赖、预览变更范围并应用，停用保留资料和草稿。
+最小组合支持手工经历、不可变版本、个人资料、简历编排、内容预览、DOCX 和备份恢复。Word 的精确分页和 PDF 属于可选能力。顶部“插件管理”可查看依赖、预览变更范围并应用，停用保留资料和草稿。外部插件支持本地包、HTTPS 下载和版本锁；多个插件可以一起试运行，官方启动器自动完成需要的重启，资料兼容时支持失败回退。
 
 已构建 wheel 的基础安装不需要 OCR、PDF 和图片处理库；需要对应能力时使用 `resume-maker[pdf]`、`resume-maker[images]`、`resume-maker[ocr]`、`resume-maker[word]` 或 `resume-maker[all]`。依赖安装后重启，再启用相关插件。源码开发环境默认包含完整依赖，方便回归。
 

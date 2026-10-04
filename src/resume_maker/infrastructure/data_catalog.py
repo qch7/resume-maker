@@ -16,12 +16,14 @@ CREATE TABLE IF NOT EXISTS plugin_data_catalog (
 """
 
 
-def initialize_catalog(conn):
+def initialize_catalog(conn, selected=None):
     """已有业务表归属转成持久描述，关闭或缺少插件仍可发现附件"""
     descriptors = json.loads(
         Path(__file__).with_name("data_descriptors.json").read_text(encoding="utf-8")
     )
     for owner, descriptor in descriptors.items():
+        if selected is not None and owner not in selected:
+            continue
         conn.execute(
             "INSERT OR IGNORE INTO plugin_data_catalog VALUES (?,?,?,?)",
             (owner, 1, json.dumps(descriptor, ensure_ascii=False), "1.0.0"),
@@ -66,6 +68,10 @@ def resource_records(conn):
                         (len(prefix), prefix),
                     )
                 ]
+            elif not conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)
+            ).fetchone():
+                continue
             else:
                 values = [{"id": row[0]} for row in conn.execute(f'SELECT id FROM "{table}"')]
             for value in values:
@@ -78,6 +84,10 @@ def resource_records(conn):
                     r"[A-Za-z0-9_-]+", identifier
                 ):
                     raise Problem(f"插件 {owner} 的资源标识无效。")
+                if conn.execute(
+                    "SELECT 1 FROM settings WHERE key=?", (f"asset-bundle:{root}/{identifier}",)
+                ).fetchone():
+                    continue
                 resources.append(
                     {
                         "owner": owner,
@@ -111,6 +121,11 @@ def validate_descriptor(owner, descriptor, external):
     prefix = "plugin_" + re.sub(r"[.-]", "_", owner) + "_"
     if any(not name.startswith(owner + ":") for name in descriptor.get("settings", [])):
         raise Problem("外部插件设置须使用自身命名空间。", 409)
+    if any(
+        not name.startswith(owner + ":") or "%" in name
+        for name in descriptor.get("privacy_settings", [])
+    ):
+        raise Problem("插件隐私资料描述须使用自身设置命名空间。", 409)
     if any(
         not re.fullmatch(r"[a-z_][a-z0-9_]*", name) or not name.startswith(prefix)
         for name in descriptor.get("tables", [])
@@ -197,6 +212,10 @@ def synchronize_catalog(db, manifests, locations):
                 descriptor["folders"] = sorted(
                     set(descriptor.get("folders", []))
                     | set(json.loads(previous[0]).get("folders", []))
+                )
+                descriptor["privacy_settings"] = sorted(
+                    set(descriptor.get("privacy_settings", []))
+                    | set(json.loads(previous[0]).get("privacy_settings", []))
                 )
             conn.execute(
                 "INSERT OR IGNORE INTO plugin_data_catalog VALUES (?,?,?,?)",

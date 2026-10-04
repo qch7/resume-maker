@@ -17,7 +17,7 @@ from resume_maker.services.resumes import Resumes
 def test_commit_publishes_all_drafts_and_preserves_pinned_resume(catalog, project, populated):
     """提交包含全部字段草稿，重启后保留新版本，已存简历仍引用原版本"""
     p, base = project["id"], populated["id"]
-    resume = Resumes(catalog).save_resume(
+    resume = Resumes(catalog, storage=catalog.db).save_resume(
         "Application",
         None,
         [ResumeItem(project_id=p, revision_id=base, highlight_ids=["one", "two"])],
@@ -66,7 +66,7 @@ def test_cross_project_revision_is_rejected(catalog, project, populated, tmp_pat
     other_dir.mkdir()
     other = catalog.create_project("Other", [str(other_dir)])
     with pytest.raises(Problem, match="不属于"):
-        Resumes(catalog).save_resume(
+        Resumes(catalog, storage=catalog.db).save_resume(
             "Invalid",
             None,
             [ResumeItem(project_id=other["id"], revision_id=populated["id"], highlight_ids=[])],
@@ -207,7 +207,7 @@ def test_edits_and_repeated_ordering_survive_restart_as_one_pending_change(
     """多次排序、文字修改和删除重启后仍为草稿，确认后只生成一个版本"""
     p, base = project["id"], populated["id"]
     one, two = populated["content"]["highlights"]
-    resume = Resumes(catalog).save_resume(
+    resume = Resumes(catalog, storage=catalog.db).save_resume(
         "固定版本", None, [ResumeItem(project_id=p, revision_id=base, highlight_ids=["one", "two"])]
     )
     before = len(Projects(catalog).get_project(p)["revisions"])

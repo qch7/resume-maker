@@ -13,7 +13,8 @@
   "requires": {
     "host": {
       "db": ">=1.0.0 <2.0.0",
-      "activity": ">=1.0.0 <2.0.0"
+      "activity": ">=1.0.0 <2.0.0",
+      "assets": ">=1.0.0 <2.0.0"
     }
   },
   "provides": {
@@ -48,6 +49,9 @@
     ],
     "folders": [
       "snapshots"
+    ],
+    "schemas": [
+      "infrastructure/schemas/sys.experience.sql"
     ]
   }
 }

@@ -10,6 +10,7 @@ from resume_maker.core.config import Config
 from resume_maker.integrations.word.templates.mapping import TemplatePackage
 from resume_maker.services.resumes import Resumes
 from resume_maker.services.templates.analysis import compact_inventory
+from resume_maker.services.templates.analysis_driver import TemplateAnalysis
 from resume_maker.services.templates.tasks import Templates
 from tests.support.templates import (
     RepairProvider,
@@ -35,7 +36,13 @@ def test_repair_reuses_only_its_own_session(catalog, tmp_path):
     source = tmp_path / "source.docx"
     simple_template(source)
     provider = SessionProvider()
-    service = Templates(Resumes(catalog), tmp_path, provider)
+    service = Templates(
+        Resumes(catalog, storage=catalog.db),
+        tmp_path,
+        provider,
+        storage=catalog.db,
+        analysis=TemplateAnalysis(),
+    )
     task = completed(service, service.analyze(source, simple_document())["id"])
     first, second = provider.calls
     assert first["settings"].reasoning_effort == second["settings"].reasoning_effort == ""
@@ -61,10 +68,22 @@ def test_cache_survives_restart_but_rechecks_changed_requirements(catalog, tmp_p
     source = tmp_path / "source.docx"
     simple_template(source)
     provider = TemplateProvider()
-    service = Templates(Resumes(catalog), tmp_path, provider)
+    service = Templates(
+        Resumes(catalog, storage=catalog.db),
+        tmp_path,
+        provider,
+        storage=catalog.db,
+        analysis=TemplateAnalysis(),
+    )
     first = completed(service, service.analyze(source, simple_document())["id"])
     service.stop()
-    service = Templates(Resumes(catalog), tmp_path, provider)
+    service = Templates(
+        Resumes(catalog, storage=catalog.db),
+        tmp_path,
+        provider,
+        storage=catalog.db,
+        analysis=TemplateAnalysis(),
+    )
     doc = simple_document()
     doc.personal.name = "另一位使用者"
     second = completed(service, service.analyze(source, doc)["id"])
@@ -82,7 +101,13 @@ def test_corrupted_or_invalid_cache_falls_back_to_analysis(catalog, tmp_path):
     source = tmp_path / "source.docx"
     simple_template(source)
     provider = TemplateProvider()
-    service = Templates(Resumes(catalog), tmp_path, provider)
+    service = Templates(
+        Resumes(catalog, storage=catalog.db),
+        tmp_path,
+        provider,
+        storage=catalog.db,
+        analysis=TemplateAnalysis(),
+    )
     first = completed(service, service.analyze(source, simple_document())["id"])
     path = next((tmp_path / "template-cache").glob("*.json"))
     for content in ("broken json", json.dumps({**first["plan"], "fields": []})):

@@ -3,5 +3,5 @@
   "sys.documents": {"resources": [{"root": "exports", "table": "exports"}]},
   "sys.assets": {"resources": [{"root": "assets", "prefix": "asset:", "state": "published", "files": ["payload"]}]},
   "ext.template-adapter": {"resources": [{"root": "templates", "table": "templates"}, {"root": "template-drafts", "prefix": "template-task:", "id": "task.id", "files": ["original.docx", "uploaded.*"]}]},
-  "ext.honors": {"resources": [{"root": "honors", "prefix": "honor:", "when": "attachment"}]}
+  "ext.honors": {"privacy_settings": ["honor:"], "resources": [{"root": "honors", "prefix": "honor:", "when": "attachment"}]}
 }

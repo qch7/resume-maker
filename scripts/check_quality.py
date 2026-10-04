@@ -1,6 +1,7 @@
 """检查后端中文函数说明和模块依赖方向"""
 
 import ast
+import json
 import re
 import sys
 from pathlib import Path
@@ -17,6 +18,25 @@ FORBIDDEN = {
     "runtime": {"api", "services", "plugins", "integrations"},
     "sdk": {"api", "services", "plugins", "runtime", "infrastructure", "integrations"},
 }
+OWNERS = {
+    module: owner
+    for owner, modules in json.loads(
+        (PACKAGE / "plugins" / "ownership.json").read_text(encoding="utf-8")
+    ).items()
+    for module in modules
+}
+
+
+def owner_of(module):
+    """属性导入和模块导入共用最长模块前缀归属"""
+    return next(
+        (
+            OWNERS[key]
+            for key in sorted(OWNERS, key=len, reverse=True)
+            if module == key or module.startswith(key + ".")
+        ),
+        None,
+    )
 
 
 def check_file(path: Path) -> tuple[list[str], int]:
@@ -25,6 +45,14 @@ def check_file(path: Path) -> tuple[list[str], int]:
     relative = path.relative_to(ROOT)
     layer = path.relative_to(PACKAGE).parts[0] if path.is_relative_to(PACKAGE) else ""
     errors, functions = [], 0
+    source = (
+        "resume_maker." + ".".join(path.relative_to(PACKAGE).with_suffix("").parts)
+        if path.is_relative_to(PACKAGE)
+        else ""
+    )
+    source_owner = owner_of(source)
+    if layer == "services" and path.name != "__init__.py" and source_owner is None:
+        errors.append(f"{relative} 未声明插件实现所有者")
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             functions += 1
@@ -45,6 +73,12 @@ def check_file(path: Path) -> tuple[list[str], int]:
                 if isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
                     modules = [node.args[0].value]
         for module in modules:
+            target_owner = owner_of(module)
+            if source_owner and target_owner and source_owner != target_owner:
+                errors.append(
+                    f"{relative}:{node.lineno} {source_owner} 不能导入 {target_owner} 私有实现，"
+                    "请使用 SDK 协议及能力注入"
+                )
             if module.startswith("resume_maker."):
                 target = module.split(".")[1]
                 if target in FORBIDDEN.get(layer, set()):

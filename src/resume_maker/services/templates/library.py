@@ -6,27 +6,41 @@ from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from resume_maker.core.errors import Problem, need
+from resume_maker.core.content import digest
+from resume_maker.core.errors import Problem
 from resume_maker.domain.templates import TEMPLATE_LIBRARY_KEY as KEY
-from resume_maker.infrastructure.database import dump, now, uid, unpack
-from resume_maker.integrations.sources import digest
 from resume_maker.integrations.word.full_resume import write_full_resume
 from resume_maker.integrations.word.rendering import render_word
-from resume_maker.services.documents import DEFAULT_RENDERER
+from resume_maker.sdk.documents import DEFAULT_RENDERER
+from resume_maker.sdk.records import dump, now, uid, unpack
 from resume_maker.services.templates.cleanup import cleanup_template
 
 
 class TemplateLibrary:
     """以数据库配置保存分类和 Like，缩略图按模板内容复用"""
 
-    def __init__(self, catalog, data_dir: Path, templates=None, previews=None):
+    def __init__(
+        self,
+        catalog,
+        data_dir: Path,
+        templates=None,
+        previews=None,
+        *,
+        storage,
+        records,
+        registry=None,
+        assets=None,
+    ):
         """绑定当前应用的数据目录，隔离缩略图生成锁"""
-        self.catalog, self.db, self.data_dir = catalog, catalog.db, data_dir
+        self.catalog, self.db, self.data_dir = catalog, storage, data_dir
         self.preview_lock = threading.RLock()
         self.templates, self.previews = templates, previews
         self.stop_flag = threading.Event()
         self.worker = None
         self.renderer = DEFAULT_RENDERER
+        self.registry = registry
+        self.records = records
+        self.assets = assets
 
     def state(self):
         """返回组织信息，未设置的模板由客户端归入未分类"""
@@ -38,12 +52,14 @@ class TemplateLibrary:
         """同一数据库快照返回组织信息、实时列表和全部简历引用数"""
         state = self._read(conn)
         state["templates"] = [
-            dict(row)
-            for row in conn.execute(
-                "SELECT id,name,created_at,(SELECT COUNT(*) FROM resumes "
-                "WHERE template_id=templates.id) AS usage_count FROM templates "
-                "WHERE json_type(mapping_json,'$.plan')='object' ORDER BY created_at DESC"
-            )
+            {
+                "id": row["id"],
+                "name": row["name"],
+                "created_at": row["created_at"],
+                "usage_count": len(self.catalog.template_usage(conn, row["id"])),
+            }
+            for row in self.records.list(conn)
+            if isinstance(row["mapping"].get("plan"), dict)
         ]
         return state
 
@@ -59,7 +75,7 @@ class TemplateLibrary:
                 raise Problem("模板名称须为 1–200 个字符。")
         with self.db.transaction() as conn:
             if template_id != "builtin":
-                need(conn.execute("SELECT 1 FROM templates WHERE id=?", (template_id,)).fetchone())
+                self.records.get(conn, template_id)
             state = self._read(conn)
             if state["items"].get(template_id, {}).get("deleted_at"):
                 raise Problem("该模板已移入回收站，请先恢复。", 409)
@@ -67,7 +83,7 @@ class TemplateLibrary:
             if category and not any(item["id"] == category for item in state["categories"]):
                 raise Problem("分类已不存在，请重新选择。", 409)
             if name is not None:
-                conn.execute("UPDATE templates SET name=? WHERE id=?", (name, template_id))
+                self.records.rename(conn, template_id, name)
             item = state["items"].setdefault(template_id, {"category_id": "", "liked": False})
             item.update(changes)
             self._write(conn, state)
@@ -79,21 +95,14 @@ class TemplateLibrary:
             raise Problem("内置模板是默认版式，不能删除。", 409)
         with (
             self.preview_lock,
-            self.templates.lock if self.templates else nullcontext(),
-            self.previews.lock if self.previews else nullcontext(),
+            self.templates.maintenance() if self.templates else nullcontext(),
+            self.previews.maintenance() if self.previews else nullcontext(),
             self.db.transaction() as conn,
         ):
-            template = need(
-                unpack(
-                    conn.execute("SELECT * FROM templates WHERE id=?", (template_id,)).fetchone()
-                ),
-                "该模板不存在或已永久删除。",
-            )
-            used = conn.execute(
-                "SELECT name FROM resumes WHERE template_id=? ORDER BY created_at", (template_id,)
-            ).fetchall()
+            template = self.records.get(conn, template_id)
+            used = self.catalog.template_usage(conn, template_id)
             if used:
-                names = "、".join(row["name"] for row in used[:3])
+                names = "、".join(used[:3])
                 raise Problem(
                     f"模板被 {len(used)} 份简历引用（{names}），不能删除；请先更换模板。", 409
                 )
@@ -106,14 +115,15 @@ class TemplateLibrary:
             if permanent:
                 if not item.get("deleted_at"):
                     raise Problem("请先将模板移入回收站，再永久删除。", 409)
-                others = [
-                    unpack(row)
-                    for row in conn.execute("SELECT * FROM templates WHERE id<>?", (template_id,))
-                ]
+                others = self.records.list(conn, excluding=template_id)
                 cleanup_template(
                     self.data_dir, template, others, self.templates, self.previews, conn
                 )
-                conn.execute("DELETE FROM templates WHERE id=?", (template_id,))
+                if self.assets:
+                    self.assets.release_bundle(
+                        conn, "ext.template-adapter", f"templates/{template_id}"
+                    )
+                self.records.delete(conn, template_id)
                 del state["items"][template_id]
             else:
                 item.setdefault("deleted_at", now())
@@ -123,9 +133,16 @@ class TemplateLibrary:
     def restore(self, template_id):
         """在写事务中恢复模板及原分类收藏以排除到期清理竞争"""
         with self.db.transaction() as conn:
-            need(conn.execute("SELECT 1 FROM templates WHERE id=?", (template_id,)).fetchone())
-            if not (self.data_dir / "templates" / template_id / "template.docx").is_file():
+            self.records.get(conn, template_id)
+            available = (
+                self.assets.bundle(f"templates/{template_id}", conn)
+                if self.assets
+                else (self.data_dir / "templates" / template_id / "template.docx").is_file()
+            )
+            if not available:
                 raise Problem("模板文件已被清理，无法恢复；请完成永久删除或重新导入。", 409)
+            if self.assets:
+                self.assets.read_file(f"templates/{template_id}", "template.docx")
             state = self._read(conn)
             item = state["items"].get(template_id, {})
             item.pop("deleted_at", None)
@@ -205,8 +222,7 @@ class TemplateLibrary:
             fingerprint = "builtin-v1"
         else:
             template = self.catalog.template(template_id, include_trashed=True)
-            source = self.data_dir / "templates" / template_id / "template.docx"
-            data = source.read_bytes()
+            data = self.catalog.template_bytes(template, self.data_dir)
             fingerprint = digest(data)
             if fingerprint != template["hash"]:
                 raise Problem("模板文件已在程序外变化，请重新导入。")
@@ -222,6 +238,9 @@ class TemplateLibrary:
             else:
                 write_full_resume(source, builtin_sample(), [])
             renderer = render_word if self.renderer is DEFAULT_RENDERER else self.renderer
+            if self.registry is not None:
+                selected = self.registry.renderer()
+                renderer = selected.value.render if selected else None
             if renderer is None:
                 raise Problem("Word 插件未启用，无法生成精确缩略图。", 503)
             pages, error = renderer(source, directory / "source.pdf")

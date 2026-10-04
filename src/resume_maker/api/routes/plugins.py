@@ -13,7 +13,8 @@ from resume_maker.infrastructure.execution import Sandbox
 from resume_maker.infrastructure.task_supervisor import TaskSupervisor
 from resume_maker.runtime.manager import PluginManager
 from resume_maker.runtime.worker import validate_schema
-from resume_maker.sdk.manifest import Contract
+from resume_maker.sdk.configuration import ConfigurationEdit
+from resume_maker.sdk.manifest import Contract, InstanceSpec
 
 router = APIRouter(prefix="/api", tags=["plugins"])
 
@@ -24,6 +25,8 @@ class SelectionInput(Contract):
     selected: list[str] = Field(max_length=500)
     generation: int = Field(ge=1)
     configs: dict[str, dict] | None = None
+    instances: list[InstanceSpec] | None = None
+    config_edits: list[ConfigurationEdit] = Field(default_factory=list, max_length=1000)
 
 
 class PlanInput(Contract):
@@ -52,11 +55,101 @@ class PackageInstallInput(PackageInspectInput):
     trusted_modes: list[str] = Field(max_length=4)
 
 
+class PackageBatchInput(Contract):
+    """多插件更新固定为一组候选，整组依赖和权限一起审查"""
+
+    packages: list[PackageInstallInput] = Field(min_length=1, max_length=100)
+    generation: int = Field(ge=1)
+    selected: list[str] | None = None
+
+
+@router.post("/plugins/packages/plans")
+def plan_package_batch(
+    dep_plugins: Annotated[PluginManager, Depends(service("plugins"))], body: PackageBatchInput
+):
+    """暂存所有候选包但保持活动索引，返回同一窗口确认协议的变更计划"""
+    return dep_plugins.upgrades.plan(
+        [item.model_dump() for item in body.packages], body.generation, body.selected
+    )
+
+
+@router.post("/plugins/plans/{plan_id}/cancel-validation")
+def cancel_package_validation(
+    dep_plugins: Annotated[PluginManager, Depends(service("plugins"))], plan_id: str
+):
+    """取消候选进程后仍保留维护状态，直到实际进程退出"""
+    return dep_plugins.upgrades.cancel(plan_id)
+
+
 class RpcInput(Contract):
     """跨域操作固定调用窗口的代次，正文只能包含 JSON 值"""
 
     generation: int = Field(ge=1)
     payload: object
+
+
+class DownloadInput(Contract):
+    """下载请求身份由客户端预先生成，重复发送不会创建第二个任务"""
+
+    id: str
+    url: str
+    sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
+class PinInput(Contract):
+    """空摘要解除锁定，否则只接受当前已安装版本"""
+
+    digest: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+
+
+@router.get("/plugins/downloads")
+def list_downloads(dep_plugins: Annotated[PluginManager, Depends(service("plugins"))]):
+    """重开管理页可恢复此前下载的进度和实际结果"""
+    return dep_plugins.downloads.list()
+
+
+@router.get("/plugins/operations")
+def plugin_operations(dep_plugins: Annotated[PluginManager, Depends(service("plugins"))]):
+    """重开管理页可继续查询验证及重启阶段，不自动重放应用操作"""
+    with dep_plugins.lock:
+        return [dep_plugins.progress(key) for key in sorted(dep_plugins.plans, reverse=True)]
+
+
+@router.post("/plugins/downloads")
+def download_package(
+    dep_plugins: Annotated[PluginManager, Depends(service("plugins"))], body: DownloadInput
+):
+    """取得完整来源和摘要后开始下载，不执行或自动信任代码"""
+    return dep_plugins.downloads.start(body.id, body.url, body.sha256)
+
+
+@router.get("/plugins/downloads/{identifier}")
+def download_progress(
+    dep_plugins: Annotated[PluginManager, Depends(service("plugins"))], identifier: str
+):
+    """开始或取消响应丢失后按原操作身份查询"""
+    return dep_plugins.downloads.get(identifier)
+
+
+@router.post("/plugins/downloads/{identifier}/cancel")
+def cancel_download(
+    dep_plugins: Annotated[PluginManager, Depends(service("plugins"))], identifier: str
+):
+    """取消记录区分已发出请求和实际下载线程退出"""
+    return dep_plugins.downloads.cancel(identifier)
+
+
+@router.put("/plugins/packages/{plugin_id}/pin")
+def pin_package(
+    dep_plugins: Annotated[PluginManager, Depends(service("plugins"))],
+    plugin_id: str,
+    body: PinInput,
+):
+    """与配置计划串行锁定版本，不能绕过正在进行的变更"""
+    with dep_plugins.lock:
+        if dep_plugins.pending_plan or dep_plugins.maintenance:
+            raise Problem("请先完成当前插件变更。", 409)
+        return dep_plugins.host.bootstrap["package_store"].pin(plugin_id, body.digest)
 
 
 @router.post("/plugins/rpc/{plugin_id}/{method}")
@@ -97,7 +190,10 @@ def installed_plugins(
         "desired": sorted(host.desired),
         "blocked": host.blocked,
         "profiles": dep_plugins.profiles,
+        "instances": [item.model_dump() for item in host.instance_specs.values()],
         "task_persistence_errors": dep_tasks.diagnostics(),
+        "pins": host.bootstrap["package_store"].pins(),
+        "packages": host.bootstrap["package_store"].records(),
     }
 
 
@@ -120,6 +216,9 @@ def capabilities(
         "client": [
             {
                 "id": identifier,
+                "plugin": host.definition_id(identifier),
+                "scope_id": host.scope_id,
+                "config": host.configs.get(identifier, manifest.config),
                 "entry": client_entry(host, identifier, manifest),
                 "contributes": manifest.contributes,
                 "provides": {
@@ -149,8 +248,10 @@ def capabilities(
 def client_entry(host, identifier, manifest):
     """外部客户端只使用已校验的内容摘要资源路径"""
     entry = manifest.entrypoints["client"].model_dump()
-    if location := host.bootstrap["packages"].get(identifier):
-        entry["entry"] = f"/plugin-assets/{identifier}/{location.name}/{entry['entry']}"
+    if location := host.package_location(identifier):
+        entry["entry"] = (
+            f"/plugin-assets/{host.definition_id(identifier)}/{location.name}/{entry['entry']}"
+        )
     return entry
 
 
@@ -191,7 +292,13 @@ def plan_plugins(
     dep_plugins: Annotated[PluginManager, Depends(service("plugins"))], body: SelectionInput
 ):
     """生成依赖及中断范围明确的变更计划，尚不修改活动组合"""
-    return dep_plugins.plan(body.selected, body.generation, body.configs)
+    return dep_plugins.plan(
+        body.selected,
+        body.generation,
+        body.configs,
+        body.instances,
+        [edit.model_dump(mode="json", exclude_unset=True) for edit in body.config_edits],
+    )
 
 
 @router.post("/plugins/plans/{plan_id}/prepare")

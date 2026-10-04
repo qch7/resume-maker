@@ -21,12 +21,18 @@
       "resume_previews": ">=1.0.0 <2.0.0",
       "activity": ">=1.0.0 <2.0.0",
       "resume": ">=1.0.0 <2.0.0",
-      "document.registry": ">=1.0.0 <2.0.0"
+      "document.registry": ">=1.0.0 <2.0.0",
+      "db": ">=1.0.0 <2.0.0",
+      "assets": ">=1.0.0 <2.0.0"
     }
   },
   "provides": {
     "host": {
       "templates": {
+        "version": "1.0.0",
+        "cardinality": "one"
+      },
+      "template.records": {
         "version": "1.0.0",
         "cardinality": "one"
       }
@@ -54,10 +60,17 @@
     "folders": [
       "templates",
       "template-drafts"
+    ],
+    "schemas": [
+      "infrastructure/schemas/ext.template-adapter.sql"
+    ],
+    "relations": [
+      "infrastructure/schemas/ext.template-adapter.references.sql"
     ]
   },
-  "enhances": [
-    "documents",
-    "resume_previews"
+  "enhances": [],
+  "consumes": [
+    "documents.importers",
+    "documents.renderers"
   ]
 }

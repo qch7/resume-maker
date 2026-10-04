@@ -56,6 +56,10 @@ class Worker:
             "method": method,
             "payload": payload,
             "generation": self.context.generation,
+            "instance_id": self.context.instance_id,
+            "plugin_id": self.context.plugin_id,
+            "scope_id": self.context.scope_id,
+            "config": self.context.config,
         }
         encoded = json.dumps(request, ensure_ascii=False)
         if len(encoded.encode()) > 2 * 1024 * 1024:
@@ -79,7 +83,7 @@ class Worker:
             }
             interpreter = (
                 self.context.host.bootstrap.get("worker_environments", {})
-                .get(self.context.instance_id, {})
+                .get(self.context.plugin_id, {})
                 .get("python", sys.executable)
             )
             with self.sandbox.session() as root:

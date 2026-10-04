@@ -130,3 +130,5 @@ uv run python scripts/check_wheel.py
 ```
 
 wheel 检查同时创建真正的基础依赖 venv，禁止从源码、开发依赖或用户 site-packages 偷用可选库。真实 CLI 边界用例通过 `RESUME_MAKER_TEST_NATIVE_CLI=1` 启用，只连接本机合成 Responses 服务。真实 Word 的 DOCX、PDF 和分页仍需单独验收。
+
+升级验收包含真正的候选解释器和监督器进程，覆盖取消后退出、正式启动失败回旧宿主及整组迁移失败原子性。开发嵌入 create_app 时重启由调用方接管；日常使用 resume-maker CLI 即可自动切换。下载测试和 CLI 测试使用本机合成服务，不调用真实供应商。

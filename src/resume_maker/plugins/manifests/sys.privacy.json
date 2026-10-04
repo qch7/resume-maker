@@ -39,6 +39,7 @@
   "permissions": [
     "system.trusted"
   ],
+  "consumes": ["privacy.rule_contributions"],
   "data": {
     "settings": [
       "privacy_terms",

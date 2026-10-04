@@ -31,6 +31,9 @@
     }
   },
   "contributes": {
+    "documents.previewers": [
+      "ext.word/pages"
+    ],
     "documents.renderers": [
       "ext.word/default"
     ],
@@ -44,14 +47,5 @@
   "dependencies": [
     "pymupdf>=1.25,<2"
   ],
-  "optional": {
-    "templates": ">=1.0.0 <2.0.0",
-    "template_library": ">=1.0.0 <2.0.0"
-  },
-  "enhances": [
-    "documents",
-    "resume_previews",
-    "templates",
-    "template_library"
-  ]
+  "enhances": []
 }

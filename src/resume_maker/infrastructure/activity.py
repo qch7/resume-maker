@@ -476,6 +476,9 @@ class ActivityLog:
         with closing(self.connect()) as conn:
             if conn.execute("SELECT 1 FROM metadata WHERE key='history_imported'").fetchone():
                 return
+        tables = {
+            row["name"] for row in db.all("SELECT name FROM sqlite_master WHERE type='table'")
+        }
         cutoff = (datetime.now(UTC) - timedelta(days=self.retention_days)).isoformat()
         rows = (
             db.all(
@@ -484,7 +487,7 @@ class ActivityLog:
                 "WHERE m.created_at>=? ORDER BY m.created_at DESC LIMIT ?",
                 (cutoff, self.max_records),
             )
-            if "ai" in self.capture_categories
+            if "ai" in self.capture_categories and {"messages", "conversations"} <= tables
             else []
         )
         events = (
@@ -494,7 +497,7 @@ class ActivityLog:
                 "WHERE e.created_at>=? ORDER BY e.created_at DESC LIMIT ?",
                 (cutoff, self.max_records),
             )
-            if "task" in self.capture_categories
+            if "task" in self.capture_categories and {"events", "jobs"} <= tables
             else []
         )
         pending = [

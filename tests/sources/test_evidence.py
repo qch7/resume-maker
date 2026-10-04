@@ -13,6 +13,7 @@ from resume_maker.integrations.privacy import Redactor
 from resume_maker.integrations.providers.base import Cancelled
 from resume_maker.integrations.source_access import SourceAccess
 from resume_maker.integrations.source_context import source_context
+from resume_maker.integrations.source_service import SourceService
 from resume_maker.integrations.sources import check_evidence
 from resume_maker.services.conversations import Conversations
 from resume_maker.services.jobs import Jobs
@@ -160,7 +161,13 @@ def test_jobs_read_all_current_roots_and_only_archive_cited_files(catalog, tmp_p
                 }
             return AIResult(reply=quote, experience=content, changes=[], questions=[])
 
-    jobs = Jobs(catalog.db, catalog, data_dir, ReadingProvider())
+    jobs = Jobs(
+        catalog.db,
+        catalog,
+        data_dir,
+        ReadingProvider(),
+        source_service=SourceService(catalog, data_dir, storage=catalog.db),
+    )
     conversation = catalog.db.one(
         "SELECT * FROM conversations WHERE project_id=?", (project["id"],)
     )
@@ -185,7 +192,7 @@ def test_jobs_read_all_current_roots_and_only_archive_cited_files(catalog, tmp_p
         proposal = catalog.db.one("SELECT * FROM proposals WHERE job_id=?", (first["id"],))
         evidence = proposal["after"]["highlights"][0]["evidence"]
         assert evidence[0]["status"] == "document"
-        Conversations(catalog).adopt(proposal["id"])
+        Conversations(catalog, storage=catalog.db).adopt(proposal["id"])
         saved = catalog.save_revision(
             project["id"], project["head_revision"], project["head_revision"]
         )

@@ -19,6 +19,7 @@ import {
 import HonorEntryFields from "./honors/HonorEntryFields";
 import type { HonorSource } from "../../shared/types/honors";
 import { hasPlugin } from "../../shared/lib/capabilities";
+import SourcePicker from "./SourcePicker";
 
 /** 在教育背景、课程、证书或自定义栏目中增删条目并编辑结构化字段 */
 export default function SectionEditor({
@@ -115,6 +116,7 @@ export default function SectionEditor({
           </button>
         </div>
       </div>
+      <SourcePicker section={section} onChange={onChange} />
       {!section.entries.length && (
         <p className="subtle profile-empty">
           {honorSection

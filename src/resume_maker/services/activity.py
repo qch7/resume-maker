@@ -4,7 +4,7 @@ from contextlib import closing
 
 from resume_maker.domain.activity import ACTIVITY_CATEGORIES, ActivityCaptureSettings
 from resume_maker.infrastructure.activity import ActivityLog
-from resume_maker.infrastructure.database import dump
+from resume_maker.sdk.records import dump
 
 
 def capture_settings(log: ActivityLog) -> ActivityCaptureSettings:

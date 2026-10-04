@@ -1,3 +1,5 @@
+import type { ActivityInput } from "../../plugins/activity";
+
 export const CATEGORIES = {
   api: "API",
   ai: "AI 消息",
@@ -11,23 +13,7 @@ export const CATEGORIES = {
 export type ActivityCategory = keyof typeof CATEGORIES;
 export type ActivityCaptureSettings = { categories: ActivityCategory[] };
 
-export type ActivityEvent = {
-  id: number;
-  created_at: string;
-  category: string;
-  level: string;
-  source: string;
-  event: string;
-  title: string;
-  trace_id: string;
-  span_id: string;
-  parent_span_id: string;
-  job_id: string;
-  conversation_id: string;
-  project_id: string;
-  duration_ms: number | null;
-  payload?: unknown;
-};
+export type ActivityEvent = ActivityInput;
 
 export type ActivityPage = {
   events: ActivityEvent[];

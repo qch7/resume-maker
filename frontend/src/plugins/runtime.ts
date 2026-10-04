@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import { createElement, type ComponentType } from "react";
-import { api } from "../shared/lib/api";
+import { api, ApiError } from "../shared/lib/api";
 import { setCapabilities, type Capabilities } from "../shared/lib/capabilities";
 import type {
   ClientContext,
@@ -12,6 +12,11 @@ import type {
 import { IsolatedPage } from "./IsolatedPage";
 import { createClientServices, remoteProvider } from "./services";
 import { clientExtensions } from "./extensions";
+import {
+  instanceContribution,
+  instanceDescriptor,
+  instanceIdentifier,
+} from "./identity";
 
 const builtins = import.meta.glob<ClientPlugin>([
   "../features/**/plugin.ts",
@@ -73,12 +78,17 @@ export async function initializePlugins() {
   for (const id of [...scopes.keys()].reverse()) await disposePlugin(id);
   clientFailures.clear();
   const value = await api<Capabilities>("/capabilities");
+  if (!value.ready) throw new ApiError("服务正在启动，请稍候。", 503);
   setCapabilities(value);
-  for (const item of value.client) {
+  for (const descriptor of value.client) {
+    const item = instanceDescriptor(descriptor);
     const effects: (() => void | Promise<void>)[] = [];
     scopes.set(item.id, effects);
     const context: ClientContext = {
       id: item.id,
+      plugin: item.plugin ?? item.id,
+      scopeId: item.scope_id ?? "default",
+      config: Object.freeze(structuredClone(item.config ?? {})),
       generation: value.generation,
       /** 注册能力随所属插件释放，客户端实现不会进入其他执行域 */
       provide(name, service, version = "1.0.0") {
@@ -115,6 +125,7 @@ export async function initializePlugins() {
       },
       /** 外部页面使用插件命名空间避免覆盖其他贡献 */
       page(page) {
+        page = { ...page, id: instanceIdentifier(item, page.id) };
         if (!page.id.startsWith(item.id + "/") || pages.has(page.id))
           throw new Error("页面标识须属于当前插件且不能重复。");
         pages.set(page.id, page);
@@ -124,6 +135,7 @@ export async function initializePlugins() {
       },
       /** 设置页面使用相同的命名空间和撤销规则 */
       settingsPage(page) {
+        page = { ...page, id: instanceIdentifier(item, page.id) };
         if (!page.id.startsWith(item.id + "/") || settingsPages.has(page.id))
           throw new Error("设置页标识须属于当前插件且不能重复。");
         settingsPages.set(page.id, page);
@@ -137,8 +149,8 @@ export async function initializePlugins() {
           clientExtensions.contribute(
             item,
             point,
-            id,
-            contribution,
+            instanceIdentifier(item, id),
+            instanceContribution(item, point, contribution),
             order,
             version,
           ),

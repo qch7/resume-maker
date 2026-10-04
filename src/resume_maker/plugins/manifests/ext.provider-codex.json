@@ -18,7 +18,8 @@
     "host": {
       "sandbox": ">=1.0.0 <2.0.0",
       "execution": ">=1.0.0 <2.0.0",
-      "credentials": ">=1.0.0 <2.0.0"
+      "credentials": ">=1.0.0 <2.0.0",
+      "settings": ">=1.0.0 <2.0.0"
     }
   },
   "provides": {
@@ -26,10 +27,18 @@
       "model.transport": {
         "version": "1.0.0",
         "cardinality": "one"
+      },
+      "model.inspection": {
+        "version": "1.0.0",
+        "cardinality": "one"
       }
     }
   },
-  "contributes": {},
+  "contributes": {
+    "http.routes": [
+      "ext.provider-codex/settings"
+    ]
+  },
   "permissions": [
     "workspace.trusted"
   ]

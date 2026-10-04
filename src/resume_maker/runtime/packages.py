@@ -79,15 +79,41 @@ def check_dependencies(manifest: Manifest, *, versions=None) -> list[str]:
 class PackageStore:
     """安装只处理数据文件，激活或维护前才允许执行已授权代码"""
 
-    def __init__(self, directory: Path, reserved: set[str]):
+    def __init__(self, directory: Path, reserved: set[str], *, records=None):
         """安装区独立于可备份资料和运行解释器"""
         self.root = directory / "plugin-packages"
         self.index = directory / "plugin-packages.json"
         self.reserved = reserved
         self.writer = StateStore(directory)
+        self.pins_path = directory / "plugin-pins.json"
+        self.record_override = records
+
+    def pins(self):
+        """版本锁独立于安装及启用状态，更新前必须明确解除"""
+        if not self.pins_path.exists():
+            return {}
+        return json.loads(self.pins_path.read_text(encoding="utf-8"))
+
+    def pin(self, identifier, digest):
+        """只能锁定已核验的当前版本，摘要变化时拒绝迟到操作"""
+        pins = self.pins()
+        if digest is None:
+            pins.pop(identifier, None)
+        else:
+            record = self.records().get(identifier)
+            if not record or record["digest"] != digest:
+                raise PluginError("安装版本已变化，请刷新后再锁定")
+            self._discover_one(identifier, record)
+            pins[identifier] = {"version": record["version"], "digest": digest}
+        self.writer.write(self.pins_path, pins)
+        return pins
 
     def records(self):
         """读取已提交安装目录，尚未启用的包同样可查询"""
+        if self.record_override is not None:
+            from copy import deepcopy
+
+            return deepcopy(self.record_override)
         if not self.index.exists():
             return {}
         value = json.loads(self.index.read_text(encoding="utf-8"))
@@ -143,7 +169,7 @@ class PackageStore:
                 "trust_modes": sorted({entry.mode for entry in manifest.entrypoints.values()}),
             }
 
-    def install(self, path: Path, expected_digest: str, trusted_modes: set[str]):
+    def install(self, path: Path, expected_digest: str, trusted_modes: set[str], *, commit=True):
         """仅安装已审查的相同产物，代码和依赖不会注入活动解释器"""
         inspection = self.inspect(path)
         if inspection["digest"] != expected_digest:
@@ -151,6 +177,9 @@ class PackageStore:
         if set(inspection["trust_modes"]) - trusted_modes:
             raise PluginError("插件代码的执行信任尚未明确授予")
         manifest = Manifest.model_validate(inspection["manifest"])
+        pinned = self.pins().get(manifest.id)
+        if pinned and pinned != {"version": manifest.version, "digest": expected_digest}:
+            raise PluginError("插件版本已锁定，请先明确解除锁定再更新")
         records = self.records()
         previous = records.get(manifest.id)
         if (
@@ -191,12 +220,14 @@ class PackageStore:
             "trusted_modes": sorted(trusted_modes),
             "previous": previous,
         }
-        self.writer.write(self.index, {"version": 1, "packages": records})
+        if commit:
+            self.writer.write(self.index, {"version": 1, "packages": records})
         return {
             "id": manifest.id,
             "installed": True,
             "enabled": False,
             "missing_dependencies": inspection["missing_dependencies"],
+            "record": records[manifest.id],
         }
 
     def discover(self, *, strict=True):

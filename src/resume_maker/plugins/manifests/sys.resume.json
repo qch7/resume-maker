@@ -17,7 +17,8 @@
   "requires": {
     "host": {
       "db": ">=1.0.0 <2.0.0",
-      "catalog": ">=1.0.0 <2.0.0"
+      "catalog": ">=1.0.0 <2.0.0",
+      "assets": ">=1.0.0 <2.0.0"
     }
   },
   "provides": {
@@ -29,6 +30,9 @@
     }
   },
   "contributes": {
+    "documents.previewers": [
+      "sys.resume/content"
+    ],
     "http.routes": [
       "sys.resume/resumes"
     ]
@@ -36,10 +40,20 @@
   "permissions": [
     "system.trusted"
   ],
+  "consumes": [
+    "resume.sources",
+    "documents.previewers"
+  ],
   "data": {
     "tables": [
       "resumes",
       "resume_deletions"
+    ],
+    "schemas": [
+      "infrastructure/schemas/sys.resume.sql"
+    ],
+    "relations": [
+      "infrastructure/schemas/sys.resume.references.sql"
     ]
   }
 }

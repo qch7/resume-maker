@@ -15,6 +15,7 @@ from resume_maker.integrations.providers.base import Cancelled, StructuredOutput
 from resume_maker.integrations.word.templates.mapping import TemplatePackage
 from resume_maker.services.resumes import Resumes
 from resume_maker.services.templates.analysis import analyze_plan, complete_labels
+from resume_maker.services.templates.analysis_driver import TemplateAnalysis
 from resume_maker.services.templates.tasks import Templates
 from tests.support.documents import make_template
 from tests.support.templates import (
@@ -31,7 +32,13 @@ def test_ai_repairs_its_own_missing_fields(catalog, tmp_path):
     source = tmp_path / "source.docx"
     simple_template(source)
     provider = RepairProvider()
-    service = Templates(Resumes(catalog), tmp_path, provider)
+    service = Templates(
+        Resumes(catalog, storage=catalog.db),
+        tmp_path,
+        provider,
+        storage=catalog.db,
+        analysis=TemplateAnalysis(),
+    )
     task = completed(service, service.analyze(source, simple_document())["id"])
     assert task["review"]["ready"] and task["attempts"] == 2
     context = json.loads(provider.calls[1]["prompt"].split("\n")[-1])
@@ -46,7 +53,13 @@ def test_repair_preserves_best_result_and_is_bounded(catalog, tmp_path, outcome)
     source = tmp_path / "source.docx"
     simple_template(source)
     provider = RepairProvider(outcome)
-    service = Templates(Resumes(catalog), tmp_path, provider)
+    service = Templates(
+        Resumes(catalog, storage=catalog.db),
+        tmp_path,
+        provider,
+        storage=catalog.db,
+        analysis=TemplateAnalysis(),
+    )
     task = completed(service, service.analyze(source, simple_document())["id"])
     assert task["status"] == "completed" and not task["review"]["ready"]
     assert not task["plan"]["fields"]

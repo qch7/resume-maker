@@ -7,23 +7,24 @@ from copy import deepcopy
 from io import BytesIO
 from pathlib import Path
 
+from resume_maker.core.content import digest, redact
 from resume_maker.core.errors import Problem, need
 from resume_maker.domain.models import ProviderSettings, ResumeItem
 from resume_maker.domain.resume import ResumeDocument
 from resume_maker.domain.templates import TemplatePlan
-from resume_maker.infrastructure.database import dump, now, uid
 from resume_maker.infrastructure.observability import record, record_event, remember_task
-from resume_maker.integrations.sources import digest, redact
+from resume_maker.integrations.word.rendering import render_word
 from resume_maker.integrations.word.templates.completion import complete_template
 from resume_maker.integrations.word.templates.fill import fill_template
 from resume_maker.integrations.word.templates.mapping import TemplatePackage
+from resume_maker.integrations.word.templates.review import assess_plan, check_trial
 from resume_maker.integrations.word.templates.values import missing_targets
+from resume_maker.sdk.documents import DEFAULT_RENDERER, generate_docx
 from resume_maker.sdk.imports import ImportContext, ImportSource
 from resume_maker.sdk.model import Cancelled, Provider
-from resume_maker.services.catalog import Catalog
-from resume_maker.services.document_inputs import generate_docx
-from resume_maker.services.documents import DEFAULT_RENDERER, render_word
-from resume_maker.services.templates.cache import cache_path, cached_plan, remember_plan
+from resume_maker.sdk.observation import internal
+from resume_maker.sdk.records import dump, now, uid, unpack
+from resume_maker.sdk.services import Resumes
 
 
 def prepare_template(*args, **kwargs):
@@ -33,35 +34,24 @@ def prepare_template(*args, **kwargs):
     return prepare(*args, **kwargs)
 
 
-def analyze_plan(*args, **kwargs):
-    """模型分析由 AI 插件激活后调用"""
-    from resume_maker.services.templates.analysis import analyze_plan as analyze
-
-    return analyze(*args, **kwargs)
-
-
-def assess_plan(*args, **kwargs):
-    """手工映射核验不提前装载视觉依赖"""
-    from resume_maker.services.templates.analysis import assess_plan as assess
-
-    return assess(*args, **kwargs)
-
-
-def check_trial(*args, **kwargs):
-    """真实试填使用同一结构核验入口"""
-    from resume_maker.services.templates.analysis import check_trial as check
-
-    return check(*args, **kwargs)
-
-
 class Templates:
     """管理独立模板分析，分析结果经核对后才进入已保存模板列表"""
 
-    def __init__(self, catalog: Catalog, data_dir: Path, provider: Provider):
+    def __init__(
+        self,
+        catalog: Resumes,
+        data_dir: Path,
+        provider: Provider,
+        *,
+        storage,
+        registry=None,
+        assets=None,
+        analysis=None,
+    ):
         """初始化实例依赖和受锁保护的任务状态"""
         self.catalog, self.db, self.data_dir, self.provider = (
             catalog,
-            catalog.db,
+            storage,
             data_dir,
             provider,
         )
@@ -73,7 +63,9 @@ class Templates:
         self.stopped = False
         self.inputs = {}
         self.importers = None
-        self.import_registry = None
+        self.import_registry = registry
+        self.assets = assets
+        self.analysis = analysis
         self.renderer = DEFAULT_RENDERER
         self.converter = DEFAULT_RENDERER
         self.execution_queue = None
@@ -93,14 +85,122 @@ class Templates:
                 )
                 self._persist(identifier)
 
+    @property
+    def renderer(self):
+        """生产路径按当前注册表解析排版器，独立调用保留显式注入"""
+        if self.import_registry is not None:
+            selected = self.import_registry.renderer()
+            return selected.value.render if selected else None
+        return self._renderer
+
+    @renderer.setter
+    def renderer(self, value):
+        """保存独立调用的排版器配置"""
+        self._renderer = value
+
+    @internal
+    def attach_analysis(self, provider, execution_queue, analysis):
+        """独占附接分析能力并返回等待实际结束的撤销函数"""
+        if self.provider is not None or self.execution_queue is not None:
+            raise Problem("模板分析能力已附接。", 409)
+        self.provider, self.execution_queue, self.analysis = provider, execution_queue, analysis
+
+        def detach():
+            """任务和工作线程全部退出后撤销分析依赖"""
+            execution_queue.close()
+            self.stop()
+            self.provider, self.execution_queue, self.analysis = None, None, None
+            self.stopped = False
+
+        return detach
+
+    @internal
+    def maintenance(self):
+        """公开维护屏障，调用方持有期间禁止开始分析或保存新产物"""
+        return self.lock
+
+    def cleanup_paths(self, template_id, shared):
+        """返回关联任务的可清理路径，仍有执行线程时拒绝永久删除"""
+        if any(thread.is_alive() for thread in self.threads):
+            raise Problem("正在识别模板，请等待识别完成后再永久删除。", 409)
+        result = set()
+        for identifier, origin in self.origins.items():
+            relative = f"workspaces/template-{identifier}"
+            if origin == template_id and relative not in shared:
+                result.add(self.data_dir / relative)
+                durable = f"template-drafts/{identifier}"
+                if durable not in shared:
+                    result.add(self.data_dir / durable)
+        return result
+
+    def invalidate_artifacts(self, conn, paths):
+        """清理后在同一事务解除任务原件引用并保留编辑草稿墓碑"""
+        removed = [
+            key for key in self.tasks if self.data_dir / "workspaces" / f"template-{key}" in paths
+        ]
+
+        def forget():
+            """持久清理成功后才撤销当前进程的任务缓存"""
+            for key in removed:
+                for mapping in (
+                    self.tasks,
+                    self.started,
+                    self.flags,
+                    self.artifacts,
+                    self.origins,
+                    self.inputs,
+                ):
+                    mapping.pop(key, None)
+
+        for key in removed:
+            if conn is not None:
+                if self.assets:
+                    self.assets.release_bundle(
+                        conn, "ext.template-adapter", f"template-drafts/{key}"
+                    )
+                conn.execute("DELETE FROM settings WHERE key=?", (f"template-task:{key}",))
+                draft_key = f"workspace-value:rm.template.editor.{key}"
+                previous = unpack(
+                    conn.execute("SELECT * FROM settings WHERE key=?", (draft_key,)).fetchone()
+                )
+                version = previous["value"]["version"] if previous else 0
+                conn.execute(
+                    "INSERT OR REPLACE INTO settings VALUES (?,?)",
+                    (
+                        draft_key,
+                        dump({"value": None, "version": version + 1, "updated_at": now()}),
+                    ),
+                )
+
+        if conn is None:
+            forget()
+        else:
+            conn.after_commit(forget)
+
     def _persist(self, identifier, source=None, execution=None):
         """先原子保存可恢复文档再登记状态，CLI 临时材料继续留在工作目录"""
         folder = self.data_dir / "template-drafts" / identifier
         folder.mkdir(parents=True, exist_ok=True)
         task = self.tasks[identifier]
         task["elapsed_ms"] = self._elapsed(task)
+        staged = (
+            self.assets.stage_bundle("ext.template-adapter", {"original.docx": source.read_bytes()})
+            if self.assets and source is not None
+            else {}
+        )
+        if self.assets:
+            staged.update(
+                self.assets.stage_bundle(
+                    "ext.template-adapter",
+                    {path.name: path.read_bytes() for path in folder.glob("uploaded.*")},
+                )
+            )
         with self.db.transaction() as conn:
-            if source is not None:
+            if self.assets and staged:
+                self.assets.update_bundle(
+                    conn, "ext.template-adapter", f"template-drafts/{identifier}", staged
+                )
+            if source is not None and not self.assets:
                 temporary = folder / "original.tmp"
                 shutil.copyfile(source, temporary)
                 temporary.replace(folder / "original.docx")
@@ -118,8 +218,15 @@ class Templates:
                     ),
                 ),
             )
-            if execution is not None:
-                return self.execution_queue.prepare(conn, identifier, execution)
+            prepared = (
+                self.execution_queue.prepare(conn, identifier, execution)
+                if execution is not None
+                else None
+            )
+        if self.assets:
+            for path in folder.glob("uploaded.*"):
+                path.unlink()
+        return prepared
 
     def list_tasks(self):
         """列出可恢复的模板工作，已保存版本仍在独立模板库中"""
@@ -138,6 +245,8 @@ class Templates:
             if task["status"] not in {"failed", "cancelled"}:
                 raise Problem("仅中断或失败的分析可以重试。", 409)
             folder = self.data_dir / "template-drafts" / identifier
+            if self.assets:
+                folder = self._working_source(identifier)
             uploaded = next(folder.glob("uploaded.*"), None)
             saved = self.inputs.get(identifier, {})
             result = self._start(
@@ -198,7 +307,7 @@ class Templates:
         expected_importer=None,
     ):
         """固定导入器和原件后准备异步任务，校验项目引用后才调用模型"""
-        if self.provider is None:
+        if self.provider is None or self.analysis is None:
             raise Problem("模板 AI 插件未启用。", 409)
         trace = expected_importer
         if raw is not None and self.import_registry:
@@ -266,8 +375,8 @@ class Templates:
                 source if package is not None else None,
                 metadata if self.execution_queue else None,
             )
-            if self.catalog.db.activity:
-                remember_task(self.catalog.db.activity, identifier)
+            if self.db.activity:
+                remember_task(self.db.activity, identifier)
             args = (identifier, directory, document, projects, settings, flag, initial, feedback)
             if self.execution_queue:
                 try:
@@ -389,11 +498,11 @@ class Templates:
                     inventory["notices"] = list(dict.fromkeys([*notices, *inventory["notices"]]))
                     self.tasks[identifier]["inventory"] = inventory
             cache_source = source.read_bytes()
-            path = cache_path(self.data_dir, package, document, projects, settings)
+            path = self.analysis.cache_path(self.data_dir, package, document, projects, settings)
             with self.lock:
                 self.artifacts[identifier].append(path.relative_to(self.data_dir).as_posix())
             hit = (
-                cached_plan(path, package, document, projects)
+                self.analysis.cached_plan(path, package, document, projects)
                 if initial is None and not feedback
                 else None
             )
@@ -415,7 +524,7 @@ class Templates:
                 plan, review = hit
                 attempts, repair_error = 0, None
             else:
-                plan, review, attempts, repair_error = analyze_plan(
+                plan, review, attempts, repair_error = self.analysis.analyze(
                     package,
                     provider,
                     directory,
@@ -441,7 +550,7 @@ class Templates:
                     and not feedback
                     and source.read_bytes() == cache_source
                 ):
-                    remember_plan(path, plan)
+                    self.analysis.remember_plan(path, plan)
                 inventory["notices"] = list(
                     dict.fromkeys([*task["inventory"].get("notices", []), *inventory["notices"]])
                 )
@@ -525,8 +634,7 @@ class Templates:
         """持有产物锁时打开模板以免永久清理和编辑副本创建交错"""
         template = self.catalog.template(template_id)
         mapping = template["mapping"]
-        source = self.data_dir / "templates" / template["id"] / "template.docx"
-        data = source.read_bytes()
+        data = self.catalog.template_bytes(template, self.data_dir)
         if digest(data) != template["hash"]:
             raise Problem("模板文件已在程序外变化，请重新导入。")
         plan = TemplatePlan.model_validate(mapping["plan"])
@@ -588,10 +696,27 @@ class Templates:
                 self._persist(identifier)
         return self.get(identifier)
 
+    def _working_source(self, identifier):
+        """将统一资源解码为可丢弃工作副本，原件仍只存在资源存储中"""
+        bundle = self.assets.bundle(f"template-drafts/{identifier}")
+        if not bundle:
+            raise Problem("模板分析原件不存在。", 404)
+        folder = self.data_dir / "workspaces" / f"template-{identifier}"
+        folder.mkdir(parents=True, exist_ok=True)
+        for name in bundle["files"]:
+            target = folder / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            data = self.assets.read_file(f"template-drafts/{identifier}", name)
+            if not target.is_file() or digest(target.read_bytes()) != digest(data):
+                target.write_bytes(data)
+        return folder
+
     def source(self, identifier: str) -> Path:
         """确认任务属于当前实例且分析完成，再取得内部快照路径"""
         if self.get(identifier)["status"] != "completed":
             raise Problem("请先完成模板分析。", 409)
+        if self.assets:
+            return self._working_source(identifier) / "original.docx"
         return self.data_dir / "template-drafts" / identifier / "original.docx"
 
     def review(
@@ -640,10 +765,20 @@ class Templates:
         buffer = BytesIO()
         package.write(buffer)
         data = buffer.getvalue()
-        (directory / "original.docx").write_bytes(data)
-        (directory / "template.docx").write_bytes(data)
+        if not self.assets:
+            (directory / "original.docx").write_bytes(data)
+            (directory / "template.docx").write_bytes(data)
+        resources = (
+            self.assets.stage_bundle("ext.template-adapter", {"template.docx": data})
+            if self.assets
+            else None
+        )
         task = self.get(identifier)
         with self.db.transaction() as conn:
+            if resources is not None:
+                self.assets.publish_bundle(
+                    conn, "ext.template-adapter", f"templates/{template_id}", resources
+                )
             conn.execute(
                 "INSERT INTO templates VALUES (?,?,?,?,?)",
                 (

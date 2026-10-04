@@ -1,10 +1,9 @@
 """在一个事务内固定文档输入，再交给同一生成入口"""
 
+from resume_maker.core.content import digest
 from resume_maker.core.errors import Problem, need
-from resume_maker.domain.templates import TEMPLATE_LIBRARY_KEY, TemplatePlan
-from resume_maker.infrastructure.database import dump, unpack
-from resume_maker.integrations.sources import digest
 from resume_maker.sdk.documents import DocumentInput
+from resume_maker.sdk.records import dump, unpack
 
 
 def freeze_export(catalog, directory, identifier):
@@ -25,15 +24,7 @@ def freeze_export(catalog, directory, identifier):
         resume["document"] = catalog.resolve_document(resume["document"], conn)
         projects = []
         for item in resume["items"]:
-            revision = need(
-                unpack(
-                    conn.execute(
-                        "SELECT * FROM revisions WHERE id=? AND project_id=?",
-                        (item["revision_id"], item["project_id"]),
-                    ).fetchone()
-                ),
-                "简历引用的经历版本已不可用。",
-            )
+            revision = catalog.revision(item["revision_id"], item["project_id"], conn)
             projects.append(
                 {
                     **item,
@@ -44,43 +35,11 @@ def freeze_export(catalog, directory, identifier):
             )
         template, data = None, None
         if resume["template_id"]:
-            template = need(
-                unpack(
-                    conn.execute(
-                        "SELECT * FROM templates WHERE id=? "
-                        "AND json_type(mapping_json,'$.plan')='object'",
-                        (resume["template_id"],),
-                    ).fetchone()
-                ),
-                "完整简历模板不可用，请重新选择模板或导入 Word 进行 AI 识别。",
-            )
-            library = unpack(
-                conn.execute(
-                    "SELECT value_json FROM settings WHERE key=?", (TEMPLATE_LIBRARY_KEY,)
-                ).fetchone()
-            )
-            if library and library["value"].get("items", {}).get(template["id"], {}).get(
-                "deleted_at"
-            ):
-                raise Problem("该模板已移入回收站，请先恢复。", 409)
-            data = (directory / "templates" / template["id"] / "template.docx").read_bytes()
+            template = catalog.template(resume["template_id"], conn=conn)
+            data = catalog.template_bytes(template, directory)
             if digest(data) != template["hash"]:
                 raise Problem("模板文件已在程序外变化，请重新导入。", 409)
         return DocumentInput(dump(resume), dump(projects), dump(template), data)
-
-
-def generate_docx(
-    output, document, projects, *, engine, template_data=None, plan=None, template_engine=None
-):
-    """正式导出、预览和模板试填共享输入副本及引擎调用规则"""
-    if template_data is None:
-        engine(output, document, projects)
-        return
-    if template_engine is None:
-        raise Problem("此文档需要的模板引擎未启用。", 409)
-    source = output.parent / "input-template.docx"
-    source.write_bytes(template_data)
-    template_engine(source, output, TemplatePlan.model_validate(plan), document, projects)
 
 
 def freeze_preview(catalog, directory, template_id, document, items):
@@ -93,25 +52,17 @@ def freeze_preview(catalog, directory, template_id, document, items):
         document = catalog.resolve_document(document, conn)
         projects = []
         for item in items:
-            revision = need(
-                unpack(
-                    conn.execute(
-                        "SELECT * FROM revisions WHERE id=? AND project_id=?",
-                        (item["revision_id"], item["project_id"]),
-                    ).fetchone()
-                ),
-                "经历版本不属于该项目。",
-            )
+            revision = catalog.revision(item["revision_id"], item["project_id"], conn)
             content = item.get("content") or revision["content"]
             selected = item["highlight_ids"]
             valid = {point["id"] for point in content["highlights"]}
             if not set(selected) <= valid or len(selected) != len(set(selected)):
                 raise Problem("预览引用了不存在或重复的亮点，请重新选择。")
             projects.append({**item, "content": content})
-        template = catalog.template(template_id) if template_id else None
+        template = catalog.template(template_id, conn=conn) if template_id else None
         data = None
         if template:
-            data = (directory / "templates" / template_id / "template.docx").read_bytes()
+            data = catalog.template_bytes(template, directory)
             if digest(data) != template["hash"]:
                 raise Problem("模板文件已在程序外变化，请重新导入。", 409)
         return DocumentInput(dump({"document": document}), dump(projects), dump(template), data)

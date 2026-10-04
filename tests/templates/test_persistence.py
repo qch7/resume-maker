@@ -6,6 +6,7 @@ from resume_maker.infrastructure.database import Database, dump
 from resume_maker.infrastructure.storage import create_backup, restore_backup
 from resume_maker.services.catalog import Catalog
 from resume_maker.services.resumes import Resumes
+from resume_maker.services.templates.analysis_driver import TemplateAnalysis
 from resume_maker.services.templates.tasks import Templates
 from resume_maker.services.workspace_storage import WorkspaceStorage
 from tests.support.templates import TemplateProvider, completed, simple_document, simple_template
@@ -16,7 +17,13 @@ def test_analysis_and_manual_mapping_survive_backup(catalog, tmp_path):
     root = catalog.db.path.parent
     source = tmp_path / "template.docx"
     simple_template(source)
-    service = Templates(Resumes(catalog), root, TemplateProvider())
+    service = Templates(
+        Resumes(catalog, storage=catalog.db),
+        root,
+        TemplateProvider(),
+        storage=catalog.db,
+        analysis=TemplateAnalysis(),
+    )
     task = completed(service, service.analyze(source, simple_document())["id"])
     assert task["status"] == "completed"
     source.unlink()
@@ -33,7 +40,13 @@ def test_analysis_and_manual_mapping_survive_backup(catalog, tmp_path):
     target = tmp_path / "restored"
     restore_backup(archive, target)
     restored_catalog = Catalog(Database(target / "resume.db"))
-    restored = Templates(Resumes(restored_catalog), target, TemplateProvider())
+    restored = Templates(
+        Resumes(restored_catalog, storage=restored_catalog.db),
+        target,
+        TemplateProvider(),
+        storage=restored_catalog.db,
+        analysis=TemplateAnalysis(),
+    )
     assert restored.get(task["id"])["plan"] == task["plan"]
     assert restored.source(task["id"]).is_file()
     assert restored.list_tasks()[0]["id"] == task["id"]
@@ -47,14 +60,26 @@ def test_interrupted_analysis_requires_explicit_retry(catalog, tmp_path):
     source = tmp_path / "template.docx"
     simple_template(source)
     root = catalog.db.path.parent
-    service = Templates(Resumes(catalog), root, TemplateProvider())
+    service = Templates(
+        Resumes(catalog, storage=catalog.db),
+        root,
+        TemplateProvider(),
+        storage=catalog.db,
+        analysis=TemplateAnalysis(),
+    )
     task = completed(service, service.analyze(source, simple_document())["id"])
     record = catalog.db.setting(f"template-task:{task['id']}")
     record["task"]["status"] = "running"
     record["task"]["plan"] = None
     catalog.db.set_setting(f"template-task:{task['id']}", record)
     provider = TemplateProvider()
-    restarted = Templates(Resumes(catalog), root, provider)
+    restarted = Templates(
+        Resumes(catalog, storage=catalog.db),
+        root,
+        provider,
+        storage=catalog.db,
+        analysis=TemplateAnalysis(),
+    )
     assert not provider.calls
     interrupted = restarted.get(task["id"])
     assert interrupted["status"] == "failed"

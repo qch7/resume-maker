@@ -31,12 +31,9 @@ def conversations(conn, state):
 
 def honors(conn, state):
     """已核对的荣誉与简历在同一读取事务同步"""
-    from resume_maker.domain.honor_entries import sync_honor_document
     from resume_maker.services.honor_links import honor_sources
 
     state["honors"] = honor_sources(conn)
-    for resume in state["resumes"]:
-        resume["document"] = sync_honor_document(resume["document"], state["honors"])
 
 
 def templates(conn, state):

@@ -237,14 +237,20 @@ def test_honors_backup_restore_and_delete_preserve_resume_snapshot(tmp_path):
         )
         assert created.status_code == 200, created.text
         backup = create_backup(app.state.services.db, directory)
+        reference = app.state.services.honors.file_reference(item["id"])
+        resource_path = f"assets/{reference['id']}/payload"
         with ZipFile(backup) as archive:
-            assert f"honors/{item['id']}/original.png" in archive.namelist()
+            assert (
+                archive.read(resource_path)
+                == client.get(f"/api/honors/{item['id']}/original").content
+            )
+            assert not any(name.startswith("honors/") for name in archive.namelist())
         target = tmp_path / "restored"
         restore_backup(backup, target)
         incomplete = tmp_path / "incomplete.zip"
         with ZipFile(backup) as source, ZipFile(incomplete, "w") as broken:
             for name in source.namelist():
-                if not name.endswith("original.png"):
+                if name != resource_path:
                     broken.writestr(name, source.read(name))
         with pytest.raises(Problem, match="备份文件清单不完整"):
             restore_backup(incomplete, tmp_path / "incomplete-restore")

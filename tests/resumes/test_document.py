@@ -18,8 +18,8 @@ from resume_maker.infrastructure.storage import create_backup, restore_backup
 from resume_maker.integrations.word.full_resume import write_full_resume
 from resume_maker.integrations.word.ooxml import NS
 from resume_maker.services.catalog import Catalog
-from resume_maker.services.documents import Documents
 from resume_maker.services.resumes import Resumes
+from tests.support.document_services import Documents
 
 
 def document_data():
@@ -67,16 +67,20 @@ def document_data():
 def test_profile_persists_across_restart_and_backup(catalog, tmp_path):
     """完整资料可重启、备份恢复，保存时仍检查方案版本"""
     content = ResumeDocument.model_validate(document_data())
-    resume = Resumes(catalog).save_resume("完整简历", None, [], document=content)
+    resume = Resumes(catalog, storage=catalog.db).save_resume(
+        "完整简历", None, [], document=content
+    )
     restarted = Catalog(Database(catalog.db.path))
-    saved = Resumes(restarted).save_resume(
+    saved = Resumes(restarted, storage=restarted.db).save_resume(
         "重命名", None, [], resume["id"], resume["version"], content
     )
     assert saved["document"] == content.model_dump()
-    other = Resumes(catalog).save_resume("另一个方案", None, [])
+    other = Resumes(catalog, storage=catalog.db).save_resume("另一个方案", None, [])
     assert other["document"] is None
     with pytest.raises(Problem, match="其他窗口"):
-        Resumes(catalog).save_resume("过时窗口", None, [], resume["id"], resume["version"], content)
+        Resumes(catalog, storage=catalog.db).save_resume(
+            "过时窗口", None, [], resume["id"], resume["version"], content
+        )
     backup = create_backup(catalog.db, catalog.db.path.parent)
     restore_backup(backup, tmp_path / "restored")
     restored = Database(tmp_path / "restored" / "resume.db")
@@ -89,8 +93,10 @@ def test_profile_persists_across_restart_and_backup(catalog, tmp_path):
 def test_resume_save_replaces_document_instead_of_retaining_previous_fields(catalog):
     """完整替换方案时按请求保存资料，空资料不会隐式保留上一次内容"""
     content = ResumeDocument.model_validate(document_data())
-    resume = Resumes(catalog).save_resume("完整简历", None, [], document=content)
-    saved = Resumes(catalog).save_resume(
+    resume = Resumes(catalog, storage=catalog.db).save_resume(
+        "完整简历", None, [], document=content
+    )
+    saved = Resumes(catalog, storage=catalog.db).save_resume(
         "项目组合", None, [], resume["id"], resume["version"], None
     )
     assert saved["document"] is None
@@ -130,16 +136,18 @@ def test_full_word_follows_sections_and_preserves_pinned_projects(
     content = ResumeDocument.model_validate(document_data())
     # 将专业技能移到教育背景前并保留课程归属
     content.sections.insert(0, content.sections.pop(3))
-    resume = Resumes(catalog).save_resume(
+    resume = Resumes(catalog, storage=catalog.db).save_resume(
         "完整简历",
         None,
         [ResumeItem(project_id=project["id"], revision_id=populated["id"], highlight_ids=["two"])],
         document=content,
     )
     monkeypatch.setattr(
-        "resume_maker.services.documents.render_word", lambda *_: (None, "No renderer")
+        "tests.support.document_services.render_word", lambda *_: (None, "No renderer")
     )
-    exporter = Documents(Resumes(catalog), tmp_path / "data")
+    exporter = Documents(
+        Resumes(catalog, storage=catalog.db), tmp_path / "data", storage=catalog.db
+    )
     result = exporter.export(resume["id"])
     path = tmp_path / "data" / "exports" / result["id"] / "resume.docx"
     with ZipFile(path) as archive:
@@ -153,7 +161,7 @@ def test_full_word_follows_sections_and_preserves_pinned_projects(
     assert result["manifest"]["resume"]["document"] == content.model_dump()
     assert result["manifest"]["items"][0]["revision_id"] == populated["id"]
     content.sections[1].visible = False
-    saved = Resumes(catalog).save_resume(
+    saved = Resumes(catalog, storage=catalog.db).save_resume(
         "完整简历", None, [], resume["id"], resume["version"], content
     )
     result = exporter.export(saved["id"])
@@ -228,7 +236,9 @@ def test_project_children_persist_and_export_after_project_content(
     data = document_data()
     data["sections"][1]["parent_id"] = "projects"
     content = ResumeDocument.model_validate(data)
-    saved = Resumes(catalog).save_resume("项目子栏目", None, [], document=content)
+    saved = Resumes(catalog, storage=catalog.db).save_resume(
+        "项目子栏目", None, [], document=content
+    )
     assert saved["document"]["sections"][1]["parent_id"] == "projects"
     projects = (
         [

@@ -14,6 +14,7 @@ interface RequestRecord {
 interface PrivacyTerms {
   terms: string[];
   version: number;
+  rules?: { id: string; title: string; description: string; version: string }[];
 }
 
 /** 管理本机敏感词并检查交给模型的脱敏材料 */
@@ -21,6 +22,7 @@ export default function Privacy() {
   const [terms, setTerms] = useState("");
   const [savedTerms, setSavedTerms] = useState("");
   const [version, setVersion] = useState(0);
+  const [rules, setRules] = useState<NonNullable<PrivacyTerms["rules"]>>([]);
   const [text, setText] = useState("");
   const [preview, setPreview] = useState<{
     text: string;
@@ -53,6 +55,7 @@ export default function Privacy() {
           setTerms(cached?.terms ?? value.terms.join("\n"));
           setSavedTerms(value.terms.join("\n"));
           setVersion(cached?.version ?? value.version);
+          setRules(value.rules ?? []);
           setLoaded(true);
         }
       })
@@ -84,6 +87,18 @@ export default function Privacy() {
         <small>原图留在本机 · 结果本机还原</small>
       </div>
       <div className="privacy-grid">
+        {rules.length > 0 && (
+          <section className="privacy-card">
+            <h3>插件补充保护</h3>
+            {rules.map((rule) => (
+              <p key={rule.id}>
+                <strong>{rule.title}</strong> · {rule.description}（
+                {rule.version}）
+              </p>
+            ))}
+            <p className="subtle">补充规则只增加保护，系统基础脱敏始终生效。</p>
+          </section>
+        )}
         <section className="privacy-card">
           <div className="section-heading">
             <h3>补充敏感词</h3>

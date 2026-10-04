@@ -12,9 +12,11 @@ from resume_maker.domain.templates import TemplatePlan
 from resume_maker.infrastructure.database import uid
 from resume_maker.integrations.privacy_gateway import PrivacyGateway
 from resume_maker.integrations.providers import cli
+from resume_maker.integrations.source_service import SourceService
 from resume_maker.services.conversations import Conversations
 from resume_maker.services.jobs import Jobs
 from resume_maker.services.resumes import Resumes
+from resume_maker.services.templates.analysis_driver import TemplateAnalysis
 from resume_maker.services.templates.tasks import Templates
 from tests.support.jobs import FakeProvider, wait_job
 from tests.support.templates import TemplateProvider, completed, simple_document, simple_template
@@ -130,7 +132,13 @@ def test_project_buttons_use_independent_settings_snapshot(
 ):
     """三个经历入口逐字段继承，排队后修改设置不会改变已提交任务"""
     provider = FakeProvider()
-    jobs = Jobs(catalog.db, catalog, tmp_path / "data", provider)
+    jobs = Jobs(
+        catalog.db,
+        catalog,
+        tmp_path / "data",
+        provider,
+        source_service=SourceService(catalog, tmp_path / "data", storage=catalog.db),
+    )
     settings = ProviderSettings(
         model="default-model",
         reasoning_effort="medium",
@@ -157,7 +165,9 @@ def test_project_buttons_use_independent_settings_snapshot(
         assert provider.calls[-1]["settings"].reasoning_effort == ""
         assert (
             provider.calls[-1]["thread"]
-            == Conversations(catalog).conversation(conv["id"])["provider_thread_id"]
+            == Conversations(catalog, storage=catalog.db).conversation(conv["id"])[
+                "provider_thread_id"
+            ]
         )
     finally:
         jobs.stop()
@@ -210,7 +220,13 @@ def test_template_recognition_and_both_repair_buttons_use_selected_settings(cata
     source = tmp_path / "source.docx"
     simple_template(source)
     provider = ThreeRoundProvider(block=True)
-    service = Templates(Resumes(catalog), tmp_path, provider)
+    service = Templates(
+        Resumes(catalog, storage=catalog.db),
+        tmp_path,
+        provider,
+        storage=catalog.db,
+        analysis=TemplateAnalysis(),
+    )
     catalog.db.set_setting(
         "provider",
         {
@@ -263,7 +279,13 @@ def test_changed_template_settings_do_not_reuse_old_model_cache(catalog, tmp_pat
     source = tmp_path / "source.docx"
     simple_template(source)
     provider = TemplateProvider()
-    service = Templates(Resumes(catalog), tmp_path, provider)
+    service = Templates(
+        Resumes(catalog, storage=catalog.db),
+        tmp_path,
+        provider,
+        storage=catalog.db,
+        analysis=TemplateAnalysis(),
+    )
     try:
         completed(service, service.analyze(source, simple_document())["id"])
         cached = completed(service, service.analyze(source, simple_document())["id"])

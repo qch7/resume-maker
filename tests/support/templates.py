@@ -30,6 +30,15 @@ def register_template(catalog, data_dir):
                 now(),
             ),
         )
+    if catalog.assets:
+        staged = catalog.assets.stage_bundle(
+            "ext.template-adapter", {"template.docx": path.read_bytes()}
+        )
+        with catalog.db.transaction() as conn:
+            catalog.assets.publish_bundle(conn, "ext.template-adapter", "templates/mapped", staged)
+        path.unlink()
+        path.parent.rmdir()
+        path = catalog.assets.resource_path(staged["template.docx"]["id"]) / "payload"
     return path
 
 

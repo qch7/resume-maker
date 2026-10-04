@@ -1,5 +1,6 @@
 """真实 HTTP 组合和最小产品闭环验收"""
 
+from io import BytesIO
 from pathlib import Path
 from zipfile import ZipFile
 
@@ -91,7 +92,10 @@ def test_minimal_manual_revision_docx_and_restore(tmp_path):
         assert state["resumes"][0]["document"]["extensions"] == document["extensions"]
         response = client.post(f"/api/resumes/{resume['id']}/exports", headers=HEADERS)
         assert response.status_code == 200, response.text
-        with ZipFile(target / "exports" / response.json()["id"] / "resume.docx") as archive:
+        download = client.get(f"/api/exports/{response.json()['id']}/resume.docx", headers=HEADERS)
+        assert download.status_code == 200
+        assert not (target / "exports" / response.json()["id"]).exists()
+        with ZipFile(BytesIO(download.content)) as archive:
             assert "合成测试" in archive.read("word/document.xml").decode()
 
 
@@ -110,9 +114,9 @@ def test_optional_reverse_dependencies_are_explicit():
         resolve(manifests, selected - {"ext.ai-runtime"}, required)
 
 
-@pytest.mark.parametrize("instances", [{"multiple": True}, {"scope": "task"}])
-def test_unsupported_instance_lifetimes_never_silently_run_as_workspace(instances):
-    """尚不支持的实例声明必须在导入入口前拒绝，不能悄悄共用工作区状态"""
+def test_task_instances_never_silently_run_as_workspace():
+    """任务声明可以解析，但不能作为长期工作区实例激活"""
+    from resume_maker.runtime.host import Host
     from resume_maker.sdk.manifest import Manifest
 
     manifests, selected, required = selection("minimal")
@@ -121,11 +125,12 @@ def test_unsupported_instance_lifetimes_never_silently_run_as_workspace(instance
         title="合成实例",
         package="test",
         version="1.0.0",
-        instances=instances,
+        instances={"scope": "task", "multiple": True},
     )
     manifests[manifest.id] = manifest
-    with pytest.raises(PluginError, match="不支持的多实例或任务级实例"):
-        resolve(manifests, selected | {manifest.id}, required)
+    resolve(manifests, selected | {manifest.id}, required)
+    with pytest.raises(PluginError, match="task 作用域"):
+        Host(manifests, selected | {manifest.id}, required)
 
 
 def test_minimal_does_not_import_optional_modules(tmp_path):

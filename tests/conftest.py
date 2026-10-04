@@ -48,7 +48,9 @@ def isolate_template_visual_renderer(monkeypatch):
 def catalog(tmp_path):
     """在临时数据目录创建业务服务，让每个测试的数据相互隔离"""
     catalog = Catalog(Database(tmp_path / "data" / "resume.db"))
-    catalog.project_initializers["test.conversations"] = Conversations(catalog).initialize_project
+    catalog.project_initializers["test.conversations"] = Conversations(
+        catalog, storage=catalog.db
+    ).initialize_project
     return catalog
 
 

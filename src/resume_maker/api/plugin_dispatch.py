@@ -27,9 +27,9 @@ def snapshot(host, exception_handlers):
                 key = getattr(dependency.call, "service_key", None)
                 if key is not None:
                     host.instances[contribution.owner].require(key)
-            if contribution.owner in host.bootstrap.get(
-                "packages", {}
-            ) and not route.path.startswith(f"/api/plugins/{contribution.owner}/"):
+            if host.package_location(contribution.owner) is not None and not route.path.startswith(
+                f"/api/plugins/{contribution.owner}/"
+            ):
                 raise PluginError("外部插件路由必须位于其公开命名空间")
             for method in route.methods:
                 key = (route.path, method)

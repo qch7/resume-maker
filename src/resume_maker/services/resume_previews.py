@@ -5,13 +5,12 @@ from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from resume_maker.core.content import digest
 from resume_maker.core.errors import Problem, need
 from resume_maker.domain.extensions import display_document
-from resume_maker.infrastructure.database import dump, uid
-from resume_maker.integrations.sources import digest
-from resume_maker.integrations.word.full_resume import write_full_resume
-from resume_maker.services.document_inputs import freeze_preview, generate_docx
-from resume_maker.services.documents import DEFAULT_RENDERER, fill_template, render_word
+from resume_maker.sdk.documents import generate_docx
+from resume_maker.sdk.observation import internal
+from resume_maker.sdk.records import dump, uid
 
 
 class ResumePreviews:
@@ -22,9 +21,10 @@ class ResumePreviews:
         catalog,
         data_dir,
         *,
-        render=DEFAULT_RENDERER,
-        templates=True,
-        engine=write_full_resume,
+        render=None,
+        templates=False,
+        engine,
+        template_engine=None,
         registry=None,
     ):
         """仅保存依赖，首次预览时才创建临时目录"""
@@ -32,7 +32,7 @@ class ResumePreviews:
         self.renderer, self.templates_enabled = render, templates
         self.engine = engine
         self.registry = registry
-        self.template_engine = fill_template if templates else None
+        self.template_engine = template_engine
         self.lock = threading.Lock()
         self.directory = None
         self.results, self.cache = {}, {}
@@ -41,7 +41,7 @@ class ResumePreviews:
 
     def render(self, template_id, document, items, *, engine_id=None, renderer_id=None):
         """核验固定版本归属后使用当前资料和可选工作副本试填"""
-        inputs = freeze_preview(self.catalog, self.data_dir, template_id, document, items)
+        inputs = self.catalog.freeze_preview(self.data_dir, template_id, document, items)
         resume, projects, template = inputs.values()
         if template and not self.templates_enabled and not self.registry:
             raise Problem("此简历引用的模板引擎未启用，内容仍保留。", 409)
@@ -98,7 +98,7 @@ class ResumePreviews:
                 )
             if not output.is_file():
                 raise Problem("文档引擎未生成声明的 DOCX 文件。", 409)
-            renderer = render_word if self.renderer is DEFAULT_RENDERER else self.renderer
+            renderer = self.renderer
             if self.registry:
                 renderer = selected_renderer.value.render if selected_renderer else None
             pages, error = (
@@ -128,6 +128,31 @@ class ResumePreviews:
         if not path.is_file():
             raise Problem("预览文件已失效，请重新生成。", 404)
         return path
+
+    @internal
+    def maintenance(self):
+        """公开预览维护屏障，调用方持有期间阻止创建迟到缓存"""
+        return self.lock
+
+    def template_artifacts(self, template_id):
+        """返回目标模板的临时预览路径，不暴露可修改的内部索引"""
+        if self.directory is None:
+            return []
+        return [
+            Path(self.directory.name) / key
+            for key, value in self.templates.items()
+            if value == template_id
+        ]
+
+    def invalidate_template(self, template_id):
+        """在维护屏障内撤销已清理的预览和缓存"""
+        identifiers = {key for key, value in self.templates.items() if value == template_id}
+        for key in identifiers:
+            self.results.pop(key, None)
+            self.templates.pop(key, None)
+        self.cache = {
+            key: value for key, value in self.cache.items() if value["id"] not in identifiers
+        }
 
     def stop(self):
         """请求结束后回收本实例创建的预览目录，正式简历和导出文件不受影响"""

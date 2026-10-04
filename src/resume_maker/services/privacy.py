@@ -1,14 +1,15 @@
 """本机隐私规则、脱敏预览和发送记录管理"""
 
 from resume_maker.core.errors import Problem
-from resume_maker.infrastructure.database import Database, dump
 from resume_maker.integrations.privacy_store import PrivacyStore
+from resume_maker.sdk.records import dump
+from resume_maker.sdk.storage import RelationalStore
 
 
 class Privacy:
     """保存隐私设置并复用模型出口使用的本机脱敏引擎"""
 
-    def __init__(self, db: Database, store: PrivacyStore, *, runtime_state=None):
+    def __init__(self, db: RelationalStore, store: PrivacyStore, *, runtime_state=None):
         """绑定当前实例的持久设置和隐私出口"""
         self.db, self.store = db, store
         self.runtime_state = runtime_state

@@ -6,7 +6,7 @@ import json
 import re
 from typing import Literal
 
-from pydantic import Field, JsonValue, model_validator
+from pydantic import Field, JsonValue, model_serializer, model_validator
 
 from resume_maker.domain.honor_entries import HONOR_CUSTOM_IDS
 from resume_maker.domain.models import (
@@ -58,10 +58,19 @@ class PersonalInfo(Model):
         return self
 
 
+class SourceReference(Model):
+    """简历固定保存来源身份和最后采用版本，缺包时原文字段仍可展示"""
+
+    provider: str = Field(pattern=r"^[a-z][a-z0-9._-]*/[a-zA-Z0-9._/-]+$", max_length=250)
+    id: str = Field(min_length=1, max_length=100)
+    version: str = Field(min_length=1, max_length=100)
+
+
 class SectionEntry(Model):
     """栏目下的经历或文本条目，支持学校、专业、时间和多行正文"""
 
     id: str = Field(min_length=1, max_length=100)
+    source: SourceReference | None = None
     title: str = Field(default="", max_length=300)
     subtitle: str = Field(default="", max_length=500)
     period: str = Field(default="", max_length=100)
@@ -70,6 +79,14 @@ class SectionEntry(Model):
     hidden_fields: list[EntryField] = Field(default_factory=list, max_length=4)
     custom_fields: list[CustomInfoField] = Field(default_factory=list, max_length=25)
     field_definitions: list[DefaultField] | None = Field(default=None, max_length=30)
+
+    @model_serializer(mode="wrap")
+    def serialize_source(self, handler):
+        """未关联来源的旧条目保持原有存储形状"""
+        result = handler(self)
+        if self.source is None:
+            result.pop("source", None)
+        return result
 
     @model_validator(mode="after")
     def validate_custom_fields(self):

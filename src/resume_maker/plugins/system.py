@@ -6,27 +6,45 @@ from resume_maker.plugins.support import dependency, publish, routes
 def storage(context):
     """将选定的数据库提供方作为工作区事务服务发布"""
     from resume_maker.infrastructure.data_catalog import data_blockers, synchronize_catalog
+    from resume_maker.infrastructure.instance_data import InstanceDataStore
 
     db = dependency(context, "storage.backend")
+
+    def definitions(selected):
+        """插件 schema 属于定义，多个实例的资料由实例存储按身份隔离"""
+        return {
+            context.host.definition_id(key): context.host.definitions[
+                context.host.definition_id(key)
+            ]
+            for key in selected
+        }
+
+    reasons = data_blockers(
+        db, definitions(context.host.selected), context.host.bootstrap.get("packages", {})
+    )
     context.host.block_unavailable(
-        data_blockers(
-            db,
-            {key: context.host.manifests[key] for key in context.host.selected},
-            context.host.bootstrap.get("packages", {}),
-        )
+        {
+            key: reasons[context.host.definition_id(key)]
+            for key in context.host.selected
+            if context.host.definition_id(key) in reasons
+        }
     )
-    synchronize_catalog(
-        db,
-        {key: context.host.manifests[key] for key in context.host.selected},
-        context.host.bootstrap.get("packages", {}),
-    )
-    context.host.bootstrap["synchronize_data"] = lambda selected: synchronize_catalog(
-        db,
-        {key: context.host.manifests[key] for key in selected},
-        context.host.bootstrap.get("packages", {}),
-    )
+
+    def synchronize(selected):
+        """保留定义级数据描述，实例停用不会删除对应的命名空间资料"""
+        db.ensure_schemas(definitions(selected))
+        synchronize_catalog(db, definitions(selected), context.host.bootstrap.get("packages", {}))
+
+    synchronize(context.host.selected)
+    context.host.bootstrap["synchronize_data"] = synchronize
     context.effect(lambda: context.host.bootstrap.pop("synchronize_data", None))
     publish(context, "db", db, observed=False)
+    publish(
+        context,
+        "storage.instances",
+        lambda owner, scope_id, temporary=False: InstanceDataStore(db, owner, scope_id, temporary),
+        observed=False,
+    )
 
 
 def settings(context):
@@ -64,12 +82,15 @@ def drafts(context):
 
 def privacy(context):
     """创建每实例隐私存储，独立于任何模型供应商启停"""
+    from resume_maker.infrastructure.privacy_contributions import PrivacyContributions
     from resume_maker.integrations.privacy_gateway import PrivacyGateway
     from resume_maker.integrations.privacy_store import PrivacyStore
     from resume_maker.services.privacy import Privacy
 
     db = dependency(context, "db")
-    store = publish(context, "privacy.store", PrivacyStore(db), observed=False)
+    rules = PrivacyContributions(db, context.host.collection)
+    store = publish(context, "privacy.store", PrivacyStore(db, rules), observed=False)
+    context.health(rules.entries)
 
     def gateway(runner, *, ocr=None, images=False):
         """绑定选定传输，任务副本和脱敏还原保持归系统所有"""
@@ -87,6 +108,7 @@ def privacy(context):
             else "inactive",
             "images": "local-ocr" if "ocr" in services else "disabled",
             "ocr": {"engine": services.get("ocr", "disabled")},
+            "rules": rules.describe(),
         }
 
     publish(context, "privacy", Privacy(db, store, runtime_state=runtime_state))
@@ -101,7 +123,7 @@ def experience(context):
     catalog = publish(
         context,
         "catalog",
-        Catalog(dependency(context, "db")),
+        Catalog(dependency(context, "db"), assets=dependency(context, "assets")),
     )
     publish(context, "projects", Projects(catalog))
     routes(context, "projects", exclude={"scan", "update_sources", "reveal_source"})
@@ -109,10 +131,33 @@ def experience(context):
 
 def resume(context):
     """发布固定引用的简历编辑和历史接口"""
+    from resume_maker.services.resume_sources import ResumeSources
     from resume_maker.services.resumes import Resumes
 
-    publish(context, "resume", Resumes(dependency(context, "catalog"), honor_resolver=None))
-    routes(context, "resumes", only={"new_resume", "save_resume", "delete_resume"})
+    sources = ResumeSources(dependency(context, "db"), context.host.collection)
+    service = publish(
+        context,
+        "resume",
+        Resumes(
+            dependency(context, "catalog"),
+            storage=dependency(context, "db"),
+            sources=sources,
+            assets=dependency(context, "assets"),
+        ),
+    )
+    context.before_deactivate.append(service.preserve_sources)
+    context.health(sources.entries)
+    routes(
+        context,
+        "resumes",
+        only={
+            "new_resume",
+            "save_resume",
+            "delete_resume",
+            "resume_sources",
+            "resume_source_items",
+        },
+    )
 
 
 def documents(context):
@@ -129,7 +174,7 @@ def documents(context):
         """重试绑定插件版本、已安装产物摘要和配置摘要，配置原文不进入业务记录"""
         from resume_maker.runtime.state import fingerprint
 
-        location = context.host.bootstrap.get("packages", {}).get(owner)
+        location = context.host.package_location(owner)
         return {
             "plugin_version": context.host.manifests[owner].version,
             "artifact_sha256": location.name if location else None,
@@ -138,14 +183,20 @@ def documents(context):
 
     registry = DocumentRegistry(context.host.collection, provenance)
     documents = Documents(
-        catalog, directory, render=None, templates=False, engine=engine, registry=registry
+        catalog,
+        directory,
+        storage=dependency(context, "db"),
+        assets=dependency(context, "assets"),
+        render=None,
+        templates=False,
+        engine=engine,
+        registry=registry,
+        runtime_snapshot=lambda: {
+            "generation": context.host.generation,
+            "providers": dict(context.host.resolution.providers),
+            "plugins": {key: context.host.manifests[key].version for key in context.host.selected},
+        },
     )
-    documents.assets = dependency(context, "assets")
-    documents.runtime_snapshot = lambda: {
-        "generation": context.host.generation,
-        "providers": dict(context.host.resolution.providers),
-        "plugins": {key: context.host.manifests[key].version for key in context.host.selected},
-    }
     previews = ResumePreviews(
         catalog, directory, render=None, templates=False, engine=engine, registry=registry
     )
@@ -153,7 +204,17 @@ def documents(context):
     publish(context, "documents", documents)
     publish(context, "resume_previews", previews)
     context.effect(previews.stop)
-    routes(context, "resumes", exclude={"new_resume", "save_resume", "delete_resume"})
+    routes(
+        context,
+        "resumes",
+        exclude={
+            "new_resume",
+            "save_resume",
+            "delete_resume",
+            "resume_sources",
+            "resume_source_items",
+        },
+    )
 
 
 def docx(context):
@@ -180,7 +241,11 @@ def workbench(context):
         context,
         "workspace",
         Workspace(
-            dependency(context, "catalog"),
+            dependency(context, "db"),
+            readers=[
+                dependency(context, name).workspace_state
+                for name in ("catalog", "resume", "settings")
+            ],
             contributors=lambda: context.host.collection("workspace.queries"),
         ),
     )
@@ -204,12 +269,18 @@ def backup(context):
 def plugins(context):
     """发布运行状态及可审查的组合管理入口"""
     from resume_maker.plugins.discovery import discover
+    from resume_maker.runtime.downloads import Downloads
     from resume_maker.runtime.manager import PluginManager
+    from resume_maker.runtime.upgrades import Upgrades
 
     manager = context.host.bootstrap.get("plugin_manager")
     if manager is None:
         manager = PluginManager(context.host, context.host.bootstrap["state_store"], discover()[2])
         context.host.bootstrap["plugin_manager"] = manager
+    manager.downloads = Downloads(dependency(context, "config").data_dir)
+    manager.upgrades = Upgrades(manager)
+    context.scope.barriers.append(manager.downloads.close)
+    context.scope.barriers.append(manager.upgrades.close)
     publish(
         context,
         "plugins",
@@ -221,11 +292,12 @@ def plugins(context):
 
 def assets(context):
     """为插件持有不可变资源目录及事务内登记接口"""
+    from resume_maker.infrastructure.asset_migration import migrate_legacy_assets
     from resume_maker.infrastructure.assets import Assets
 
-    publish(
-        context, "assets", Assets(dependency(context, "db"), dependency(context, "assets.backend"))
-    )
+    service = Assets(dependency(context, "db"), dependency(context, "assets.backend"))
+    migrate_legacy_assets(service)
+    publish(context, "assets", service)
 
 
 def execution(context):
@@ -256,6 +328,11 @@ def jobs(context):
     from resume_maker.infrastructure.task_supervisor import TaskSupervisor
 
     supervisor = publish(
-        context, "tasks", TaskSupervisor(dependency(context, "db")), observed=False
+        context,
+        "tasks",
+        TaskSupervisor(
+            dependency(context, "db"), context.host.task_context, context.host.prepare_task
+        ),
+        observed=False,
     )
     context.lifecycle(supervisor.start, supervisor.stop)

@@ -1,6 +1,6 @@
 """平台提供方入口，系统职责不绑定具体实现"""
 
-from resume_maker.plugins.support import dependency, publish
+from resume_maker.plugins.support import dependency, publish, routes
 
 
 def sqlite(context):
@@ -8,7 +8,15 @@ def sqlite(context):
     from resume_maker.infrastructure.database import Database
 
     config = context.host.bootstrap["config"]
-    publish(context, "storage.backend", Database(config.data_dir / "resume.db"), observed=False)
+    publish(
+        context,
+        "storage.backend",
+        Database(
+            config.data_dir / "resume.db",
+            plugins={context.host.definition_id(key) for key in context.host.selected},
+        ),
+        observed=False,
+    )
 
 
 def local_assets(context):
@@ -62,7 +70,9 @@ def run_model(*args, **kwargs):
 
 
 def codex(context):
-    """Codex 只提供传输适配，业务依赖统一隐私出口"""
+    """Codex 提供传输及本机检查，业务依赖统一隐私出口"""
+    from resume_maker.integrations.providers.cli import inspect_cli
+
     sandbox = dependency(context, "sandbox")
     execution = dependency(context, "execution")
     credentials = dependency(context, "credentials")
@@ -79,6 +89,8 @@ def codex(context):
         )
 
     publish(context, "model.transport", transport, observed=False)
+    publish(context, "model.inspection", inspect_cli, observed=False)
+    routes(context, "settings", only={"inspect_provider"})
 
 
 def rapidocr(context):

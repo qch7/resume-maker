@@ -4,7 +4,7 @@ import hashlib
 import re
 
 from resume_maker.core.errors import Problem
-from resume_maker.infrastructure.database import dump, now, uid, unpack
+from resume_maker.sdk.records import dump, now, uid, unpack
 
 PREFIX = "workspace-value:"
 PREFERENCES = {

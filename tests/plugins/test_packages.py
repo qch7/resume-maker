@@ -12,71 +12,113 @@ from resume_maker.core.config import Config
 from resume_maker.runtime.graph import PluginError
 from resume_maker.runtime.packages import PackageStore
 from resume_maker.sdk.context import ServiceKey
+from tests.support.plugins import bundle
 
 HEADERS = {"x-resume-token": "test"}
 
 
-def bundle(path, *, worker=False, extra=None, artifacts_extra=None):
-    """构造不需要网络和第三方资料的完整预构建插件包"""
-    identifier = "community.example"
-    manifest = {
-        "id": identifier,
-        "title": "合成扩展",
-        "version": "1.0.0",
-        "package": identifier,
-        "entrypoints": {
-            "host": {"mode": "trusted-host", "entry": "python/plugin.py:activate"},
-            "client": {"mode": "trusted-client", "entry": "client/index.js"},
-        },
-        "provides": {"host": {"example": {"version": "1.0.0"}}},
-        "contributes": {"http.routes": ["example/routes"]},
-        "permissions": ["workspace.trusted"],
-    }
-    code = '''from fastapi import APIRouter
-from resume_maker.sdk.context import ServiceKey
+def test_multiple_instances_persist_and_failed_health_restores_configuration(tmp_path):
+    """真实外部包可创建独立实例，失败配置不影响另一实例或持久恢复点"""
+    archive = tmp_path / "instances.rmp"
+    code = '''from resume_maker.sdk.context import ServiceKey
+
 def activate(context):
-    """发布合成扩展的公开服务和命名空间路由"""
-    context.provide(ServiceKey("example"), "installed")
-    router = APIRouter()
-    @router.get("/api/plugins/community.example/hello")
-    def hello():
-        """返回合成扩展内容"""
-        return {"message": "external plugin works"}
-    context.contribute("http.routes", "example/routes", tuple(router.routes))
+    """返回实例自己的配置，并在发布前拒绝负数"""
+    value = context.config["count"]
+    context.provide(ServiceKey("example"), {"value": value})
+    context.rpc("value", lambda payload: value)
+    context.rpc("load", lambda payload: context.data.get("count").value or 0)
+    context.rpc("save", lambda payload: context.data.set(
+        "count", payload, context.data.get("count").version
+    ).value)
+    def health():
+        """模拟插件启动之后才能检测的故障"""
+        if value < 0:
+            raise RuntimeError("synthetic-health-failure")
+    context.health(health)
 '''
-    if worker:
-        manifest["entrypoints"] = {"worker": {"mode": "worker", "entry": "python/worker.py"}}
-        manifest["requires"] = {
-            "host": {"sandbox": ">=1.0.0 <2.0.0", "execution": ">=1.0.0 <2.0.0"}
-        }
-        manifest["permissions"] = ["execution.trusted"]
-        manifest["rpc"] = {
-            "double": {"input_schema": {"type": "integer"}, "output_schema": {"type": "integer"}}
-        }
-        manifest["contributes"] = {}
-    files = {
-        "LICENSE": b"MIT",
-        "python/plugin.py": code.encode(),
-        "client/index.js": b"export function activate(context) {}",
-        "python/worker.py": (
-            b"import json,sys\nr=json.load(sys.stdin)\n"
-            b"print(json.dumps({'rpc_version':1,'id':r['id'],'result':r['payload']*2}))\n"
-        ),
-    }
-    if extra:
-        manifest.update(extra)
-    if artifacts_extra:
-        files.update(artifacts_extra)
-    files["manifest.json"] = json.dumps(manifest).encode()
-    artifacts = {
-        name: {"size": len(data), "sha256": hashlib.sha256(data).hexdigest()}
-        for name, data in files.items()
-    }
-    files["artifacts.json"] = json.dumps(artifacts).encode()
-    with ZipFile(path, "w") as archive:
-        for name, data in files.items():
-            archive.writestr(name, data)
-    return manifest
+    bundle(
+        archive,
+        extra={
+            "instances": {"multiple": True},
+            "requires": {"host": {"storage.instances": ">=1.0.0 <2.0.0"}},
+            "provides": {"host": {"example": {"cardinality": "many"}}},
+            "contributes": {},
+            "config": {"count": 1},
+            "config_schema": {
+                "type": "object",
+                "properties": {"count": {"type": "integer"}},
+                "required": ["count"],
+                "additionalProperties": False,
+            },
+            "rpc": {
+                "load": {"input_schema": {"type": "null"}, "output_schema": {"type": "integer"}},
+                "save": {"input_schema": {"type": "integer"}, "output_schema": {"type": "integer"}},
+                "value": {"input_schema": {"type": "null"}, "output_schema": {"type": "integer"}},
+            },
+        },
+        artifacts_extra={"python/plugin.py": code.encode()},
+    )
+    directory = tmp_path / "data"
+    app = create_app(Config(data_dir=directory, token="test", profile="minimal"))
+    host = app.state.runtime
+    manager = host.require(ServiceKey("plugins"))
+    inspection = host.bootstrap["package_store"].inspect(archive)
+    manager.install(archive, inspection["digest"], set(inspection["trust_modes"]))
+    specs = [{"id": f"community.{name}", "plugin": "community.example"} for name in ("one", "two")]
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/plugins/plans",
+            headers=HEADERS,
+            json={
+                "generation": host.generation,
+                "selected": sorted(host.selected | {"community.one", "community.two"}),
+                "instances": specs,
+                "configs": {"community.one": {"count": 7}, "community.two": {"count": 9}},
+            },
+        )
+        assert response.status_code == 200, response.text
+        plan = response.json()
+        manager.prepare(plan["id"], plan["digest"])
+        manager.apply(plan["id"], plan["digest"])
+        untouched = host.instances["community.two"]
+        for name, expected in (("one", 7), ("two", 9)):
+            response = client.post(
+                f"/api/plugins/rpc/community.{name}/value",
+                headers=HEADERS,
+                json={"generation": host.generation, "payload": None},
+            )
+            assert response.status_code == 200, response.text
+            assert response.json() == expected
+        with pytest.raises(PluginError, match="停用"):
+            manager.uninstall("community.example")
+        bad = {**host.configs, "community.one": {"count": -1}}
+        plan = manager.plan(host.selected, host.generation, bad)
+        manager.prepare(plan["id"], plan["digest"])
+        with pytest.raises(Exception, match="已恢复"):
+            manager.apply(plan["id"], plan["digest"])
+        assert host.generation == 2
+        assert host.instances["community.two"] is untouched
+        assert host.service_values[("community.one", "example")]["value"] == 7
+        entries = client.get("/api/capabilities", headers=HEADERS).json()["client"]
+        one = next(item for item in entries if item["id"] == "community.one")
+        assert one["plugin"] == "community.example"
+        assert one["entry"]["entry"].startswith("/plugin-assets/community.example/")
+        for name, value in (("one", 11), ("two", 22)):
+            response = client.post(
+                f"/api/plugins/rpc/community.{name}/save",
+                headers=HEADERS,
+                json={"generation": host.generation, "payload": value},
+            )
+            assert response.status_code == 200 and response.json() == value
+    restored = create_app(Config(data_dir=directory, token="test"))
+    try:
+        assert restored.state.runtime.service_values[("community.one", "example")]["value"] == 7
+        assert restored.state.runtime.service_values[("community.two", "example")]["value"] == 9
+        assert restored.state.runtime.instances["community.one"].data.get("count").value == 11
+        assert restored.state.runtime.instances["community.two"].data.get("count").value == 22
+    finally:
+        restored.state.runtime.close()
 
 
 def test_worker_uses_prepared_offline_environment(tmp_path):
@@ -171,6 +213,103 @@ def enable(client, identifier):
     )
     response = client.post(path + "/apply", headers=HEADERS, json={"digest": plan["digest"]})
     assert response.status_code == 200, response.text
+
+
+def test_external_resume_source_survives_disable_and_restart(tmp_path):
+    """外部来源通过真实接口采用、同步和导出，停用前保留最后确认内容"""
+    archive = tmp_path / "source.rmp"
+    code = '''from resume_maker.sdk.sources import ResumeSource, SourceItem, SourcePage
+
+def activate(context):
+    """注册不依赖源码或荣誉库的合成资料来源"""
+    def item(reader):
+        """在当前事务读取已确认内容"""
+        return SourceItem(id="synthetic", version="1",
+            title=reader.setting("community.example:title", "初始合成资料"))
+    def browse(reader, cursor, query, limit):
+        """提供一个有界页面"""
+        return SourcePage(items=(item(reader),))
+    def resolve(reader, identifiers):
+        """只返回明确关联的条目"""
+        return (item(reader),) if "synthetic" in identifiers else ()
+    context.contribute("resume.sources", "community.example/source",
+        ResumeSource("合成资料来源", "1.0.0", browse, resolve))
+'''
+    bundle(
+        archive,
+        extra={
+            "contributes": {"resume.sources": ["community.example/source"]},
+            "provides": {},
+            "rpc": {},
+        },
+        artifacts_extra={"python/plugin.py": code.encode()},
+    )
+    config = Config(data_dir=tmp_path / "data", token="test", profile="minimal")
+    app = create_app(config)
+    with TestClient(app) as client:
+        store = app.state.runtime.bootstrap["package_store"]
+        checked = store.inspect(archive)
+        app.state.services.plugins.install(archive, checked["digest"], checked["trust_modes"])
+        enable(client, "community.example")
+        assert (
+            client.get("/api/resume-sources", headers=HEADERS).json()[0]["title"] == "合成资料来源"
+        )
+        response = client.get(
+            "/api/resume-source-items",
+            headers=HEADERS,
+            params={"provider": "community.example/source"},
+        )
+        assert response.status_code == 200, response.text
+        item = response.json()["items"][0]
+        document = {
+            "personal": {"name": "合成用户"},
+            "sections": [
+                {"id": "projects", "kind": "projects", "title": "项目"},
+                {
+                    "id": "notes",
+                    "title": "资料",
+                    "entries": [
+                        {
+                            "id": "entry",
+                            "title": item["title"],
+                            "source": {
+                                "provider": "community.example/source",
+                                "id": item["id"],
+                                "version": item["version"],
+                            },
+                        }
+                    ],
+                },
+            ],
+        }
+        saved = client.post(
+            "/api/resumes",
+            headers=HEADERS,
+            json={"name": "来源简历", "items": [], "document": document},
+        )
+        assert saved.status_code == 200, saved.text
+        resume_id = saved.json()["id"]
+        app.state.services.db.set_setting("community.example:title", "最后确认内容")
+        state = client.get("/api/state", headers=HEADERS).json()
+        assert (
+            state["resumes"][0]["document"]["sections"][1]["entries"][0]["title"] == "最后确认内容"
+        )
+        host = app.state.runtime
+        manager = app.state.services.plugins
+        plan = manager.plan(host.selected - {"community.example"}, host.generation)
+        assert "sys.resume" in plan["affected"]
+        manager.prepare(plan["id"], plan["digest"])
+        manager.apply(plan["id"], plan["digest"])
+        assert client.get("/api/resume-sources", headers=HEADERS).json() == []
+        exported = client.post(f"/api/resumes/{resume_id}/exports", headers=HEADERS)
+        assert exported.status_code == 200, exported.text
+        snapshot = exported.json()["manifest"]["resume"]["document"]
+        assert snapshot["sections"][1]["entries"][0]["title"] == "最后确认内容"
+    with TestClient(create_app(Config(data_dir=config.data_dir, token="test"))) as client:
+        state = client.get("/api/state", headers=HEADERS).json()
+        assert (
+            state["resumes"][0]["document"]["sections"][1]["entries"][0]["title"] == "最后确认内容"
+        )
 
 
 def test_external_document_engine_uses_frozen_input_and_keeps_history_after_disable(tmp_path):

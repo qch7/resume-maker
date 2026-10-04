@@ -4,7 +4,8 @@ from pydantic import ValidationError
 
 from resume_maker.core.errors import Problem
 from resume_maker.domain.recruitment import RecruitmentFile, empty_recruitment, merge_recruitment
-from resume_maker.infrastructure.database import Database, dump, unpack
+from resume_maker.sdk.records import dump, unpack
+from resume_maker.sdk.storage import RelationalStore
 
 KEY = "recruitment-bookmarks"
 
@@ -26,7 +27,7 @@ def parse_recruitment(content: str) -> RecruitmentFile:
 class Recruitment:
     """使用现有设置表保存收藏夹，随业务数据库备份和恢复"""
 
-    def __init__(self, db: Database):
+    def __init__(self, db: RelationalStore):
         """持有当前实例的数据库，不连接外部招聘网站"""
         self.db = db
 

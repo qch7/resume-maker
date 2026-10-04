@@ -17,6 +17,10 @@
   },
   "provides": {
     "host": {
+      "storage.instances": {
+        "version": "1.0.0",
+        "cardinality": "one"
+      },
       "db": {
         "version": "1.0.0",
         "cardinality": "one"
@@ -26,5 +30,14 @@
   "contributes": {},
   "permissions": [
     "system.trusted"
-  ]
+  ],
+  "data": {
+    "schemas": [
+      "infrastructure/schemas/references.sql"
+    ],
+    "tables": [
+      "record_references",
+      "record_operations"
+    ]
+  }
 }

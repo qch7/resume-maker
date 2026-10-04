@@ -19,6 +19,24 @@ def digest(value):
     ).hexdigest()
 
 
+def migration_intent(plan):
+    """用户审查转换步骤及包摘要，资料快照在排空后重新固定"""
+    return {key: value for key, value in plan.items() if key not in {"database_hash", "digest"}}
+
+
+def apply_intents(db, directory, intents, packages, records):
+    """只应用原计划审查过的转换，任一步包或资料版本改变均拒绝"""
+    reports = []
+    for intent in intents:
+        manifest, location = packages._discover_one(intent["owner"], records[intent["owner"]])
+        maintenance = DataMaintenance(db, directory)
+        current = maintenance.plan(manifest, location)
+        if migration_intent(current) != intent:
+            raise Problem("候选资料版本或迁移步骤已变化，请重新生成联合计划。", 409)
+        reports.append(maintenance.apply(current, manifest, location))
+    return reports
+
+
 class DataMaintenance:
     """维护入口不启动插件业务、模型、前端或任务"""
 
@@ -58,7 +76,8 @@ class DataMaintenance:
                 "from": step["from"],
                 "to": step["to"],
             }
-        cursor = version
+        initialize = version == 0 and target == 1 and not manifest.data.tables and not available
+        cursor = target if initialize else version
         while cursor < target:
             if cursor not in available:
                 raise Problem(f"缺少从版本 {cursor} 开始的数据迁移。", 409)
@@ -73,6 +92,7 @@ class DataMaintenance:
             "from": version,
             "to": target,
             "steps": steps,
+            "initialize": initialize,
             "data_policy": "backup-and-copy",
         }
         return {**plan, "digest": digest(plan)}
@@ -97,7 +117,7 @@ class DataMaintenance:
         current = self.plan(manifest, location)
         if current != approved:
             raise Problem("资料或插件已改变，请停止应用后重新生成迁移计划。", 409)
-        if not current["steps"]:
+        if not current["steps"] and not current["initialize"]:
             return {"state": "unchanged", "version": current["to"]}
         backup = create_backup(self.db, self.directory)
         identifier = uid()

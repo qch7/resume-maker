@@ -12,9 +12,8 @@ def ai_runtime(context):
     )
     publish(context, "provider", provider, observed=False)
     settings = dependency(context, "settings")
-    settings.provider = provider
-    context.effect(lambda: setattr(settings, "provider", None))
-    routes(context, "settings", only={"provider_settings", "inspect_provider", "check_provider"})
+    context.effect(settings.attach_provider(provider))
+    routes(context, "settings", only={"provider_settings", "check_provider"})
 
 
 def conversations(context):
@@ -24,9 +23,12 @@ def conversations(context):
     from resume_maker.services.jobs import Jobs
 
     catalog = dependency(context, "catalog")
-    conversations = publish(context, "conversations", Conversations(catalog))
-    catalog.project_initializers[context.instance_id] = conversations.initialize_project
-    context.effect(lambda: catalog.project_initializers.pop(context.instance_id, None))
+    conversations = publish(
+        context, "conversations", Conversations(catalog, storage=dependency(context, "db"))
+    )
+    context.effect(
+        catalog.on_project_created(context.instance_id, conversations.initialize_project)
+    )
     queue = publish(
         context,
         "jobs",
@@ -36,16 +38,17 @@ def conversations(context):
             dependency(context, "config").data_dir,
             dependency(context, "provider"),
             conversations=conversations,
+            execution_queue=task_queue(context),
+            source_service=dependency(context, "sources")
+            if "sources" in context.host.services
+            else None,
         ),
     )
-    queue.execution_queue = task_queue(context)
     context.lifecycle(queue.start, queue.stop)
     context.effect(
         dependency(context, "tasks").attach(
             context.instance_id,
-            lambda: queue.db.all(
-                "SELECT id,status AS state FROM jobs WHERE status IN ('queued','running')"
-            ),
+            queue.active_tasks,
             queue.cancel,
         )
     )
@@ -56,43 +59,68 @@ def conversations(context):
 
 def source_code(context):
     """注册只读来源扫描和绑定接口，手工项目不依赖来源能力"""
-    from resume_maker.integrations.sources import scan_collection
+    from resume_maker.integrations.source_service import SourceService
 
-    publish(context, "sources", scan_collection, observed=False)
+    publish(
+        context,
+        "sources",
+        SourceService(
+            dependency(context, "catalog"),
+            dependency(context, "config").data_dir,
+            assets=dependency(context, "assets"),
+        ),
+        observed=False,
+    )
     routes(context, "projects", only={"scan", "update_sources"})
 
 
 def honors(context):
     """荣誉资料库可独立手工维护，识别任务由另一个插件附接"""
     from resume_maker.plugins.queries import honors as query
-    from resume_maker.services.honor_links import resolve_honor_document
+    from resume_maker.sdk.privacy import PrivacyRuleContribution, PrivacyValues
+    from resume_maker.services.honor_links import resume_source
     from resume_maker.services.honors import Honors
+
+    def private_honors(reader):
+        """本机证书资料登记身份和凭据，不把正文交给规则展示界面"""
+        return PrivacyValues(
+            private_data=tuple(
+                row["value"]
+                for row in reader.all("SELECT value_json FROM settings WHERE key LIKE 'honor:%'")
+            )
+        )
+
+    context.contribute(
+        "privacy.rule_contributions",
+        "ext.honors/identities",
+        PrivacyRuleContribution(
+            "证书身份保护", "保护荣誉库中的获奖人、编号及结构化身份信息。", "1.0.0", private_honors
+        ),
+    )
 
     service = publish(
         context,
         "honors",
-        Honors(dependency(context, "db"), dependency(context, "config").data_dir, None),
+        Honors(
+            dependency(context, "db"),
+            dependency(context, "config").data_dir,
+            None,
+            preserve_sources=dependency(context, "resume").preserve_sources,
+            assets=dependency(context, "assets"),
+            registry=dependency(context, "document.registry"),
+        ),
     )
     context.scope.barriers.append(service.stop)
-    service.import_registry = dependency(context, "document.registry")
     routes(context, "honors", exclude={"recognize_honor"})
-    catalog = dependency(context, "resume")
-    catalog.honor_resolver = resolve_honor_document
-    from resume_maker.services.honor_links import preserve_honor_snapshots
-
-    context.before_deactivate.append(lambda: preserve_honor_snapshots(catalog.db))
-    context.effect(lambda: setattr(catalog, "honor_resolver", None))
+    context.contribute("resume.sources", "ext.honors/library", resume_source())
     context.contribute("workspace.queries", "honors", query)
 
 
 def honor_recognition(context):
     """仅选择识别能力时启动荣誉后台线程"""
     service = dependency(context, "honors")
-    service.provider = dependency(context, "provider")
-    service.execution_queue = task_queue(context)
-    context.effect(lambda: setattr(service, "execution_queue", None))
-    context.effect(service.stopped.clear)
-    context.lifecycle(service.start, service.stop)
+    detach = service.attach_recognition(dependency(context, "provider"), task_queue(context))
+    context.lifecycle(service.start, detach)
     context.effect(
         dependency(context, "tasks").attach(
             context.instance_id,
@@ -104,15 +132,14 @@ def honor_recognition(context):
             service.cancel,
         )
     )
-    context.effect(lambda: setattr(service, "provider", None))
     routes(context, "honors", only={"recognize_honor"})
 
 
 def template_adapter(context):
     """注册模板工作副本和填充能力，不强制依赖模型连接"""
     from resume_maker.integrations.word.templates.fill import fill_template
-    from resume_maker.sdk.documents import DocumentEngine
-    from resume_maker.services.document_inputs import generate_docx
+    from resume_maker.sdk.documents import DocumentEngine, generate_docx
+    from resume_maker.services.template_records import TemplateRecords
     from resume_maker.services.templates.tasks import Templates
 
     def generate(output, inputs):
@@ -134,21 +161,20 @@ def template_adapter(context):
         DocumentEngine("1.0.0", generate, accepts_template=True),
     )
 
+    publish(context, "template.records", TemplateRecords(), observed=False)
     service = publish(
         context,
         "templates",
-        Templates(dependency(context, "resume"), dependency(context, "config").data_dir, None),
+        Templates(
+            dependency(context, "resume"),
+            dependency(context, "config").data_dir,
+            None,
+            registry=dependency(context, "document.registry"),
+            storage=dependency(context, "db"),
+            assets=dependency(context, "assets"),
+        ),
     )
     context.scope.barriers.append(service.stop)
-    service.import_registry = dependency(context, "document.registry")
-    service.renderer = None
-    service.converter = None
-    for name in ("documents", "resume_previews"):
-        target = dependency(context, name)
-        target.templates_enabled = True
-        target.template_engine = fill_template
-        context.effect(lambda target=target: setattr(target, "templates_enabled", False))
-        context.effect(lambda target=target: setattr(target, "template_engine", None))
     routes(
         context,
         "templates",
@@ -178,9 +204,12 @@ def template_library(context):
             dependency(context, "config").data_dir,
             dependency(context, "templates"),
             dependency(context, "resume_previews"),
+            records=dependency(context, "template.records"),
+            storage=dependency(context, "db"),
+            assets=dependency(context, "assets"),
+            registry=dependency(context, "document.registry"),
         ),
     )
-    service.renderer = None
     context.lifecycle(service.start, service.stop)
     routes(
         context,
@@ -199,12 +228,15 @@ def template_library(context):
 
 
 def template_ai(context):
-    """为模板分析附接统一模型出口"""
+    """为模板分析附接统一模型出口和分析实现"""
+    from resume_maker.services.templates.analysis_driver import TemplateAnalysis
+
     service = dependency(context, "templates")
-    service.provider = dependency(context, "provider")
-    service.execution_queue = task_queue(context)
-    context.scope.barriers.append(service.execution_queue.close)
-    context.effect(lambda: setattr(service, "execution_queue", None))
+    context.scope.barriers.append(
+        service.attach_analysis(
+            dependency(context, "provider"), task_queue(context), TemplateAnalysis()
+        )
+    )
     context.effect(
         dependency(context, "tasks").attach(
             context.instance_id,
@@ -216,7 +248,6 @@ def template_ai(context):
             service.cancel,
         )
     )
-    context.effect(lambda: setattr(service, "provider", None))
     routes(context, "templates", only={"analyze_template"})
 
 
@@ -237,15 +268,6 @@ def word(context):
     context.contribute(
         "documents.renderers", "ext.word/default", DocumentRenderer("1.0.0", engine.render)
     )
-    for name in ("documents", "resume_previews", "templates", "template_library"):
-        if name not in context.host.services:
-            continue
-        target = dependency(context, name)
-        target.renderer = engine.render
-        context.effect(lambda target=target: setattr(target, "renderer", None))
-        if name == "templates":
-            target.converter = engine.convert
-            context.effect(lambda target=target: setattr(target, "converter", None))
 
 
 def recruitment(context):

@@ -23,9 +23,12 @@ def test_reveal_uses_snapshot_root_after_sources_reordered(catalog, project, tmp
     projects = Projects(catalog)
     projects.update_sources(project["id"], project["name"], [str(other), *project["roots"]])
     opened = []
-    monkeypatch.setattr("resume_maker.services.projects.reveal_file", opened.append)
-    projects.reveal_source(project["id"], snapshot["id"], "source-0", original.name)
-    assert opened == [original.resolve()]
+    monkeypatch.setattr("resume_maker.integrations.desktop.reveal_file", opened.append)
+    assert (
+        projects.source_path(project["id"], snapshot["id"], "source-0", original.name)
+        == original.resolve()
+    )
+    assert opened == []
 
 
 def test_reveal_endpoint_checks_token_and_snapshot_ownership(tmp_path, monkeypatch):
@@ -40,7 +43,7 @@ def test_reveal_endpoint_checks_token_and_snapshot_ownership(tmp_path, monkeypat
     snapshot = record_source_files(services.db, tmp_path / "data", project)
     body = {"snapshot_id": snapshot["id"], "source": "source-0", "path": "README.md"}
     opened = []
-    monkeypatch.setattr("resume_maker.services.projects.reveal_file", opened.append)
+    monkeypatch.setattr("resume_maker.integrations.desktop.reveal_file", opened.append)
     headers = {"x-resume-token": "test-token"}
     with TestClient(app) as client:
         url = f"/api/projects/{project['id']}/sources/reveal"
@@ -73,9 +76,9 @@ def test_reveal_rejects_unlisted_or_escaping_paths(catalog, project, tmp_path, m
     """越界、绝对路径、备用数据流和快照外文件均不能触发本机打开"""
     snapshot = record_source_files(catalog.db, tmp_path / "data", project)
     opened = []
-    monkeypatch.setattr("resume_maker.services.projects.reveal_file", opened.append)
+    monkeypatch.setattr("resume_maker.integrations.desktop.reveal_file", opened.append)
     with pytest.raises(Problem):
-        Projects(catalog).reveal_source(project["id"], snapshot["id"], "source-0", path)
+        Projects(catalog).source_path(project["id"], snapshot["id"], "source-0", path)
     assert opened == []
 
 
@@ -84,9 +87,9 @@ def test_reveal_reports_missing_source_file(catalog, project, tmp_path, monkeypa
     snapshot = record_source_files(catalog.db, tmp_path / "data", project)
     (Path(project["roots"][0]) / "README.md").unlink()
     opened = []
-    monkeypatch.setattr("resume_maker.services.projects.reveal_file", opened.append)
+    monkeypatch.setattr("resume_maker.integrations.desktop.reveal_file", opened.append)
     with pytest.raises(Problem, match="来源文件已移动或不存在"):
-        Projects(catalog).reveal_source(project["id"], snapshot["id"], "source-0", "README.md")
+        Projects(catalog).source_path(project["id"], snapshot["id"], "source-0", "README.md")
     assert opened == []
 
 

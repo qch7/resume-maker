@@ -16,7 +16,11 @@
       "templates": ">=1.0.0 <2.0.0",
       "resume_previews": ">=1.0.0 <2.0.0",
       "activity": ">=1.0.0 <2.0.0",
-      "resume": ">=1.0.0 <2.0.0"
+      "resume": ">=1.0.0 <2.0.0",
+      "document.registry": ">=1.0.0 <2.0.0",
+      "db": ">=1.0.0 <2.0.0",
+      "assets": ">=1.0.0 <2.0.0",
+      "template.records": ">=1.0.0 <2.0.0"
     }
   },
   "provides": {
@@ -43,5 +47,9 @@
       "template_library"
     ]
   },
-  "enhances": []
+  "enhances": [],
+  "consumes": [
+    "documents.importers",
+    "documents.renderers"
+  ]
 }

@@ -2,18 +2,30 @@
 
 import threading
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
+from contextlib import nullcontext
 from copy import deepcopy
 
 from resume_maker.core.errors import Problem
 from resume_maker.infrastructure.database import dump, now, uid, unpack
+from resume_maker.sdk.tasks import task_metadata
+
+
+def task_owners(record):
+    """任务租约同时覆盖调度所有者和本轮会创建的插件实例"""
+    owners = {record["owner"]}
+    for instance in record.get("metadata", {}).get("plugin_instances", []):
+        owners.update((instance["id"], instance["plugin"]))
+    return owners
 
 
 class TaskSupervisor:
     """任务持有配置快照，重启不自动重放外部操作"""
 
-    def __init__(self, db):
+    def __init__(self, db, scope_factory=None, prepare_scope=None):
         """创建实例独立的处理器和执行租约表"""
         self.db = db
+        self.scope_factory = scope_factory or (lambda _record: nullcontext())
+        self.prepare_scope = prepare_scope or (lambda metadata, _owner: metadata)
         self.handlers, self.running = {}, {}
         self.lock = threading.RLock()
         self.executor = None
@@ -41,14 +53,16 @@ class TaskSupervisor:
             adapters = dict(self.adapters)
             running = set(self.running)
             executions = [
-                deepcopy(record) for record, _ in self.owned.values() if record["owner"] in owners
+                deepcopy(record)
+                for record, _ in self.owned.values()
+                if task_owners(record) & owners
             ]
         records = [
             row["value"]
             for row in self.db.all("SELECT value_json FROM settings WHERE key LIKE 'task:%'")
         ]
         result = [
-            deepcopy(row) for row in records if row["owner"] in owners and row["id"] in running
+            deepcopy(row) for row in records if task_owners(row) & owners and row["id"] in running
         ]
         for owner, (inspect, _) in adapters.items():
             if owner in owners:
@@ -77,7 +91,7 @@ class TaskSupervisor:
             "created_at": now(),
             "finished_at": None,
             "execution_state": "queued",
-            "metadata": deepcopy(metadata),
+            "metadata": self.prepare_scope(task_metadata(metadata), queue.owner),
             "retry": "explicit",
             "resumable": False,
         }
@@ -149,7 +163,8 @@ class TaskSupervisor:
                 with self.lock:
                     record["execution_state"] = "running"
                     self.db.set_setting(f"task-execution:{record['id']}", record)
-                work()
+                with self.scope_factory(record):
+                    work()
         except Exception as exc:
             record["error_type"] = type(exc).__name__
         finally:
@@ -179,7 +194,7 @@ class TaskSupervisor:
         """取消只发出信号，真实结束仍由活动查询和清理屏障判断"""
         with self.lock:
             for record, flag in self.owned.values():
-                if record["owner"] in owners:
+                if task_owners(record) & owners:
                     flag.set()
         for task in self.active(owners):
             adapter = self.adapters.get(task["owner"])
@@ -226,7 +241,18 @@ class TaskSupervisor:
                         )
             self.executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="plugin-task")
 
-    def submit(self, owner, handler, payload, *, generation, idempotency_key, providers=None):
+    def submit(
+        self,
+        owner,
+        handler,
+        payload,
+        *,
+        generation,
+        idempotency_key,
+        providers=None,
+        plugin_instances=None,
+        plugin_configs=None,
+    ):
         """同事务去重并固定代次，执行结果须再次校验取消状态"""
         key = f"{owner}:{handler}"
         with self.lock:
@@ -253,6 +279,15 @@ class TaskSupervisor:
                     "created_at": now(),
                     "finished_at": None,
                     "result": None,
+                    "metadata": self.prepare_scope(
+                        task_metadata(
+                            {
+                                "plugin_instances": deepcopy(plugin_instances or []),
+                                "plugin_configs": deepcopy(plugin_configs or {}),
+                            }
+                        ),
+                        owner,
+                    ),
                 }
                 conn.execute(
                     "INSERT INTO settings VALUES (?,?)", (f"task:{record['id']}", dump(record))
@@ -278,7 +313,8 @@ class TaskSupervisor:
                     return
                 record["state"] = "running"
                 self.db.set_setting(f"task:{record['id']}", record)
-            result = handler(record["payload"], cancelled)
+            with self.scope_factory(record):
+                result = handler(record["payload"], cancelled)
             succeeded = True
         except Exception as exc:
             record["error_type"] = type(exc).__name__

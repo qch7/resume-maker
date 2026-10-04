@@ -1,5 +1,6 @@
 """Provider 配置和实际连接检查的 HTTP 入口"""
 
+from collections.abc import Callable
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
@@ -60,9 +61,10 @@ def provider_settings(
 @router.get("/providers/codex")
 def inspect_provider(
     dep_settings: Annotated[Settings, Depends(service("settings"))],
+    dep_inspect: Annotated[Callable, Depends(service("model.inspection"))],
 ):
     """检查当前配置的 Codex CLI 是否可执行并返回版本信息"""
-    return dep_settings.inspect_provider()
+    return dep_inspect(ProviderSettings.model_validate(dep_settings.get()["provider"]))
 
 
 @router.post("/providers/codex/check")

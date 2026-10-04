@@ -68,6 +68,14 @@ class Instances(Contract):
     multiple: bool = False
 
 
+class InstanceSpec(Contract):
+    """实例使用稳定身份，提供方绑定按执行域和能力逐项声明"""
+
+    id: str = Field(pattern=IDENTIFIER)
+    plugin: str = Field(pattern=IDENTIFIER)
+    bindings: dict[str, dict[str, str]] = Field(default_factory=dict)
+
+
 class Lifecycle(Contract):
     """按实际变更类型声明生效方式"""
 
@@ -82,6 +90,7 @@ class DataDescriptor(Contract):
     """停用后仍保留的非执行数据目录"""
 
     schema_version: int = Field(default=1, ge=1)
+    privacy_settings: list[str] = Field(default_factory=list)
     reads: list[int] = Field(default_factory=lambda: [1])
     writes: list[int] = Field(default_factory=lambda: [1])
     tables: list[str] = Field(default_factory=list)
@@ -89,6 +98,8 @@ class DataDescriptor(Contract):
     folders: list[str] = Field(default_factory=list)
     descriptor: str | None = None
     migrations: list[str] = Field(default_factory=list)
+    schemas: list[str] = Field(default_factory=list)
+    relations: list[str] = Field(default_factory=list)
     backup: bool = True
 
 

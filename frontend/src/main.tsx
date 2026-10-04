@@ -1,6 +1,6 @@
 import { createRoot } from "react-dom/client";
 import { initializePlugins, pluginComponent } from "./plugins/runtime";
-import { reportClientError } from "./shared/lib/api";
+import { ApiError, reportClientError } from "./shared/lib/api";
 import { initializeStorage, storage } from "./shared/lib/storage";
 import PersistenceStatus from "./shared/components/PersistenceStatus";
 import "./styles/index.css";
@@ -32,8 +32,13 @@ document.addEventListener("visibilitychange", () => {
 });
 
 const root = createRoot(document.getElementById("root")!);
+let starting = false;
+let retry: ReturnType<typeof setTimeout> | undefined;
 /** 数据库草稿恢复完成后才挂载表单，避免空白初值覆盖保存内容 */
 async function start() {
+  if (starting) return;
+  starting = true;
+  clearTimeout(retry);
   try {
     await initializePlugins();
     await initializeStorage();
@@ -46,13 +51,23 @@ async function start() {
         <PersistenceStatus />
       </>,
     );
-  } catch {
+  } catch (failure) {
+    const reconnect =
+      failure instanceof TypeError ||
+      (failure instanceof ApiError && [409, 503].includes(failure.status));
     root.render(
       <main>
-        <p>本机资料加载失败，连接恢复后可重试。</p>
+        <p>
+          {reconnect
+            ? "服务正在启动，连接恢复后会自动打开工作台。"
+            : "本机资料加载失败，连接恢复后可重试。"}
+        </p>
         <button onClick={() => void start()}>重新加载</button>
       </main>,
     );
+    if (reconnect) retry = setTimeout(() => void start(), 1500);
+  } finally {
+    starting = false;
   }
 }
 void start();

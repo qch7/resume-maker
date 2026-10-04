@@ -197,6 +197,7 @@ export type PersonalField = keyof Omit<
 >;
 export type SectionEntryField = "title" | "subtitle" | "period" | "details";
 export interface SectionEntry {
+  source?: { provider: string; id: string; version: string } | null;
   field_definitions?: DefaultField[] | null;
   id: string;
   title: string;

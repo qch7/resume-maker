@@ -7,8 +7,10 @@ from fastapi.responses import FileResponse
 from starlette.concurrency import run_in_threadpool
 
 from resume_maker.api.dependencies import service
+from resume_maker.api.resources import AssetResponse
 from resume_maker.core.errors import Problem
 from resume_maker.domain.honors import HonorSave
+from resume_maker.infrastructure.assets import Assets
 from resume_maker.integrations.certificates import MAX_BYTES
 from resume_maker.sdk.services import Honors
 
@@ -85,8 +87,21 @@ def cancel_honor(dep_honors: Annotated[Honors, Depends(service("honors"))], hono
 
 
 @router.get("/{honor_id}/original")
-def original_honor(dep_honors: Annotated[Honors, Depends(service("honors"))], honor_id: str):
+def original_honor(
+    dep_honors: Annotated[Honors, Depends(service("honors"))],
+    dep_assets: Annotated[Assets, Depends(service("assets"))],
+    honor_id: str,
+):
     """以附件形式下载原始证书"""
+    reference = dep_honors.file_reference(honor_id)
+    if reference["id"]:
+        return AssetResponse(
+            dep_assets,
+            reference["id"],
+            reference["name"],
+            media_type="application/octet-stream",
+            headers={"X-Content-Type-Options": "nosniff"},
+        )
     path, name = dep_honors.file(honor_id)
     return FileResponse(
         path,
@@ -97,7 +112,20 @@ def original_honor(dep_honors: Annotated[Honors, Depends(service("honors"))], ho
 
 
 @router.get("/{honor_id}/pages/{page}")
-def honor_page(dep_honors: Annotated[Honors, Depends(service("honors"))], honor_id: str, page: int):
+def honor_page(
+    dep_honors: Annotated[Honors, Depends(service("honors"))],
+    dep_assets: Annotated[Assets, Depends(service("assets"))],
+    honor_id: str,
+    page: int,
+):
     """提供由本机解码生成的 PNG 页面，PDF 和图片共用预览"""
+    reference = dep_honors.file_reference(honor_id, page)
+    if reference["id"]:
+        return AssetResponse(
+            dep_assets,
+            reference["id"],
+            media_type="image/png",
+            headers={"X-Content-Type-Options": "nosniff"},
+        )
     path, _ = dep_honors.file(honor_id, page)
     return FileResponse(path, media_type="image/png", headers={"X-Content-Type-Options": "nosniff"})

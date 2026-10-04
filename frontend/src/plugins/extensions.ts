@@ -1,6 +1,12 @@
 import type { ComponentType } from "react";
 import type { ClientDescriptor } from "../shared/lib/capabilities";
 import type { WorkflowInput } from "./slots";
+import type { DocumentPreviewer, PreviewInput } from "./documents";
+import {
+  activityPresentation,
+  type ActivityInput,
+  type ActivityPresenter,
+} from "./activity.ts";
 
 export type JsonValue =
   | null
@@ -38,6 +44,8 @@ export interface WorkflowStep {
 }
 
 export interface ClientExtensionPoints {
+  "documents.previewers": DocumentPreviewer;
+  "activity.presenters": ActivityPresenter;
   commands: Command;
   "resume.field_editors": FieldEditor;
   "workflow.steps": WorkflowStep;
@@ -151,7 +159,23 @@ export function createClientExtensions(deactivateTimeoutMs = 5000) {
         id,
         version: "1.0.0",
         order,
-        value: Object.freeze({ ...value }) as ClientExtensionPoints[K],
+        value: Object.freeze(
+          point === "activity.presenters"
+            ? {
+                ...value,
+                sources: Object.freeze([
+                  ...(value as ActivityPresenter).sources,
+                ]),
+              }
+            : point === "documents.previewers"
+              ? {
+                  ...value,
+                  formats: Object.freeze([
+                    ...(value as DocumentPreviewer).formats,
+                  ]),
+                }
+              : { ...value },
+        ) as ClientExtensionPoints[K],
       }),
     );
     return async () => {
@@ -240,7 +264,58 @@ export function createClientExtensions(deactivateTimeoutMs = 5000) {
     }));
   }
 
-  return { contribute, list, execute, workflow };
+  /** 展示后端已遮盖的事件副本，单个贡献失败保留原始记录和其他展示 */
+  function activity(input: ActivityInput) {
+    const snapshot = freeze(JSON.parse(JSON.stringify(input)) as ActivityInput);
+    return list("activity.presenters")
+      .filter((item) => item.value.sources.includes(input.source))
+      .map((item) => {
+        try {
+          const result = item.value.present(snapshot);
+          return result === null
+            ? null
+            : { id: item.id, ...activityPresentation(result), error: false };
+        } catch {
+          return {
+            id: item.id,
+            title: "扩展展示暂不可用",
+            lines: [{ label: "贡献", text: item.id }],
+            error: true,
+          };
+        }
+      })
+      .filter((item) => item !== null);
+  }
+
+  /** 检查当前输入的预览能力，失败只关闭本贡献且保留选择其他预览的入口 */
+  function previewers(input: PreviewInput) {
+    const snapshot = Object.freeze({ ...input });
+    return list("documents.previewers")
+      .filter((item) => item.value.formats.includes(input.format))
+      .map((item) => {
+        try {
+          const status = item.value.availability?.(snapshot) ?? {
+            available: true,
+            reason: "",
+          };
+          if (
+            typeof status.available !== "boolean" ||
+            typeof status.reason !== "string" ||
+            status.reason.length > 500
+          )
+            throw new Error("预览状态无效");
+          return { ...item, ...status };
+        } catch {
+          return {
+            ...item,
+            available: false,
+            reason: "预览器检查失败，资料仍保留。",
+          };
+        }
+      });
+  }
+
+  return { contribute, list, execute, workflow, activity, previewers };
 }
 
 /** 每种公开扩展点校验实际值，类型断言不能替代装载校验 */
@@ -249,6 +324,41 @@ function validate<K extends keyof ClientExtensionPoints>(
   value: ClientExtensionPoints[K],
 ) {
   if (!value || typeof value !== "object") throw new Error("客户端贡献无效。");
+  if (point === "documents.previewers") {
+    const previewer = value as DocumentPreviewer;
+    if (
+      typeof previewer.title !== "string" ||
+      !previewer.title ||
+      previewer.title.length > 100 ||
+      typeof previewer.component !== "function" ||
+      !Array.isArray(previewer.formats) ||
+      !previewer.formats.length ||
+      previewer.formats.length > 100 ||
+      previewer.formats.some(
+        (format) =>
+          typeof format !== "string" || !format || format.length > 100,
+      ) ||
+      (previewer.availability !== undefined &&
+        typeof previewer.availability !== "function")
+    )
+      throw new Error("预览贡献须包含名称、格式和组件。");
+    return;
+  }
+  if (point === "activity.presenters") {
+    const presenter = value as ActivityPresenter;
+    if (
+      typeof presenter.present !== "function" ||
+      !Array.isArray(presenter.sources) ||
+      !presenter.sources.length ||
+      presenter.sources.length > 100 ||
+      presenter.sources.some(
+        (source) =>
+          typeof source !== "string" || !source || source.length > 200,
+      )
+    )
+      throw new Error("日志贡献必须声明来源和 present。");
+    return;
+  }
   if (point === "workflow.state_contributors") {
     if (
       typeof (value as ClientExtensionPoints["workflow.state_contributors"])

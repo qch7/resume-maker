@@ -17,7 +17,10 @@
   "requires": {
     "host": {
       "catalog": ">=1.0.0 <2.0.0",
-      "activity": ">=1.0.0 <2.0.0"
+      "resume": ">=1.0.0 <2.0.0",
+      "activity": ">=1.0.0 <2.0.0",
+      "db": ">=1.0.0 <2.0.0",
+      "settings": ">=1.0.0 <2.0.0"
     }
   },
   "provides": {
@@ -29,12 +32,17 @@
     }
   },
   "contributes": {
-    "commands": ["sys.workbench/manage-plugins"],
+    "commands": [
+      "sys.workbench/manage-plugins"
+    ],
     "http.routes": [
       "sys.workbench/system"
     ]
   },
   "permissions": [
     "system.trusted"
+  ],
+  "consumes": [
+    "workspace.queries"
   ]
 }

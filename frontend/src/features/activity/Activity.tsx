@@ -1,4 +1,5 @@
 import type { ActivityProps } from "../../plugins/slots";
+import { clientExtensions } from "../../plugins/extensions";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity as ActivityIcon,
@@ -597,6 +598,20 @@ function ActivityDetail({
             </>
           )}
         </dl>
+        {detail &&
+          clientExtensions.activity(detail).map((presentation) => (
+            <section key={presentation.id} aria-label={presentation.title}>
+              <h3>{presentation.title}</h3>
+              <dl>
+                {presentation.lines.map((line, index) => (
+                  <div key={index}>
+                    <dt>{line.label}</dt>
+                    <dd style={{ whiteSpace: "pre-wrap" }}>{line.text}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          ))}
         <h3>完整记录</h3>
         {error && (
           <p role="alert" className="activity-error">

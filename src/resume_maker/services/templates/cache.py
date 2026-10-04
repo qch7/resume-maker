@@ -3,8 +3,8 @@
 import json
 from pathlib import Path
 
+from resume_maker.core.content import digest
 from resume_maker.domain.templates import TemplatePlan
-from resume_maker.integrations.sources import digest
 from resume_maker.integrations.word.pdf.geometry import SOURCE, recovered_pdf
 from resume_maker.services.templates.analysis import INSTRUCTIONS, analysis_context, assess_plan
 

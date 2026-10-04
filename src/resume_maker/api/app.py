@@ -12,11 +12,12 @@ from resume_maker.api.middleware import configure_middleware
 from resume_maker.api.plugin_dispatch import PluginDispatch, snapshot
 from resume_maker.api.static import mount_frontend
 from resume_maker.core.config import Config
-from resume_maker.plugins.discovery import selection
-from resume_maker.runtime.configuration import configurations
+from resume_maker.plugins.discovery import configuration_bundles, selection
+from resume_maker.runtime.configuration import compose_configuration, startup_configuration
 from resume_maker.runtime.environments import EnvironmentStore
-from resume_maker.runtime.graph import available_selection
+from resume_maker.runtime.graph import PluginError, available_selection
 from resume_maker.runtime.host import Host
+from resume_maker.runtime.instances import definition_id, expand_instances
 from resume_maker.runtime.packages import PackageStore
 from resume_maker.runtime.state import StateStore
 from resume_maker.sdk.context import ServiceKey
@@ -33,20 +34,49 @@ def create_app(config: Config | None = None, provider: Provider | None = None) -
     if saved and config.profile is None and overrides is None:
         overrides = tuple(saved["selected"])
     manifests, selected, required = selection(config.profile or "standard", overrides)
-    packages = PackageStore(config.data_dir, set(manifests))
+    packages = PackageStore(
+        config.package_root or config.data_dir, set(manifests), records=config.package_records
+    )
     external, locations = packages.discover(strict=False)
     manifests.update(external)
-    environments = EnvironmentStore(config.data_dir)
+    environments = EnvironmentStore(
+        config.package_root or config.data_dir, records=config.environment_records
+    )
     worker_environments = environments.available(locations)
+    instance_specs = (saved or {}).get("instances", [])
+    expanded, parsed_specs = expand_instances(manifests, instance_specs, missing_ok=True)
     desired, blocked = set(selected), {}
     if saved and config.profile is None and config.plugins is None:
         selected, blocked = available_selection(
-            manifests, desired, required, packages.failures, worker_environments
+            expanded,
+            desired,
+            required,
+            {
+                key: packages.failures[definition_id(parsed_specs, key)]
+                for key in desired
+                if definition_id(parsed_specs, key) in packages.failures
+            },
+            {
+                key: worker_environments.get(definition_id(parsed_specs, key), {})
+                for key in expanded
+            },
         )
-    configs = configurations(
-        manifests,
-        {key: value for key, value in (saved or {}).get("configs", {}).items() if key in manifests},
+    layers = startup_configuration(
+        saved, config.plugin_config, configuration_bundles(config.profile or "standard")
     )
+    if config.plugin_config and any(
+        edit["instance"] not in expanded
+        for layer in layers
+        if layer["name"] != "workspace"
+        for edit in layer.get("edits", [])
+    ):
+        raise PluginError("本次启动配置引用尚未安装的插件实例")
+    configuration = compose_configuration(
+        expanded,
+        layers,
+        missing_ok=True,
+    )
+    configs = configuration["configs"]
     generation = saved["generation"] if saved else 1
 
     def activate_host(selection, reasons, current_generation):
@@ -62,17 +92,25 @@ def create_app(config: Config | None = None, provider: Provider | None = None) -
                 "packages": locations,
                 "package_store": packages,
                 "configs": configs,
+                "configuration": configuration,
                 "environment_store": environments,
                 "worker_environments": worker_environments,
             },
             current_generation,
+            instance_specs=instance_specs,
         )
         candidate.desired, candidate.blocked = desired, reasons
         candidate.activate()
         return candidate
 
     host = activate_host(selected, blocked, generation)
-    if saved and set(saved.get("effective", saved["selected"])) != host.selected:
+    if saved and (
+        set(saved.get("effective", saved["selected"])) != host.selected
+        or any(
+            saved.get("configs", {}).get(key, expanded[key].config) != configs[key]
+            for key in host.selected
+        )
+    ):
         selected, blocked = set(host.selected), dict(host.blocked)
         host.close()
         generation += 1
@@ -84,6 +122,8 @@ def create_app(config: Config | None = None, provider: Provider | None = None) -
         """后台工作遵守插件拓扑启动和逆依赖关闭"""
         log.write("system", "startup", "本机服务启动", {"instance_id": config.instance_id})
         host.start()
+        if ready := host.bootstrap.get("on_ready"):
+            ready()
         try:
             yield
         finally:
@@ -104,7 +144,15 @@ def create_app(config: Config | None = None, provider: Provider | None = None) -
 
     manager.publish_routes = publish_routes
     retained_configs = {**(saved or {}).get("configs", {}), **configs}
-    store.commit(desired, generation, manager.package_lock(), retained_configs, host.selected)
+    store.commit(
+        desired,
+        generation,
+        manager.package_lock(),
+        retained_configs,
+        host.selected,
+        instance_specs,
+        configuration["layers"],
+    )
     app.router.routes.append(dispatch)
     app.state.dispatch = dispatch
 

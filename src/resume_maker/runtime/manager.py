@@ -7,8 +7,13 @@ from copy import deepcopy
 from uuid import uuid4
 
 from resume_maker.core.errors import Problem
-from resume_maker.runtime.configuration import configurations
+from resume_maker.runtime.configuration import (
+    compose_configuration,
+    replacement_layer,
+    workspace_layers,
+)
 from resume_maker.runtime.graph import PluginError, resolve
+from resume_maker.runtime.instances import definition_id, expand_instances
 from resume_maker.runtime.state import fingerprint
 
 
@@ -36,21 +41,25 @@ class PluginManager:
                 if identifier in self.host.bootstrap.get("packages", {})
                 else None,
             }
-            for identifier, manifest in sorted(self.host.manifests.items())
+            for identifier, manifest in sorted(self.host.definitions.items())
         }
 
-    def validate_packages(self, selected):
+    def validate_packages(self, selected, specs=None):
         """应用前重新核验已授权产物，安装后的磁盘修改也使旧计划失效"""
         store = self.host.bootstrap.get("package_store")
         if store is None:
             return
         records = store.records()
+        selected = {
+            definition_id(self.host.instance_specs if specs is None else specs, key)
+            for key in selected
+        }
         for identifier in selected & self.host.bootstrap.get("packages", {}).keys():
             if identifier not in records:
                 raise PluginError(f"插件安装记录已被移除：{identifier}")
             manifest, location = store._discover_one(identifier, records[identifier])
             if (
-                manifest != self.host.manifests[identifier]
+                manifest != self.host.definitions[identifier]
                 or location != self.host.bootstrap["packages"][identifier]
             ):
                 raise PluginError(f"插件代码已更新，请先重启并重新生成计划：{identifier}")
@@ -69,12 +78,17 @@ class PluginManager:
             if self.pending_plan or self.maintenance:
                 raise Problem("插件变更期间不能安装代码，请先完成当前计划。", 409)
             store = self.host.bootstrap["package_store"]
+            inspection = store.inspect(path)
+            identifier = inspection["manifest"]["id"]
+            if identifier in store.records() and store.records()[identifier]["digest"] != digest:
+                raise PluginError("已有插件的新版本须通过联合候选计划验证后切换")
             result = store.install(path, digest, set(trusted_modes))
             identifier = result["id"]
             if identifier in self.host.manifests:
                 return {**result, "restart_required": True}
             manifests, locations = store.discover()
             self.host.manifests[identifier] = manifests[identifier]
+            self.host.definitions[identifier] = manifests[identifier]
             self.host.bootstrap["packages"][identifier] = locations[identifier]
             return {**result, "restart_required": False}
 
@@ -83,31 +97,83 @@ class PluginManager:
         with self.lock:
             if self.pending_plan or self.maintenance:
                 raise Problem("插件变更期间不能卸载代码，请先完成当前计划。", 409)
-            result = self.host.bootstrap["package_store"].uninstall(identifier, self.host.selected)
+            active = {self.host.definition_id(key) for key in self.host.selected}
+            tasks = self.host.services.get("tasks")
+            if tasks and tasks.active({identifier}):
+                raise PluginError("插件仍有活动任务，请先取消并等待结束")
+            for child in self.host.children.values():
+                active.update(child.definition_id(key) for key in child.selected)
+            result = self.host.bootstrap["package_store"].uninstall(identifier, active)
             self.host.manifests.pop(identifier, None)
+            self.host.definitions.pop(identifier, None)
             self.host.bootstrap["packages"].pop(identifier, None)
             return result
 
-    def plan(self, selected, expected_generation, configs=None):
+    def plan(
+        self,
+        selected,
+        expected_generation,
+        configs=None,
+        instances=None,
+        config_edits=(),
+        *,
+        package_updates=None,
+        data_intents=(),
+    ):
         """解析候选组合及反向依赖闭包，计划尚不改变活动能力"""
         with self.lock:
             self._generation(expected_generation)
             selected = set(selected)
-            self.validate_packages(selected)
-            resolution = resolve(self.host.manifests, selected, self.host.required)
-            candidate = configurations(
-                self.host.manifests, self.host.configs if configs is None else configs
+            from resume_maker.runtime.host import Host
+
+            specs = list(self.host.instance_specs.values()) if instances is None else instances
+            definitions = dict(self.host.definitions)
+            package_updates = package_updates or {}
+            packages = self.host.bootstrap.get("package_store")
+            for owner, record in package_updates.items():
+                definitions[owner], _ = packages._discover_one(owner, record)
+            candidate_host = Host(
+                definitions,
+                selected,
+                self.host.required,
+                self.host.bootstrap,
+                self.host.generation,
+                instance_specs=specs,
             )
+            manifests, parsed = candidate_host.manifests, candidate_host.instance_specs
+            self.validate_packages(selected, parsed)
+            resolution = candidate_host.resolution
+            if set(configs or {}) - manifests.keys():
+                raise PluginError("配置引用未知插件实例")
+            if any(edit["instance"] not in manifests for edit in config_edits):
+                raise PluginError("字段操作引用未知插件实例")
+            layers = (self.host.configuration or {}).get(
+                "layers", [replacement_layer("workspace", self.host.configs)]
+            )
+            configuration = compose_configuration(
+                manifests,
+                workspace_layers(layers, configs, config_edits),
+                missing_ok=True,
+            )
+            candidate = configuration["configs"]
             for key in selected:
-                if missing := self.host.missing_dependencies(key):
+                if missing := candidate_host.missing_dependencies(key):
+                    if package_updates and manifests[key].environment_lock:
+                        continue
                     raise PluginError(f"{key} 缺少安装依赖：{'; '.join(missing)}")
             changed = self.host.selected ^ selected
             configured = {
                 key
                 for key in selected & self.host.selected
                 if candidate[key] != self.host.configs.get(key, self.host.manifests[key].config)
+                or manifests[key] != self.host.manifests[key]
             }
             changed |= configured
+            changed.update(
+                key
+                for key in selected | self.host.selected
+                if definition_id(parsed, key) in package_updates
+            )
             affected = set(changed)
             graphs = (self.host.resolution.edges, resolution.edges)
             while True:
@@ -119,13 +185,15 @@ class PluginManager:
                 if previous == affected:
                     break
             mode = "drain"
-            if any(self.host.manifests[key].lifecycle.toggle == "host-restart" for key in changed):
+            all_manifests = {**self.host.manifests, **manifests}
+            if any(all_manifests[key].lifecycle.toggle == "host-restart" for key in changed):
                 mode = "host-restart"
-            if any(
-                self.host.manifests[key].lifecycle.config_update == "host-restart"
-                for key in configured
-            ):
+            if any(manifests[key].lifecycle.config_update == "host-restart" for key in configured):
                 mode = "host-restart"
+            if package_updates:
+                mode = "host-restart"
+            if mode == "host-restart":
+                affected = selected | self.host.selected
             value = {
                 "id": str(uuid4()),
                 "generation": expected_generation,
@@ -138,13 +206,25 @@ class PluginManager:
                 "lock": self.package_lock(),
                 "windows": sorted(self.windows),
                 "new_permissions": {
-                    key: self.host.manifests[key].permissions
-                    for key in selected - self.host.selected
+                    key: manifests[key].permissions for key in selected - self.host.selected
                 },
                 "data_policy": "retain",
                 "state": "planned",
                 "configs": candidate,
+                "configuration": configuration,
                 "configured": sorted(configured),
+                "instances": [item.model_dump() for item in parsed.values()],
+                **(
+                    {
+                        "package_updates": package_updates,
+                        "data_intents": list(data_intents),
+                        "automatic_code_rollback": not bool(data_intents),
+                        "packages_before": packages.records(),
+                        "pins": packages.pins(),
+                    }
+                    if mode == "host-restart"
+                    else {}
+                ),
             }
             value["digest"] = fingerprint(value)
             self.plans[value["id"]] = value
@@ -197,11 +277,20 @@ class PluginManager:
         if plan is None or plan["digest"] != digest:
             raise Problem("变更计划不存在或摘要不匹配。", 409)
         self._generation(plan["generation"])
-        self.validate_packages(set(plan["selected"]))
+        _, parsed = expand_instances(
+            self.host.definitions, plan.get("instances", []), missing_ok=True
+        )
+        self.validate_packages(set(plan["selected"]), parsed)
         if plan["expires_at"] < time.time() or plan["lock"] != self.package_lock():
             raise Problem("变更计划已失效，请重新生成。", 409)
         if plan["state"] not in {"planned", "preparing"}:
             raise Problem("变更计划已经结束。", 409)
+        if "package_updates" in plan:
+            packages = self.host.bootstrap["package_store"]
+            if packages.records() != plan["packages_before"] or packages.pins() != plan["pins"]:
+                raise Problem("安装目录或版本锁已变化，请重新生成联合计划。", 409)
+            for owner, record in plan["package_updates"].items():
+                packages._discover_one(owner, record)
         return plan
 
     def prepare(self, identifier, digest):
@@ -214,7 +303,9 @@ class PluginManager:
                 raise Problem("另一个插件变更正在准备。", 409)
             if sorted(self.windows) != plan["windows"]:
                 raise Problem("已连接窗口发生变化，请重新生成计划。", 409)
-            self.frozen = set(plan["affected"])
+            with self.host.scope_lock:
+                self.frozen = set(plan["affected"])
+                self.host.frozen_scopes = set(self.frozen)
             self.pending_plan = identifier
             plan["state"] = "preparing"
             self.save_plan(plan)
@@ -228,6 +319,14 @@ class PluginManager:
         plan = self.plans.get(identifier)
         if plan is None:
             raise Problem("变更计划不存在。", 404)
+        if plan["state"] in {"applying", "booting"}:
+            import json
+
+            saved = json.loads(
+                (self.store.operations / (identifier + ".json")).read_text(encoding="utf-8")
+            )
+            plan = saved
+            self.plans[identifier] = plan
         tasks = self.host.services.get("tasks")
         return {
             **plan,
@@ -244,6 +343,7 @@ class PluginManager:
             ),
             "tasks": tasks.active(set(plan["affected"])) if tasks else [],
             "windows_detail": {key: dict(self.windows.get(key, {})) for key in plan["windows"]},
+            "scopes": self.host.active_scopes(set(plan["affected"])),
         }
 
     def cancel_tasks(self, identifier, digest):
@@ -330,6 +430,8 @@ class PluginManager:
             plan["state"] = "cancelled"
             self.save_plan(plan)
             self.frozen.clear()
+            with self.host.scope_lock:
+                self.host.frozen_scopes.clear()
             self.pending_plan = None
             for window in self.windows.values():
                 window.update(pending_plan=None, acknowledged=False)
@@ -341,17 +443,15 @@ class PluginManager:
             if plan["state"] != "preparing":
                 raise Problem("请先准备变更并刷新所有窗口的草稿。", 409)
             progress = self.progress(identifier)
-            if progress["waiting_windows"] or progress["inflight"] or progress["tasks"]:
+            if (
+                progress["waiting_windows"]
+                or progress["inflight"]
+                or progress["tasks"]
+                or progress["scopes"]
+            ):
                 raise Problem("仍有窗口草稿或请求未确认，变更尚未应用。", 409)
             if plan["mode"] == "host-restart":
-                self.store.begin(plan)
-                self.store.commit(
-                    plan["selected"], self.host.generation + 1, self.package_lock(), plan["configs"]
-                )
-                self.maintenance = True
-                plan["state"] = "restart-required"
-                self.save_plan(plan)
-                return {"generation": self.host.generation, "state": "restart-required"}
+                return self.upgrades.start(plan)
             self.store.begin(plan)
             self._switch(plan)
             return {"generation": self.host.generation, "state": "committed"}
@@ -362,9 +462,14 @@ class PluginManager:
         old_selected, old_resolution = set(host.selected), host.resolution
         old_generation = host.generation
         old_configs, old_desired = host.configs, host.desired
+        old_configuration = host.configuration
+        old_manifests, old_specs = host.manifests, host.instance_specs
         affected = set(plan["affected"])
         new_selected = set(plan["selected"])
-        resolution = resolve(host.manifests, new_selected, host.required)
+        manifests, specs = expand_instances(
+            host.definitions, plan.get("instances", []), missing_ok=True
+        )
+        resolution = resolve(manifests, new_selected, host.required)
         self.maintenance = True
         try:
             for key in reversed(old_resolution.order):
@@ -377,7 +482,9 @@ class PluginManager:
                     host.instances[key].scope.close()
                     host.instances.pop(key)
             host.selected, host.resolution = new_selected, resolution
+            host.manifests, host.instance_specs = manifests, specs
             host.configs, host.desired = deepcopy(plan["configs"]), set(new_selected)
+            host.configuration = deepcopy(plan["configuration"])
             host.generation += 1
             if synchronize := host.bootstrap.get("synchronize_data"):
                 synchronize(new_selected)
@@ -387,9 +494,17 @@ class PluginManager:
                     if host.started:
                         for start in host.instances[key].starters:
                             start()
+            host.check_health()
             if self.publish_routes:
                 self.publish_routes()
-            self.store.commit(new_selected, host.generation, self.package_lock(), host.configs)
+            self.store.commit(
+                new_selected,
+                host.generation,
+                self.package_lock(),
+                host.configs,
+                instances=plan.get("instances", []),
+                config_layers=plan["configuration"]["layers"],
+            )
             plan["state"] = "committed"
             self.save_plan(plan)
         except Exception as exc:
@@ -405,12 +520,15 @@ class PluginManager:
                     old_generation,
                 )
                 host.configs, host.desired = old_configs, old_desired
+                host.configuration = old_configuration
+                host.manifests, host.instance_specs = old_manifests, old_specs
                 for key in old_resolution.order:
                     if key in affected and key not in host.instances:
                         host.activate_one(key)
                         if host.started:
                             for start in host.instances[key].starters:
                                 start()
+                host.check_health()
                 if self.publish_routes:
                     self.publish_routes()
             except Exception as rollback:
@@ -425,6 +543,8 @@ class PluginManager:
         finally:
             if not self.maintenance:
                 self.frozen.clear()
+                with self.host.scope_lock:
+                    self.host.frozen_scopes.clear()
                 self.pending_plan = None
                 for window in self.windows.values():
                     window.update(pending_plan=None, acknowledged=False)

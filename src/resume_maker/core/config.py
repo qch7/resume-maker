@@ -47,6 +47,10 @@ class Config:
     frontend: Path = field(default_factory=frontend_directory)
     profile: str | None = None
     plugins: tuple[str, ...] | None = None
+    plugin_config: Path | None = None
+    package_root: Path | None = None
+    package_records: dict | None = None
+    environment_records: dict | None = None
 
     def prepare(self) -> None:
         """规范化数据目录并创建快照、模板、导出等运行资源目录"""

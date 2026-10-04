@@ -136,6 +136,8 @@ class Sandbox:
         if purpose not in {
             "plugin.worker",
             "plugin.environment",
+            "plugin.candidate",
+            "host.supervisor",
             "model.readonly-materials",
             "document.local-render",
             "source.authorized-read",

@@ -5,6 +5,8 @@ from docx import Document
 from resume_maker.integrations.sources import capture_evidence, project_sources
 from resume_maker.integrations.word.ooxml import w
 from resume_maker.integrations.word.templates.mapping import paragraph_text
+from resume_maker.services.resumes import Resumes
+from resume_maker.services.settings import Settings
 from resume_maker.services.workspace import Workspace
 
 
@@ -73,6 +75,17 @@ def children(catalog, parent_id):
     """通过工作台公开数据按来源定位子项目"""
     return {
         p["roots"][0]: p
-        for p in Workspace(catalog).state()["projects"]
+        for p in workspace(catalog).state()["projects"]
         if p["parent_id"] == parent_id
     }
+
+
+def workspace(catalog, *, contributors=None):
+    """用真实公开查询接口装配独立测试工作台"""
+    resumes = Resumes(catalog, storage=catalog.db)
+    settings = Settings(catalog.db, catalog.db.path.parent)
+    return Workspace(
+        catalog.db,
+        readers=[catalog.workspace_state, resumes.workspace_state, settings.workspace_state],
+        contributors=contributors,
+    )

@@ -10,8 +10,10 @@ from resume_maker.api import create_app
 from resume_maker.core.config import Config
 from resume_maker.infrastructure.database import uid
 from resume_maker.integrations.privacy import TOKEN
+from resume_maker.integrations.source_service import SourceService
 from resume_maker.services.jobs import Jobs
 from resume_maker.services.resumes import Resumes
+from resume_maker.services.templates.analysis_driver import TemplateAnalysis
 from resume_maker.services.templates.tasks import Templates
 from tests.support.honors import certificate_bytes, wait_honor
 from tests.support.jobs import wait_job
@@ -68,7 +70,13 @@ def test_masked_source_paths_and_quotes_are_restored_before_evidence_validation(
         return result
 
     provider = provider_at(tmp_path, None, catalog.db, source_handler=handle)
-    jobs = Jobs(catalog.db, catalog, tmp_path / "data", provider)
+    jobs = Jobs(
+        catalog.db,
+        catalog,
+        tmp_path / "data",
+        provider,
+        source_service=SourceService(catalog, tmp_path / "data", storage=catalog.db),
+    )
     conversation = catalog.db.one(
         "SELECT id FROM conversations WHERE project_id=?", (project["id"],)
     )
@@ -121,7 +129,13 @@ def test_template_quote_restored_and_original_images_never_sent(tmp_path, catalo
         return plan
 
     provider = provider_at(tmp_path, handle, catalog.db)
-    service = Templates(Resumes(catalog), tmp_path / "data", provider)
+    service = Templates(
+        Resumes(catalog, storage=catalog.db),
+        tmp_path / "data",
+        provider,
+        storage=catalog.db,
+        analysis=TemplateAnalysis(),
+    )
     task = service.analyze(source, simple_document())
     result = completed(service, task["id"])
     assert result["status"] == "completed", result["error"]

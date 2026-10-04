@@ -5,6 +5,11 @@ from dataclasses import dataclass
 from json import loads
 from pathlib import Path
 
+from resume_maker.core.errors import Problem
+from resume_maker.domain.templates import TemplatePlan
+
+DEFAULT_RENDERER = object()
+
 
 @dataclass(frozen=True)
 class DocumentInput:
@@ -35,3 +40,17 @@ class DocumentRenderer:
 
     version: str
     render: Callable[[Path, Path], tuple[int | None, str | None]]
+
+
+def generate_docx(
+    output, document, projects, *, engine, template_data=None, plan=None, template_engine=None
+):
+    """正式导出、预览和模板试填共享输入副本及引擎调用规则"""
+    if template_data is None:
+        engine(output, document, projects)
+        return
+    if template_engine is None:
+        raise Problem("此文档需要的模板引擎未启用。", 409)
+    source = output.parent / "input-template.docx"
+    source.write_bytes(template_data)
+    template_engine(source, output, TemplatePlan.model_validate(plan), document, projects)

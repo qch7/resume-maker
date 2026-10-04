@@ -22,6 +22,7 @@ from resume_maker.integrations.word.templates.supplement import (
 )
 from resume_maker.integrations.word.templates.visuals import layout_context
 from resume_maker.services.resumes import Resumes
+from resume_maker.services.templates.analysis_driver import TemplateAnalysis
 from resume_maker.services.templates.tasks import Templates
 from tests.support.documents import photo_bytes
 from tests.support.layouts import generic_content, generic_template, visible_text
@@ -277,7 +278,13 @@ def test_source_pages_and_structural_controls_reach_the_model_without_current_va
 
     monkeypatch.setattr("resume_maker.integrations.word.templates.visuals.word_process", render)
     provider = TemplateProvider()
-    service = Templates(Resumes(catalog), tmp_path, provider)
+    service = Templates(
+        Resumes(catalog, storage=catalog.db),
+        tmp_path,
+        provider,
+        storage=catalog.db,
+        analysis=TemplateAnalysis(),
+    )
     task = completed(service, service.analyze(source, simple_document())["id"])
     request = json.loads(provider.calls[0]["prompt"].split("\n")[-1])
     assert request["source_pages"]["total"] == 8 and request["source_pages"]["omitted"] == 2
@@ -339,7 +346,13 @@ def test_failed_structural_repair_restores_matching_best_snapshot_and_resets_mod
     document = simple_document()
     document.personal.location = "New City"
     provider = ChangingProvider()
-    service = Templates(Resumes(catalog), tmp_path, provider)
+    service = Templates(
+        Resumes(catalog, storage=catalog.db),
+        tmp_path,
+        provider,
+        storage=catalog.db,
+        analysis=TemplateAnalysis(),
+    )
     task = completed(service, service.analyze(source, document)["id"])
     assert task["status"] == "completed" and not task["review"]["ready"]
     assert task["repair_error"] == "第三轮模拟失败" and len(provider.calls) == 3
@@ -357,7 +370,13 @@ def test_cached_mapping_reenters_repair_when_current_trial_fails(catalog, tmp_pa
     source = tmp_path / "source.docx"
     simple_template(source)
     provider = TemplateProvider()
-    service = Templates(Resumes(catalog), tmp_path, provider)
+    service = Templates(
+        Resumes(catalog, storage=catalog.db),
+        tmp_path,
+        provider,
+        storage=catalog.db,
+        analysis=TemplateAnalysis(),
+    )
     first = completed(service, service.analyze(source, simple_document())["id"])
     assert first["review"]["ready"]
     calls = []

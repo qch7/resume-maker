@@ -128,5 +128,7 @@ CLI 负责最终 HTTP 协议、重试及供应商通信，应用不承诺第三�
 
 ```powershell
 $env:RESUME_MAKER_TEST_NATIVE_CLI = '1'
-uv run pytest tests/test_privacy_sandbox.py -q
+uv run pytest tests/privacy/test_sandbox.py -q
 ```
+
+插件可通过 privacy.rule_contributions 增补结构化保护资料，不能撤销系统保护。敏感设置在资料目录册中保留，停用或缺包恢复后仍登记到隐私副本。插件安装及升级验收仅使用合成材料，候选环境不继承模型凭据。

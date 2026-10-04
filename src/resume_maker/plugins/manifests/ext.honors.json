@@ -20,7 +20,8 @@
       "config": ">=1.0.0 <2.0.0",
       "activity": ">=1.0.0 <2.0.0",
       "resume": ">=1.0.0 <2.0.0",
-      "document.registry": ">=1.0.0 <2.0.0"
+      "document.registry": ">=1.0.0 <2.0.0",
+      "assets": ">=1.0.0 <2.0.0"
     }
   },
   "provides": {
@@ -32,6 +33,12 @@
     }
   },
   "contributes": {
+    "privacy.rule_contributions": [
+      "ext.honors/identities"
+    ],
+    "resume.sources": [
+      "ext.honors/library"
+    ],
     "workspace.queries": [
       "honors"
     ],

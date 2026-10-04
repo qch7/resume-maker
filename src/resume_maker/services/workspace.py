@@ -1,57 +1,21 @@
-"""工作台在同一读取快照聚合系统资料和已启用插件贡献"""
-
-from resume_maker.infrastructure.database import unpack
+"""同一读取事务聚合各模块公开的工作台查询"""
 
 
 class Workspace:
-    """系统聚合器只查询经历和简历，业务扩展自行读取所属资料"""
+    """聚合器持有查询协议，不读取业务表或其他服务内部对象"""
 
-    def __init__(self, catalog, *, contributors=None):
-        """贡献读取器由组合根注入，不通过可选模块导入推测能力"""
-        self.db = catalog.db
+    def __init__(self, storage, *, readers, contributors=None):
+        """读取器由组合根明确注入，扩展贡献随作用域撤销"""
+        self.db, self.readers = storage, tuple(readers)
         self.contributors = contributors or (lambda: ())
 
     def state(self):
-        """保持经历活动时间、简历来源和各插件摘要的事务一致性"""
+        """所有系统读取和扩展贡献共用一个快照，避免混用不同版本的资料"""
         with self.db.connect() as conn:
             conn.execute("BEGIN")
-            state = {
-                "resume_defaults": None,
-                "projects": [
-                    unpack(row)
-                    for row in conn.execute(
-                        "SELECT p.*, h.parent_id, b.head_revision, MAX(p.updated_at, "
-                        "COALESCE((SELECT MAX(updated_at) FROM drafts "
-                        "WHERE project_id=p.id), p.updated_at)) AS activity_at "
-                        "FROM projects p LEFT JOIN project_hierarchy h ON h.project_id=p.id "
-                        "JOIN experience_branches b ON b.project_id=p.id AND b.is_default=1 "
-                        "WHERE p.archived=0 ORDER BY p.created_at"
-                    )
-                ],
-                "branches": [
-                    unpack(row)
-                    for row in conn.execute(
-                        "SELECT * FROM experience_branches ORDER BY created_at,id"
-                    )
-                ],
-                "resumes": [
-                    unpack(row)
-                    for row in conn.execute(
-                        "SELECT * FROM resumes WHERE id NOT IN "
-                        "(SELECT resume_id FROM resume_deletions) ORDER BY updated_at DESC"
-                    )
-                ],
-                "honors": [],
-                "conversations": [],
-                "templates": [],
-                "jobs": [],
-            }
-            defaults = unpack(
-                conn.execute(
-                    "SELECT value_json FROM settings WHERE key='resume_defaults'"
-                ).fetchone()
-            )
-            state["resume_defaults"] = defaults["value"] if defaults else None
+            state = {"honors": [], "conversations": [], "templates": [], "jobs": []}
+            for reader in self.readers:
+                state.update(reader(conn))
             for contribute in self.contributors():
                 contribute.value(conn, state)
             return state

@@ -123,22 +123,25 @@ def validate_database(path: Path):
     with closing(sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True)) as conn:
         if conn.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
             raise Problem("备份数据库完整性检查失败。")
-        if conn.execute("PRAGMA user_version").fetchone()[0] not in {6, SCHEMA_VERSION}:
+        if conn.execute("PRAGMA user_version").fetchone()[0] not in {6, 7, SCHEMA_VERSION}:
             raise Problem("备份版本不受当前程序支持。")
         if conn.execute("PRAGMA foreign_key_check").fetchone():
             raise Problem("备份数据库存在无效引用。")
         validate_assets(conn, path.parent)
-        for table, file in (("templates", "template.docx"), ("snapshots", "manifest.json")):
+        for table, name in (("templates", "template.docx"), ("snapshots", "manifest.json")):
+            if not conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)
+            ).fetchone():
+                continue
             for (identifier,) in conn.execute(f"SELECT id FROM {table}"):
-                if not (path.parent / table / identifier / file).is_file():
+                if not stored_file(conn, path.parent, f"{table}/{identifier}", name).is_file():
                     raise Problem(f"备份缺少 {table} 文件：{identifier}")
         for (payload,) in conn.execute("SELECT value_json FROM settings WHERE key LIKE 'honor:%'"):
             item = json.loads(payload)
             attachment = item.get("attachment")
             if not attachment:
                 continue
-            identifier = item["id"]
-            extension = attachment["extension"]
+            identifier, extension = item["id"], attachment["extension"]
             if (
                 str(UUID(identifier)) != identifier
                 or not isinstance(extension, str)
@@ -147,22 +150,32 @@ def validate_database(path: Path):
                 or not 1 <= attachment["pages"] <= 12
             ):
                 raise Problem("备份中的荣誉附件信息无效。")
-            folder = path.parent / "honors" / identifier
-            files = ["original" + extension] + [
+            names = ["original" + extension] + [
                 f"page-{page}.png" for page in range(1, attachment["pages"] + 1)
             ]
-            if not all((folder / file).is_file() for file in files):
+            files = {
+                name: stored_file(conn, path.parent, f"honors/{identifier}", name) for name in names
+            }
+            if not all(file.is_file() for file in files.values()):
                 raise Problem(f"备份缺少荣誉证书文件：{identifier}")
             trace = attachment.get("importer")
             if trace is not None and (
                 not isinstance(trace, dict)
                 or trace.get("pages") != attachment["pages"]
-                or hashlib.sha256((folder / ("original" + extension)).read_bytes()).hexdigest()
+                or hashlib.sha256(files["original" + extension].read_bytes()).hexdigest()
                 != trace.get("source_sha256")
             ):
                 raise Problem("证书原件与导入记录不一致，恢复已停止。")
-        for (identifier,) in conn.execute("SELECT id FROM exports"):
-            if not all(
+        for identifier, raw in conn.execute("SELECT id,manifest_json FROM exports"):
+            bundle = conn.execute(
+                "SELECT value_json FROM settings WHERE key=?",
+                (f"asset-bundle:exports/{identifier}",),
+            ).fetchone()
+            if bundle:
+                files = json.loads(bundle[0])["files"]
+                if "resume.docx" not in files or json.loads(raw).get("assets") != files:
+                    raise Problem("导出资源和成品追溯不一致。")
+            elif not all(
                 (path.parent / "exports" / identifier / name).is_file()
                 for name in ("resume.docx", "manifest.json")
             ):
@@ -171,15 +184,63 @@ def validate_database(path: Path):
             "SELECT value_json FROM settings WHERE key LIKE 'template-task:%'"
         ):
             item = json.loads(payload)
-            folder = path.parent / "template-drafts" / item["task"]["id"]
-            if not folder.is_dir() or not any(folder.iterdir()):
-                raise Problem("备份缺少模板分析原件。")
-            if item["task"]["status"] == "completed" and not (folder / "original.docx").is_file():
+            key = f"template-drafts/{item['task']['id']}"
+            bundle = conn.execute(
+                "SELECT value_json FROM settings WHERE key=?", (f"asset-bundle:{key}",)
+            ).fetchone()
+            if bundle:
+                names = json.loads(bundle[0])["files"]
+                if not names:
+                    raise Problem("模板分析资源索引无效。")
+            else:
+                folder = path.parent / key
+                if not folder.is_dir() or not any(folder.iterdir()):
+                    raise Problem("备份缺少模板分析原件。")
+            if (
+                item["task"]["status"] == "completed"
+                and not stored_file(conn, path.parent, key, "original.docx").is_file()
+            ):
                 raise Problem("备份缺少已完成模板分析的文档。")
+
+
+def stored_file(conn, directory, key, name):
+    """离线校验使用持久资源索引，旧备份保留原布局兼容"""
+    logical = PurePosixPath(key) / name
+    if logical.is_absolute() or ".." in logical.parts or "\\" in str(logical):
+        raise Problem("备份资源位置无效。")
+    row = conn.execute(
+        "SELECT value_json FROM settings WHERE key=?", (f"asset-bundle:{key}",)
+    ).fetchone()
+    if row is None:
+        return directory / logical
+    identifier = json.loads(row[0])["files"].get(name)
+    if not identifier:
+        raise Problem("备份资源集合缺少必要文件。")
+    return directory / "assets" / identifier / "payload"
 
 
 def validate_assets(conn, directory):
     """数据库记录和文件清单同时校验，不能只验证 ZIP 内部自洽"""
+    for key, raw in conn.execute(
+        "SELECT key,value_json FROM settings WHERE key LIKE 'asset-bundle:%'"
+    ):
+        bundle = json.loads(raw)
+        for name, identifier in bundle["files"].items():
+            path = PurePosixPath(name)
+            if path.is_absolute() or ".." in path.parts or path.as_posix() != name or "\\" in name:
+                raise Problem("资源集合文件名无效。")
+            row = conn.execute(
+                "SELECT value_json FROM settings WHERE key=?", (f"asset:{identifier}",)
+            ).fetchone()
+            resource = json.loads(row[0]) if row else None
+            reference = "bundle:" + key.removeprefix("asset-bundle:")
+            if (
+                not resource
+                or resource["state"] != "published"
+                or resource["owner"] != bundle["owner"]
+                or reference not in resource["references"]
+            ):
+                raise Problem("资源集合引用无效，恢复已停止。")
     for (raw,) in conn.execute("SELECT value_json FROM settings WHERE key LIKE 'asset:%'"):
         record = json.loads(raw)
         if record["state"] != "published":
@@ -220,6 +281,12 @@ def restore_backup(archive_path: Path, directory: Path) -> Path | None:
         "plugin-packages.json",
         "plugin-environments",
         "plugin-environments.json",
+        "plugin-pins.json",
+        "plugin-downloads",
+        "plugin-trials",
+        "plugin-migrations",
+        "host-transition.json",
+        "host-runtime.json",
     }
     with instance_lock(directory):
         if directory.exists() and any(p.name not in allowed for p in directory.iterdir()):
@@ -276,18 +343,24 @@ def restore_backup(archive_path: Path, directory: Path) -> Path | None:
                         raise Problem(f"备份文件校验失败：{name}")
             validate_database(staging / "resume.db")
             # 已知旧结构仅在隔离副本转换，原目录和原 ZIP 保持完整
-            Database(staging / "resume.db")
+            Database(staging / "resume.db", plugins=[])
             # CLI 会话文件不在备份内，恢复后根据已保存消息重新建立上下文
             with closing(sqlite3.connect(staging / "resume.db")) as conn, conn:
-                conn.execute("UPDATE conversations SET provider_thread_id=NULL")
+                tables = {
+                    row[0]
+                    for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+                }
+                if "conversations" in tables:
+                    conn.execute("UPDATE conversations SET provider_thread_id=NULL")
                 conn.execute(
                     "INSERT OR REPLACE INTO settings VALUES ('workspace-generation', ?)",
                     (dump(uid()),),
                 )
-                conn.execute(
-                    "UPDATE jobs SET status='interrupted',error='从备份恢复，请重新发送任务。' "
-                    "WHERE status IN ('running','queued')"
-                )
+                if "jobs" in tables:
+                    conn.execute(
+                        "UPDATE jobs SET status='interrupted',error='从备份恢复，请重新发送任务。' "
+                        "WHERE status IN ('running','queued')"
+                    )
             if directory.exists():
                 previous = directory.with_name(f"{directory.name}-before-restore-{uid()[:8]}")
                 publish_directory(directory, previous)

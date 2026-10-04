@@ -1,5 +1,8 @@
 export interface ClientDescriptor {
   id: string;
+  plugin?: string;
+  scope_id?: string;
+  config?: Record<string, unknown>;
   entry: { mode: string; entry: string };
   provides?: Record<string, { version: string; cardinality: "one" | "many" }>;
   contributes?: Record<string, string[]>;

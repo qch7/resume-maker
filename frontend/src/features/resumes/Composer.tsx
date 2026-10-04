@@ -1,9 +1,7 @@
 import { Maximize2, Minimize2 } from "lucide-react";
 import { useState } from "react";
 import type { Resume, Revision, State } from "../../shared/types/index";
-import ContentPreview from "./ContentPreview";
-import { hasPlugin } from "../../shared/lib/capabilities";
-import { pluginComponent } from "../../plugins/runtime";
+import DocumentPreview from "../../plugins/DocumentPreview";
 import { templatePreviewInput } from "./templatePreviewInput";
 
 interface Props {
@@ -18,7 +16,6 @@ interface Props {
 
 /** 工作台右侧显示实时预览 */
 export default function Composer(props: Props) {
-  const TemplatePreview = pluginComponent("wordPreview");
   const { draft, state, revisions } = props;
   const templateUnavailable =
     !!draft.template_id &&
@@ -75,17 +72,15 @@ export default function Composer(props: Props) {
           ) : !draft.document ? (
             <p className="subtle">填写个人资料后，即可查看简历排版。</p>
           ) : null}
-          {hasPlugin("ext.word") ? (
-            <TemplatePreview
-              input={templateUnavailable ? null : previewInput}
-              templateId={draft.template_id}
-              zoom={zoom}
-              hidden={templateUnavailable || !draft.document}
-              run={props.run}
-            />
-          ) : (
-            <ContentPreview input={previewInput} />
-          )}
+          <DocumentPreview
+            format="resume/v1"
+            preferred={["ext.word/pages", "sys.resume/content"]}
+            input={templateUnavailable ? null : previewInput}
+            templateId={draft.template_id}
+            zoom={zoom}
+            hidden={templateUnavailable || !draft.document}
+            run={props.run}
+          />
         </div>
       </section>
     </aside>

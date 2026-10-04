@@ -55,9 +55,18 @@
       "proposals",
       "jobs",
       "events"
+    ],
+    "schemas": [
+      "infrastructure/schemas/ext.ai-conversation.sql"
+    ],
+    "relations": [
+      "infrastructure/schemas/ext.ai-conversation.references.sql"
     ]
   },
   "enhances": [
     "catalog"
-  ]
+  ],
+  "optional": {
+    "sources": ">=1.0.0 <2.0.0"
+  }
 }
