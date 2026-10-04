@@ -47,6 +47,22 @@ ResumeMaker 是面向开发者的开源简历工作台，在本机运行。导�
 | **本机数据** | 自动保存草稿，支持 ZIP 备份和离线恢复；发送给 AI 的材料先经过本地脱敏。 |
 | **招聘收藏夹** | 自建领域、分类和招聘网址；支持 JSON 导入预览和导出。 |
 
+## 按需选择能力
+
+工作台使用插件组合：18 个系统插件和 5 个本地提供方构成最小产品，隐私和 sandbox 始终必需。AI、来源分析、荣誉识别、模板、OCR、Word 和招聘收藏可按依赖选装或停用。
+
+已有数据目录沿用已保存的插件选择。新目录可启动最小组合：
+
+```sh
+uv run resume-maker --profile minimal --data-dir ./data-minimal
+```
+
+最小组合支持手工经历、不可变版本、个人资料、简历编排、内容预览、DOCX 和备份恢复。Word 的精确分页和 PDF 属于可选能力。顶部“插件管理”可查看依赖、预览变更范围并应用，停用保留资料和草稿。
+
+已构建 wheel 的基础安装不需要 OCR、PDF 和图片处理库；需要对应能力时使用 `resume-maker[pdf]`、`resume-maker[images]`、`resume-maker[ocr]`、`resume-maker[word]` 或 `resume-maker[all]`。依赖安装后重启，再启用相关插件。源码开发环境默认包含完整依赖，方便回归。
+
+设计、实际边界和扩展方式分别见 [完整目标](docs/plugin-architecture-proposal.md)、[实施记录](docs/plugin-implementation.md)、[插件开发](docs/plugin-sdk.md)。
+
 ## 快速开始
 
 ### 1. 安装并启动
@@ -90,7 +106,7 @@ uv run resume-maker
 
 ### 2. 连接 AI（可选）
 
-如需使用 AI 功能，先在本机完成 Codex CLI 的文件登录或 Responses 供应商配置，再打开“工作台设置 → Codex 与数据”：
+如需使用 AI 功能，先在本机完成 Codex CLI 的文件登录或 Responses 供应商配置，再打开“工作台设置 → 模型连接”：
 
 1. 确认“Codex 可执行文件”路径，按需填写模型、思考强度和 CLI Profile；模型和 Profile 留空时沿用 CLI 配置。
 2. 点击“测试实际连接”。该操作会保存设置，并向所选供应商发起一次真实请求。

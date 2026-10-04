@@ -13,6 +13,7 @@ from resume_maker.domain.models import ResumeItem
 from resume_maker.integrations.providers.base import Cancelled
 from resume_maker.services.jobs import Jobs
 from resume_maker.services.projects import Projects
+from resume_maker.services.resumes import Resumes
 from resume_maker.services.workspace import Workspace
 from tests.support.data import children, make_sources
 from tests.support.jobs import FakeProvider, wait_job
@@ -72,13 +73,13 @@ def test_group_deletion_is_blocked_by_child_reference(catalog, tmp_path):
     """任一子项目被引用时整组保留，已删除方案不再阻止项目删除"""
     parent = catalog.create_project("项目组", make_sources(tmp_path))
     subs = list(children(catalog, parent["id"]).values())
-    resume = catalog.save_resume("子项目简历", None, [item(subs[0])])
+    resume = Resumes(catalog).save_resume("子项目简历", None, [item(subs[0])])
     projects = Projects(catalog)
     with pytest.raises(Problem, match="子项目简历") as error:
         projects.delete(parent["id"])
     assert error.value.status == 409
     assert len(Workspace(catalog).state()["projects"]) == 3
-    catalog.delete_resume(resume["id"], resume["version"])
+    Resumes(catalog).delete_resume(resume["id"], resume["version"])
     assert set(projects.delete(parent["id"])) == {parent["id"], *(p["id"] for p in subs)}
     assert Workspace(catalog).state()["projects"] == []
     assert all(Path(root).is_dir() for root in parent["roots"])
@@ -88,7 +89,7 @@ def test_delete_child_preserves_parent_sibling_and_their_resume(catalog, tmp_pat
     """单独删除子项目只移除该范围，父项目、同组兄弟及其简历保持原样"""
     parent = catalog.create_project("项目组", make_sources(tmp_path))
     first, second = children(catalog, parent["id"]).values()
-    resume = catalog.save_resume("保留的简历", None, [item(parent), item(second)])
+    resume = Resumes(catalog).save_resume("保留的简历", None, [item(parent), item(second)])
     assert Projects(catalog).delete(first["id"]) == [first["id"]]
     assert catalog.project(parent["id"])["roots"] == parent["roots"]
     assert catalog.project(second["id"])["parent_id"] == parent["id"]
@@ -148,7 +149,7 @@ def test_concurrent_resume_save_cannot_reintroduce_deleted_project(catalog, proj
 
     monkeypatch.setattr(catalog, "revision", delete_after_read)
     with pytest.raises(Problem, match="项目已删除"):
-        catalog.save_resume("并发简历", None, [item(project)])
+        Resumes(catalog).save_resume("并发简历", None, [item(project)])
     assert catalog.db.all("SELECT * FROM resumes") == []
 
 

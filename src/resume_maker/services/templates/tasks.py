@@ -13,17 +13,44 @@ from resume_maker.domain.resume import ResumeDocument
 from resume_maker.domain.templates import TemplatePlan
 from resume_maker.infrastructure.database import dump, now, uid
 from resume_maker.infrastructure.observability import record, record_event, remember_task
-from resume_maker.integrations.providers.base import Cancelled, Provider
 from resume_maker.integrations.sources import digest, redact
-from resume_maker.integrations.word.recovery import prepare_template
-from resume_maker.integrations.word.rendering import render_word
 from resume_maker.integrations.word.templates.completion import complete_template
 from resume_maker.integrations.word.templates.fill import fill_template
 from resume_maker.integrations.word.templates.mapping import TemplatePackage
 from resume_maker.integrations.word.templates.values import missing_targets
+from resume_maker.sdk.model import Cancelled, Provider
 from resume_maker.services.catalog import Catalog
-from resume_maker.services.templates.analysis import analyze_plan, assess_plan, check_trial
+from resume_maker.services.document_inputs import generate_docx
+from resume_maker.services.documents import DEFAULT_RENDERER, render_word
 from resume_maker.services.templates.cache import cache_path, cached_plan, remember_plan
+
+
+def prepare_template(*args, **kwargs):
+    """仅格式恢复时加载所需的可选文档处理器"""
+    from resume_maker.integrations.word.recovery import prepare_template as prepare
+
+    return prepare(*args, **kwargs)
+
+
+def analyze_plan(*args, **kwargs):
+    """模型分析由 AI 插件激活后调用"""
+    from resume_maker.services.templates.analysis import analyze_plan as analyze
+
+    return analyze(*args, **kwargs)
+
+
+def assess_plan(*args, **kwargs):
+    """手工映射核验不提前装载视觉依赖"""
+    from resume_maker.services.templates.analysis import assess_plan as assess
+
+    return assess(*args, **kwargs)
+
+
+def check_trial(*args, **kwargs):
+    """真实试填使用同一结构核验入口"""
+    from resume_maker.services.templates.analysis import check_trial as check
+
+    return check(*args, **kwargs)
 
 
 class Templates:
@@ -44,6 +71,10 @@ class Templates:
         self.lock = threading.RLock()
         self.stopped = False
         self.inputs = {}
+        self.importers = None
+        self.renderer = DEFAULT_RENDERER
+        self.converter = DEFAULT_RENDERER
+        self.execution_queue = None
         for row in self.db.all("SELECT value_json FROM settings WHERE key LIKE 'template-task:%'"):
             saved = row["value"]
             task = saved["task"]
@@ -60,7 +91,7 @@ class Templates:
                 )
                 self._persist(identifier)
 
-    def _persist(self, identifier, source=None):
+    def _persist(self, identifier, source=None, execution=None):
         """先原子保存可恢复文档再登记状态，CLI 临时材料继续留在工作目录"""
         folder = self.data_dir / "template-drafts" / identifier
         folder.mkdir(parents=True, exist_ok=True)
@@ -85,6 +116,8 @@ class Templates:
                     ),
                 ),
             )
+            if execution is not None:
+                return self.execution_queue.prepare(conn, identifier, execution)
 
     def list_tasks(self):
         """列出可恢复的模板工作，已保存版本仍在独立模板库中"""
@@ -142,6 +175,13 @@ class Templates:
 
     def _start(self, package, file_name, document, items, initial=None, feedback="", raw=None):
         """统一准备分析副本和异步任务，校验项目引用后才调用模型"""
+        if self.provider is None:
+            raise Problem("模板 AI 插件未启用。", 409)
+        if raw is not None and self.importers is not None:
+            suffix = Path(file_name).suffix.lower()
+            kind = "pdf" if suffix == ".pdf" else "image"
+            if suffix not in {".docx", ".doc"} and kind not in self.importers:
+                raise Problem("对应的文件导入插件未启用。", 409)
         inventory = package.inventory() if package else {"nodes": [], "warnings": [], "notices": []}
         projects = self.projects(items)
         with self.lock:
@@ -184,21 +224,43 @@ class Templates:
                 "initial": initial.model_dump() if initial is not None else None,
                 "feedback": feedback,
             }
-            self._persist(identifier, source if package is not None else None)
             flag = self.flags[identifier] = threading.Event()
             settings = ProviderSettings.model_validate(
                 self.db.setting("provider", {})
             ).for_function("template_repair" if initial is not None else "template_analysis")
+            metadata = {
+                "handler": "analyze",
+                "entities": {"template_task_id": identifier},
+                "settings": settings.model_dump(),
+            }
+            prepared = self._persist(
+                identifier,
+                source if package is not None else None,
+                metadata if self.execution_queue else None,
+            )
             if self.catalog.db.activity:
                 remember_task(self.catalog.db.activity, identifier)
-            thread = threading.Thread(
-                target=self._analyze,
-                args=(identifier, directory, document, projects, settings, flag, initial, feedback),
-                daemon=True,
-                name=f"template-{identifier}",
-            )
+            args = (identifier, directory, document, projects, settings, flag, initial, feedback)
+            if self.execution_queue:
+                try:
+                    thread = self.execution_queue.submit(
+                        identifier, flag, lambda: self._analyze(*args), metadata, prepared=prepared
+                    )
+                except Exception:
+                    self.flags.pop(identifier, None)
+                    task.update(
+                        status="failed",
+                        phase="interrupted",
+                        error="任务调度失败，原件和输入已保留，可以重新分析。",
+                    )
+                    self._persist(identifier)
+                    raise
+            else:
+                thread = threading.Thread(
+                    target=self._analyze, args=args, daemon=True, name=f"template-{identifier}"
+                )
+                thread.start()
             self.threads.append(thread)
-            thread.start()
             return deepcopy(task)
 
     def _analyze(
@@ -251,8 +313,21 @@ class Templates:
                 package = TemplatePackage(source)
             else:
                 uploaded = next(directory.glob("uploaded*"))
+                processors = {"importers": self.importers}
+                if self.renderer is not DEFAULT_RENDERER:
+                    processors["renderer"] = self.renderer
+                if self.converter is not DEFAULT_RENDERER:
+                    processors["converter"] = self.converter
                 package, notices = prepare_template(
-                    uploaded, source, provider, settings, flag, emit, document, projects
+                    uploaded,
+                    source,
+                    provider,
+                    settings,
+                    flag,
+                    emit,
+                    document,
+                    projects,
+                    **processors,
                 )
                 with self.lock:
                     if flag.is_set():
@@ -550,12 +625,23 @@ class Templates:
         directory.mkdir()
         output = directory / "resume.docx"
         try:
-            fill_template(source, output, plan, document.model_dump(), projects)
+            generate_docx(
+                output,
+                document.model_dump(),
+                projects,
+                engine=None,
+                template_data=source.read_bytes(),
+                plan=plan,
+                template_engine=fill_template,
+            )
         except Exception:
             if not any(directory.iterdir()):
                 directory.rmdir()
             raise
-        pages, error = render_word(output, directory / "resume.pdf")
+        renderer = render_word if self.renderer is DEFAULT_RENDERER else self.renderer
+        pages, error = (
+            renderer(output, directory / "resume.pdf") if renderer else (None, "Word 插件未启用。")
+        )
         return {"id": preview_id, "pages": pages, "render_error": error}
 
     def projects(self, items: list[ResumeItem]) -> list[dict]:
@@ -581,6 +667,8 @@ class Templates:
                 flag.set()
         for thread in self.threads:
             thread.join(timeout=8)
+            if thread.is_alive():
+                raise Problem("模板任务尚未结束，保留资源等待取消完成。", 409)
 
 
 def new_progress():

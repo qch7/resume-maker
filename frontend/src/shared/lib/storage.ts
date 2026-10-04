@@ -1,5 +1,6 @@
 import { api } from "./api";
 import { registerDraft } from "./draftRegistry";
+import { capabilities } from "./capabilities";
 import {
   createPersistence,
   type StorageSnapshot,
@@ -23,6 +24,7 @@ export const storage = createPersistence({
     keys: () => Object.keys(localStorage),
   },
   client: crypto.randomUUID(),
+  generation: () => capabilities().generation,
   changed: () => {
     statusVersion++;
     for (const listener of listeners) listener();

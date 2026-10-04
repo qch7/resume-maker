@@ -2,7 +2,6 @@
 
 import hashlib
 import math
-import re
 from collections import Counter
 from io import BytesIO
 
@@ -10,8 +9,9 @@ import pymupdf
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 from resume_maker.integrations.local_ocr import REVIEW_SCORE, check_cancelled, read_document
-from resume_maker.integrations.providers.base import ProviderError
+from resume_maker.integrations.privacy_layout import header_values as header_values
 from resume_maker.integrations.providers.mosaic import GRID_SIZE
+from resume_maker.sdk.model import ProviderError
 
 PAGE_INSTRUCTIONS = """附件是本机脱敏重绘的整页布局，所有图像区域都已打码，文字来自本地 OCR。
 敏感文字用不透明色块覆盖，T 编号对应 blocks 中的行；不要猜测或抄录色块编号。
@@ -22,21 +22,6 @@ graphics 给出本机找到的打码区域，其边框仅供参考，可能包�
 结合整页位置判断照片、图标和装饰的用途，不能把文字色块当成图片素材。
 不要因为马赛克缺少细节就遗漏照片；不确定之处写入 notes。
 """
-SECTION_HEADING = re.compile(
-    r"^(?:个人简介|自我评价|专业技能|职业技能|技能特长|工作经[历验]|实习经[历验]|"
-    r"项目经[历验]|教育(?:经历|背景)|获奖(?:经历|荣誉)|荣誉奖项|"
-    r"profile|summary|skills|experience|work experience|education|projects|awards)$",
-    re.IGNORECASE,
-)
-
-
-def header_values(blocks):
-    """页首身份区整体保护，避免未登记姓名和 OCR 误认的联系方式漏过格式规则"""
-    boundary = min(
-        (row["box"][1] for row in blocks if SECTION_HEADING.fullmatch(row["text"].strip())),
-        default=0.25,
-    )
-    return {row["text"] for row in blocks if row["box"][1] < min(boundary, 0.25)}
 
 
 def validate_page_text(result, context):
@@ -171,10 +156,10 @@ def draw_row(canvas, row, color, private, font):
     canvas.paste(tile, box[:2], tile)
 
 
-def sanitized_page(path, redactor, cancelled, *, budget=None):
+def sanitized_page(path, redactor, cancelled, *, budget=None, reader=None):
     """先学习完整 OCR 再生成全新页面，任何阶段失败都不能回退原图"""
     check_cancelled(cancelled)
-    document = read_document(path, cancelled)
+    document = (reader or read_document)(path, cancelled)
     if len(document["pages"]) != 1 or not document["pages"][0]["blocks"]:
         raise ProviderError("图片模板必须包含一页可识别文字，无法脱敏时已停止发送。")
     blocks = document["pages"][0]["blocks"]

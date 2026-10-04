@@ -10,7 +10,7 @@ import pymupdf
 from PIL import Image, ImageOps
 
 from resume_maker.infrastructure.observability import operation
-from resume_maker.integrations.providers.base import Cancelled, ProviderError
+from resume_maker.sdk.model import Cancelled, ProviderError
 
 LOCK = threading.Lock()
 ENGINE = None

@@ -1,0 +1,48 @@
+{
+  "manifest_version": 1,
+  "id": "sys.privacy",
+  "title": "隐私保护",
+  "version": "1.0.0",
+  "package": "resume-maker",
+  "entrypoints": {
+    "host": {
+      "mode": "trusted-host",
+      "entry": "resume_maker.plugins.system:privacy"
+    }
+  },
+  "requires": {
+    "host": {
+      "db": ">=1.0.0 <2.0.0",
+      "activity": ">=1.0.0 <2.0.0"
+    }
+  },
+  "provides": {
+    "host": {
+      "privacy": {
+        "version": "1.0.0",
+        "cardinality": "one"
+      },
+      "privacy.store": {
+        "version": "1.0.0",
+        "cardinality": "one"
+      },
+      "privacy.gateway": {
+        "version": "1.0.0"
+      }
+    }
+  },
+  "contributes": {
+    "http.routes": [
+      "sys.privacy/privacy"
+    ]
+  },
+  "permissions": [
+    "system.trusted"
+  ],
+  "data": {
+    "settings": [
+      "privacy_terms",
+      "privacy_audit"
+    ]
+  }
+}

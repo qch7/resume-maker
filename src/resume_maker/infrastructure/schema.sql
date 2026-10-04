@@ -89,3 +89,9 @@ CREATE TABLE revision_branches (
  branch_id TEXT NOT NULL REFERENCES experience_branches(id)
 );
 CREATE INDEX ix_revision_branch ON revision_branches(branch_id);
+CREATE TABLE plugin_data_catalog (
+ plugin_id TEXT PRIMARY KEY,
+ schema_version INTEGER NOT NULL CHECK(schema_version > 0),
+ descriptor_json TEXT NOT NULL,
+ package_version TEXT NOT NULL
+);

@@ -12,7 +12,7 @@ from resume_maker.integrations.privacy_identifiers import (
     literal_pattern,
 )
 from resume_maker.integrations.privacy_text import formatted_values, known_variants, labeled_values
-from resume_maker.integrations.providers.base import ProviderError
+from resume_maker.sdk.model import ProviderError
 
 TOKEN = re.compile(r"\[\[RM_[a-f0-9]{12}_\d+\]\]")
 PATTERNS = [

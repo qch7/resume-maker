@@ -18,6 +18,7 @@ interface Options {
   local: LocalStore;
   client: string;
   changed: () => void;
+  generation?: () => number;
 }
 interface Entry extends StoredValue {
   pending: boolean;
@@ -48,7 +49,14 @@ export function createPersistence(options: Options) {
   /** 本地存储不可用时继续向数据库保存，并明确提示尚未完成的写入 */
   function journal(key: string, entry: Entry) {
     try {
-      options.local.setItem(journalKey(key), JSON.stringify({ key, ...entry }));
+      options.local.setItem(
+        journalKey(key),
+        JSON.stringify({
+          key,
+          ...entry,
+          plugin_generation: options.generation?.() ?? 0,
+        }),
+      );
       localError = "";
     } catch {
       localError = "浏览器恢复副本不可用，请等待本机保存完成后再关闭页面。";
@@ -112,7 +120,11 @@ export function createPersistence(options: Options) {
       try {
         const original = options.local.getItem(id) ?? "null";
         const saved = JSON.parse(original) as
-          | (StoredValue & { key: string; recovery?: boolean })
+          | (StoredValue & {
+              key: string;
+              recovery?: boolean;
+              plugin_generation?: number;
+            })
           | null;
         if (
           !saved ||
@@ -124,7 +136,11 @@ export function createPersistence(options: Options) {
           value: null,
           version: 0,
         };
-        if (saved.recovery || id.includes(".recovery-")) {
+        if (
+          saved.recovery ||
+          id.includes(".recovery-") ||
+          (saved.plugin_generation ?? 0) !== (options.generation?.() ?? 0)
+        ) {
           recoveries.set(id, { id, key: saved.key, value: saved.value });
           continue;
         }
@@ -267,7 +283,11 @@ export function createPersistence(options: Options) {
         try {
           options.local.setItem(
             journalKey(key),
-            JSON.stringify({ key, ...entry }),
+            JSON.stringify({
+              key,
+              ...entry,
+              plugin_generation: options.generation?.() ?? 0,
+            }),
           );
         } catch {
           throw new Error(

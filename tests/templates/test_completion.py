@@ -17,6 +17,7 @@ from resume_maker.integrations.word.templates.completion import complete_templat
 from resume_maker.integrations.word.templates.fill import fill_template
 from resume_maker.integrations.word.templates.mapping import TemplatePackage
 from resume_maker.integrations.word.templates.values import missing_targets
+from resume_maker.services.resumes import Resumes
 from resume_maker.services.templates.analysis import analyze_plan, assess_plan
 from resume_maker.services.templates.cache import cache_path, cached_plan, remember_plan
 from tests.support.documents import photo_bytes
@@ -238,4 +239,4 @@ def test_library_review_save_and_reopen_share_completion(tmp_path, monkeypatch):
         assert (
             folder / "template.docx"
         ).read_bytes() == original and task_source.read_bytes() == task_bytes
-        assert catalog.template("generic")["mapping"]["plan"] == plan.model_dump()
+        assert Resumes(catalog).template("generic")["mapping"]["plan"] == plan.model_dump()

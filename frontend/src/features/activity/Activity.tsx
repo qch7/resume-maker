@@ -1,3 +1,4 @@
+import type { ActivityProps } from "../../plugins/slots";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity as ActivityIcon,
@@ -14,10 +15,9 @@ import { api, download } from "../../shared/lib/api";
 import ResizeHandle from "../../shared/components/ResizeHandle";
 import { useElementSize } from "../../shared/hooks/useElementSize";
 import { clamp } from "../../shared/lib/layout";
-import type { useActivityPreferences } from "./useActivityPreferences";
 import ActivityMultiSelect from "./ActivityMultiSelect";
 import ActivityTimeFilter from "./ActivityTimeFilter";
-import { DEFAULT_ACTIVITY_PREFERENCES } from "./preferences";
+import { DEFAULT_ACTIVITY_PREFERENCES } from "../../shared/lib/activityPreferences";
 import {
   CATEGORIES,
   eventPosition,
@@ -36,11 +36,7 @@ export default function Activity({
   preferencesState,
   onOpenSettings,
   refreshVersion,
-}: {
-  preferencesState: ReturnType<typeof useActivityPreferences>;
-  onOpenSettings: () => void;
-  refreshVersion: number;
-}) {
+}: ActivityProps) {
   const {
     preferences,
     setPreferences,

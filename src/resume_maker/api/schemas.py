@@ -13,7 +13,7 @@ class ProjectInput(Model):
     """项目登记或来源重绑请求，限制名称和来源数量"""
 
     name: str = Field(min_length=1, max_length=200)
-    roots: list[str] = Field(min_length=1, max_length=30)
+    roots: list[str] = Field(default_factory=list, max_length=30)
 
 
 class DraftInput(Model):

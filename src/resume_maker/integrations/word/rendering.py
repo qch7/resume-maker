@@ -8,9 +8,9 @@ import threading
 from pathlib import Path
 
 import psutil
-import pymupdf
 
 from resume_maker.infrastructure.observability import operation, record
+from resume_maker.sdk.model import ProviderError
 
 # Word COM 排版串行运行以免并发导出争用桌面实例
 RENDER_LOCK = threading.Lock()
@@ -18,6 +18,8 @@ RENDER_LOCK = threading.Lock()
 
 def render_pages(pdf: Path) -> int:
     """从同一 Word PDF 生成分页图，文字转矢量轮廓以免放大模糊或缺少字体"""
+    import pymupdf
+
     with pymupdf.open(pdf) as document:
         for index, page in enumerate(document):
             (pdf.parent / f"page-{index + 1}.svg").write_text(
@@ -30,7 +32,7 @@ def render_pages(pdf: Path) -> int:
 
 
 @operation("word.process", "system")
-def word_process(source: Path, output: Path, mode="render") -> str | None:
+def word_process(source: Path, output: Path, mode="render", *, executor=None) -> str | None:
     """隔离执行 Word 的转换或排版且只回收本次启动的进程，失败返回具体原因"""
     if os.name != "nt":
         record("system", "unavailable", "Word 自动转换不可用", level="warning", source="word")
@@ -38,6 +40,21 @@ def word_process(source: Path, output: Path, mode="render") -> str | None:
     with RENDER_LOCK:
         owner_file = output.with_suffix(".owner.json")
         try:
+            if executor is not None:
+                executor(
+                    [
+                        sys.executable,
+                        "-m",
+                        "resume_maker.integrations.word.worker",
+                        str(source),
+                        str(output),
+                        str(owner_file),
+                        mode,
+                    ],
+                    cwd=source.parent,
+                    timeout=90,
+                )
+                return None if output.exists() else "Word 没有生成输出文件。"
             result = subprocess.run(
                 [
                     sys.executable,
@@ -67,7 +84,7 @@ def word_process(source: Path, output: Path, mode="render") -> str | None:
                 detail = result.stderr.strip().splitlines()
                 return "Word 自动处理失败。" + (detail[-1][:300] if detail else "")
             return None
-        except (OSError, subprocess.TimeoutExpired) as exc:
+        except (OSError, subprocess.TimeoutExpired, ProviderError) as exc:
             record(
                 "system",
                 "failed",
@@ -92,9 +109,9 @@ def word_process(source: Path, output: Path, mode="render") -> str | None:
                 owner_file.unlink(missing_ok=True)
 
 
-def render_word(docx: Path, pdf: Path) -> tuple[int | None, str | None]:
+def render_word(docx: Path, pdf: Path, *, executor=None) -> tuple[int | None, str | None]:
     """串行生成 PDF 和分页图片，失败仍保留已生成的 DOCX"""
-    error = word_process(docx, pdf)
+    error = word_process(docx, pdf, executor=executor) if executor else word_process(docx, pdf)
     return (None, error) if error else (render_pages(pdf), None)
 
 

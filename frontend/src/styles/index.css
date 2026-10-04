@@ -6,12 +6,12 @@
 @import "./motion.css";
 @import "./profile.css";
 @import "./defaults.css";
-@import "./templates.css";
-@import "./template-library.css";
-@import "./honors.css";
 @import "./responsive.css";
-@import "./workflow-density.css";
 @import "./resume-library.css";
-@import "./activity.css";
 @import "./privacy.css";
-@import "./recruitment.css";
+@import "./plugins.css";
+
+/* 隐藏的已访问页面保留草稿，但不能被布局样式重新显示 */
+[hidden] {
+  display: none !important;
+}

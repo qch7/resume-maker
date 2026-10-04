@@ -1,24 +1,22 @@
-"""经历修订、草稿冲突、建议采用及固定版本组合的事务服务"""
+"""经历修订和草稿冲突的独立事务服务"""
 
 from pathlib import Path, PurePosixPath
 
 from resume_maker.core.errors import Problem, need
 from resume_maker.domain.experience import field_value, replace_field, same_experience
-from resume_maker.domain.models import Experience, ProjectProfile, ResumeItem
-from resume_maker.domain.resume import ResumeDocument
-from resume_maker.domain.templates import TEMPLATE_LIBRARY_KEY
+from resume_maker.domain.models import Experience, ProjectProfile
 from resume_maker.infrastructure.database import Database, dump, now, uid, unpack
 from resume_maker.services.history import History
-from resume_maker.services.honor_links import resolve_honor_document
 
 
 class Catalog:
-    """经历版本、草稿和组合引用的核心事务服务"""
+    """经历版本和草稿的核心事务服务"""
 
     def __init__(self, db: Database):
         """保存当前模块所需依赖，供后续业务操作共享使用"""
         self.db = db
         self.history = History(db)
+        self.project_initializers = {}
 
     def project(self, project_id: str) -> dict:
         """读取项目并在记录缺失时抛出业务异常"""
@@ -45,31 +43,17 @@ class Catalog:
             raise Problem("经历版本不属于该项目。", 409)
         return row
 
-    def template(self, template_id: str, include_trashed: bool = False) -> dict:
-        """只允许引用具有完整映射的模板，失效引用由用户重新选择或识别"""
-        template = need(
-            self.db.one(
-                "SELECT * FROM templates WHERE id=? AND json_type(mapping_json,'$.plan')='object'",
-                (template_id,),
-            ),
-            "完整简历模板不可用，请重新选择模板或导入 Word 进行 AI 识别。",
-        )
-        library = self.db.setting(TEMPLATE_LIBRARY_KEY, {"items": {}})
-        if not include_trashed and library["items"].get(template_id, {}).get("deleted_at"):
-            raise Problem("该模板已移入回收站，请先恢复。", 409)
-        return template
-
     def create_project(self, name: str, roots: list[str]) -> dict:
-        """规范化来源并去重登记项目，同时建立初始经历和独立会话"""
+        """规范化来源并去重登记项目，同时建立初始经历和已注册的扩展资料"""
         roots = list(dict.fromkeys(str(Path(p).expanduser().resolve(strict=True)) for p in roots))
-        if not name.strip() or not roots or any(not Path(p).is_dir() for p in roots):
+        if not name.strip() or any(not Path(p).is_dir() for p in roots):
             raise Problem("请填写项目名称和有效目录。")
         with self.db.transaction() as conn:
             existing = next(
                 (
                     row
                     for raw in conn.execute("SELECT * FROM projects WHERE archived=0")
-                    if set((row := unpack(raw))["roots"]) == set(roots)
+                    if roots and set((row := unpack(raw))["roots"]) == set(roots)
                 ),
                 None,
             )
@@ -78,7 +62,7 @@ class Catalog:
         return self.project(project_id)
 
     def _insert_project(self, conn, name: str, roots: list[str]) -> str:
-        """在同一事务中登记项目、初始经历及独立会话，来源由调用方验证"""
+        """在同一事务中登记项目、初始经历及扩展资料，来源由调用方验证"""
         project_id, revision_id, stamp = uid(), uid(), now()
         conn.execute(
             "INSERT INTO projects VALUES (?,?,?,?,0,?,?)",
@@ -102,11 +86,8 @@ class Catalog:
                 stamp,
             ),
         )
-        conn.execute(
-            "INSERT INTO conversations(id,project_id,title,created_at,updated_at) "
-            "VALUES (?,?,?,?,?)",
-            (uid(), project_id, "项目经历梳理", stamp, stamp),
-        )
+        for initialize in tuple(self.project_initializers.values()):
+            initialize(conn, project_id, stamp)
         self.history.initialize(conn, project_id, revision_id, stamp)
         return project_id
 
@@ -160,22 +141,6 @@ class Catalog:
         """来源变更后幂等更新整体项目的子项目关联"""
         with self.db.transaction() as conn:
             self._sync_subprojects(conn, project_id)
-
-    def create_conversation(self, project_id: str, title: str) -> dict:
-        """为指定项目创建具有独立历史和输入草稿的会话"""
-        self.project(project_id)
-        conversation_id, stamp = uid(), now()
-        with self.db.transaction() as conn:
-            conn.execute(
-                "INSERT INTO conversations(id,project_id,title,created_at,updated_at) "
-                "VALUES (?,?,?,?,?)",
-                (conversation_id, project_id, title.strip() or "新会话", stamp, stamp),
-            )
-        return self.conversation(conversation_id)
-
-    def conversation(self, conversation_id: str) -> dict:
-        """读取会话并在记录缺失时抛出业务异常"""
-        return need(self.db.one("SELECT * FROM conversations WHERE id=?", (conversation_id,)))
 
     def working(self, project_id: str, revision_id: str) -> dict:
         """按覆盖优先级将草稿叠加在固定版本上，返回可编辑工作副本"""
@@ -349,154 +314,3 @@ class Catalog:
             )
             self.history.advance(conn, branch, new_id, stamp)
         return self.revision(new_id)
-
-    def adopt(self, proposal_id: str):
-        """检查建议原文和当前内容一致后写入草稿以免覆盖后续人工编辑"""
-        proposal = need(self.db.one("SELECT * FROM proposals WHERE id=?", (proposal_id,)))
-        conversation = self.conversation(proposal["conversation_id"])
-        project_id = conversation["project_id"]
-        base_id = proposal["base_revision"]
-        branch = self.history.for_revision(project_id, base_id)
-        working = self.working(project_id, base_id)
-        if proposal["status"] != "pending":
-            raise Problem("建议已经处理。", 409)
-        if (
-            branch["head_revision"] != base_id
-            or field_value(working["content"], proposal["target"]) != proposal["before"]
-        ):
-            raise Problem("建议生成后原文已发生变化，请重新请求或手工合并。", 409)
-        replace_field(working["content"], proposal["target"], proposal["after"])
-        with self.db.transaction() as conn:
-            head = conn.execute(
-                "SELECT head_revision FROM experience_branches WHERE id=?", (branch["id"],)
-            ).fetchone()[0]
-            status = conn.execute(
-                "SELECT status FROM proposals WHERE id=?", (proposal_id,)
-            ).fetchone()[0]
-            actual = conn.execute(
-                "SELECT field,version,value_json FROM drafts "
-                "WHERE project_id=? AND base_revision=?",
-                (project_id, base_id),
-            ).fetchall()
-            expected = [(d["field"], d["version"], dump(d["value"])) for d in working["drafts"]]
-            if (
-                head != base_id
-                or status != "pending"
-                or sorted(tuple(r) for r in actual) != sorted(expected)
-            ):
-                raise Problem("采用建议时内容发生变化，请刷新后合并。", 409)
-            if proposal["target"] == "experience":
-                # 建议原文已包含所有草稿，通过并发校验后可由整段建议统一替换
-                conn.execute(
-                    "DELETE FROM drafts WHERE project_id=? AND base_revision=?",
-                    (project_id, base_id),
-                )
-            row = conn.execute(
-                "SELECT version FROM drafts WHERE project_id=? AND base_revision=? AND field=?",
-                (project_id, base_id, proposal["target"]),
-            ).fetchone()
-            conn.execute(
-                "INSERT OR REPLACE INTO drafts VALUES (?,?,?,?,?,?,?)",
-                (
-                    project_id,
-                    base_id,
-                    proposal["target"],
-                    dump(proposal["after"]),
-                    row[0] + 1 if row else 1,
-                    f"ai:{proposal['snapshot_id'] or ''}",
-                    now(),
-                ),
-            )
-            conn.execute("UPDATE proposals SET status='adopted' WHERE id=?", (proposal_id,))
-        return self.working(project_id, base_id)
-
-    def save_resume(
-        self,
-        name: str,
-        template_id: str | None,
-        items: list[ResumeItem],
-        resume_id: str | None = None,
-        version: int = 0,
-        document: ResumeDocument | None = None,
-    ) -> dict:
-        """校验项目、版本和亮点归属并以乐观锁保存固定版本组合"""
-        seen = set()
-        for item in items:
-            revision = self.revision(item.revision_id, item.project_id)
-            valid = {h["id"] for h in revision["content"]["highlights"]}
-            if item.project_id in seen or not set(item.highlight_ids) <= valid:
-                raise Problem("组合包含重复项目或无效亮点。")
-            if len(item.highlight_ids) != len(set(item.highlight_ids)):
-                raise Problem("亮点不能重复。")
-            seen.add(item.project_id)
-        if template_id:
-            self.template(template_id)
-        resume_id = resume_id or uid()
-        with self.db.transaction() as conn:
-            # 引用校验必须和写入持有同一把锁，避免校验后项目被另一窗口删除
-            for item in items:
-                need(
-                    conn.execute(
-                        "SELECT id FROM revisions WHERE id=? AND project_id=?",
-                        (item.revision_id, item.project_id),
-                    ).fetchone(),
-                    "简历中的项目已删除，请刷新后重新选择。",
-                )
-            if conn.execute(
-                "SELECT 1 FROM resume_deletions WHERE resume_id=?", (resume_id,)
-            ).fetchone():
-                raise Problem("该简历方案已删除，请切换或新建方案。", 404)
-            existing = unpack(
-                conn.execute("SELECT * FROM resumes WHERE id=?", (resume_id,)).fetchone()
-            )
-            if version != (existing["version"] if existing else 0):
-                raise Problem("简历组合已在其他窗口修改，请刷新。", 409)
-            library = unpack(
-                conn.execute(
-                    "SELECT value_json FROM settings WHERE key=?", (TEMPLATE_LIBRARY_KEY,)
-                ).fetchone()
-            )
-            deleted = library and library["value"]["items"].get(template_id, {}).get("deleted_at")
-            if deleted:
-                raise Problem("该模板已移入回收站，请先恢复模板或选择其他模板。", 409)
-            if (
-                template_id
-                and not conn.execute(
-                    "SELECT 1 FROM templates WHERE id=?", (template_id,)
-                ).fetchone()
-            ):
-                raise Problem("该模板已永久删除，请选择其他模板。", 409)
-            resolved_document = resolve_honor_document(
-                self.db, document.model_dump() if document is not None else None, conn
-            )
-            conn.execute(
-                "INSERT OR REPLACE INTO resumes "
-                "(id,name,template_id,items_json,version,created_at,updated_at,document_json) "
-                "VALUES (?,?,?,?,?,?,?,?)",
-                (
-                    resume_id,
-                    name.strip() or "我的简历",
-                    template_id,
-                    dump([i.model_dump() for i in items]),
-                    version + 1,
-                    existing["created_at"] if existing else now(),
-                    now(),
-                    dump(resolved_document) if resolved_document is not None else None,
-                ),
-            )
-        return self.db.one("SELECT * FROM resumes WHERE id=?", (resume_id,))
-
-    def delete_resume(self, resume_id: str, version: int) -> None:
-        """按版本删除方案，保留项目、模板及历史导出，拒绝覆盖其他窗口的修改"""
-        with self.db.transaction() as conn:
-            resume = need(
-                conn.execute(
-                    "SELECT version FROM resumes WHERE id=? AND id NOT IN "
-                    "(SELECT resume_id FROM resume_deletions)",
-                    (resume_id,),
-                ).fetchone(),
-                "该简历方案不存在或已删除。",
-            )
-            if resume["version"] != version:
-                raise Problem("简历组合已在其他窗口修改，请先载入服务器组合再删除。", 409)
-            conn.execute("INSERT INTO resume_deletions VALUES (?,?)", (resume_id, now()))

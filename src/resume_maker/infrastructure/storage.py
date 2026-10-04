@@ -3,19 +3,29 @@
 import hashlib
 import json
 import os
-import re
 import shutil
 import sqlite3
 import tempfile
 from contextlib import closing, contextmanager
+from fnmatch import fnmatchcase
 from pathlib import Path, PurePosixPath
 from uuid import UUID
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from resume_maker.core.errors import Problem
+from resume_maker.infrastructure.data_catalog import resource_records
 from resume_maker.infrastructure.database import SCHEMA_VERSION, Database, dump, now, uid
+from resume_maker.infrastructure.filesystem import publish_directory
 
-FOLDERS = ("templates", "snapshots", "exports", "honors", "template-drafts")
+FOLDERS = (
+    "templates",
+    "snapshots",
+    "exports",
+    "honors",
+    "template-drafts",
+    "assets",
+    "plugin-data",
+)
 
 
 @contextmanager
@@ -59,9 +69,14 @@ def create_backup(db: Database, directory: Path) -> Path:
             with db.connect() as source, closing(sqlite3.connect(snapshot)) as target:
                 source.backup(target)
             files = {"resume.db": snapshot}
-            for relative in backup_resources(frozen):
+            if (directory / "plugins.json").is_file():
+                files["plugins.json"] = directory / "plugins.json"
+            for resource in resource_records(frozen):
+                relative = resource["path"]
                 root = directory / relative
                 if not root.is_dir():
+                    if resource.get("optional"):
+                        continue
                     raise Problem(f"备份缺少附件目录：{relative}")
                 for file in root.rglob("*"):
                     if any(
@@ -69,13 +84,13 @@ def create_backup(db: Database, directory: Path) -> Path:
                     ):
                         raise Problem("备份附件包含链接，请先检查数据目录。")
                     if file.is_file():
-                        # 模板草稿只包含原件，分页及 CLI 工作区可以重新生成
-                        if relative.startswith("template-drafts/"):
-                            if file.parent != root or not (
-                                file.name == "original.docx" or file.name.startswith("uploaded.")
-                            ):
-                                continue
+                        if not any(
+                            fnmatchcase(file.relative_to(root).as_posix(), pattern)
+                            for pattern in resource["files"]
+                        ):
+                            continue
                         files[file.relative_to(directory).as_posix()] = file
+            validate_assets(frozen, directory)
             checksums = {}
             with ZipFile(pending, "w", ZIP_DEFLATED) as archive:
                 for name, file in files.items():
@@ -99,21 +114,7 @@ def create_backup(db: Database, directory: Path) -> Path:
 
 def backup_resources(conn):
     """只枚举已登记且不可变的附件，排除缓存、日志及供应商临时文件"""
-    resources = []
-    for table in ("templates", "snapshots", "exports"):
-        resources.extend(f"{table}/{row[0]}" for row in conn.execute(f"SELECT id FROM {table}"))
-    for key, payload in conn.execute(
-        "SELECT key,value_json FROM settings WHERE key LIKE 'honor:%' OR key LIKE 'template-task:%'"
-    ):
-        item = json.loads(payload)
-        if key.startswith("honor:") and item.get("attachment"):
-            resources.append(f"honors/{item['id']}")
-        elif key.startswith("template-task:"):
-            resources.append(f"template-drafts/{item['task']['id']}")
-    for relative in resources:
-        if not re.fullmatch(r"[a-z-]+/[A-Za-z0-9_-]+", relative):
-            raise Problem("备份资源标识无效。")
-    return resources
+    return [resource["path"] for resource in resource_records(conn)]
 
 
 def validate_database(path: Path):
@@ -121,10 +122,11 @@ def validate_database(path: Path):
     with closing(sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True)) as conn:
         if conn.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
             raise Problem("备份数据库完整性检查失败。")
-        if conn.execute("PRAGMA user_version").fetchone()[0] != SCHEMA_VERSION:
+        if conn.execute("PRAGMA user_version").fetchone()[0] not in {6, SCHEMA_VERSION}:
             raise Problem("备份版本不受当前程序支持。")
         if conn.execute("PRAGMA foreign_key_check").fetchone():
             raise Problem("备份数据库存在无效引用。")
+        validate_assets(conn, path.parent)
         for table, file in (("templates", "template.docx"), ("snapshots", "manifest.json")):
             for (identifier,) in conn.execute(f"SELECT id FROM {table}"):
                 if not (path.parent / table / identifier / file).is_file():
@@ -170,6 +172,24 @@ def validate_database(path: Path):
                 raise Problem("备份缺少已完成模板分析的文档。")
 
 
+def validate_assets(conn, directory):
+    """数据库记录和文件清单同时校验，不能只验证 ZIP 内部自洽"""
+    for (raw,) in conn.execute("SELECT value_json FROM settings WHERE key LIKE 'asset:%'"):
+        record = json.loads(raw)
+        if record["state"] != "published":
+            continue
+        expected = f"assets/{record['id']}/payload"
+        if record["path"] != expected or str(UUID(record["id"])) != record["id"]:
+            raise Problem("资源目录册路径无效。")
+        path = directory / expected
+        if not path.is_file() or path.stat().st_size != record["size"]:
+            raise Problem("备份缺少已发布资源或资源大小不匹配。")
+        if hashlib.sha256(path.read_bytes()).hexdigest() != record["sha256"]:
+            raise Problem("已发布资源摘要不匹配。")
+        if not isinstance(record.get("references"), list):
+            raise Problem("资源引用格式无效。")
+
+
 def restore_backup(archive_path: Path, directory: Path) -> Path | None:
     """在隔离目录校验备份，保留旧数据后切换，失败时回退原目录"""
     directory = directory.resolve()
@@ -187,6 +207,13 @@ def restore_backup(archive_path: Path, directory: Path) -> Path | None:
         "instance.json",
         ".instance.lock",
         "backup.json",
+        "plugins.json",
+        "plugins-operation.json",
+        "plugin-operations",
+        "plugin-packages",
+        "plugin-packages.json",
+        "plugin-environments",
+        "plugin-environments.json",
     }
     with instance_lock(directory):
         if directory.exists() and any(p.name not in allowed for p in directory.iterdir()):
@@ -208,7 +235,8 @@ def restore_backup(archive_path: Path, directory: Path) -> Path | None:
                         or not relative.parts
                         or "\\" in item.filename
                         or ":" in item.filename
-                        or relative.parts[0] not in {*FOLDERS, "resume.db", "backup.json"}
+                        or relative.parts[0]
+                        not in {*FOLDERS, "resume.db", "backup.json", "plugins.json"}
                         or (item.external_attr >> 16) & 0o170000 == 0o120000
                     ):
                         raise Problem("备份包含不安全的文件路径。")
@@ -241,6 +269,8 @@ def restore_backup(archive_path: Path, directory: Path) -> Path | None:
                     if file.stat().st_size != check["size"] or fingerprint != check["sha256"]:
                         raise Problem(f"备份文件校验失败：{name}")
             validate_database(staging / "resume.db")
+            # 已知旧结构仅在隔离副本转换，原目录和原 ZIP 保持完整
+            Database(staging / "resume.db")
             # CLI 会话文件不在备份内，恢复后根据已保存消息重新建立上下文
             with closing(sqlite3.connect(staging / "resume.db")) as conn, conn:
                 conn.execute("UPDATE conversations SET provider_thread_id=NULL")
@@ -254,12 +284,12 @@ def restore_backup(archive_path: Path, directory: Path) -> Path | None:
                 )
             if directory.exists():
                 previous = directory.with_name(f"{directory.name}-before-restore-{uid()[:8]}")
-                directory.rename(previous)
+                publish_directory(directory, previous)
             try:
-                staging.rename(directory)
+                publish_directory(staging, directory)
             except OSError:
                 if previous:
-                    previous.rename(directory)
+                    publish_directory(previous, directory)
                 raise
             return previous
         finally:

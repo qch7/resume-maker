@@ -3,7 +3,7 @@
 import math
 
 from resume_maker.core.errors import Problem
-from resume_maker.integrations.providers.page_images import header_values
+from resume_maker.integrations.privacy_layout import header_values
 from resume_maker.integrations.word.ooxml import w
 from resume_maker.integrations.word.pdf.geometry import PRIVATE, SOURCE, rectangle
 from resume_maker.integrations.word.templates.layout import child_in

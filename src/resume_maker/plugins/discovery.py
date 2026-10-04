@@ -1,0 +1,32 @@
+"""内置清单、发行策略和声明式产品组合发现"""
+
+import json
+from pathlib import Path
+
+from resume_maker.runtime.graph import PluginError
+from resume_maker.sdk.manifest import Manifest
+
+ROOT = Path(__file__).parent
+
+
+def discover() -> tuple[dict[str, Manifest], set[str], dict[str, list[str]]]:
+    """只读取数据文件，不导入插件入口"""
+    policy = json.loads((ROOT / "profiles.json").read_text(encoding="utf-8"))
+    manifests = {}
+    for path in sorted((ROOT / "manifests").glob("*.json")):
+        manifest = Manifest.model_validate_json(path.read_text(encoding="utf-8"))
+        if manifest.id in manifests:
+            raise PluginError(f"重复插件定义：{manifest.id}")
+        manifests[manifest.id] = manifest
+    required = set(policy["required"])
+    if required - manifests.keys():
+        raise PluginError("发行包缺少必需插件清单")
+    return manifests, required, policy["profiles"]
+
+
+def selection(profile: str, overrides: tuple[str, ...] | None = None):
+    """显式配置代表完整组合，系统完整性由求解器再次核验"""
+    manifests, required, profiles = discover()
+    if profile not in profiles:
+        raise PluginError(f"未知产品组合：{profile}")
+    return manifests, set(overrides if overrides is not None else profiles[profile]), required

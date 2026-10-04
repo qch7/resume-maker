@@ -1,24 +1,5 @@
-export type GuideTarget =
-  | "template-select"
-  | "personal-basic"
-  | "personal-education"
-  | "personal-skills"
-  | "projects"
-  | "analysis"
-  | "experience-save"
-  | "experience-use"
-  | "honor-recognize"
-  | "honor-select"
-  | "structure"
-  | "composition-save"
-  | "export";
-
-export interface GuideAction {
-  text: string;
-  action: string;
-  target: GuideTarget;
-  projectId?: string;
-}
+import type { GuideTarget } from "../../plugins/slots";
+export type { GuideTarget, GuideAction } from "../../plugins/slots";
 
 export interface GuideSubstep {
   title: string;

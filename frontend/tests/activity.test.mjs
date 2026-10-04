@@ -5,7 +5,7 @@ import {
   DEFAULT_ACTIVITY_PREFERENCES,
   hiddenRuleError,
   restoreActivityPreferences,
-} from "../src/features/activity/preferences.ts";
+} from "../src/shared/lib/activityPreferences.ts";
 
 /** 构造最小日志摘要，测试只关注列表游标和时间定位 */
 function event(id, created_at = "2026-09-21T01:00:00Z") {

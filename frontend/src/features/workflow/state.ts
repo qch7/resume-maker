@@ -1,6 +1,6 @@
 import type { HonorSource } from "../../shared/types/honors";
 import { getProjectWorkflow } from "./projectState.ts";
-import { getProfileProgress } from "./profile.ts";
+import { getProfileProgress } from "../profile/progress.ts";
 import { WORKFLOW_STEPS, type GuideAction } from "./steps.ts";
 export type { GuideTarget } from "./steps";
 

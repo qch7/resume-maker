@@ -4,8 +4,8 @@ import os
 from pathlib import Path
 
 from resume_maker.core.config import sandbox_directory
-from resume_maker.integrations.providers.base import Cancelled
 from resume_maker.integrations.sources import EXCLUDED, SECRET_FILE, linked
+from resume_maker.sdk.model import Cancelled
 
 BINARY = {
     ".pdf",

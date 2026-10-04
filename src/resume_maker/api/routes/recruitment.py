@@ -1,13 +1,14 @@
 """招聘收藏夹页面的保存、交换文件和导入预览入口"""
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Depends, Response
 from pydantic import Field
 
-from resume_maker.api.dependencies import ServicesDep
+from resume_maker.api.dependencies import service
 from resume_maker.domain.models import Model
 from resume_maker.domain.recruitment import RecruitmentFile
+from resume_maker.sdk.services import Recruitment
 
 router = APIRouter(prefix="/api/recruitment", tags=["recruitment"])
 
@@ -37,31 +38,37 @@ def json_download(content: str, name: str):
 
 
 @router.get("")
-def bookmarks(services: ServicesDep):
+def bookmarks(dep_recruitment: Annotated[Recruitment, Depends(service("recruitment"))]):
     """读取当前数据目录的独立收藏夹"""
-    return services.recruitment.get()
+    return dep_recruitment.get()
 
 
 @router.put("")
-def save_bookmarks(services: ServicesDep, body: SaveBookmarks):
+def save_bookmarks(
+    dep_recruitment: Annotated[Recruitment, Depends(service("recruitment"))], body: SaveBookmarks
+):
     """保存通过格式和引用校验的用户修改"""
-    return services.recruitment.save(body.revision, body.data)
+    return dep_recruitment.save(body.revision, body.data)
 
 
 @router.post("/import/preview")
-def preview_import(services: ServicesDep, body: ImportBookmarks):
+def preview_import(
+    dep_recruitment: Annotated[Recruitment, Depends(service("recruitment"))], body: ImportBookmarks
+):
     """返回新增、更新和跳过的条目，预览不改变数据库"""
-    return services.recruitment.import_file(body.revision, body.content, body.policy, preview=True)
+    return dep_recruitment.import_file(body.revision, body.content, body.policy, preview=True)
 
 
 @router.post("/import")
-def import_bookmarks(services: ServicesDep, body: ImportBookmarks):
+def import_bookmarks(
+    dep_recruitment: Annotated[Recruitment, Depends(service("recruitment"))], body: ImportBookmarks
+):
     """用户确认后重新校验版本并一次合并全部有效条目"""
-    return services.recruitment.import_file(body.revision, body.content, body.policy, preview=False)
+    return dep_recruitment.import_file(body.revision, body.content, body.policy, preview=False)
 
 
 @router.get("/export")
-def export_bookmarks(services: ServicesDep):
+def export_bookmarks(dep_recruitment: Annotated[Recruitment, Depends(service("recruitment"))]):
     """导出全部领域、收藏、链接和备注，保留稳定标识和顺序"""
-    data = RecruitmentFile.model_validate(services.recruitment.get()["data"])
+    data = RecruitmentFile.model_validate(dep_recruitment.get()["data"])
     return json_download(data.model_dump_json(indent=2), "recruitment")

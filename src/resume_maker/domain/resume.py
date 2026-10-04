@@ -2,9 +2,11 @@
 
 import base64
 import binascii
+import json
+import re
 from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, JsonValue, model_validator
 
 from resume_maker.domain.honor_entries import HONOR_CUSTOM_IDS
 from resume_maker.domain.models import (
@@ -96,10 +98,17 @@ class ResumeDocument(Model):
     personal: PersonalInfo = Field(default_factory=PersonalInfo)
     sections: list[ResumeSection] = Field(max_length=40)
     project_visibility: dict[str, ProjectVisibility] = Field(default_factory=dict, max_length=1000)
+    extensions: dict[str, JsonValue] = Field(default_factory=dict, max_length=100)
 
     @model_validator(mode="after")
     def validate_hierarchy(self):
         """拒绝重复标识、孤立引用、循环和超过两级的栏目，项目经历保持独立大栏目"""
+        if any(
+            not re.fullmatch(r"[a-z][a-z0-9]*(?:[._-][a-z0-9]+)+", key) for key in self.extensions
+        ):
+            raise ValueError("扩展资料须使用插件命名空间。")
+        if len(json.dumps(self.extensions, ensure_ascii=False).encode()) > 1024 * 1024:
+            raise ValueError("扩展资料超过 1 MB，请使用资源引用。")
         by_id = {section.id: section for section in self.sections}
         if len(by_id) != len(self.sections):
             raise ValueError("栏目标识不能重复。")

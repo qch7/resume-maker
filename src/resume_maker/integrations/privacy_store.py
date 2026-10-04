@@ -23,6 +23,10 @@ class PrivacyStore:
                 redactor.learn(row["value"])
         return redactor
 
+    def policy_version(self):
+        """保护规则有独立代次，更新后旧材料不能继续被读取或发送"""
+        return self.db.setting("privacy_terms_version", 0) if self.db else 0
+
     def record(self, payload, count):
         """原子保存最多十条已脱敏请求，单次请求内容和数量都有上限"""
         identifier = uid()

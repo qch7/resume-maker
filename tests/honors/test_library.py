@@ -285,7 +285,9 @@ def test_restart_marks_unfinished_recognition_as_retryable(tmp_path):
         assert client.post("/api/honors", json={"fields": {"name": "   "}}).status_code == 400
         assert client.post(f"/api/honors/{manual['id']}/recognize").status_code == 400
     manual["status"] = "running"
-    app.state.services.db.set_setting("honor:" + manual["id"], manual)
+    from resume_maker.infrastructure.database import Database
+
+    Database(tmp_path / "resume.db").set_setting("honor:" + manual["id"], manual)
     with TestClient(
         create_app(config, CertificateProvider()), headers={"x-resume-token": "test"}
     ) as client:

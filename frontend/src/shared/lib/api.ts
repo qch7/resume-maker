@@ -1,3 +1,5 @@
+import { generationHeaders } from "./capabilities";
+
 const token =
   document.querySelector<HTMLMetaElement>('meta[name="resume-token"]')
     ?.content ?? "";
@@ -36,6 +38,7 @@ export async function request(
     ...options,
     headers: {
       "x-resume-token": token,
+      ...generationHeaders(),
       ...(options.body ? { "content-type": "application/json" } : {}),
       ...options.headers,
     },

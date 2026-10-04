@@ -16,6 +16,7 @@ from resume_maker.integrations.privacy_store import PrivacyStore
 from resume_maker.integrations.providers.base import Cancelled, MosaicImage, ProviderError
 from resume_maker.integrations.providers.codex import CodexProvider
 from resume_maker.integrations.providers.mosaic import mosaic_sheets, mosaic_tile
+from resume_maker.services.resumes import Resumes
 from resume_maker.services.templates.tasks import Templates
 from tests.support.privacy import synthetic_image
 from tests.support.templates import completed, simple_document
@@ -129,7 +130,7 @@ def test_template_mosaic_repair_covers_photo_without_original_upload(tmp_path, c
         )
 
     provider = CodexProvider(runner=runner, privacy=PrivacyStore(catalog.db))
-    service = Templates(catalog, tmp_path / "data", provider)
+    service = Templates(Resumes(catalog), tmp_path / "data", provider)
     document = simple_document()
     document.personal.name = "合成测试甲"
     document.personal.photo = "data:image/png;base64," + base64.b64encode(raw).decode()

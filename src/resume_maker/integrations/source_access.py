@@ -11,9 +11,9 @@ from itertools import chain
 from pathlib import Path, PurePosixPath
 from tempfile import TemporaryDirectory
 
-from resume_maker.integrations.providers.base import Cancelled, ProviderError
 from resume_maker.integrations.source_context import BINARY, source_paths
 from resume_maker.integrations.sources import EXCLUDED, SECRET_FILE, evidence_file, linked
+from resume_maker.sdk.model import Cancelled, ProviderError
 
 MAX_RESULT = 24000
 
@@ -284,7 +284,9 @@ class SourceAccess:
         result = {**self.metadata(source, path), "lines": [], "next": None, "eof": True}
         with file.open(encoding="utf-8", newline="") as stream:
             for number, line in enumerate(stream, 1):
-                self.check()
+                # 跳过已有安全副本时按小批次检查，实际返回前仍核验最新隐私代次
+                if number >= start or number % 128 == 1:
+                    self.check()
                 if number < start:
                     continue
                 text = line.rstrip("\r\n")

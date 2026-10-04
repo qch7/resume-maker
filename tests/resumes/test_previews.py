@@ -15,6 +15,7 @@ from resume_maker.domain.resume import ResumeSection, SectionEntry
 from resume_maker.services import resume_previews
 from resume_maker.services.documents import Documents
 from resume_maker.services.resume_previews import ResumePreviews
+from resume_maker.services.resumes import Resumes
 from tests.support.documents import resume_content
 from tests.support.templates import register_template
 
@@ -34,7 +35,7 @@ def preview(catalog, tmp_path, monkeypatch):
 
     monkeypatch.setattr("resume_maker.services.resume_previews.render_word", render)
     register_template(catalog, tmp_path / "data")
-    service = ResumePreviews(catalog, tmp_path / "data")
+    service = ResumePreviews(Resumes(catalog), tmp_path / "data")
     yield service, calls
     service.stop()
 
@@ -103,7 +104,7 @@ def test_complete_template_preview_matches_formal_export(
 ):
     """完整模板的预览和正式导出具有相同内容和版式，关闭只回收临时预览"""
     service, _ = preview
-    documents = Documents(catalog, tmp_path / "data")
+    documents = Documents(Resumes(catalog), tmp_path / "data")
     document = resume_content()
     # 预览和正式导出均须自动补齐模板缺少的字段
     document.personal.website = "https://example.test/new-profile"
@@ -120,7 +121,7 @@ def test_complete_template_preview_matches_formal_export(
     )
     source = tmp_path / "data/templates/mapped/template.docx"
     original = source.read_bytes()
-    mapping = deepcopy(catalog.template("mapped")["mapping"])
+    mapping = deepcopy(Resumes(catalog).template("mapped")["mapping"])
     catalog.put_draft(
         project["id"],
         populated["id"],
@@ -137,7 +138,7 @@ def test_complete_template_preview_matches_formal_export(
     saved = catalog.save_revision(project["id"], populated["id"], populated["id"])
     item = ResumeItem(project_id=project["id"], revision_id=saved["id"], highlight_ids=["two"])
     result = service.render(template_id, document.model_dump(), [item.model_dump()])
-    resume = catalog.save_resume("固定方案", template_id, [item], document=document)
+    resume = Resumes(catalog).save_resume("固定方案", template_id, [item], document=document)
     monkeypatch.setattr(
         "resume_maker.services.documents.render_word", lambda *_: (None, "No renderer")
     )
@@ -156,7 +157,7 @@ def test_complete_template_preview_matches_formal_export(
         assert "仅保留的角色原文" not in xml and "Python" not in xml
     assert exported["manifest"]["items"][0]["content"]["role"] == "仅保留的角色原文"
     assert source.read_bytes() == original
-    assert catalog.template("mapped")["mapping"] == mapping
+    assert Resumes(catalog).template("mapped")["mapping"] == mapping
     workspace = Path(service.directory.name)
     service.stop()
     assert not workspace.exists()
@@ -207,12 +208,13 @@ def test_rejects_invalid_references_and_changed_template(preview, project, popul
 
 def test_preview_routes_enforce_auth_instance_and_file_scope(tmp_path, monkeypatch):
     """预览接口要求令牌和正确来源且只能读取本实例公布的预览文件"""
+    monkeypatch.setattr(
+        "resume_maker.integrations.word.controlled.ControlledWord.render",
+        lambda *_: (None, "No renderer"),
+    )
     app = create_app(Config(data_dir=tmp_path / "left", token="left"))
     other = create_app(Config(data_dir=tmp_path / "right", token="right"))
     register_template(app.state.services.catalog, tmp_path / "left")
-    monkeypatch.setattr(
-        "resume_maker.services.resume_previews.render_word", lambda *_: (None, "No renderer")
-    )
     body = {"template_id": "mapped", "document": resume_content().model_dump(), "items": []}
     with TestClient(app) as client, TestClient(other) as right:
         assert client.post("/api/resume-previews", json=body).status_code == 401

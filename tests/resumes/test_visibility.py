@@ -8,6 +8,7 @@ from resume_maker.integrations.sources import digest
 from resume_maker.services.catalog import Catalog
 from resume_maker.services.documents import Documents
 from resume_maker.services.resume_previews import ResumePreviews
+from resume_maker.services.resumes import Resumes
 from tests.support.data import body_text, project_info
 from tests.support.layouts import metadata_template, project_document
 
@@ -42,8 +43,8 @@ def test_resume_visibility_isolated_persistent_and_matches_export(
     item = ResumeItem(
         project_id=identifier, revision_id=revision["id"], highlight_ids=["one", "two"]
     )
-    original = catalog.save_resume("原简历", template_id, [item], document=document)
-    other = catalog.save_resume("另一简历", template_id, [item], document=document)
+    original = Resumes(catalog).save_resume("原简历", template_id, [item], document=document)
+    other = Resumes(catalog).save_resume("另一简历", template_id, [item], document=document)
     before = {
         table: catalog.db.all(f"SELECT * FROM {table}")
         for table in ("revisions", "drafts", "experience_branches")
@@ -54,7 +55,7 @@ def test_resume_visibility_isolated_persistent_and_matches_export(
         order=["custom:team", "highlights", "role", "stack", "description"],
     )
     selected = item.model_copy(update={"highlight_ids": ["two"]})
-    saved = catalog.save_resume(
+    saved = Resumes(catalog).save_resume(
         "原简历", template_id, [selected], original["id"], original["version"], document
     )
     reopened = Catalog(Database(catalog.db.path))
@@ -77,8 +78,8 @@ def test_resume_visibility_isolated_persistent_and_matches_export(
     monkeypatch.setattr(
         "resume_maker.services.resume_previews.render_word", lambda *_: (None, "测试不启动 Word")
     )
-    previews = ResumePreviews(reopened, data_dir)
-    documents = Documents(reopened, data_dir)
+    previews = ResumePreviews(Resumes(reopened), data_dir)
+    documents = Documents(Resumes(reopened), data_dir)
     try:
         preview = previews.render(template_id, stored["document"], stored["items"])
         exported = documents.export(saved["id"])

@@ -1,5 +1,6 @@
 """在仓库外验证 wheel 的导入、数据库和静态资源"""
 
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -71,6 +72,22 @@ print("Wheel 验证通过：应用、静态资源、数据库、只读材料服�
 """
         # 隔离模式忽略 PYTHONUTF8，因此通过解释器参数启用 UTF-8
         subprocess.run([sys.executable, "-I", "-X", "utf8", "-c", script], cwd=target, check=True)
+        uv = shutil.which("uv")
+        if not uv:
+            raise SystemExit("物理最小安装验收需要 uv。")
+        environment = target / "minimal-environment"
+        subprocess.run([uv, "venv", "--python", sys.executable, str(environment)], check=True)
+        python = environment / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
+        subprocess.run(
+            [uv, "pip", "install", "--python", str(python), "--only-binary=:all:", str(wheels[-1])],
+            cwd=target,
+            check=True,
+        )
+        subprocess.run(
+            [str(python), "-I", "-X", "utf8", str(ROOT / "scripts/wheel_minimal.py")],
+            cwd=target,
+            check=True,
+        )
 
 
 if __name__ == "__main__":

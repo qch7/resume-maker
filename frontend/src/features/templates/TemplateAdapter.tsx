@@ -1,3 +1,4 @@
+import type { TemplateAdapterProps } from "../../plugins/slots";
 import { loadLocal, storage } from "../../shared/lib/storage";
 import {
   useEffect,
@@ -11,13 +12,8 @@ import PathInput from "../../shared/components/PathInput";
 import ResizeHandle from "../../shared/components/ResizeHandle";
 import TemplatePicker from "../../shared/components/TemplatePicker";
 import { useElementSize } from "../../shared/hooks/useElementSize";
-import {
-  DEFAULT_LAYOUT,
-  templateSizes,
-  type Layout,
-} from "../../shared/lib/layout";
+import { DEFAULT_LAYOUT, templateSizes } from "../../shared/lib/layout";
 import { api, ApiError } from "../../shared/lib/api";
-import type { Resume, Revision, Template } from "../../shared/types";
 import { newDocument } from "../profile/document";
 import TemplateProgress from "./TemplateProgress";
 import RecognitionSummary from "./RecognitionSummary";
@@ -45,17 +41,7 @@ export default function TemplateAdapter({
   templates,
   onChanged,
   onSelected,
-}: {
-  active: boolean;
-  layout: Layout;
-  onResize: (key: keyof Layout, value: number | boolean) => void;
-  resume: Resume;
-  revisions: Record<string, Revision>;
-  previewSources: Record<string, Revision>;
-  templates: Template[];
-  onChanged: () => Promise<void>;
-  onSelected: (id: string | null) => void;
-}) {
+}: TemplateAdapterProps) {
   const workspace = useRef<HTMLElement>(null);
   const size = useElementSize(workspace);
   const sizes = templateSizes(size.width, size.height, layout);

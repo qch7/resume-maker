@@ -6,7 +6,7 @@ import {
   SortableList,
 } from "../../shared/components/SortableList";
 import type { ResumeSection, SectionEntry } from "../../shared/types";
-import { isHonorEntry } from "../honors/entry";
+import { isHonorEntry } from "./honors/entry";
 
 /** 无标题条目用正文作为排序标签 */
 function entryLabel(entry: SectionEntry, index: number) {

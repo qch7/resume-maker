@@ -5,7 +5,10 @@ import {
   type ActivityCaptureSettings,
   type ActivityCategory,
 } from "../activity/model";
-import { DEFAULT_HIDDEN_RULES, hiddenRuleError } from "../activity/preferences";
+import {
+  DEFAULT_HIDDEN_RULES,
+  hiddenRuleError,
+} from "../../shared/lib/activityPreferences";
 import { localDayRange } from "../activity/useActivityTime";
 
 /** 保存后端采集类别和页面过滤规则，并提供日志删除入口 */

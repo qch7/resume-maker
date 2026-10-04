@@ -1,6 +1,6 @@
 import { FilePenLine, LoaderCircle, Plus, Save, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { isSkillsSection } from "../workflow/profile";
+import { isSkillsSection } from "./progress";
 import type {
   ResumeSection,
   SectionEntry,
@@ -15,9 +15,10 @@ import {
   isHonorEntry,
   isHonorSection,
   isHonorCustomField,
-} from "../honors/entry";
-import HonorEntryFields from "../honors/HonorEntryFields";
+} from "./honors/entry";
+import HonorEntryFields from "./honors/HonorEntryFields";
 import type { HonorSource } from "../../shared/types/honors";
+import { hasPlugin } from "../../shared/lib/capabilities";
 
 /** 在教育背景、课程、证书或自定义栏目中增删条目并编辑结构化字段 */
 export default function SectionEditor({
@@ -54,7 +55,7 @@ export default function SectionEditor({
     });
   }
   const education = section.kind === "education";
-  const honorSection = isHonorSection(section);
+  const honorSection = isHonorSection(section) && hasPlugin("ext.honors");
   return (
     <section
       className={`profile-card ${parent ? "profile-child" : ""}`}

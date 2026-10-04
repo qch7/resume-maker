@@ -1,0 +1,66 @@
+{
+  "manifest_version": 1,
+  "id": "ext.template-adapter",
+  "title": "模板适配",
+  "version": "1.0.0",
+  "package": "resume-maker",
+  "entrypoints": {
+    "host": {
+      "mode": "trusted-host",
+      "entry": "resume_maker.plugins.features:template_adapter"
+    },
+    "client": {
+      "mode": "trusted-client",
+      "entry": "builtin:features/templates/plugin.ts"
+    }
+  },
+  "requires": {
+    "host": {
+      "config": ">=1.0.0 <2.0.0",
+      "documents": ">=1.0.0 <2.0.0",
+      "resume_previews": ">=1.0.0 <2.0.0",
+      "activity": ">=1.0.0 <2.0.0",
+      "resume": ">=1.0.0 <2.0.0"
+    }
+  },
+  "provides": {
+    "host": {
+      "templates": {
+        "version": "1.0.0",
+        "cardinality": "one"
+      }
+    }
+  },
+  "contributes": {
+    "http.routes": [
+      "ext.template-adapter/templates"
+    ],
+    "documents.engines": [
+      "ext.template-adapter/default"
+    ]
+  },
+  "permissions": [
+    "workspace.trusted"
+  ],
+  "data": {
+    "tables": [
+      "templates"
+    ],
+    "settings": [
+      "template-analysis:",
+      "template-draft:"
+    ],
+    "folders": [
+      "templates",
+      "template-drafts"
+    ]
+  },
+  "optional": {
+    "import.image": ">=1.0.0 <2.0.0",
+    "import.pdf": ">=1.0.0 <2.0.0"
+  },
+  "enhances": [
+    "documents",
+    "resume_previews"
+  ]
+}

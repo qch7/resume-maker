@@ -4,14 +4,15 @@ import re
 from datetime import UTC
 from typing import Annotated
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from pydantic import AwareDatetime, BaseModel, Field, field_validator
 
-from resume_maker.api.dependencies import ServicesDep
+from resume_maker.api.dependencies import service
 from resume_maker.core.errors import need
 from resume_maker.domain.activity import ActivityCaptureSettings
 from resume_maker.infrastructure.activity import DEFAULT_POLLING_PATHS
+from resume_maker.infrastructure.database import Database
 from resume_maker.services.activity import capture_settings, save_capture_settings
 
 router = APIRouter(prefix="/api/activity", tags=["activity"])
@@ -27,9 +28,9 @@ class ClientActivity(BaseModel):
 
 
 @router.post("/client")
-def client_activity(body: ClientActivity, services: ServicesDep):
+def client_activity(body: ClientActivity, dep_db: Annotated[Database, Depends(service("db"))]):
     """持久化浏览器异常和失败请求，写入本身不产生递归 HTTP 日志"""
-    services.db.activity.write(
+    dep_db.activity.write(
         "client", body.event, body.message, body.model_dump(), source="browser", level="error"
     )
     return {"ok": True}
@@ -75,37 +76,43 @@ class ActivityQuery(BaseModel):
 
 
 @router.get("")
-def list_activity(services: ServicesDep, query: Annotated[ActivityQuery, Query()]):
+def list_activity(
+    dep_db: Annotated[Database, Depends(service("db"))], query: Annotated[ActivityQuery, Query()]
+):
     """按时间游标返回事件摘要和当前筛选计数"""
-    return services.db.activity.page(**query.model_dump())
+    return dep_db.activity.page(**query.model_dump())
 
 
 @router.get("/export")
-def export_activity(services: ServicesDep, query: Annotated[ActivityQuery, Query()]):
+def export_activity(
+    dep_db: Annotated[Database, Depends(service("db"))], query: Annotated[ActivityQuery, Query()]
+):
     """导出匹配筛选的脱敏 JSONL 快照，响应不包含实例令牌"""
     return StreamingResponse(
-        services.db.activity.export(**query.model_dump()),
+        dep_db.activity.export(**query.model_dump()),
         media_type="application/x-ndjson",
         headers={"Content-Disposition": 'attachment; filename="system-activity.jsonl"'},
     )
 
 
 @router.get("/settings")
-def activity_settings(services: ServicesDep):
+def activity_settings(dep_db: Annotated[Database, Depends(service("db"))]):
     """读取后端实际采集类别，不受页面隐藏规则影响"""
-    return capture_settings(services.db.activity)
+    return capture_settings(dep_db.activity)
 
 
 @router.put("/settings")
-def update_activity_settings(body: ActivityCaptureSettings, services: ServicesDep):
+def update_activity_settings(
+    body: ActivityCaptureSettings, dep_db: Annotated[Database, Depends(service("db"))]
+):
     """保存采集类别并立即用于后续日志写入"""
-    return save_capture_settings(services.db.activity, body)
+    return save_capture_settings(dep_db.activity, body)
 
 
 @router.get("/{identifier}")
-def activity_detail(identifier: int, services: ServicesDep):
+def activity_detail(identifier: int, dep_db: Annotated[Database, Depends(service("db"))]):
     """按需展开单条活动，已过期记录返回明确错误"""
-    return need(services.db.activity.detail(identifier), "日志已过期或不存在。")
+    return need(dep_db.activity.detail(identifier), "日志已过期或不存在。")
 
 
 class ActivityDeletion(BaseModel):
@@ -115,7 +122,7 @@ class ActivityDeletion(BaseModel):
 
 
 @router.delete("")
-def delete_activity(body: ActivityDeletion, services: ServicesDep):
+def delete_activity(body: ActivityDeletion, dep_db: Annotated[Database, Depends(service("db"))]):
     """只删除独立日志库中的记录，保留业务资料和历史补录标记"""
     before = body.before.astimezone(UTC).isoformat() if body.before is not None else None
-    return {"deleted": services.db.activity.delete(before=before)}
+    return {"deleted": dep_db.activity.delete(before=before)}

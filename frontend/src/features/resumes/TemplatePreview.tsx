@@ -1,3 +1,4 @@
+import type { WordPreviewProps } from "../../plugins/slots";
 import { useEffect, useRef, useState } from "react";
 import { api, download } from "../../shared/lib/api";
 import PrintedPage from "./PrintedPage";
@@ -16,13 +17,7 @@ export default function TemplatePreview({
   zoom,
   hidden,
   run,
-}: {
-  input: string | null;
-  templateId: string | null;
-  zoom: number;
-  hidden: boolean;
-  run: (work: () => Promise<void>) => void;
-}) {
+}: WordPreviewProps) {
   const [state, setState] = useState<PreviewState<PreviewResult>>({
     key: null,
     status: "idle",

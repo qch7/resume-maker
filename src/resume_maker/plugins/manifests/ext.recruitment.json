@@ -1,0 +1,47 @@
+{
+  "manifest_version": 1,
+  "id": "ext.recruitment",
+  "title": "招聘收藏",
+  "version": "1.0.0",
+  "package": "resume-maker",
+  "entrypoints": {
+    "host": {
+      "mode": "trusted-host",
+      "entry": "resume_maker.plugins.features:recruitment"
+    },
+    "client": {
+      "mode": "trusted-client",
+      "entry": "builtin:features/recruitment/plugin.ts"
+    }
+  },
+  "requires": {
+    "host": {
+      "db": ">=1.0.0 <2.0.0",
+      "settings": ">=1.0.0 <2.0.0",
+      "activity": ">=1.0.0 <2.0.0"
+    }
+  },
+  "provides": {
+    "host": {
+      "recruitment": {
+        "version": "1.0.0",
+        "cardinality": "one"
+      }
+    }
+  },
+  "contributes": {
+    "http.routes": [
+      "ext.recruitment/recruitment",
+      "ext.recruitment/settings"
+    ]
+  },
+  "permissions": [
+    "workspace.trusted"
+  ],
+  "data": {
+    "settings": [
+      "recruitment",
+      "recruitment-preferences"
+    ]
+  }
+}

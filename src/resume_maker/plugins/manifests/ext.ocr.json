@@ -1,0 +1,30 @@
+{
+  "manifest_version": 1,
+  "id": "ext.ocr",
+  "title": "本地 OCR",
+  "version": "1.0.0",
+  "package": "resume-maker",
+  "entrypoints": {
+    "host": {
+      "mode": "trusted-host",
+      "entry": "resume_maker.plugins.providers:ocr"
+    }
+  },
+  "requires": {
+    "host": {
+      "ocr.backend": ">=1.0.0 <2.0.0"
+    }
+  },
+  "provides": {
+    "host": {
+      "ocr": {
+        "version": "1.0.0",
+        "cardinality": "one"
+      }
+    }
+  },
+  "contributes": {},
+  "permissions": [
+    "workspace.trusted"
+  ]
+}

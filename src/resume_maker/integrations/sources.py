@@ -9,7 +9,8 @@ from tempfile import TemporaryDirectory
 
 from resume_maker.core.config import sandbox_directory
 from resume_maker.infrastructure.database import dump, now, uid
-from resume_maker.integrations.providers.base import Cancelled
+from resume_maker.infrastructure.filesystem import publish_directory
+from resume_maker.sdk.model import Cancelled
 
 EXCLUDED = {
     ".git",
@@ -226,7 +227,7 @@ def capture_evidence(db, data_dir, project, sources, references, cancelled=None)
                 "INSERT INTO snapshots VALUES (?,?,?,?,?)",
                 (identifier, project["id"], fingerprint, dump(manifest), now()),
             )
-            staging.rename(snapshots / identifier)
+            publish_directory(staging, snapshots / identifier)
     return db.one("SELECT * FROM snapshots WHERE id=?", (identifier,))
 
 

@@ -22,7 +22,7 @@ import { newDocument } from "../profile/document";
 import { repairDefaultResume } from "../profile/defaults/sections";
 import { entryComposition, replaceEntry } from "../profile/entry";
 import { personalComposition } from "../profile/personal";
-import { syncHonorResume } from "../honors/sync";
+import { syncHonorResume } from "../profile/honors/sync";
 import {
   orderCompositionHighlights,
   orderedHighlightIds,

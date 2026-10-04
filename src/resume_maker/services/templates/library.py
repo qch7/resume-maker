@@ -12,6 +12,7 @@ from resume_maker.infrastructure.database import dump, now, uid, unpack
 from resume_maker.integrations.sources import digest
 from resume_maker.integrations.word.full_resume import write_full_resume
 from resume_maker.integrations.word.rendering import render_word
+from resume_maker.services.documents import DEFAULT_RENDERER
 from resume_maker.services.templates.cleanup import cleanup_template
 
 
@@ -25,6 +26,7 @@ class TemplateLibrary:
         self.templates, self.previews = templates, previews
         self.stop_flag = threading.Event()
         self.worker = None
+        self.renderer = DEFAULT_RENDERER
 
     def state(self):
         """返回组织信息，未设置的模板由客户端归入未分类"""
@@ -219,7 +221,10 @@ class TemplateLibrary:
                 source.write_bytes(data)
             else:
                 write_full_resume(source, builtin_sample(), [])
-            pages, error = render_word(source, directory / "source.pdf")
+            renderer = render_word if self.renderer is DEFAULT_RENDERER else self.renderer
+            if renderer is None:
+                raise Problem("Word 插件未启用，无法生成精确缩略图。", 503)
+            pages, error = renderer(source, directory / "source.pdf")
             if not pages or not image.is_file():
                 raise Problem(error or "模板预览生成失败，请重试。", 503)
         return image

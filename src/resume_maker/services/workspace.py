@@ -1,57 +1,57 @@
-"""工作台轮询所需的项目活动时间和资源聚合查询"""
+"""工作台在同一读取快照聚合系统资料和已启用插件贡献"""
 
-from resume_maker.domain.honor_entries import sync_honor_document
 from resume_maker.infrastructure.database import unpack
-from resume_maker.services.catalog import Catalog
-from resume_maker.services.honor_links import honor_sources
 
 
 class Workspace:
-    """工作台首屏和轮询需要的聚合查询"""
+    """系统聚合器只查询经历和简历，业务扩展自行读取所属资料"""
 
-    def __init__(self, catalog: Catalog):
-        """保存当前模块所需依赖，供后续业务操作共享使用"""
-        self.catalog, self.db = catalog, catalog.db
+    def __init__(self, catalog, *, contributors=None):
+        """贡献读取器由组合根注入，不通过可选模块导入推测能力"""
+        self.db = catalog.db
+        self.contributors = contributors or (lambda: ())
 
     def state(self):
-        """聚合项目活动时间、会话、简历、模板及最近任务，供工作台轮询"""
+        """保持经历活动时间、简历来源和各插件摘要的事务一致性"""
         with self.db.connect() as conn:
-            # 同一读取快照保证已保存资料和前端草稿使用相同的荣誉版本
             conn.execute("BEGIN")
-            honors = honor_sources(conn)
-            resumes = [
-                unpack(row)
-                for row in conn.execute(
-                    "SELECT * FROM resumes WHERE id NOT IN "
-                    "(SELECT resume_id FROM resume_deletions) ORDER BY updated_at DESC"
-                )
-            ]
-            for resume in resumes:
-                resume["document"] = sync_honor_document(resume["document"], honors)
-        return {
-            "resume_defaults": self.db.setting("resume_defaults"),
-            "honors": honors,
-            "projects": self.db.all(
-                "SELECT p.*, h.parent_id, b.head_revision, MAX(p.updated_at, "
-                "COALESCE((SELECT MAX(updated_at) FROM drafts "
-                "WHERE project_id=p.id), p.updated_at), "
-                "COALESCE((SELECT MAX(updated_at) FROM conversations "
-                "WHERE project_id=p.id AND archived=0), p.updated_at)) AS activity_at "
-                "FROM projects p LEFT JOIN project_hierarchy h ON h.project_id=p.id "
-                "JOIN experience_branches b ON b.project_id=p.id AND b.is_default=1 "
-                "WHERE p.archived=0 ORDER BY p.created_at"
-            ),
-            "conversations": self.db.all(
-                "SELECT * FROM conversations WHERE archived=0 ORDER BY updated_at DESC"
-            ),
-            "branches": self.db.all("SELECT * FROM experience_branches ORDER BY created_at,id"),
-            "resumes": resumes,
-            "templates": self.db.all(
-                "SELECT id,name,created_at FROM templates "
-                "WHERE json_type(mapping_json,'$.plan')='object' ORDER BY created_at DESC"
-            ),
-            "jobs": self.db.all(
-                "SELECT id,project_id,conversation_id,kind,status,error,created_at,finished_at "
-                "FROM jobs ORDER BY created_at DESC LIMIT 100"
-            ),
-        }
+            state = {
+                "resume_defaults": None,
+                "projects": [
+                    unpack(row)
+                    for row in conn.execute(
+                        "SELECT p.*, h.parent_id, b.head_revision, MAX(p.updated_at, "
+                        "COALESCE((SELECT MAX(updated_at) FROM drafts "
+                        "WHERE project_id=p.id), p.updated_at)) AS activity_at "
+                        "FROM projects p LEFT JOIN project_hierarchy h ON h.project_id=p.id "
+                        "JOIN experience_branches b ON b.project_id=p.id AND b.is_default=1 "
+                        "WHERE p.archived=0 ORDER BY p.created_at"
+                    )
+                ],
+                "branches": [
+                    unpack(row)
+                    for row in conn.execute(
+                        "SELECT * FROM experience_branches ORDER BY created_at,id"
+                    )
+                ],
+                "resumes": [
+                    unpack(row)
+                    for row in conn.execute(
+                        "SELECT * FROM resumes WHERE id NOT IN "
+                        "(SELECT resume_id FROM resume_deletions) ORDER BY updated_at DESC"
+                    )
+                ],
+                "honors": [],
+                "conversations": [],
+                "templates": [],
+                "jobs": [],
+            }
+            defaults = unpack(
+                conn.execute(
+                    "SELECT value_json FROM settings WHERE key='resume_defaults'"
+                ).fetchone()
+            )
+            state["resume_defaults"] = defaults["value"] if defaults else None
+            for contribute in self.contributors():
+                contribute.value(conn, state)
+            return state

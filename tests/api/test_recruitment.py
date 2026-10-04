@@ -76,7 +76,7 @@ def test_preview_import_export_restart_and_backup_preserve_custom_data(tmp_path)
         assert repeated["snapshot"] == saved
     with TestClient(create_app(config)) as client:
         assert client.get("/api/recruitment", headers=HEADERS).json() == saved
-    archive = create_backup(app.state.services.db, config.data_dir)
+    archive = create_backup(Database(config.data_dir / "resume.db"), config.data_dir)
     destination = tmp_path / "restored"
     restore_backup(archive, destination)
     assert Recruitment(Database(destination / "resume.db")).get() == saved
@@ -277,7 +277,7 @@ def test_import_preferences_persist_and_do_not_enter_exchange_files(tmp_path):
         client.put(path, headers=HEADERS, json={"import_policy": "update"})
     with TestClient(create_app(config)) as client:
         assert client.get(path, headers=HEADERS).json() == {"import_policy": "update"}
-    archive = create_backup(app.state.services.db, config.data_dir)
+    archive = create_backup(Database(config.data_dir / "resume.db"), config.data_dir)
     restored = tmp_path / "restored"
     restore_backup(archive, restored)
     with TestClient(create_app(Config(data_dir=restored, token="test"))) as client:

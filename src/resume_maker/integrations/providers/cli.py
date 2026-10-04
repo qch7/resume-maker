@@ -5,10 +5,10 @@ import os
 import shutil
 import subprocess
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 
 from resume_maker.infrastructure.observability import protect_secrets, record
-from resume_maker.integrations.providers.base import ProviderError
 from resume_maker.integrations.providers.connection import connection
 from resume_maker.integrations.providers.credentials import isolated_credentials
 from resume_maker.integrations.providers.material_server import SOURCE_TOOLS, TOOLS
@@ -21,6 +21,7 @@ from resume_maker.integrations.providers.sandbox import (
     workspace,
 )
 from resume_maker.integrations.providers.source_broker import source_broker
+from resume_maker.sdk.model import ProviderError
 
 
 def inspect_cli(settings):
@@ -125,13 +126,45 @@ def safety_settings(root, values, endpoint=None):
     }
 
 
-def run_cli(payload, settings, environment, cancelled, emit, *, source_access=None, safe_images=()):
+@contextmanager
+def credential_session(vault, root, environment, cancelled):
+    """凭据引用按单轮注册和撤销，临时副本由适配器负责刷新"""
+    if vault is None:
+        with isolated_credentials(root, environment, cancelled) as value:
+            yield value
+        return
+    reference = vault.register(
+        "ext.provider-codex",
+        "model.authentication",
+        lambda: isolated_credentials(root, environment, cancelled),
+    )
+    try:
+        with vault.borrow(reference, "ext.provider-codex", "model.authentication") as value:
+            yield value
+    finally:
+        vault.revoke(reference)
+
+
+def run_cli(
+    payload,
+    settings,
+    environment,
+    cancelled,
+    emit,
+    *,
+    source_access=None,
+    safe_images=(),
+    sandbox=None,
+    execution=None,
+    credentials=None,
+    generation=1,
+):
     """在临时 CLI home 中开启受限工具会话，只向只读服务提供脱敏副本"""
     selected, env = connection(settings, environment)
     protect_secrets(env.get("RESUME_MAKER_PROVIDER_KEY"), env.get("OPENAI_API_KEY"))
     with (
-        workspace() as root,
-        isolated_credentials(root, env, cancelled) as env,
+        sandbox.session() if sandbox else workspace() as root,
+        credential_session(credentials, root, env, cancelled) as env,
         source_broker(source_access) as endpoint,
     ):
         selected["cli_auth_credentials_store"] = "file"
@@ -268,8 +301,7 @@ def run_cli(payload, settings, environment, cancelled, emit, *, source_access=No
 
         record("ai", "system", "CLI 系统指令及材料入口", {"prompt": prompt}, source="codex-cli")
         emit("status", {"text": "正在使用 CLI 和只读工具分析脱敏副本"})
-        execute(
-            command,
+        options = dict(
             cwd=root / "materials",
             env=env,
             timeout=settings.timeout_seconds,
@@ -277,6 +309,23 @@ def run_cli(payload, settings, environment, cancelled, emit, *, source_access=No
             stdin=prompt,
             event=event,
         )
+        if sandbox and execution:
+            grant = sandbox.authorize(
+                "ext.provider-codex",
+                "model.readonly-materials",
+                generation,
+                ["directory_acl", "tool_allowlist", "process_cleanup"],
+                command=command,
+                cwd=options["cwd"],
+                env=env,
+                materials=[path for path in options["cwd"].rglob("*") if path.is_file()],
+            )
+            try:
+                execution.execute(grant, command, **options)
+            finally:
+                execution.revoke(grant)
+        else:
+            execute(command, **options)
         if not state["completed"] or not isinstance(state["message"], str) or not state["message"]:
             raise ProviderError("CLI 未返回完整结果，原有资料未修改。")
         return state["message"]

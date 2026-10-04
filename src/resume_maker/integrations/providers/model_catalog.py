@@ -2,7 +2,7 @@
 
 import json
 
-from resume_maker.integrations.providers.base import ProviderError
+from resume_maker.sdk.model import ProviderError
 
 
 def write_catalog(root, settings, *, images=False):

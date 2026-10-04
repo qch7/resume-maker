@@ -14,6 +14,7 @@ import {
 import type { Dispatch, SetStateAction } from "react";
 import type { Job, Project, ResumeItem } from "../../shared/types";
 import type { SidebarSort, sortSidebar } from "./sort";
+import { hasPlugin } from "../../shared/lib/capabilities";
 
 interface Props {
   onCollapse: () => void;
@@ -93,6 +94,7 @@ export default function ProjectSidebar({
           <button
             className="icon-button"
             aria-label={`为 ${p.name} 新建会话`}
+            hidden={!hasPlugin("ext.ai-conversation")}
             title={`为 ${p.name} 新建会话`}
             disabled={!!creatingConversation}
             aria-busy={creatingConversation === p.id}
@@ -115,6 +117,7 @@ export default function ProjectSidebar({
           <button
             className="icon-button"
             aria-label={`${collapsed ? "展开" : "收起"} ${p.name} ${children.length ? "子项目与会话" : "会话"}`}
+            hidden={!children.length && !hasPlugin("ext.ai-conversation")}
             aria-expanded={!collapsed}
             onClick={() => setFolded((v) => ({ ...v, [p.id]: !collapsed }))}
           >
@@ -239,7 +242,7 @@ export default function ProjectSidebar({
       </nav>
       <button className="sidebar-footer" onClick={onImport}>
         <FolderPlus size={17} />
-        导入项目
+        {hasPlugin("ext.source-code") ? "导入项目" : "新建项目"}
       </button>
     </aside>
   );

@@ -14,6 +14,8 @@ FORBIDDEN = {
     "infrastructure": {"api", "services"},
     "integrations": {"api", "services"},
     "services": {"api"},
+    "runtime": {"api", "services", "plugins", "integrations"},
+    "sdk": {"api", "services", "plugins", "runtime", "infrastructure", "integrations"},
 }
 
 
@@ -36,6 +38,12 @@ def check_file(path: Path) -> tuple[list[str], int]:
             modules = [module, *(f"{module}.{alias.name}" for alias in node.names)]
         elif isinstance(node, ast.Import):
             modules = [alias.name for alias in node.names]
+        elif isinstance(node, ast.Call) and node.args:
+            if (isinstance(node.func, ast.Name) and node.func.id == "__import__") or (
+                isinstance(node.func, ast.Attribute) and node.func.attr == "import_module"
+            ):
+                if isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
+                    modules = [node.args[0].value]
         for module in modules:
             if module.startswith("resume_maker."):
                 target = module.split(".")[1]

@@ -3,13 +3,16 @@ import assert from "node:assert/strict";
 import {
   syncHonorDocument,
   syncHonorResume,
-} from "../src/features/honors/sync.ts";
-import { emptyHonor, HONOR_FIELDS } from "../src/features/honors/fields.ts";
+} from "../src/features/profile/honors/sync.ts";
+import {
+  emptyHonor,
+  HONOR_FIELDS,
+} from "../src/features/profile/honors/fields.ts";
 import {
   honorFieldValue,
   honorFieldHidden,
   newHonorEntry,
-} from "../src/features/honors/entry.ts";
+} from "../src/features/profile/honors/entry.ts";
 import { newDocument, newEntry } from "../src/features/profile/document.ts";
 import {
   sameComposition,

@@ -5,7 +5,6 @@ from importlib.resources import files
 from resume_maker.core.errors import Problem
 from resume_maker.domain.templates import TemplatePlan
 from resume_maker.infrastructure.database import dump
-from resume_maker.integrations.providers.base import Cancelled, StructuredOutputError
 from resume_maker.integrations.word.image.header import private_image_text
 from resume_maker.integrations.word.pdf.geometry import SOURCE
 from resume_maker.integrations.word.templates.completion import complete_template
@@ -19,6 +18,7 @@ from resume_maker.integrations.word.templates.values import (
     section_records,
 )
 from resume_maker.integrations.word.templates.visuals import layout_context, source_pages
+from resume_maker.sdk.model import Cancelled, StructuredOutputError
 from resume_maker.services.templates.schema import plan_schema
 
 SKILL_PATH = files("resume_maker").joinpath("skills/resume-template-mapping/SKILL.md")

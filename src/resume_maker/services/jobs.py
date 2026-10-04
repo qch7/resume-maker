@@ -8,7 +8,6 @@ from resume_maker.domain.experience import field_value
 from resume_maker.domain.models import ProviderSettings
 from resume_maker.infrastructure.database import Database, dump, now, uid
 from resume_maker.infrastructure.observability import record, record_event, remember_task
-from resume_maker.integrations.providers.base import Cancelled, Provider
 from resume_maker.integrations.source_context import source_context
 from resume_maker.integrations.sources import (
     capture_evidence,
@@ -16,7 +15,9 @@ from resume_maker.integrations.sources import (
     project_sources,
     redact,
 )
+from resume_maker.sdk.model import Cancelled, Provider
 from resume_maker.services.catalog import Catalog
+from resume_maker.services.conversations import Conversations
 
 INSTRUCTIONS = """你负责把项目材料整理为真实、可追溯的中文简历经历，并与用户持续讨论。
 通过 list_source_files、search_sources 和 read_source 按需搜索及分段读取所有关联来源。
@@ -73,21 +74,40 @@ Scope 写“范围”、fallback 写“回退”、chunk 写“分块”，不�
 class Jobs:
     """带持久状态、幂等提交和连接取消的串行任务队列"""
 
-    def __init__(self, db: Database, catalog: Catalog, data_dir: Path, provider: Provider):
+    def __init__(
+        self,
+        db: Database,
+        catalog: Catalog,
+        data_dir: Path,
+        provider: Provider,
+        *,
+        conversations=None,
+    ):
         """保存任务依赖，创建取消信号和工作线程状态，此时不启动队列"""
         self.db, self.catalog, self.data_dir = db, catalog, data_dir
         self.provider = provider
+        self.conversations = conversations or Conversations(catalog)
         self.stopped, self.wakeup = threading.Event(), threading.Event()
         self.cancel_flags: dict[str, threading.Event] = {}
         self.worker: threading.Thread | None = None
+        self.execution_queue = None
 
     def start(self):
         """标记上次异常退出的运行任务，再启动单工作线程处理持久队列"""
+        self.stopped.clear()
         with self.db.transaction() as conn:
             conn.execute(
                 "UPDATE jobs SET status='interrupted',error=?,finished_at=? WHERE status='running'",
                 ("程序上次退出时任务尚未完成，可以重新发送或重试。", now()),
             )
+            if self.execution_queue:
+                conn.execute(
+                    "UPDATE jobs SET status='interrupted',error=?,finished_at=? "
+                    "WHERE status='queued'",
+                    ("程序退出前任务尚未执行，请明确重试。", now()),
+                )
+        if self.execution_queue:
+            return
         self.worker = threading.Thread(target=self._loop, daemon=True, name="resume-maker-jobs")
         self.worker.start()
 
@@ -97,8 +117,12 @@ class Jobs:
         for flag in list(self.cancel_flags.values()):
             flag.set()
         self.wakeup.set()
+        if self.execution_queue:
+            self.execution_queue.close()
         if self.worker:
             self.worker.join(timeout=8)
+            if self.worker.is_alive():
+                raise Problem("经历任务尚未结束，保留资源等待取消完成。", 409)
 
     def submit(
         self,
@@ -110,7 +134,9 @@ class Jobs:
         request_key: str,
     ) -> dict:
         """校验会话和编辑范围，以幂等请求标识入队并记录用户消息"""
-        conversation = self.catalog.conversation(conversation_id)
+        if self.stopped.is_set():
+            raise Problem("任务插件正在停止。", 409)
+        conversation = self.conversations.conversation(conversation_id)
         if conversation["archived"]:
             raise Problem("该会话已经归档。")
         if kind not in {"analysis", "chat"} or not text.strip():
@@ -176,6 +202,17 @@ class Jobs:
                 "UPDATE conversations SET input_draft='',title=?,updated_at=? WHERE id=?",
                 (title, stamp, conversation_id),
             )
+            metadata = {
+                "handler": kind,
+                "idempotency_key": request_key,
+                "entities": {"project_id": project["id"], "conversation_id": conversation_id},
+                "settings": request["provider_settings"],
+            }
+            prepared = (
+                self.execution_queue.prepare(conn, job_id, metadata)
+                if self.execution_queue
+                else None
+            )
         if self.db.activity:
             remember_task(
                 self.db.activity, job_id, conversation_id=conversation_id, project_id=project["id"]
@@ -191,6 +228,21 @@ class Jobs:
             origin_key=f"job-user:{job_id}",
         )
         self.wakeup.set()
+        if self.execution_queue:
+            job = self.db.one("SELECT * FROM jobs WHERE id=?", (job_id,))
+            flag = self.cancel_flags[job_id] = threading.Event()
+            try:
+                self.execution_queue.submit(
+                    job_id, flag, lambda: self._run(job), metadata, prepared=prepared
+                )
+            except Exception:
+                self.cancel_flags.pop(job_id, None)
+                with self.db.transaction() as conn:
+                    conn.execute(
+                        "UPDATE jobs SET status='failed',finished_at=?,error=? WHERE id=?",
+                        (now(), "任务调度失败，输入已保留，请明确重试。", job_id),
+                    )
+                raise
         return self.db.one("SELECT * FROM jobs WHERE id=?", (job_id,))
 
     def cancel(self, job_id: str):
@@ -220,7 +272,9 @@ class Jobs:
     def _run(self, job: dict):
         """传递当前来源目录、调用 Provider、验证引用并原子保存消息和结果"""
         job_id, conversation_id = job["id"], job["conversation_id"]
-        cancelled = self.cancel_flags[job_id] = threading.Event()
+        cancelled = self.cancel_flags.setdefault(job_id, threading.Event())
+        if cancelled.is_set():
+            self.cancel(job_id)
         with self.db.transaction() as conn:
             changed = conn.execute(
                 "UPDATE jobs SET status='running',started_at=? WHERE id=? AND status='queued'",
@@ -243,7 +297,7 @@ class Jobs:
 
         try:
             project = self.catalog.project(job["project_id"])
-            conversation = self.catalog.conversation(conversation_id)
+            conversation = self.conversations.conversation(conversation_id)
             emit("status", {"text": "正在本机准备源码文字材料"})
             sources = project_sources(project)
             if cancelled.is_set() or self.stopped.is_set():

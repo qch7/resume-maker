@@ -199,10 +199,12 @@ def test_lifespan_stops_worker_even_on_exception(tmp_path):
     app = create_app(Config(data_dir=tmp_path))
     queue = app.state.services.jobs
     with pytest.raises(RuntimeError, match="模拟关闭异常"), TestClient(app):
-        assert queue.worker.is_alive()
+        assert queue.worker is None
+        assert queue.execution_queue.supervisor.executor is not None
         raise RuntimeError("模拟关闭异常")
     assert queue.stopped.is_set()
-    assert not queue.worker.is_alive()
+    assert queue.execution_queue.supervisor.executor is None
+    assert not queue.execution_queue.supervisor.owned
 
 
 def test_static_assets_and_current_token_are_served(tmp_path):

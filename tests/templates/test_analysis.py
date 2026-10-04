@@ -15,6 +15,7 @@ from resume_maker.domain.models import AIResult, ResumeItem
 from resume_maker.domain.templates import TemplatePlan
 from resume_maker.integrations.providers.codex import schema
 from resume_maker.integrations.word.templates.mapping import TemplatePackage
+from resume_maker.services.resumes import Resumes
 from resume_maker.services.templates.tasks import Templates
 from tests.support.documents import photo_bytes
 from tests.support.templates import TemplateProvider, completed, simple_document, simple_template
@@ -30,9 +31,7 @@ def test_analysis_snapshot_save_restart_and_export(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "resume_maker.services.templates.tasks.render_word", lambda *_: (None, "测试无渲染器")
     )
-    monkeypatch.setattr(
-        "resume_maker.services.documents.render_word", lambda *_: (None, "测试无渲染器")
-    )
+    monkeypatch.setattr(app.state.services.documents, "renderer", lambda *_: (None, "测试无渲染器"))
     with TestClient(app) as client:
         headers = {"x-resume-token": "test"}
         payload = {"path": str(source), "document": simple_document().model_dump()}
@@ -76,13 +75,16 @@ def test_analysis_snapshot_save_restart_and_export(tmp_path, monkeypatch):
         assert listed == [
             {"id": template_id, "name": "完整模板", "created_at": saved.json()["created_at"]}
         ]
-        resume = app.state.services.catalog.save_resume(
+        resume = app.state.services.resume.save_resume(
             "试填简历",
             template_id,
             [],
             document=simple_document(),
         )
     restarted = create_app(config, TemplateProvider())
+    monkeypatch.setattr(
+        restarted.state.services.documents, "renderer", lambda *_: (None, "测试无渲染器")
+    )
     with TestClient(restarted):
         assert restarted.state.services.templates.get(task["id"])["plan"] == task["plan"]
         exported = restarted.state.services.documents.export(resume["id"])
@@ -100,7 +102,7 @@ def test_cancel_and_stop_discard_late_analysis(catalog, tmp_path):
     source = tmp_path / "source.docx"
     simple_template(source)
     with TemplateProvider(block=True) as provider:
-        service = Templates(catalog, tmp_path / "data", provider)
+        service = Templates(Resumes(catalog), tmp_path / "data", provider)
         task = service.analyze(source, simple_document())
         assert provider.started.wait(2)
         assert service.cancel(task["id"])["status"] == "cancelled"
@@ -130,7 +132,7 @@ def test_reopen_saved_mapping_preserves_versions_and_checks_hash(tmp_path):
         original = service.save(
             task["id"], "原模板", TemplatePlan.model_validate(task["plan"]), simple_document(), []
         )
-        resume = app.state.services.catalog.save_resume(
+        resume = app.state.services.resume.save_resume(
             "已有简历", original["id"], [], document=simple_document()
         )
         endpoint = f"/api/templates/{original['id']}/edit"
@@ -173,7 +175,7 @@ def test_failure_and_invalid_save_do_not_register_templates(catalog, tmp_path):
     source = tmp_path / "source.docx"
     simple_template(source)
     provider = TemplateProvider(failure=True)
-    service = Templates(catalog, tmp_path / "data", provider)
+    service = Templates(Resumes(catalog), tmp_path / "data", provider)
     task = service.analyze(source, simple_document())
     assert completed(service, task["id"])["status"] == "failed"
     provider.failure = False
@@ -192,7 +194,7 @@ def test_failure_and_invalid_save_do_not_register_templates(catalog, tmp_path):
 
 def test_preview_checks_fixed_references(catalog, project, populated, tmp_path):
     """重复项目、无效亮点及跨项目修订不能通过模板试填绕过引用校验"""
-    service = Templates(catalog, tmp_path / "data", TemplateProvider())
+    service = Templates(Resumes(catalog), tmp_path / "data", TemplateProvider())
     valid = ResumeItem(project_id=project["id"], revision_id=populated["id"], highlight_ids=["one"])
     assert service.projects([valid])[0]["content"]["title"] == "Example"
     with pytest.raises(Problem, match="不能重复"):

@@ -7,7 +7,7 @@ import pytest
 
 from resume_maker.core.errors import Problem
 from resume_maker.infrastructure import storage
-from resume_maker.infrastructure.database import Database
+from resume_maker.infrastructure.database import SCHEMA_VERSION, Database
 from resume_maker.infrastructure.storage import create_backup, instance_lock, restore_backup
 from resume_maker.services.catalog import Catalog
 from tests.support.templates import register_template
@@ -50,7 +50,7 @@ def test_running_instance_blocks_restore(tmp_path):
         restore_backup(tmp_path / "unused.zip", target)
 
 
-@pytest.mark.parametrize("version", [1, 2, 3, 4, 5, 7])
+@pytest.mark.parametrize("version", [1, 2, 3, 4, 5, SCHEMA_VERSION + 1])
 def test_restore_rejects_unsupported_schema_without_changing_target(catalog, tmp_path, version):
     """备份结构不匹配时保留目标数据并清理暂存目录"""
     with catalog.db.transaction() as conn:

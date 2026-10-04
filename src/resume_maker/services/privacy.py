@@ -8,9 +8,10 @@ from resume_maker.integrations.privacy_store import PrivacyStore
 class Privacy:
     """保存隐私设置并复用模型出口使用的本机脱敏引擎"""
 
-    def __init__(self, db: Database, store: PrivacyStore):
+    def __init__(self, db: Database, store: PrivacyStore, *, runtime_state=None):
         """绑定当前实例的持久设置和隐私出口"""
         self.db, self.store = db, store
+        self.runtime_state = runtime_state
 
     def get(self):
         """返回强制隐私策略和用户可补充的敏感词"""
@@ -33,6 +34,7 @@ class Privacy:
                 "base_side": 960,
                 "retry_side": 2000,
             },
+            **(self.runtime_state() if self.runtime_state else {}),
             "terms": saved.get("privacy_terms", []),
             "version": saved.get("privacy_terms_version", 0),
         }

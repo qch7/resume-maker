@@ -10,7 +10,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from resume_maker.core.config import sandbox_directory
-from resume_maker.integrations.providers.base import ProviderError
+from resume_maker.sdk.model import ProviderError
 
 
 def toml(value):

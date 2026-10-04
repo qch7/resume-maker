@@ -11,6 +11,7 @@ from resume_maker.core.config import Config
 from resume_maker.infrastructure.database import uid
 from resume_maker.integrations.privacy import TOKEN
 from resume_maker.services.jobs import Jobs
+from resume_maker.services.resumes import Resumes
 from resume_maker.services.templates.tasks import Templates
 from tests.support.honors import certificate_bytes, wait_honor
 from tests.support.jobs import wait_job
@@ -120,7 +121,7 @@ def test_template_quote_restored_and_original_images_never_sent(tmp_path, catalo
         return plan
 
     provider = provider_at(tmp_path, handle, catalog.db)
-    service = Templates(catalog, tmp_path / "data", provider)
+    service = Templates(Resumes(catalog), tmp_path / "data", provider)
     task = service.analyze(source, simple_document())
     result = completed(service, task["id"])
     assert result["status"] == "completed", result["error"]

@@ -14,6 +14,7 @@ from resume_maker.integrations.providers.base import Cancelled
 from resume_maker.integrations.source_access import SourceAccess
 from resume_maker.integrations.source_context import source_context
 from resume_maker.integrations.sources import check_evidence
+from resume_maker.services.conversations import Conversations
 from resume_maker.services.jobs import Jobs
 from resume_maker.services.projects import Projects
 from tests.support.data import record_source_files
@@ -184,7 +185,7 @@ def test_jobs_read_all_current_roots_and_only_archive_cited_files(catalog, tmp_p
         proposal = catalog.db.one("SELECT * FROM proposals WHERE job_id=?", (first["id"],))
         evidence = proposal["after"]["highlights"][0]["evidence"]
         assert evidence[0]["status"] == "document"
-        catalog.adopt(proposal["id"])
+        Conversations(catalog).adopt(proposal["id"])
         saved = catalog.save_revision(
             project["id"], project["head_revision"], project["head_revision"]
         )

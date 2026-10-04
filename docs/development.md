@@ -18,6 +18,9 @@ uv run resume-maker --no-browser
 | `--data-dir` / `RESUME_MAKER_DATA_DIR` | 数据目录；命令行优先。源码运行默认使用项目 `data/`，独立安装包使用用户目录 `.resume-maker` |
 | `--port` | 本机监听端口，默认 8765 |
 | `--no-browser` | 启动时不自动打开浏览器 |
+| `--profile minimal/standard` | 显式指定启动组合；不指定时读取已持久化选择，日常通过插件管理变更 |
+| `--plugin-data-plan ID` | 停止应用后生成已安装外部插件的数据维护计划 |
+| `--plugin-data-apply PLAN --confirm-digest SHA` | 应用精确计划；全量备份、候选库迁移、验证后替换 |
 | `--restore ZIP` | 持有同一实例锁，离线恢复备份后退出 |
 | `RESUME_MAKER_FRONTEND_DIR` | 覆盖静态资源目录；否则使用安装包内资源或仓库 `frontend/dist` |
 
@@ -112,3 +115,18 @@ resume-maker --no-browser
 - 实际 Microsoft Word 导出成功，生成 DOCX、1 页 PDF、分页图片和版本清单，模板其他栏目保留。
 - 检查桌面和 390px 窄屏布局、重载后的默认侧栏状态，浏览器控制台无错误；正式用户数据未用于写入验收。
 - wheel 在仓库外完成导入、静态资源和初始结构检查，源码包构建成功。
+
+## 插件开发和验收
+
+当前协议及包示例见 [插件开发](plugin-sdk.md)，设计目标见 [完整架构](plugin-architecture-proposal.md)。新增能力须声明依赖、服务版本、数据归属和生命周期；后台工作使用 sys.jobs，进程通过 execution/sandbox，模型调用使用 privacy.gateway。
+
+本地完整验证命令不变。测试目录冲突时可指定一个新的独立目录：
+
+```powershell
+$env:PYTEST_ADDOPTS='--basetemp=output/plugin-check-fresh'
+uv run python scripts/check.py
+uv build --wheel
+uv run python scripts/check_wheel.py
+```
+
+wheel 检查同时创建真正的基础依赖 venv，禁止从源码、开发依赖或用户 site-packages 偷用可选库。真实 CLI 边界用例通过 `RESUME_MAKER_TEST_NATIVE_CLI=1` 启用，只连接本机合成 Responses 服务。真实 Word 的 DOCX、PDF 和分页仍需单独验收。

@@ -220,6 +220,7 @@ export interface ResumeDocument {
   personal: PersonalInfo;
   sections: ResumeSection[];
   project_visibility?: Record<string, ProjectVisibility>;
+  extensions?: Record<string, unknown>;
 }
 export interface ProjectVisibility {
   fields?: Partial<Record<ExperienceField, boolean>>;

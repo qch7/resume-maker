@@ -7,7 +7,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from resume_maker.domain.models import AISettings
-from resume_maker.integrations.providers.base import ProviderError
+from resume_maker.sdk.model import ProviderError
 
 
 def profile_settings(home, config, name):

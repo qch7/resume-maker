@@ -2,6 +2,7 @@ import { FolderOpen, ChevronDown } from "lucide-react";
 import { useState } from "react";
 import type { Template } from "../types";
 import LibraryDialog from "./template-library/LibraryDialog";
+import { hasPlugin } from "../lib/capabilities";
 
 /** 所有模板入口共用二级浏览弹窗，确认选择后才通知所在工作区 */
 export default function TemplatePicker({
@@ -22,6 +23,18 @@ export default function TemplatePicker({
   label: string;
 }) {
   const [open, setOpen] = useState(false);
+  if (!hasPlugin("ext.template-library"))
+    return (
+      <div className="template-library-picker">
+        <span>{label}</span>
+        <p>
+          {value ? "所选模板引擎尚未启用，原引用仍保留。" : "内置 · 完整简历"}
+        </p>
+        {value && (
+          <button onClick={() => onChange("")}>明确改用内置版式</button>
+        )}
+      </div>
+    );
   const name =
     placeholder ??
     (value

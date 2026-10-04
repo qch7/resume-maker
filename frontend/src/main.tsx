@@ -1,5 +1,5 @@
 import { createRoot } from "react-dom/client";
-import App from "./app/App";
+import { initializePlugins, pluginComponent } from "./plugins/runtime";
 import { reportClientError } from "./shared/lib/api";
 import { initializeStorage, storage } from "./shared/lib/storage";
 import PersistenceStatus from "./shared/components/PersistenceStatus";
@@ -35,7 +35,9 @@ const root = createRoot(document.getElementById("root")!);
 /** 数据库草稿恢复完成后才挂载表单，避免空白初值覆盖保存内容 */
 async function start() {
   try {
+    await initializePlugins();
     await initializeStorage();
+    const App = pluginComponent("workbench");
     const theme = storage.getItem("rm.theme");
     if (theme) document.documentElement.dataset.theme = theme;
     root.render(

@@ -1,68 +1,102 @@
 """完整简历的固定版本导出及可追溯清单"""
 
+from dataclasses import replace
 from pathlib import Path
 
-from resume_maker.core.errors import Problem, need
-from resume_maker.domain.templates import TemplatePlan
+from resume_maker.core.errors import Problem
+from resume_maker.domain.extensions import display_document
 from resume_maker.infrastructure.database import dump, now, uid
 from resume_maker.integrations.sources import digest
 from resume_maker.integrations.word.full_resume import write_full_resume
-from resume_maker.integrations.word.rendering import render_word
-from resume_maker.integrations.word.templates.fill import fill_template
-from resume_maker.services.catalog import Catalog
-from resume_maker.services.honor_links import resolve_honor_document
+from resume_maker.sdk.services import Resumes
+from resume_maker.services.document_inputs import freeze_export, generate_docx
+
+DEFAULT_RENDERER = object()
+
+
+def render_word(*args):
+    """独立调用兼容入口按需加载 Word，系统组合显式注入渲染器"""
+    from resume_maker.integrations.word.rendering import render_word as render
+
+    return render(*args)
+
+
+def fill_template(*args):
+    """模板引擎仅在确实选择自定义模板时加载"""
+    from resume_maker.integrations.word.templates.fill import fill_template as fill
+
+    return fill(*args)
 
 
 class Documents:
     """使用内置版式或完整模板，将固定版本简历导出为 Word"""
 
-    def __init__(self, catalog: Catalog, data_dir: Path):
+    def __init__(
+        self,
+        catalog: Resumes,
+        data_dir: Path,
+        *,
+        render=DEFAULT_RENDERER,
+        templates=True,
+        engine=write_full_resume,
+        registry=None,
+    ):
         """保存当前模块所需依赖，供后续业务操作共享使用"""
         self.catalog, self.db, self.data_dir = catalog, catalog.db, data_dir
+        self.renderer, self.templates_enabled = render, templates
+        self.engine = engine
+        self.registry = registry
+        self.assets = None
+        self.template_engine = fill_template if templates else None
+        self.runtime_snapshot = None
 
-    def export(self, resume_id: str) -> dict:
+    def engines(self):
+        """列出当前可选择的生成及渲染能力，停用贡献立即从列表撤销"""
+        return self.registry.describe() if self.registry else {"engines": [], "renderers": []}
+
+    def export(self, resume_id: str, *, engine_id=None, renderer_id=None) -> dict:
         """读取固定资料及项目引用，按所选完整模板或内置版式生成文件和清单"""
-        resume = need(
-            self.db.one(
-                "SELECT * FROM resumes WHERE id=? AND id NOT IN "
-                "(SELECT resume_id FROM resume_deletions)",
-                (resume_id,),
-            ),
-            "该简历方案不存在或已删除。",
+        inputs = freeze_export(self.catalog, self.data_dir, resume_id)
+        resume, manifest_items, template = inputs.values()
+        renderer = render_word if self.renderer is DEFAULT_RENDERER else self.renderer
+        engine, template_engine = self.engine, self.template_engine
+        selected_engine = (
+            self.registry.engine(engine_id, template=bool(template)) if self.registry else None
         )
-        template = self.catalog.template(resume["template_id"]) if resume["template_id"] else None
-        if not resume["document"]:
-            raise Problem("请先填写个人资料和栏目，再导出完整简历。")
-        resume["document"] = resolve_honor_document(self.db, resume["document"])
-        manifest_items = []
-        for item in resume["items"]:
-            revision = self.catalog.revision(item["revision_id"], item["project_id"])
-            manifest_items.append(
-                {
-                    **item,
-                    "revision_number": revision["number"],
-                    "snapshot_id": revision["snapshot_id"],
-                    "content": revision["content"],
-                }
-            )
+        selected_renderer = self.registry.renderer(renderer_id) if self.registry else None
+        if self.registry:
+            renderer = selected_renderer.value.render if selected_renderer else None
+        elif engine_id or renderer_id:
+            raise Problem("当前文档流程未连接引擎注册表。", 409)
+        runtime = self.runtime_snapshot() if self.runtime_snapshot else {}
+        if template and not self.templates_enabled and not self.registry:
+            raise Problem("此简历引用了已停用的模板引擎，请启用后导出或另存内置版式。", 409)
+        displayed = display_document(resume["document"])
         export_id = uid()
         directory = self.data_dir / "exports" / export_id
         directory.mkdir(parents=True)
         output = directory / "resume.docx"
-        if template:
-            source = self.data_dir / "templates" / template["id"] / "template.docx"
-            if digest(source.read_bytes()) != template["hash"]:
-                raise Problem("模板文件已在程序外变化，请重新导入。")
-            fill_template(
-                source,
-                output,
-                TemplatePlan.model_validate(template["mapping"]["plan"]),
-                resume["document"],
-                manifest_items,
+        if selected_engine:
+            selected_engine.value.generate(
+                output, replace(inputs, resume_json=dump({**resume, "document": displayed}))
             )
         else:
-            write_full_resume(output, resume["document"], manifest_items)
-        pages, render_error = render_word(output, directory / "resume.pdf")
+            generate_docx(
+                output,
+                displayed,
+                manifest_items,
+                engine=engine,
+                template_data=inputs.template_bytes,
+                plan=template["mapping"]["plan"] if template else None,
+                template_engine=template_engine,
+            )
+        if not output.is_file():
+            raise Problem("文档引擎未生成声明的 DOCX 文件，未发布任何成品。", 409)
+        pages, render_error = (
+            renderer(output, directory / "resume.pdf")
+            if renderer
+            else (None, "Word 精确渲染未启用，DOCX 已生成。")
+        )
         manifest = {
             "resume": resume,
             "template_id": template["id"] if template else None,
@@ -70,10 +104,39 @@ class Documents:
             "layout": "adaptive-template" if template else "full-resume-v1",
             "items": manifest_items,
             "docx_hash": digest(output.read_bytes()),
-            "renderer": "Microsoft Word" if pages else None,
+            "renderer": (selected_renderer.identifier if selected_renderer else "Microsoft Word")
+            if pages
+            else None,
+            "runtime": runtime,
+            "engine": {"id": selected_engine.identifier, "version": selected_engine.value.version}
+            if selected_engine
+            else None,
+            "rendering": {
+                "id": selected_renderer.identifier,
+                "version": selected_renderer.value.version,
+            }
+            if selected_renderer
+            else None,
+            "input_hash": digest(dump([resume, manifest_items, template]).encode()),
         }
         (directory / "manifest.json").write_text(dump(manifest), encoding="utf-8")
+        resources = {}
+        if self.assets:
+            for path in sorted(directory.iterdir()):
+                if path.name == "manifest.json" or path.name == "input-template.docx":
+                    continue
+                resources[path.name] = self.assets.stage(
+                    "sys.documents",
+                    path.read_bytes(),
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    if path.suffix == ".docx"
+                    else "application/octet-stream",
+                )
+            manifest["assets"] = {name: row["id"] for name, row in resources.items()}
+            (directory / "manifest.json").write_text(dump(manifest), encoding="utf-8")
         with self.db.transaction() as conn:
+            for resource in resources.values():
+                self.assets.publish(conn, resource, [f"export:{export_id}"])
             conn.execute(
                 "INSERT INTO exports VALUES (?,?,?,?,?,?)",
                 (export_id, resume["id"], dump(manifest), pages, render_error, now()),

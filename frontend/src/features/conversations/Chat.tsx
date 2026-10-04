@@ -1,3 +1,4 @@
+import type { ConversationProps } from "../../plugins/slots";
 import { ArrowUp, RotateCcw, Square } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
@@ -8,29 +9,11 @@ import { api } from "../../shared/lib/api";
 import { registerDraft } from "../../shared/lib/draftRegistry";
 import { clamp, DEFAULT_LAYOUT } from "../../shared/lib/layout";
 import { loadLocal, storage } from "../../shared/lib/storage";
-import type {
-  ConversationDetail,
-  Job,
-  ProjectDetail,
-  Proposal,
-} from "../../shared/types/index";
 import JobProgress from "./JobProgress";
 import ProposalCard from "./ProposalCard";
 
-interface Props {
-  inputHeight: number;
-  onInputHeight: (value: number) => void;
-  detail: ConversationDetail;
-  project: ProjectDetail;
-  activeJob?: Job;
-  run: (work: () => Promise<void>) => void;
-  onSend: (text: string, scope: string, kind?: string) => Promise<void>;
-  onAdopt: (proposal: Proposal) => Promise<void>;
-  onRefresh: () => void;
-}
-
 /** 展示独立会话历史，维护输入草稿、讨论范围和防重复发送状态 */
-export default function Chat(props: Props) {
+export default function Chat(props: ConversationProps) {
   const { detail, project, run, activeJob } = props;
   const pane = useRef<HTMLDivElement>(null);
   const size = useElementSize(pane);

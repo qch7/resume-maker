@@ -1,0 +1,28 @@
+{
+  "manifest_version": 1,
+  "id": "provider.local-assets",
+  "title": "本地资源后端",
+  "version": "1.0.0",
+  "package": "resume-maker",
+  "entrypoints": {
+    "host": {
+      "mode": "trusted-host",
+      "entry": "resume_maker.plugins.providers:local_assets"
+    }
+  },
+  "requires": {
+    "host": {}
+  },
+  "provides": {
+    "host": {
+      "assets.backend": {
+        "version": "1.0.0",
+        "cardinality": "one"
+      }
+    }
+  },
+  "contributes": {},
+  "permissions": [
+    "workspace.trusted"
+  ]
+}

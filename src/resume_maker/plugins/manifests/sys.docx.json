@@ -1,0 +1,32 @@
+{
+  "manifest_version": 1,
+  "id": "sys.docx",
+  "title": "内置 DOCX 引擎",
+  "version": "1.0.0",
+  "package": "resume-maker",
+  "entrypoints": {
+    "host": {
+      "mode": "trusted-host",
+      "entry": "resume_maker.plugins.system:docx"
+    }
+  },
+  "requires": {
+    "host": {}
+  },
+  "provides": {
+    "host": {
+      "docx": {
+        "version": "1.0.0",
+        "cardinality": "one"
+      }
+    }
+  },
+  "contributes": {
+    "documents.engines": [
+      "sys.docx/default"
+    ]
+  },
+  "permissions": [
+    "system.trusted"
+  ]
+}

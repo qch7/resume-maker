@@ -18,6 +18,36 @@ flowchart LR
   DB --> Data[独立用户数据目录]
 ```
 
+## 插件装配和生命周期
+
+`api/app.py` 读取发行清单、已安装包和持久组合，建立 Host；各插件在声明的作用域注册服务、路由、查询和客户端入口。`runtime/` 只解释协议，不创建经历、荣誉或模板业务。`plugins/system.py`、`features.py`、`providers.py` 是组合根，实际业务继续按现有分层组织。
+
+```mermaid
+flowchart TD
+  CLI[本机启动器] --> Host[Host：依赖图、配置代次、作用域]
+  Policy[发行策略、组合和锁定包] --> Host
+  Host --> System[18 个系统插件]
+  Host --> Providers[5 个必需提供方及可选提供方]
+  Host --> Features[AI、模板、荣誉、招聘等扩展]
+  System --> API[路由快照和在途请求租约]
+  Features --> API
+  API --> Client[客户端：组件、页面、设置、服务、样式]
+  System --> Data[SQLite、资源目录册、离线备份]
+  Features --> Data
+```
+
+经历服务 `Catalog` 只维护项目、草稿和修订；`Resumes` 维护组合与乐观锁；`Conversations` 维护会话及建议采用。新项目通过事务内初始化贡献建立可选会话。工作台在同一读取快照执行系统查询和插件查询贡献。
+
+领域服务公开方法位于 `sdk/services.py`，HTTP 入口通过 `Depends(service("明确能力"))` 消费插件声明的服务；构建路由快照时核验归属和依赖。每个请求绑定路由代次，旧窗口不能把旧输入写到新组合。`app.state.services` 只保留测试和诊断视图。
+
+变更顺序为计划、窗口保存确认、请求和实际任务排空、撤销旧注册、激活候选、发布路由及提交配置。取消信号不会立即释放执行租约；资源回收失败保留依赖并报告，不能伪装停用成功。磁盘配置原子替换是持久提交点，操作记录支持重启查询。
+
+管理控制通道保持可用，不被业务冻结或它自己的请求租约阻塞。`sys.plugins` 的注册重建复用 Host 内唯一变更协调器，保留窗口、计划和路由发布回调；插件 RPC 仍按真实插件所有者取得业务租约。整套标准/最小组合可连续往返切换。
+
+文档生成和渲染通过 `documents.engines`、`documents.renderers` 贡献注册，公开输入类型在 `sdk/documents.py`。预览和导出使用相同引擎协议，选择结果及版本进入成品清单。客户端壳只持有导航和窗口控制；制作指引状态在工作流插件内计算。手工荣誉字段、已存资料展示及同步纯函数属于简历系统模块，荣誉库插件关闭后这些基本资料仍可编辑。
+
+Host/Client 依赖分别求序，remote 依赖只通过 DTO RPC 消费。`enhances` 将附接渲染器或来源解析器产生的影响计入排空范围，不改变激活顺序。完整目标和当前支持边界见 [实施记录](plugin-implementation.md) 和 [插件开发](plugin-sdk.md)。
+
 ## 后端职责
 
 统一活动链路由 `api/activity.py` 的 ASGI 包装采集全部业务 API 的开始、状态、耗时和有界正文；`infrastructure/observability.py` 为服务公开入口和后台执行边界建立请求、跨度、项目、会话及任务关联。后台队列入队前登记关联，工作线程恢复自己的上下文。Provider 保留本机原始输入、脱敏模型上下文、CLI 公开事件和工具调用，原进度接口继续使用简要消息。
@@ -26,7 +56,7 @@ flowchart LR
 
 | 位置 | 职责与修改入口 |
 | --- | --- |
-| `api/app.py` | 创建实例服务、Provider 和隐私存储，统一管理后台任务生命周期 |
+| `api/app.py` | 装配 Host 和路由快照，由插件注册服务及生命周期 |
 | `api/dependencies.py` | 从当前请求的应用读取服务，避免模块全局变量共享用户目录 |
 | `api/routes/` | 按 projects、conversations、jobs、resumes、templates、settings、system 拆分 HTTP 入口 |
 | `api/schemas.py` | 请求体约束；HTTP 特有字段留在接口层 |
@@ -35,8 +65,8 @@ flowchart LR
 | `core/` | 配置及可展示的业务异常，不依赖业务服务 |
 | `domain/models.py` | 经历、证据、组合、AI 输出等数据契约 |
 | `domain/experience.py` | 字段读取、替换、排序校验等无副作用规则 |
-| `services/catalog.py` | 不可变版本、逐字段草稿、采用冲突和固定组合的事务边界 |
-| `services/projects.py` / `conversations.py` / `workspace.py` | 项目维护、会话维护及工作台聚合查询 |
+| `services/catalog.py` | 经历不可变版本及逐字段草稿的事务边界 |
+| `services/projects.py` / `resumes.py` / `conversations.py` / `workspace.py` | 项目、简历、会话及插件查询聚合 |
 | `services/jobs.py` | 持久队列、真实来源上下文、建议校验、取消和结果发布 |
 | `services/settings.py` | Provider 设置、默认栏目版本事务、CLI 检查和连接测试 |
 | `services/privacy.py` | 敏感词版本事务、本机脱敏预览和发送记录管理 |
@@ -46,7 +76,7 @@ flowchart LR
 | `services/templates/library.py` / `cleanup.py` | 模板库事务、缩略图与回收站清理 |
 | `domain/templates.py` | 字段引文、重复范围、照片和原文处置的声明式映射 |
 | `infrastructure/database.py` | SQLite 短连接、即时写事务和 JSON 列编解码 |
-| `infrastructure/schema.sql` | 当前完整数据库结构，空库一次性创建全部表和索引 |
+| `infrastructure/schema.sql` | v7 完整初始结构；v6 先备份再添加所有权目录册 |
 | `infrastructure/storage.py` | 跨进程实例锁、在线备份、离线验证和目录切换 |
 | `integrations/sources.py` | 本机源码目录定位、引用文件留存和原文证据匹配 |
 | `integrations/providers/base.py` / `codex.py` | 可注入的 Provider 协议与 Codex CLI 实现 |
@@ -57,7 +87,7 @@ flowchart LR
 
 依赖约束由 `scripts/check_quality.py` 检查：`core` 不反向依赖任何业务模块；`domain` 不依赖数据库、适配器、服务或 HTTP；`infrastructure` 与 `integrations` 不依赖服务和 HTTP；`services` 不依赖 HTTP。业务错误通过 `core.errors.Problem` 传递，接口层负责转换成响应。
 
-模型出口由应用工厂一次性装配，经历队列、模板、荣誉和连接检查直接接收同一 Provider。`Provider` 契约显式声明图片能力、独立任务隐私上下文和 OCR 登记；调用方直接使用契约，缺失能力不再默认开放原图或跳过隐私登记。`CodexProvider` 负责脱敏、还原和结构化结果，CLI 版本检查归属 `providers/cli.py`。合成资料测试在 `tests/provider_stub.py` 实现可控契约，模板替身提交和真实 JSON 一致的绑定字典，生产 schema 不再为基础绑定对象增加转换器。
+模型出口由 sys.privacy、ext.ai-runtime 和所选传输提供方装配，经历、模板、荣誉及连接检查共用 PrivacyGateway。`Provider` 契约显式声明图片能力、独立任务隐私上下文和 OCR 登记；调用方直接使用契约，缺失能力不再默认开放原图或跳过隐私登记。`PrivacyGateway` 负责脱敏、还原和结构化结果，Codex 适配器负责传输配置，CLI 版本检查归属 `providers/cli.py`。合成资料测试在 `tests/provider_stub.py` 实现可控契约，模板替身提交和真实 JSON 一致的绑定字典，生产 schema 不再为基础绑定对象增加转换器。
 
 设置和隐私路由只解析 HTTP 请求并调用对应服务。默认栏目和敏感词的版本校验、规范化和持久化保持同一事务；连接测试直接使用注入的模型出口，不通过队列寻找依赖。活动日志在创建时初始化任务关联索引，观测包装不再动态补建属性；启动不执行废弃轮询派生表的删除语句，原始日志、游标及历史补录保持现有规则。
 
@@ -65,7 +95,7 @@ flowchart LR
 
 模板选择共用 `shared/components/TemplatePicker.tsx` 与 `template-library/` 下的原生模态浏览器，通过 portal 进入顶层，避免父工作区裁切。分类及 Like 由 `/api/template-library` 写入现有 `settings` 表中的独立配置，单字段事务合并避免并发覆盖，不修改不可变模板映射或简历引用。缩略图使用独立源文件副本并按内容缓存到 `templates/.previews/`；卡片仅在进入可见范围时请求，失败显示原因并允许重试。
 
-`app/App.tsx` 负责跨业务导航、刷新和消息提示；布局状态交给 `app/useWorkspaceLayout.ts`。每个 `features/` 子目录维护本功能的组件及状态逻辑：
+`app/App.tsx` 负责页面贡献、插件管理和窗口状态；简历协调交给 `features/resumes/ResumeWorkspace.tsx`，布局交给同目录的 `useWorkspaceLayout.ts`。每个 `features/` 子目录维护本功能的组件及状态逻辑：
 
 - `projects`：侧栏、会话入口及稳定排序。
 - `experiences`：整段编辑、单条亮点编辑与字段草稿 hook。

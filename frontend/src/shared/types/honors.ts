@@ -25,3 +25,22 @@ export interface HonorSource {
   version: number;
   updated_at: string;
 }
+
+export interface Honor {
+  id: string;
+  fields: HonorFields;
+  attachment: {
+    name: string;
+    size: number;
+    pages: number;
+    extension: string;
+    text: string;
+  } | null;
+  status: "queued" | "running" | "review" | "ready" | "failed" | "cancelled";
+  reviewed: boolean;
+  recognition: { fields: HonorFields; text: string; warnings: string[] } | null;
+  error: string;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}

@@ -15,6 +15,7 @@ from resume_maker.integrations.word.ooxml import NS, w
 from resume_maker.integrations.word.recovery import blank_template, prepare_template
 from resume_maker.integrations.word.templates.fill import fill_template
 from resume_maker.integrations.word.templates.mapping import TemplatePackage
+from resume_maker.services.resumes import Resumes
 from resume_maker.services.templates.tasks import Templates
 from tests.support.templates import RecoveryProvider, completed, simple_document
 
@@ -94,7 +95,7 @@ def test_complex_word_formats_automatically_recover_and_fill(catalog, tmp_path, 
 
     monkeypatch.setattr("resume_maker.integrations.word.recovery.render_word", render)
     provider = RecoveryProvider()
-    service = Templates(catalog, tmp_path / "data", provider)
+    service = Templates(Resumes(catalog), tmp_path / "data", provider)
     task = completed(service, service.analyze(source, simple_document())["id"])
     if kind in {"object", "chart", "altChunk"}:
         assert task["status"] == "completed" and not task["review"]["ready"]
@@ -134,7 +135,7 @@ def test_pdf_and_scanned_image_sources_enter_same_mapping_workflow(catalog, tmp_
         with pymupdf.open(pdf) as document:
             document[0].get_pixmap().save(source)
     provider = RecoveryProvider()
-    service = Templates(catalog, tmp_path / "data", provider)
+    service = Templates(Resumes(catalog), tmp_path / "data", provider)
     task = completed(service, service.analyze(source, simple_document())["id"])
     assert task["review"]["ready"] and task["status"] == "completed"
     assert len(provider.pages) == (0 if kind == "pdf" else 1)
@@ -159,7 +160,7 @@ def test_legacy_word_is_converted_in_background(catalog, tmp_path, monkeypatch):
 
     monkeypatch.setattr("resume_maker.integrations.word.recovery.convert_word", convert)
     provider = RecoveryProvider()
-    service = Templates(catalog, tmp_path / "data", provider)
+    service = Templates(Resumes(catalog), tmp_path / "data", provider)
     task = completed(service, service.analyze(source, simple_document())["id"])
     assert task["review"]["ready"] and len(calls) == 1 and not provider.pages
     assert "转换" in "".join(task["inventory"]["notices"])
@@ -172,7 +173,7 @@ def test_cancelling_page_recovery_does_not_publish_late_plan(catalog, tmp_path):
     source = tmp_path / "source.pdf"
     page_pdf(source, scan=True)
     provider = RecoveryProvider(cancel=True)
-    service = Templates(catalog, tmp_path / "data", provider)
+    service = Templates(Resumes(catalog), tmp_path / "data", provider)
     task = completed(service, service.analyze(source, simple_document())["id"])
     assert task["status"] == "cancelled" and task["plan"] is None
     assert not provider.calls
@@ -234,7 +235,7 @@ def test_empty_source_builds_editable_framework(catalog, tmp_path, kind):
                 return RecoveredPage(blocks=[])
             return super().run_structured(**kwargs)
 
-    service = Templates(catalog, tmp_path / "data", EmptyProvider())
+    service = Templates(Resumes(catalog), tmp_path / "data", EmptyProvider())
     task = completed(service, service.analyze(source, simple_document())["id"])
     assert task["status"] == "completed" and task["review"]["ready"]
     assert "占位框架" in "".join(task["inventory"]["notices"])
@@ -292,7 +293,7 @@ def test_recovery_retries_invalid_photo_coordinates(catalog, tmp_path):
             return super().run_structured(**kwargs)
 
     provider = RetryProvider()
-    service = Templates(catalog, tmp_path / "data", provider)
+    service = Templates(Resumes(catalog), tmp_path / "data", provider)
     task = completed(service, service.analyze(source, simple_document())["id"])
     assert task["status"] == "completed" and task["review"]["ready"]
     assert any("重试恢复" in event["text"] for event in task["events"])
@@ -355,7 +356,7 @@ def test_trial_layout_conflict_keeps_native_table_and_reports_error(
 
     monkeypatch.setattr("resume_maker.integrations.word.recovery.render_word", render)
     provider = SharedProvider()
-    service = Templates(catalog, tmp_path / "data", provider)
+    service = Templates(Resumes(catalog), tmp_path / "data", provider)
     task = completed(service, service.analyze(source, simple_document())["id"])
     assert task["status"] == "completed" and task["review"]["ready"] == (not same_paragraph)
     if same_paragraph:

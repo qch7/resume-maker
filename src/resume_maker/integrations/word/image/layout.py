@@ -13,11 +13,11 @@ from docx.shared import Pt
 from PIL import Image, ImageDraw
 
 from resume_maker.core.errors import Problem
-from resume_maker.integrations.providers.base import Cancelled
 from resume_maker.integrations.word.pdf.assets import attach_asset
 from resume_maker.integrations.word.pdf.flow import convert_flow, text_counter
 from resume_maker.integrations.word.pdf.geometry import SOURCE
 from resume_maker.integrations.word.pdf.recovery import LAYOUT_LOCK
+from resume_maker.sdk.model import Cancelled
 
 FONT_NAMES = {
     "microsoft yahei": "微软雅黑",

@@ -45,6 +45,8 @@ class Config:
     instance_id: str = field(default_factory=lambda: secrets.token_urlsafe(16))
     port: int = 8765
     frontend: Path = field(default_factory=frontend_directory)
+    profile: str | None = None
+    plugins: tuple[str, ...] | None = None
 
     def prepare(self) -> None:
         """规范化数据目录并创建快照、模板、导出等运行资源目录"""

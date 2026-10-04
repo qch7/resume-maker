@@ -2,6 +2,7 @@ import { FileDown, Save } from "lucide-react";
 import TemplatePicker from "../../shared/components/TemplatePicker";
 import { newDocument } from "../profile/document";
 import type { ResumeLibraryProps } from "./ResumeLibrary";
+import { hasPlugin } from "../../shared/lib/capabilities";
 
 /** 编辑当前方案的名称和模板并提供保存和导出操作 */
 export default function ResumeSettings(props: ResumeLibraryProps) {
@@ -52,6 +53,7 @@ export default function ResumeSettings(props: ResumeLibraryProps) {
             />
             <button
               className="text-button"
+              hidden={!hasPlugin("ext.template-adapter")}
               disabled={busy}
               onClick={props.onTemplates}
             >

@@ -40,7 +40,7 @@ def test_actual_request_masks_context_schema_and_restores_locally(tmp_path, cata
             value not in serialized
             for value in [*values, "old-private-session", "private-workspace"]
         )
-        assert body["transport"] == "codex-cli-sandbox" and "schema" in body
+        assert body["transport"] == "privacy-gateway" and "schema" in body
         return reply(body["input"])
 
     provider = provider_at(tmp_path, handle, catalog.db)

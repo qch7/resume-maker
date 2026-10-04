@@ -8,14 +8,13 @@ from resume_maker.domain.models import ProviderSettings
 from resume_maker.domain.recruitment import RecruitmentPreferences
 from resume_maker.domain.resume_defaults import ResumeDefaults
 from resume_maker.infrastructure.database import Database, dump, uid, unpack
-from resume_maker.integrations.providers.base import Provider
-from resume_maker.integrations.providers.cli import inspect_cli
+from resume_maker.sdk.model import Provider
 
 
 class Settings:
     """管理实例设置，模型调用使用应用入口注入的统一 Provider"""
 
-    def __init__(self, db: Database, data_dir: Path, provider: Provider):
+    def __init__(self, db: Database, data_dir: Path, provider: Provider | None = None):
         """保存本机配置存储和模型出口，不依赖后台任务队列"""
         self.db, self.data_dir, self.provider = db, data_dir, provider
 
@@ -65,10 +64,14 @@ class Settings:
 
     def inspect_provider(self):
         """只检查本机 Codex CLI 的版本，不触发模型请求"""
+        from resume_maker.integrations.providers.cli import inspect_cli
+
         return inspect_cli(self._provider_settings())
 
     def check_provider(self):
         """通过统一隐私出口验证独立连接配置，保留真实结构化响应"""
+        if self.provider is None:
+            raise Problem("模型能力尚未启用。", 409)
         result = self.provider.run(
             workspace=self.data_dir / "workspaces" / f"check-{uid()}",
             prompt="连接测试。不要使用工具或读取文件。reply 写连接成功；"

@@ -1,3 +1,4 @@
+import type { WorkflowProps } from "../../plugins/slots";
 import { ArrowRight, Check, ChevronDown, ChevronUp } from "lucide-react";
 import { useState } from "react";
 import { getWorkflow, type GuideTarget } from "./state";
@@ -5,18 +6,13 @@ import { WORKFLOW_STEPS as steps } from "./steps";
 
 /** 展示当前制作步骤和下一步操作，支持折叠和目标定位 */
 export default function Workflow({
-  value,
+  input,
   activeStep,
   onNavigate,
   collapsed,
   onToggle,
-}: {
-  value: ReturnType<typeof getWorkflow>;
-  activeStep: number;
-  onNavigate: (target: GuideTarget, projectId?: string) => void;
-  collapsed: boolean;
-  onToggle: () => void;
-}) {
+}: WorkflowProps) {
+  const value = getWorkflow(input);
   const completed = value.done.filter(Boolean).length;
   const [selection, setSelection] = useState<{
     step: number;

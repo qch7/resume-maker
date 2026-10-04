@@ -10,11 +10,19 @@ from resume_maker.core.errors import Problem, need
 from resume_maker.domain.honors import HonorFields, HonorRecognition, HonorSave
 from resume_maker.domain.models import ProviderSettings
 from resume_maker.infrastructure.database import dump, now, uid, unpack
+from resume_maker.infrastructure.filesystem import remove_owned_directory
 from resume_maker.infrastructure.observability import record, record_event, remember_task
-from resume_maker.integrations.certificates import prepare_certificate
-from resume_maker.integrations.providers.base import Cancelled
 from resume_maker.integrations.sources import redact
+from resume_maker.sdk.model import Cancelled
 from resume_maker.services.honor_links import preserve_deleted_honor
+
+
+def prepare_certificate(*args):
+    """兼容独立调用，证书解码器按需加载"""
+    from resume_maker.integrations.certificates import prepare_certificate as prepare
+
+    return prepare(*args)
+
 
 PREFIX = "honor:"
 ACTIVE = {"queued", "running"}
@@ -32,14 +40,21 @@ class Honors:
         self.flags = {}
         self.stopped = threading.Event()
         self.worker = None
+        self.importers = None
+        self.execution_queue = None
+        self.cleanup_pending = {}
 
     def start(self):
         """启动单个识别线程，上次退出中断的任务保留原件并允许手动重试"""
+        self.stopped.clear()
+        self.pending = queue.Queue()
         with self.lock, self.db.transaction() as conn:
             for item in self.list():
                 if item["status"] in ACTIVE:
                     item.update(status="failed", error="上次识别被中断，请重新识别或手动填写。")
                     self._write(conn, item)
+        if self.execution_queue:
+            return
         self.worker = threading.Thread(target=self._work, daemon=True, name="honor-recognition")
         self.worker.start()
 
@@ -51,8 +66,15 @@ class Honors:
                 flag.set()
                 self._status(identifier, "cancelled", "应用已关闭，可重新识别。")
         self.pending.put(None)
+        if self.execution_queue:
+            self.execution_queue.close()
         if self.worker:
             self.worker.join(timeout=10)
+            if self.worker.is_alive():
+                raise Problem("证书任务尚未结束，保留资源等待取消完成。", 409)
+        with self.lock:
+            for identifier in list(self.cleanup_pending):
+                self._cleanup(identifier)
 
     def list(self):
         """返回独立荣誉条目，按最近更新排列"""
@@ -125,7 +147,16 @@ class Honors:
         directory = self.root / item["id"]
         directory.mkdir(parents=True)
         try:
-            metadata = prepare_certificate(raw, filename, directory)
+            importer = (
+                prepare_certificate
+                if self.importers is None
+                else self.importers.get(
+                    "pdf" if Path(filename).suffix.lower() == ".pdf" else "image"
+                )
+            )
+            if importer is None:
+                raise Problem("对应的文件导入插件未启用。", 409)
+            metadata = importer(raw, filename, directory)
             item.update(
                 attachment={"name": filename, "size": len(raw), **metadata},
                 reviewed=False,
@@ -138,13 +169,20 @@ class Honors:
         except Exception:
             shutil.rmtree(directory, ignore_errors=True)
             raise
-        return self.recognize(item["id"])
+        return self.recognize(item["id"]) if self.provider else self.get(item["id"])
 
     def recognize(self, identifier):
         """固化当前识别配置并入队，重复操作或尚未回收的旧任务被拒绝"""
+        if self.provider is None:
+            raise Problem("荣誉识别插件未启用，请对照原件手工核对。", 409)
         settings = ProviderSettings.model_validate(self.db.setting("provider", {})).for_function(
             "honor_recognition"
         )
+        metadata = {
+            "handler": "recognize",
+            "entities": {"honor_id": identifier},
+            "settings": settings.model_dump(),
+        }
         with self.lock, self.db.transaction() as conn:
             item = self.get(identifier, conn)
             if self.stopped.is_set() or identifier in self.flags:
@@ -153,11 +191,31 @@ class Honors:
                 raise Problem("此条目没有证书原件。")
             item.update(status="queued", error="")
             self._write(conn, item)
+            prepared = (
+                self.execution_queue.prepare(conn, identifier, metadata)
+                if self.execution_queue
+                else None
+            )
             self.flags[identifier] = threading.Event()
             if self.db.activity:
                 remember_task(self.db.activity, identifier)
+        if self.execution_queue:
+            try:
+                self.execution_queue.submit(
+                    identifier,
+                    self.flags[identifier],
+                    lambda: self._recognize(identifier, settings),
+                    metadata,
+                    prepared=prepared,
+                )
+            except Exception:
+                with self.lock:
+                    self.flags.pop(identifier, None)
+                    self._status(identifier, "failed", "任务调度失败，原件已保留，请明确重试。")
+                raise
+        else:
             self.pending.put((identifier, settings))
-            return item
+        return item
 
     def cancel(self, identifier):
         """立即标记取消，后台迟到结果不能覆盖人工编辑"""
@@ -293,13 +351,23 @@ class Honors:
                         identifier, "failed", redact(str(exc))[:1500] or "识别失败，请重试。"
                     )
         finally:
-            shutil.rmtree(workspace, ignore_errors=True)
             with self.lock:
-                self.flags.pop(identifier, None)
+                self.cleanup_pending[identifier] = [(self.workspaces, workspace)]
                 try:
                     self.get(identifier)
                 except Problem:
-                    shutil.rmtree(self.root / identifier, ignore_errors=True)
+                    self.cleanup_pending[identifier].append((self.root, self.root / identifier))
+                self._cleanup(identifier)
+
+    def _cleanup(self, identifier):
+        """附件和临时目录实际回收后才释放识别标识，失败可在停用时重试"""
+        pending = self.cleanup_pending[identifier]
+        while pending:
+            root, directory = pending[0]
+            remove_owned_directory(root, directory)
+            pending.pop(0)
+        self.cleanup_pending.pop(identifier, None)
+        self.flags.pop(identifier, None)
 
     def _emit(self, kind, data):
         """将证书识别进度和工具活动写入统一时间线"""

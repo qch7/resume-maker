@@ -1,15 +1,19 @@
 """健康状态、工作台聚合、关闭和备份的 HTTP 入口"""
 
-from fastapi import APIRouter, Request
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import FileResponse
 
 from resume_maker import __version__
-from resume_maker.api.dependencies import ServicesDep
+from resume_maker.api.dependencies import service
 from resume_maker.api.schemas import PathPickerInput
+from resume_maker.core.config import Config
 from resume_maker.core.errors import Problem
-from resume_maker.infrastructure.database import now
+from resume_maker.infrastructure.database import Database, now
 from resume_maker.infrastructure.storage import create_backup
 from resume_maker.integrations.path_picker import pick_path
+from resume_maker.sdk.services import Workspace
 
 router = APIRouter(prefix="/api", tags=["system"])
 
@@ -22,10 +26,10 @@ def select_path(body: PathPickerInput):
 
 @router.get("/health")
 def health(
-    services: ServicesDep,
+    dep_config: Annotated[Config, Depends(service("config"))],
 ):
     """返回本机服务状态和实例标识，供启动、停止脚本核验身份"""
-    return {"status": "ok", "version": __version__, "instance_id": services.config.instance_id}
+    return {"status": "ok", "version": __version__, "instance_id": dep_config.instance_id}
 
 
 @router.post("/shutdown")
@@ -33,7 +37,7 @@ def shutdown(
     request: Request,
 ):
     """调用当前服务器的正常关闭入口，使后台任务有机会回收资源"""
-    callback = getattr(request.app.state, "stop_server", None)
+    callback = getattr(request.scope.get("root_app", request.app).state, "stop_server", None)
     if callback is None:
         raise Problem("请从运行服务器的终端关闭应用。")
     callback()
@@ -42,16 +46,17 @@ def shutdown(
 
 @router.get("/state")
 def state(
-    services: ServicesDep,
+    dep_workspace: Annotated[Workspace, Depends(service("workspace"))],
 ):
     """聚合项目活动时间、会话、简历、模板及最近任务，供工作台轮询"""
-    return services.workspace.state()
+    return dep_workspace.state()
 
 
 @router.post("/backups")
 def backup(
-    services: ServicesDep,
+    dep_config: Annotated[Config, Depends(service("config"))],
+    dep_db: Annotated[Database, Depends(service("db"))],
 ):
     """生成一致性备份 ZIP并作为带日期文件名的下载返回"""
-    output = create_backup(services.db, services.config.data_dir)
+    output = create_backup(dep_db, dep_config.data_dir)
     return FileResponse(output, filename=f"resume-maker-{now()[:10]}.zip")

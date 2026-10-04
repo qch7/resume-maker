@@ -12,7 +12,7 @@ import psutil
 
 from resume_maker.infrastructure.activity import mask_secrets, safe_text
 from resume_maker.infrastructure.observability import operation, record
-from resume_maker.integrations.providers.base import Cancelled, ProviderError
+from resume_maker.sdk.model import Cancelled, ProviderError
 
 MAX_OUTPUT = 16 * 1024 * 1024
 MAX_LINE = 4 * 1024 * 1024

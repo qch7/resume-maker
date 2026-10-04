@@ -1,7 +1,7 @@
 import type { HonorSource } from "../../shared/types/honors.ts";
 import type { ResumeSection } from "../../shared/types/index.ts";
-import { isHonorEntry } from "./entry.ts";
-import type { Honor } from "./model.ts";
+import { isHonorEntry } from "../profile/honors/entry.ts";
+import type { Honor } from "../profile/honors/model.ts";
 
 export type HonorSortKey = "recent" | "date" | "name";
 export interface HonorSort {

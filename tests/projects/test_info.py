@@ -12,7 +12,9 @@ from resume_maker.infrastructure.database import Database, uid
 from resume_maker.integrations.word.full_resume import write_full_resume
 from resume_maker.integrations.word.templates.fill import fill_template
 from resume_maker.services.catalog import Catalog
+from resume_maker.services.conversations import Conversations
 from resume_maker.services.jobs import Jobs
+from resume_maker.services.resumes import Resumes
 from tests.support.data import body_text, experience, project_info
 from tests.support.jobs import FakeProvider, wait_job
 from tests.support.layouts import metadata_template, plan_for, project_document
@@ -21,7 +23,7 @@ from tests.support.layouts import metadata_template, plan_for, project_document
 def test_project_info_drafts_publish_and_preserve_pinned_versions(catalog, project, populated):
     """资料随版本发布并在重启后保留，简历引用的旧版本及隐藏原文不改变"""
     base, identifier = populated["id"], project["id"]
-    pinned = catalog.save_resume(
+    pinned = Resumes(catalog).save_resume(
         "旧引用", None, [ResumeItem(project_id=identifier, revision_id=base, highlight_ids=["one"])]
     )
     value = project_info()
@@ -131,7 +133,7 @@ def test_reanalysis_preserves_user_defined_project_info(catalog, project, popula
         job = jobs.submit(conversation["id"], "重新分析", "analysis", base, "all", uid())
         assert wait_job(catalog, job["id"])["status"] == "completed"
         proposal = catalog.db.all("SELECT * FROM proposals")[0]
-        result = catalog.adopt(proposal["id"])["content"]
+        result = Conversations(catalog).adopt(proposal["id"])["content"]
         assert result["description"] == "New analysis"
         assert result["custom_fields"] == value["custom_fields"]
         assert result["hidden_fields"] == value["hidden_fields"]

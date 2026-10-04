@@ -13,7 +13,7 @@ import type {
 import { moveSection, removeSection, siblings } from "./document";
 import EntryOrder from "./EntryOrder";
 import type { HonorSource } from "../../shared/types/honors";
-import { isHonorEntry, isHonorSection } from "../honors/entry";
+import { isHonorEntry, isHonorSection } from "./honors/entry";
 import HonorSortControls from "../honors/HonorSortControls";
 import { sortHonorEntries, type HonorSort } from "../honors/sort";
 

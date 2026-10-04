@@ -3,9 +3,6 @@
 from io import BytesIO
 from pathlib import Path
 
-import pymupdf
-from PIL import Image, ImageOps, UnidentifiedImageError
-
 from resume_maker.core.errors import Problem
 
 MAX_BYTES = 20 * 1024 * 1024
@@ -24,6 +21,8 @@ def prepare_certificate(raw: bytes, filename: str, directory: Path) -> dict:
     texts = []
     try:
         if suffix == ".pdf":
+            import pymupdf
+
             if not raw.lstrip().startswith(b"%PDF-"):
                 raise Problem("文件内容不是有效的 PDF。", 415)
             with pymupdf.open(stream=raw, filetype="pdf") as document:
@@ -38,28 +37,37 @@ def prepare_certificate(raw: bytes, filename: str, directory: Path) -> dict:
                     texts.append(page.get_text()[:12000])
                 pages = len(document)
         else:
-            with Image.open(BytesIO(raw)) as source:
-                if source.format not in IMAGE_FORMATS:
-                    raise Problem("图片内容不是受支持的格式。", 415)
-                if getattr(source, "n_frames", 1) != 1:
-                    raise Problem("请将多页或动态图片转为 PDF，或拆分为单张图片上传。")
-                if source.width * source.height > 40_000_000:
-                    raise Problem("图片超过 4000 万像素，请缩小后上传。")
-                normalized = ImageOps.exif_transpose(source).convert("RGBA")
-                normalized.thumbnail((2000, 2000))
-                image = Image.new("RGB", normalized.size, "white")
-                image.paste(normalized, mask=normalized.getchannel("A"))
-                image.save(directory / "page-1.png")
-                pages = 1
+            normalize_image(raw, directory)
+            pages = 1
     except Problem:
         raise
     except (
         ValueError,
         RuntimeError,
         OSError,
-        UnidentifiedImageError,
-        Image.DecompressionBombError,
     ) as exc:
         raise Problem("文件损坏或无法读取，请重新导出 PDF 或图片后上传。", 415) from exc
     (directory / ("original" + suffix)).write_bytes(raw)
     return {"pages": pages, "extension": suffix, "text": "\n\n".join(texts)[:30000]}
+
+
+def normalize_image(raw, directory):
+    """仅图片解码时装载图像库并转换其大小异常"""
+    from PIL import Image, ImageOps
+
+    try:
+        with Image.open(BytesIO(raw)) as source:
+            if source.format not in IMAGE_FORMATS:
+                raise Problem("图片内容不是受支持的格式。", 415)
+            if getattr(source, "n_frames", 1) != 1:
+                raise Problem("请将多页或动态图片转为 PDF，或拆分为单张图片上传。")
+            if source.width * source.height > 40_000_000:
+                raise Problem("图片超过 4000 万像素，请缩小后上传。")
+            normalized = ImageOps.exif_transpose(source).convert("RGBA")
+            normalized.thumbnail((2000, 2000))
+            image = Image.new("RGB", normalized.size, "white")
+            image.paste(normalized, mask=normalized.getchannel("A"))
+            image.save(directory / "page-1.png")
+
+    except Image.DecompressionBombError as exc:
+        raise Problem("图片像素超过安全解码范围。", 413) from exc

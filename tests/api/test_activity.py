@@ -34,7 +34,7 @@ def test_http_activity_captures_success_denial_validation_and_exceptions(tmp_pat
     """所有业务 API 状态可定位到请求，读取日志本身不增加新记录"""
     app = create_logged_app(Config(data_dir=tmp_path, token="instance-secret"))
 
-    @app.get("/api/test-crash")
+    @app.state.dispatch.current.get("/api/test-crash")
     def crash():
         """构造未捕获异常以验证服务故障不会遗漏"""
         raise RuntimeError("synthetic failure")

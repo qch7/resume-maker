@@ -271,7 +271,7 @@ export default function Editor(props: EditorProps) {
       {!content.highlights.length && (
         <div className="empty compact">
           <p>还没有项目亮点</p>
-          <span>可以让 Codex 分析源码，也可以直接新增并编辑。</span>
+          <span>点击“新增亮点”编辑内容，保存后可用于简历。</span>
         </div>
       )}
       <SortableList

@@ -1,3 +1,4 @@
+import type { HonorLibraryProps } from "../../plugins/slots";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Award,
@@ -11,7 +12,6 @@ import {
   X,
 } from "lucide-react";
 import { api, ApiError, request } from "../../shared/lib/api";
-import type { ResumeDocument } from "../../shared/types";
 import HonorEditor from "./HonorEditor";
 import HonorImage from "./HonorImage";
 import HonorSortControls from "./HonorSortControls";
@@ -24,7 +24,7 @@ import {
   matchesHonor,
   STATUS,
   type Honor,
-} from "./model";
+} from "../profile/honors/model";
 
 /** 提供跨简历复用的荣誉库、批量上传、识别核对和筛选管理 */
 export default function HonorLibrary({
@@ -34,14 +34,7 @@ export default function HonorLibrary({
   onAdd,
   onRemove,
   onSaved,
-}: {
-  active: boolean;
-  document: ResumeDocument | null;
-  resumeName: string;
-  onAdd: (honors: Honor[], section: string) => void;
-  onRemove: (id: string) => void;
-  onSaved: (honor: Honor) => void;
-}) {
+}: HonorLibraryProps) {
   const [items, setItems] = useState<Honor[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");

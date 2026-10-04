@@ -1,3 +1,4 @@
+import type { HonorEditorProps } from "../../plugins/slots";
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Download, Save, X } from "lucide-react";
 import { api, download } from "../../shared/lib/api";
@@ -9,12 +10,15 @@ import {
   isRecognizing,
   type Honor,
   type HonorFields,
-} from "./model";
+} from "../profile/honors/model";
 
-import { HONOR_FIELDS } from "./fields";
+import { HONOR_FIELDS } from "../profile/honors/fields";
 import type { SectionEntry } from "../../shared/types";
-import HonorEntryFields from "./HonorEntryFields";
-import { entryWithHonorFields, honorFieldsFromEntry } from "./entry";
+import HonorEntryFields from "../profile/honors/HonorEntryFields";
+import {
+  entryWithHonorFields,
+  honorFieldsFromEntry,
+} from "../profile/honors/entry";
 import { newCustomField } from "../profile/document";
 import { VisibilityButton } from "../profile/VisibilityField";
 import CopyButton from "../../shared/components/CopyButton";
@@ -38,14 +42,7 @@ export default function HonorEditor({
   resumeEntry,
   onSaveEntry,
   draftScope = "library",
-}: {
-  honor: Honor | null;
-  onClose: () => void;
-  onSaved: (honor: Honor) => void;
-  resumeEntry?: SectionEntry;
-  onSaveEntry?: (entry: SectionEntry) => Promise<void>;
-  draftScope?: string;
-}) {
+}: HonorEditorProps) {
   const dialog = useRef<HTMLDialogElement>(null);
   const initialFields =
     honor?.fields ??

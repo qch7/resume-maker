@@ -6,7 +6,7 @@ from io import BytesIO
 
 from PIL import Image, ImageDraw, ImageOps, UnidentifiedImageError
 
-from resume_maker.integrations.providers.base import Cancelled, ProviderError
+from resume_maker.sdk.model import Cancelled, ProviderError
 
 MAX_IMAGES = 24
 GRID_SIZE = 8

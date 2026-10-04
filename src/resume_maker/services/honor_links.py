@@ -38,3 +38,18 @@ def preserve_deleted_honor(conn, honor):
                 "UPDATE resumes SET document_json=?,version=version+1,updated_at=? WHERE id=?",
                 (dump(updated), now(), resume["id"]),
             )
+
+
+def preserve_honor_snapshots(db):
+    """停用来源插件前保存最后核对内容，简历仍能独立导出"""
+    with db.transaction() as conn:
+        sources = honor_sources(conn)
+        rows = conn.execute("SELECT id,document_json FROM resumes WHERE document_json IS NOT NULL")
+        for row in rows.fetchall():
+            resume = unpack(row)
+            updated = sync_honor_document(resume["document"], sources)
+            if updated != resume["document"]:
+                conn.execute(
+                    "UPDATE resumes SET document_json=?,version=version+1,updated_at=? WHERE id=?",
+                    (dump(updated), now(), resume["id"]),
+                )

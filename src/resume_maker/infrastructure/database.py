@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from resume_maker.infrastructure.data_catalog import CATALOG_SCHEMA, initialize_catalog
+
 
 def now() -> str:
     """返回毫秒精度的 UTC 时间，供持久化记录和排序统一使用"""
@@ -37,7 +39,7 @@ def unpack(row: sqlite3.Row | None) -> dict | None:
 # SQL 随 Python 包分发，读取位置和当前工作目录无关
 SCHEMA = Path(__file__).with_name("schema.sql").read_text(encoding="utf-8")
 # 只接受当前数据库结构
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 
 class Database:
@@ -50,16 +52,37 @@ class Database:
         path.parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as conn:
             version = conn.execute("PRAGMA user_version").fetchone()[0]
-            if version not in {0, SCHEMA_VERSION} or (
+            if version not in {0, 6, SCHEMA_VERSION} or (
                 version == 0
                 and conn.execute("SELECT 1 FROM sqlite_master WHERE type='table'").fetchone()
             ):
                 raise RuntimeError("数据库结构不受当前程序支持，请使用新的数据目录。")
             conn.execute("PRAGMA journal_mode=WAL")
+            if version == 6:
+                backup = path.parent / "backups" / "migrations" / f"v6-{uid()}.db"
+                backup.parent.mkdir(parents=True, exist_ok=True)
+                target = sqlite3.connect(backup)
+                try:
+                    conn.backup(target)
+                finally:
+                    target.close()
+                conn.executescript(f"BEGIN IMMEDIATE;{CATALOG_SCHEMA}")
+                try:
+                    initialize_catalog(conn)
+                    conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+                    conn.commit()
+                except BaseException:
+                    conn.rollback()
+                    raise
             if version == 0:
-                conn.executescript(
-                    f"BEGIN IMMEDIATE;{SCHEMA}PRAGMA user_version={SCHEMA_VERSION};COMMIT;"
-                )
+                conn.executescript(f"BEGIN IMMEDIATE;{SCHEMA}{CATALOG_SCHEMA}")
+                try:
+                    initialize_catalog(conn)
+                    conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+                    conn.commit()
+                except BaseException:
+                    conn.rollback()
+                    raise
 
     @contextmanager
     def connect(self):

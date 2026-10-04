@@ -5,8 +5,8 @@ import {
   sortHonors,
   sortHonorEntries,
 } from "../src/features/honors/sort.ts";
-import { newHonorEntry } from "../src/features/honors/entry.ts";
-import { emptyHonor } from "../src/features/honors/fields.ts";
+import { newHonorEntry } from "../src/features/profile/honors/entry.ts";
+import { emptyHonor } from "../src/features/profile/honors/fields.ts";
 
 const honors = [
   {

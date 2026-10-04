@@ -1,0 +1,59 @@
+{
+  "manifest_version": 1,
+  "id": "ext.honors",
+  "title": "荣誉库",
+  "version": "1.0.0",
+  "package": "resume-maker",
+  "entrypoints": {
+    "host": {
+      "mode": "trusted-host",
+      "entry": "resume_maker.plugins.features:honors"
+    },
+    "client": {
+      "mode": "trusted-client",
+      "entry": "builtin:features/honors/plugin.ts"
+    }
+  },
+  "requires": {
+    "host": {
+      "db": ">=1.0.0 <2.0.0",
+      "config": ">=1.0.0 <2.0.0",
+      "activity": ">=1.0.0 <2.0.0",
+      "resume": ">=1.0.0 <2.0.0"
+    }
+  },
+  "provides": {
+    "host": {
+      "honors": {
+        "version": "1.0.0",
+        "cardinality": "one"
+      }
+    }
+  },
+  "contributes": {
+    "workspace.queries": [
+      "honors"
+    ],
+    "http.routes": [
+      "ext.honors/honors"
+    ]
+  },
+  "permissions": [
+    "workspace.trusted"
+  ],
+  "data": {
+    "settings": [
+      "honor:"
+    ],
+    "folders": [
+      "honors"
+    ]
+  },
+  "optional": {
+    "import.image": ">=1.0.0 <2.0.0",
+    "import.pdf": ">=1.0.0 <2.0.0"
+  },
+  "enhances": [
+    "resume"
+  ]
+}

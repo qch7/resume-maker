@@ -12,9 +12,9 @@ import {
   hasDefault,
 } from "../src/features/profile/defaults/model.ts";
 import { projectDefaultView } from "../src/features/profile/defaults/projects.ts";
-import { addHonors } from "../src/features/honors/model.ts";
-import { emptyHonor } from "../src/features/honors/fields.ts";
-import { syncHonorDocument } from "../src/features/honors/sync.ts";
+import { addHonors } from "../src/features/profile/honors/model.ts";
+import { emptyHonor } from "../src/features/profile/honors/fields.ts";
+import { syncHonorDocument } from "../src/features/profile/honors/sync.ts";
 import { sameResumeDocument } from "../src/features/profile/comparison.ts";
 import { repairDefaultDuplicates } from "../src/features/profile/defaults/sections.ts";
 
