@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { api } from "../shared/lib/api";
+import { isolatedPageSource } from "./identity";
 
 /** 隔离界面只能通过独立消息端口调用本插件声明的操作 */
 export function IsolatedPage({
@@ -12,8 +13,7 @@ export function IsolatedPage({
   generation: number;
 }) {
   const frame = useRef<HTMLIFrameElement>(null);
-  const parts = new URL(entry, location.origin).pathname.split("/");
-  const source = `/plugin-ui/${encodeURIComponent(id)}/${parts[3]}`;
+  const source = isolatedPageSource(entry, location.origin);
   useEffect(() => {
     const iframe = frame.current;
     if (!iframe) return;

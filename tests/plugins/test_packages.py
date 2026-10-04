@@ -104,6 +104,9 @@ def activate(context):
         one = next(item for item in entries if item["id"] == "community.one")
         assert one["plugin"] == "community.example"
         assert one["entry"]["entry"].startswith("/plugin-assets/community.example/")
+        loaded = client.get(one["entry"]["entry"])
+        assert loaded.status_code == 200, loaded.text
+        assert loaded.content == b"export function activate(context) {}"
         for name, value in (("one", 11), ("two", 22)):
             response = client.post(
                 f"/api/plugins/rpc/community.{name}/save",
@@ -542,12 +545,14 @@ def test_external_config_is_validated_and_applied_with_generation(tmp_path):
     restored.state.runtime.close()
 
 
-def test_isolated_client_uses_opaque_sandbox_and_no_instance_token(tmp_path):
+@pytest.mark.parametrize("instance", ["community.example", "community.one"])
+def test_isolated_client_uses_opaque_sandbox_and_no_instance_token(tmp_path, instance):
     """隔离页面仅公开端口握手，CSP 禁止资料网络访问且不注入实例凭据"""
     archive = tmp_path / "example.rmp"
     bundle(
         archive,
         extra={
+            "instances": {"multiple": True},
             "entrypoints": {"client": {"mode": "isolated-client", "entry": "client/index.js"}},
             "provides": {},
             "contributes": {},
@@ -559,7 +564,11 @@ def test_isolated_client_uses_opaque_sandbox_and_no_instance_token(tmp_path):
     manager = app.state.runtime.require(ServiceKey("plugins"))
     inspected = app.state.runtime.bootstrap["package_store"].inspect(archive)
     manager.install(archive, inspected["digest"], {"isolated-client"})
-    plan = manager.plan([*app.state.runtime.selected, "community.example"], 1)
+    plan = manager.plan(
+        [*app.state.runtime.selected, instance],
+        1,
+        instances=[{"id": instance, "plugin": "community.example"}],
+    )
     manager.prepare(plan["id"], plan["digest"])
     manager.apply(plan["id"], plan["digest"])
     with TestClient(app) as client:
@@ -569,6 +578,14 @@ def test_isolated_client_uses_opaque_sandbox_and_no_instance_token(tmp_path):
         assert "sandbox allow-scripts;" in policy and "allow-same-origin" not in policy
         assert "connect-src 'none'" in policy
         assert "synthetic-ui-token" not in response.text
+        entry = f"/plugin-assets/community.example/{inspected['digest']}/client/index.js"
+        assert entry in response.text
+        assert client.get(entry).status_code == 200
+        plan = manager.plan(app.state.runtime.selected - {instance}, app.state.runtime.generation)
+        manager.prepare(plan["id"], plan["digest"])
+        manager.apply(plan["id"], plan["digest"])
+        assert client.get(entry).status_code == 404
+        assert client.get(f"/plugin-ui/community.example/{inspected['digest']}").status_code == 404
 
 
 def test_inspect_rejects_hash_mismatch_and_identity_conflict(tmp_path):

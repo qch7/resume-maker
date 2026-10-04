@@ -29,12 +29,13 @@ def mount_frontend(app: FastAPI, config: Config) -> None:
         """只提供已选插件清单登记的公开客户端产物，不暴露资料和 Python 源码"""
         host = app.state.runtime
         location = host.bootstrap["packages"].get(plugin_id)
-        if plugin_id not in host.selected or location is None or location.name != digest:
+        enabled = any(host.definition_id(key) == plugin_id for key in host.selected)
+        if not enabled or location is None or location.name != digest:
             raise Problem("插件客户端资源不可用。", 404)
         from resume_maker.runtime.packages import safe_member
 
         relative = safe_member(resource)
-        entry = host.manifests[plugin_id].entrypoints.get("client")
+        entry = host.definitions[plugin_id].entrypoints.get("client")
         if entry is None or not resource.startswith(entry.entry.rpartition("/")[0] + "/"):
             raise Problem("资源不属于客户端入口。", 404)
         path = location.joinpath(*relative.parts)
@@ -57,7 +58,7 @@ def mount_frontend(app: FastAPI, config: Config) -> None:
     def isolated_ui(plugin_id: str, digest: str):
         """隔离页面无同源权限，只能通过宿主允许的消息端口调用声明操作"""
         host = app.state.runtime
-        manifest = host.manifests.get(plugin_id)
+        manifest = host.definitions.get(plugin_id)
         entry = manifest.entrypoints.get("client") if manifest else None
         if entry is None or entry.mode != "isolated-client":
             raise Problem("插件没有隔离界面。", 404)

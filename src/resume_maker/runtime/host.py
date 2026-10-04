@@ -463,10 +463,23 @@ class Host:
         }
 
     def check_health(self):
-        """检查所有本地实例，检查失败不会发布部分就绪结果"""
+        """核验实例状态及实际服务后执行健康检查，残留实例不能冒充恢复成功"""
         for key in self.resolution.order:
+            context = self.instances.get(key)
+            if context is None or context.state != "active" or context.scope.closed:
+                raise PluginError(f"插件实例尚未就绪：{key}")
+            for name, spec in context.manifest.provides.get("host", {}).items():
+                identity = (key, name)
+                if identity not in self.service_values or (
+                    spec.cardinality == "one"
+                    and (
+                        name not in self.services
+                        or self.services[name] is not self.service_values[identity]
+                    )
+                ):
+                    raise PluginError(f"插件声明的能力不可用：{key}/{name}")
             if key not in self.inherited:
-                for check in self.instances[key].health_checks:
+                for check in context.health_checks:
                     check()
 
     def block_unavailable(self, reasons):

@@ -79,6 +79,10 @@ def activate(context):
 
 外部路由必须位于 `/api/plugins/<插件ID>/`。提供和消费都需要清单声明。`effect()` 登记幂等回收，`lifecycle(start, stop)` 在注册验证后启动；执行结束屏障失败时保留资源依赖。回收不能只发取消信号就返回。
 
+入口可标注为 `activate(context: Context) -> None`，公开类型包含配置、服务、贡献、RPC、生命周期及健康检查。`config` 是当前实例的配置副本；`rpc` 的处理函数接收一个载荷，输入输出仍由清单 schema 校验。
+
+切换失败后按实际处于运行中的依赖图清理：旧组合未排空时先重试旧实例，候选已开始激活时清理候选。只有重建旧实例、核验实际服务和发布路由均成功才解除维护；清理仍失败时记录 `recovery-required`，保留依赖并要求停止宿主后重新启动此前组合。
+
 应用内业务路由通过 `Depends(service("服务名"))` 显式注入；建立快照时核验所有权。领域方法签名定义在 `sdk/services.py` 的 Protocol 中，HTTP 层不再为类型声明导入对应服务实现。已有 HTTP 路径保持兼容，模块内部的端点分组由插件注册确定。
 
 持久资源使用 `assets.stage(owner, bytes, media_type)`，之后在业务数据库事务内 `assets.publish(conn, staged, references)`。未提交的暂存记录不允许读取；读取通过 `lease()` 保持摘要和生命周期。历史模板、荣誉和证据目录仍由各插件的持久描述枚举，不能以插件停用为由清理它们。
@@ -225,13 +229,17 @@ worker 清单使用 `entrypoints.worker`，声明 execution/sandbox 依赖及 `e
 | `GET /api/plugins/downloads/{id}` | 查询实际进度及校验后的本地包路径 |
 | `POST /api/plugins/downloads/{id}/cancel` | 取消下载并等待真实结束 |
 | `PUT /api/plugins/packages/{id}/pin` | `{digest}` 锁定当前精确版本，`null` 明确解锁 |
-| `POST /api/plugins/packages/plans` | `{entries,generation,selected?}` 创建联合候选；每项为 `{path,digest,trusted_modes}` |
+| `POST /api/plugins/packages/plans` | `{packages,generation,selected?}` 创建联合候选；每项为 `{path,digest,trusted_modes}` |
 | `GET /api/plugins/operations` | 查询持久操作，响应丢失后无需重复安装 |
 | `POST /api/plugins/plans/{id}/cancel-validation` | 取消正在运行的候选验证 |
 
 计划继续使用 prepare、窗口确认、apply 协议。`validating` 表示正在备份、准备环境、迁移副本或检查健康；`restart-required` 表示等待监督器接管；`booting` 表示正式新宿主仍在健康观察。只有 `committed` 才表示整组成功。失败可能是 failed、cancelled、interrupted、rolled-back 或 recovery-required，页面保留具体结果。
 
 代码更新使用新进程和新的客户端资源 URL，不原地替换 Python 模块。可复现包构造见 `tests/support/plugins.py`，完整流程见 `tests/plugins/test_upgrades.py`。
+
+插件作者可直接复制 [独立笔记示例](examples/notes-plugin/README.md)，它不依赖内部实现或测试辅助代码。[联合升级请求示例](examples/notes-plugin/package-plan.json) 会作为真实 HTTP 请求纳入 wheel 验收，避免文档字段和接口模型不同步。`scripts/check_wheel.py` 还在仓库外验收独立构建、官方启动器、安装、多实例 JS 下载、RPC、停用、再次启用和重启恢复。
+
+客户端资源 URL 使用插件定义 ID 和包摘要，多个实例共享同一份不可变代码；页面贡献及 RPC 使用实例 ID。只启用自定义实例也能读取定义资源；最后一个实例停用后，资源和隔离页面入口均返回 404。隔离 iframe 的页面地址同样来自定义资源 URL，其消息桥仍绑定当前实例。
 
 ## 依赖环境
 

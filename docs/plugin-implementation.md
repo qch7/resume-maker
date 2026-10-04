@@ -90,3 +90,9 @@ uv run resume-maker --profile standard --data-dir ./output/standard-demo
 `output/` 内产物只用于本机核对，不进入 Git。Windows、Linux 的最终流水线状态见 PR。实际 Word 排版已单独核对，没有用单元测试替身代表。
 
 现有 [PR #17](https://github.com/qch7/resume-maker/pull/17) 保持草稿，便于整体审查；不会自动合并到 `main`。完整设计保留，没有将上述工作改写成以后再做。
+
+## 7. 审查后的修正
+
+`5a24c48` 的两项审查问题已复现并修正。停用失败后会重试仍持有资源的旧实例，再完整重建；如果清理仍失败，就保持维护、保留依赖和原持久配置，不再宣称恢复成功。自定义实例的 JS 和隔离页面按插件定义定位资源，RPC 继续按实例隔离。
+
+SDK 的公开 Context 类型补齐配置、贡献、RPC 和生命周期，联合升级示例改用实际的 `packages` 字段。新增 [可复制的独立插件](examples/notes-plugin/README.md)，wheel 验收在仓库外构建它并通过真实 HTTP 检查安装、资源加载、停用和恢复。SDK 仍随草稿 PR 接受整体审查。

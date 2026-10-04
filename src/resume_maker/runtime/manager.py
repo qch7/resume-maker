@@ -476,11 +476,7 @@ class PluginManager:
                 if key in affected:
                     for prepare in host.instances[key].before_deactivate:
                         prepare()
-            for key in reversed(old_resolution.order):
-                if key in affected:
-                    host.instances[key].state = "draining"
-                    host.instances[key].scope.close()
-                    host.instances.pop(key)
+            self._close_affected(old_resolution, affected)
             host.selected, host.resolution = new_selected, resolution
             host.manifests, host.instance_specs = manifests, specs
             host.configs, host.desired = deepcopy(plan["configs"]), set(new_selected)
@@ -510,10 +506,9 @@ class PluginManager:
         except Exception as exc:
             self.store.failed(type(exc).__name__)
             try:
-                for key in reversed(resolution.order):
-                    if key in affected and key in host.instances:
-                        host.instances[key].scope.close()
-                        host.instances.pop(key)
+                # 旧组合尚未排空时仍用旧依赖图，候选开始激活后才使用新图
+                # 清理失败立即停止，保留失败实例及尚未释放的依赖
+                self._close_affected(host.resolution, affected)
                 host.selected, host.resolution, host.generation = (
                     old_selected,
                     old_resolution,
@@ -532,10 +527,13 @@ class PluginManager:
                 if self.publish_routes:
                     self.publish_routes()
             except Exception as rollback:
+                plan["state"] = "recovery-required"
+                plan["message"] = "插件切换及回滚失败，请停止宿主后重新启动此前组合。"
+                self.save_plan(plan)
                 raise PluginError("插件切换及回滚失败，工作区保持维护状态") from rollback
-            self.maintenance = False
             plan["state"] = "failed"
             self.save_plan(plan)
+            self.maintenance = False
             raise Problem(f"插件切换失败，已恢复此前组合：{type(exc).__name__}", 409) from exc
         else:
             self.maintenance = False
@@ -548,3 +546,18 @@ class PluginManager:
                 self.pending_plan = None
                 for window in self.windows.values():
                     window.update(pending_plan=None, acknowledged=False)
+
+    def _close_affected(self, resolution, affected):
+        """按当前实例的逆依赖顺序关闭，失败实例保留以供重试及维护诊断"""
+        for key in reversed(resolution.order):
+            if key not in affected or key not in self.host.instances:
+                continue
+            context = self.host.instances[key]
+            context.state = "draining"
+            try:
+                context.scope.close()
+            except Exception:
+                context.state = "cleanup-failed"
+                raise
+            context.state = "stopped"
+            self.host.instances.pop(key)

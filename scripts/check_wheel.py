@@ -88,6 +88,15 @@ print("Wheel 验证通过：应用、静态资源、数据库、只读材料服�
             cwd=target,
             check=True,
         )
+        source = target / "independent-notes-plugin"
+        shutil.copytree(ROOT / "docs/examples/notes-plugin", source)
+        script = target / "wheel_plugin_author.py"
+        shutil.copy2(ROOT / "scripts/wheel_plugin_author.py", script)
+        subprocess.run(
+            [str(python), "-I", "-X", "utf8", str(script), str(source)],
+            cwd=target,
+            check=True,
+        )
 
 
 if __name__ == "__main__":

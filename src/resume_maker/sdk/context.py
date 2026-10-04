@@ -7,6 +7,7 @@ from typing import Protocol, TypeVar
 from resume_maker.sdk.storage import InstanceData
 
 T = TypeVar("T")
+R = TypeVar("R")
 
 
 @dataclass(frozen=True)
@@ -24,6 +25,7 @@ class Context(Protocol):
     plugin_id: str
     scope_id: str
     generation: int
+    config: dict[str, object]
 
     @property
     def data(self) -> InstanceData:
@@ -40,6 +42,18 @@ class Context(Protocol):
 
     def effect(self, dispose: Callable[[], None]) -> None:
         """登记随实例逆序释放的幂等资源"""
+        ...
+
+    def contribute(self, point: str, identifier: str, value: object, order: int = 0) -> None:
+        """登记清单声明的贡献，随当前实例撤销"""
+        ...
+
+    def rpc(self, method: str, handler: Callable[[T], R]) -> None:
+        """登记接收单个载荷并返回结果的操作，输入输出按清单校验"""
+        ...
+
+    def lifecycle(self, start: Callable[[], None], stop: Callable[[], None]) -> None:
+        """全部注册验证后启动，停止须等待后台执行真正结束"""
         ...
 
     def health(self, check: Callable[[], None]) -> None:

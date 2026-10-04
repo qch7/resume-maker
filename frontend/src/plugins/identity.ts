@@ -1,6 +1,17 @@
 import type { ClientDescriptor } from "../shared/lib/capabilities";
 import type { ClientExtensionPoints, WorkflowStep } from "./extensions";
 
+/** 隔离页面共用定义的代码资源，实例身份只用于消息和 RPC */
+export function isolatedPageSource(entry: string, origin: string): string {
+  const url = new URL(entry, origin);
+  const match = /^\/plugin-assets\/([^/]+)\/([a-f0-9]{64})\//.exec(
+    url.pathname,
+  );
+  if (url.origin !== origin || !match)
+    throw new Error("插件资源路径未通过验证。");
+  return `/plugin-ui/${match[1]}/${match[2]}`;
+}
+
 /** 旧插件的贡献名称映射到当前实例，已经使用实例名称的贡献保持原样 */
 export function instanceIdentifier(
   item: Pick<ClientDescriptor, "id" | "plugin">,

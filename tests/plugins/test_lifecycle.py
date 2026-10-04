@@ -1,13 +1,19 @@
 """插件切换的用户可见行为及失败原子性"""
 
+import sys
+from types import ModuleType
+
 import pytest
 from fastapi.testclient import TestClient
 
 from resume_maker.api import create_app
 from resume_maker.core.config import Config
 from resume_maker.runtime.graph import PluginError
-from resume_maker.runtime.host import Scope
+from resume_maker.runtime.host import Host, Scope
+from resume_maker.runtime.manager import PluginManager
+from resume_maker.runtime.state import StateStore
 from resume_maker.sdk.context import ServiceKey
+from resume_maker.sdk.manifest import Manifest
 
 HEADERS = {"x-resume-token": "test"}
 
@@ -187,6 +193,71 @@ def test_scope_cleanup_retries_only_failed_resources():
     assert seen == ["last", "unstable", "first", "unstable"]
 
 
+@pytest.mark.parametrize("resource", ["barriers", "disposers"])
+@pytest.mark.parametrize("persistent", [False, True])
+def test_failed_disable_restores_live_services_or_keeps_maintenance(tmp_path, resource, persistent):
+    """停用清理失败后真实 API 恢复，持续失败则保留维护和旧配置"""
+    app = create_app(Config(data_dir=tmp_path, token="test", profile="minimal"))
+    host = app.state.runtime
+    manager = host.require(ServiceKey("plugins"))
+    waiting, calls = [True], []
+
+    def stop():
+        """模拟首次失败或始终无法结束的资源，退出测试前明确解除"""
+        calls.append(True)
+        if waiting[0] and (persistent or len(calls) == 1):
+            raise RuntimeError("synthetic cleanup failure")
+
+    with TestClient(app) as client:
+        plan = make_plan(client, {"ext.recruitment"})
+        path = prepare(client, plan)
+        assert (
+            client.post(
+                path + "/apply", headers=HEADERS, json={"digest": plan["digest"]}
+            ).status_code
+            == 200
+        )
+        original = host.instances["ext.recruitment"]
+        getattr(original.scope, resource).append(stop)
+        previous = manager.store.read()
+        plan = make_plan(client, {"ext.recruitment"})
+        path = prepare(client, plan)
+        try:
+            response = client.post(
+                path + "/apply", headers=HEADERS, json={"digest": plan["digest"]}
+            )
+            assert response.status_code == 409, response.text
+            assert manager.store.read() == previous
+            assert host.generation == previous["generation"]
+            assert "ext.recruitment" in host.selected
+            state = client.get("/api/capabilities", headers=HEADERS).json()
+            progress = client.get(path, headers=HEADERS).json()
+            if persistent:
+                assert manager.maintenance and not state["ready"]
+                assert "已恢复" not in response.text
+                assert original.state == "cleanup-failed"
+                assert progress["state"] == "recovery-required"
+                assert manager.pending_plan == plan["id"] and manager.frozen
+                assert client.get("/api/recruitment", headers=HEADERS).status_code == 409
+                assert (
+                    client.post(
+                        path + "/abort", headers=HEADERS, json={"digest": plan["digest"]}
+                    ).status_code
+                    == 409
+                )
+            else:
+                assert not manager.maintenance and state["ready"]
+                assert "已恢复" in response.text and len(calls) == 2
+                assert progress["state"] == "failed"
+                assert host.instances["ext.recruitment"] is not original
+                assert host.instances["ext.recruitment"].state == "active"
+                assert "recruitment" in host.services
+                assert client.get("/api/recruitment", headers=HEADERS).status_code == 200
+                assert not manager.frozen and manager.pending_plan is None
+        finally:
+            waiting[0] = False
+
+
 def test_undeclared_capability_is_not_a_service_locator(tmp_path):
     """业务插件不能借容器语法访问未声明的凭据和执行服务"""
     app = create_app(Config(data_dir=tmp_path, profile="minimal"))
@@ -194,3 +265,61 @@ def test_undeclared_capability_is_not_a_service_locator(tmp_path):
     with pytest.raises(PluginError, match="未声明"):
         context.require(ServiceKey("credentials"))
     app.state.runtime.close()
+
+
+@pytest.mark.parametrize("phase", ["old", "candidate"])
+def test_rollback_cleanup_failure_keeps_actual_dependency_graph(tmp_path, monkeypatch, phase):
+    """旧组合或候选清理失败时都保留实际依赖，不开放业务或重建重叠实例"""
+    module = ModuleType("synthetic_rollback")
+    waiting = [True]
+    released = []
+
+    def activate(context):
+        """合成消费者持有提供方资源，停止失败时必须保留提供方"""
+        context.provide(ServiceKey(context.instance_id), {"open": True})
+        context.effect(lambda: released.append(context.instance_id))
+        if context.instance_id == "example.consumer":
+            context.require(ServiceKey("example.provider"))
+
+            def stop():
+                """模拟仍占用上游资源的执行器"""
+                if waiting[0]:
+                    raise RuntimeError("synthetic still running")
+
+            context.lifecycle(lambda: None, stop)
+            if phase == "candidate":
+                raise RuntimeError("synthetic activation failure")
+
+    module.activate = activate
+    monkeypatch.setitem(sys.modules, module.__name__, module)
+    definitions = {
+        key: Manifest(
+            id=key,
+            title=key,
+            version="1.0.0",
+            package="synthetic",
+            entrypoints={"host": {"mode": "trusted-host", "entry": "synthetic_rollback:activate"}},
+            provides={"host": {key: {}}},
+            requires={"host": {"example.provider": ">=1.0.0"}} if key.endswith("consumer") else {},
+        )
+        for key in ("example.provider", "example.consumer")
+    }
+    host = Host(definitions, set(definitions) if phase == "old" else set(), set())
+    host.activate()
+    manager = PluginManager(host, StateStore(tmp_path))
+    try:
+        plan = manager.plan(set() if phase == "old" else set(definitions), 1)
+        manager.prepare(plan["id"], plan["digest"])
+        with pytest.raises(PluginError, match="维护状态"):
+            manager.apply(plan["id"], plan["digest"])
+        assert manager.maintenance
+        assert manager.plans[plan["id"]]["state"] == "recovery-required"
+        assert host.instances["example.consumer"].state == "cleanup-failed"
+        assert host.instances["example.provider"].state == "active"
+        assert host.require(ServiceKey("example.provider"))["open"]
+        assert not released
+        with pytest.raises(PluginError, match="尚未就绪"):
+            host.check_health()
+    finally:
+        waiting[0] = False
+        host.close()
