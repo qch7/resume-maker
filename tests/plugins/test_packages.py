@@ -137,6 +137,9 @@ def test_worker_uses_prepared_offline_environment(tmp_path):
         )
         assert response.status_code == 200, response.text
         assert response.json()["state"] == "ready"
+        from pathlib import Path
+
+        assert not Path(response.json()["python"]).is_symlink()
         assert app.state.runtime.missing_dependencies("community.example")
     restored = create_app(Config(data_dir=directory, token="test"))
     with TestClient(restored) as client:

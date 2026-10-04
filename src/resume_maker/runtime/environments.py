@@ -125,7 +125,18 @@ class EnvironmentStore:
                 )
 
             try:
-                run([sys.executable, "-I", "-m", "venv", "--without-pip", str(target / "venv")])
+                # POSIX 默认使用指向基础解释器的链接，独立环境须持有自己的可核验副本
+                run(
+                    [
+                        sys.executable,
+                        "-I",
+                        "-m",
+                        "venv",
+                        "--copies",
+                        "--without-pip",
+                        str(target / "venv"),
+                    ]
+                )
                 python = (
                     target / "venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
                 )
