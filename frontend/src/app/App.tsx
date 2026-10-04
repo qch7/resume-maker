@@ -6,6 +6,8 @@ import {
 } from "../plugins/runtime";
 import { startWindow, subscribeWindow, windowNotice } from "../plugins/window";
 import PluginManager from "../features/plugins/PluginManager";
+import CommandMenu from "../plugins/CommandMenu";
+import PluginBoundary from "../plugins/PluginBoundary";
 
 /** 壳只负责页面贡献、插件管理和窗口冻结，简历状态由系统业务插件持有 */
 export default function App() {
@@ -15,7 +17,13 @@ export default function App() {
   const notice = useSyncExternalStore(subscribeWindow, windowNotice);
   useEffect(() => {
     const dispose = startWindow();
+    /** 系统命令通过工作台事件打开管理页，组件状态留在壳中 */
+    function openManager() {
+      setManager(true);
+    }
+    window.addEventListener("resume-plugin-manager", openManager);
     return () => {
+      window.removeEventListener("resume-plugin-manager", openManager);
       void dispose();
     };
   }, []);
@@ -23,6 +31,7 @@ export default function App() {
     <>
       <nav className="plugin-toolbar" aria-label="插件和扩展页面">
         <button onClick={() => setManager(true)}>插件管理</button>
+        <CommandMenu disabled={!!notice} />
         {pluginPages().length > 0 && (
           <button onClick={() => setPage("")}>简历工作台</button>
         )}
@@ -50,7 +59,9 @@ export default function App() {
         {pluginPages()
           .filter((item) => item.id === page)
           .map((item) => (
-            <item.component key={item.id} active />
+            <PluginBoundary key={item.id} owner={item.id}>
+              <item.component active />
+            </PluginBoundary>
           ))}
       </div>
       {manager && <PluginManager onClose={() => setManager(false)} />}

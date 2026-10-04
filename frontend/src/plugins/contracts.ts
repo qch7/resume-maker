@@ -8,6 +8,7 @@ import type {
   WordPreviewProps,
 } from "./slots";
 import type { ComponentType } from "react";
+import type { ClientExtensionPoints } from "./extensions";
 
 export interface Slots {
   workbench: ComponentType;
@@ -58,6 +59,13 @@ export interface ClientContext {
   component<K extends keyof Slots>(key: K, value: Slots[K]): void;
   page(value: Page): void;
   settingsPage(value: SettingsPage): void;
+  contribute<K extends keyof ClientExtensionPoints>(
+    point: K,
+    id: string,
+    value: ClientExtensionPoints[K],
+    order?: number,
+    version?: string,
+  ): void;
   style(css: string): void;
   effect(dispose: () => void | Promise<void>): void;
   request<T = unknown>(method: string, payload: unknown): Promise<T>;

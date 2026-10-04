@@ -85,7 +85,7 @@ def activate(context):
 
 ## 客户端入口
 
-客户端导出 `activate(context)`。共享入口为 `react`、`react-dom`、`react-dom/client`、`react/jsx-runtime` 和 `@resume-maker/sdk`；插件构建把它们设为 externals，禁止携带第二份 React。宿主提供 import map 和固定共享资源。
+客户端导出 `activate(context)`。共享入口为 `react`、`react-dom`、`react-dom/client`、`react/jsx-runtime` 和 `@resume-maker/plugin-sdk`；插件构建把它们设为 externals，禁止携带第二份 React。宿主提供 import map 和固定共享资源。
 
 ```javascript
 import React from "react";
@@ -124,6 +124,25 @@ worker 清单使用 `entrypoints.worker`，声明 execution/sandbox 依赖及 `e
 `rpc` 为每个方法声明 input_schema、output_schema 及超时。Schema 禁止远端引用；请求、结果和关联 ID 验证通过才发布。每次调用是独立受管进程，参数、解释器及入口摘要受授权绑定。默认 worker 仍具有账户权限；请求 OS 文件/网络强隔离而平台不支持时拒绝执行。
 
 `isolated-client` 使用 opaque origin iframe、CSP 和 MessageChannel。页面监听 `resume-plugin-connect` 取得传入端口；端口消息 `{id, method, payload}`，回复 `{id, ok, result}` 或 `{id, ok:false,error}`。导航及卸载关闭旧端口，迟到结果不返回新会话。主页面令牌不进入 iframe。
+
+## 命令、资料编辑和工作流贡献
+
+`context.contribute(point, id, value, order = 100, version = "1.0.0")` 注册公开客户端贡献。清单 `contributes[point]` 必须列出同一标识，ID 使用 `<插件ID>/<贡献名>`。未声明、重复、未知协议和快捷键冲突会使当前插件激活失败并撤销已注册资源。类型在 `frontend/src/plugins/extensions.ts`，可通过 Client SDK 导入。
+
+| 扩展点 | 值和实际接入 |
+| --- | --- |
+| `commands` | `{title, shortcut?, run({signal})}`，出现在顶部插件命令菜单；快捷键格式为 `Mod+[Shift+][Alt+]字母或数字` |
+| `resume.field_editors` | `{title, component}`，组件接收 `{value, onChange}`，在个人信息页编辑 `document.extensions[插件ID]` |
+| `workflow.state_contributors` | `{evaluate(input)}`，接收独立冻结的 `WorkflowInput`，同步返回 `{done, text}` |
+| `workflow.steps` | `{title, state, command}`，引用状态和命令贡献 ID，在已启用的制作指引中显示额外步骤 |
+
+系统插件管理命令也通过该接口注册。命令执行前检查窗口冻结，重复触发不并行执行；输入框、组合输入和长按不触发快捷键。卸载发送 AbortSignal 并等待真实执行结束，五秒后未结束则报告清理失败并保留待清理作用域，实际结束后可重试。取消仅约束插件主动响应的任务，不能撤回已发出的外部请求。
+
+每个插件命名空间有一个资料编辑器，可自行组织多项字段。值必须是 JSON，全部扩展资料仍受 1 MB 上限约束。局部写入只更新当前命名空间并保留其他插件资料；迟到编辑和停用后的回调拒绝应用。输入沿用简历的自动草稿及保存组合流程，不自动正式提交。资料变化影响组合保存和历史导出的新旧判断。没有编辑器时保留资料并显示说明，组件错误只替换对应扩展区域。
+
+扩展资料应包含既有降级展示契约：`{display: {title: "栏目名", text: "纯文本"}, ...私有字段}`，或 `{display: {hidden: true}, ...私有字段}`。缺少有效展示契约时导出拒绝，不能静默丢弃内容。编辑器不可改写其他命名空间，也不获得整个简历的可变引用。
+
+工作流状态计算不得产生副作用；异常或无效返回值只使对应步骤显示不可用，不回显异常中的资料正文。步骤命令缺失时禁用操作。贡献按 `order` 及 ID 稳定排序，停用时一起撤销。需要制作指引的插件应声明对 `ext.workflow` 的插件依赖；贡献接口不会自动安装它。
 
 ## 包格式及安装
 

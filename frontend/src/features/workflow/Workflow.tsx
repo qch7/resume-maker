@@ -3,6 +3,7 @@ import { ArrowRight, Check, ChevronDown, ChevronUp } from "lucide-react";
 import { useState } from "react";
 import { getWorkflow, type GuideTarget } from "./state";
 import { WORKFLOW_STEPS as steps } from "./steps";
+import ExtensionSteps from "./ExtensionSteps";
 
 /** 展示当前制作步骤和下一步操作，支持折叠和目标定位 */
 export default function Workflow({
@@ -124,6 +125,7 @@ export default function Workflow({
           </button>
         </div>
       </div>
+      {!collapsed && <ExtensionSteps input={input} />}
       <button
         className="icon-button workflow-toggle"
         aria-label={collapsed ? "展开制作指引" : "收起制作指引"}

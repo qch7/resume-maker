@@ -36,6 +36,7 @@ uv run resume-maker --profile standard --data-dir ./output/standard-demo
 | 外部包 | 摘要和信任检查、不可变安装目录、卸载保留资料、离线 wheel 独立环境 | `runtime/packages.py`、`environments.py` |
 | 外部执行 | Host 服务、worker JSON RPC、共享 React ESM、隔离 iframe 消息桥 | `runtime/worker.py`、`frontend/src/plugins/` |
 | 客户端 | 壳处理页面和窗口控制；组件、设置页、样式和客户端服务随插件注册 | `frontend/src/app/`、各 feature 的 `plugin.ts` |
+| 细分客户端贡献 | 命令/快捷键、命名空间资料编辑器、附加工作流步骤及状态计算；清单核验和作用域撤销 | `frontend/src/plugins/extensions.ts`、`features/profile/ExtensionFields.tsx`、`features/workflow/ExtensionSteps.tsx` |
 
 手工荣誉字段及既有荣誉快照的展示/同步规则位于简历系统的 `features/profile/honors/`，关闭荣誉库不影响手工内容。制作指引计算位于可选工作流组件中，最小组合不执行它。日志采集和配置属于 sys.activity，日志浏览页面属于 ext.activity-ui。
 
@@ -58,23 +59,24 @@ uv run resume-maker --profile standard --data-dir ./output/standard-demo
 | 项目 | 已取得的结果 | 本机证据 |
 | --- | --- | --- |
 | 改造前基线 | 后端 941 passed、12 skipped | 初始基线记录 |
-| 最终全量检查 | 后端 1006 passed、12 skipped；前端 175 passed，质量/格式/类型/生产构建通过 | `output/plugin-verified-final.log` |
-| 前端 | 175 passed，类型、格式、质量及生产构建通过 | `output/plugin-frontend-refactor-check2.log`、`plugin-ui-release-build.log` |
+| 最终全量检查 | 后端 1006 passed、12 skipped；前端 180 passed，质量/格式/类型/生产构建通过 | `output/plugin-extension-full-check2.log` |
+| 前端扩展契约 | 清单/快捷键冲突拒绝、取消排空、超时重试、只读状态计算、未知资料保留及新旧比较 | `frontend/tests/plugin-extensions.test.mjs` |
 | 逐项组合 | 每个非系统条目移除均验证依赖拒绝或系统手工/DOCX 闭环；组合用例 32 passed | `output/plugin-composition-matrix.log` |
 | 整套组合往返 | HTTP 标准→最小→标准→最小，确认通道、连续路由发布及代次有效；相关回归 38 passed | `output/plugin-profile-roundtrip.log` |
-| wheel | 构建成功；安装资源及真正的基础依赖 venv 验证通过 | `output/plugin-wheel-release-build.log`、`plugin-wheel-release-check.log` |
+| wheel | 构建成功；安装资源及真正的基础依赖 venv 验证通过 | `output/plugin-extension-wheel-build.log`、`plugin-extension-wheel-check.log` |
 | 物理最小安装 | 无 PIL、PyMuPDF、pdf2docx、RapidOCR、httpx、pytest，完成手工经历→修订→简历→DOCX→ZIP→恢复→再次导出 | `scripts/wheel_minimal.py` 的执行结果 |
 | 原生 CLI | 对本机假 Responses 服务验证普通模型/GPT-5.5/GPT-6-Astra及受控图片组合，6 passed | `output/plugin-native-cli-final.log` |
 | 实际 Word | 注册表路径下正式导出及临时预览均 1 页、无 render_error；分页图已人工查看 | `output/plugin-word-registry/report.json`、`page-1.png` |
 | 外部代码 | 实际包安装后 Host/React、worker 返回 42、独立环境 worker 返回 42、隔离 iframe 返回 42且父页面访问被阻止 | `tests/plugins/test_packages.py`、`output/playwright/plugin-final-rpc.yml`、`plugin-final-isolated-rpc.yml` |
 | 外部文档引擎 | 不改主工程安装新的 DOCX 引擎，预览/导出成功；停用后拒绝重新生成，历史文件可下载 | `tests/plugins/test_packages.py` |
+| 外部客户端细分贡献 | 安装包提供字段编辑器、命令和工作流，实际填写→保存→DOCX→停用后资料保留；系统管理快捷键有效，控制台 0 错误/警告 | `output/plugin-extension-browser/report.json`、`output/playwright/plugin-extension-retained.yml`、`plugin-extension-fields.png` |
 | 真实浏览器闭环 | 手工项目→保存 r2→固定简历引用→资料→DOCX；备份恢复后再次导出包含保存内容 | `output/plugin-browser-restore-report.json` |
 | 多窗口 | 第二窗口未提交草稿先刷新再确认；切换后恢复草稿，固定修订仍为 r2 | `output/playwright/plugin-final-two-window.png`、`plugin-window2-recovered.yml` |
 | 最小/标准界面 | 标准设置贡献、来源扫描快捷入口；最小组合可手工录入并保存荣誉条目 | `output/playwright/plugin-standard-import-shortcut.yml`、`plugin-release-minimal.yml`、`plugin-minimal-manual-honor.yml` |
 
 以上 output 路径为本机忽略的合成验收产物，不进入 Git。可复现用例位于 `tests/plugins/`、原有领域测试和 `frontend/tests/`。真实 Word 和原生 CLI 是单独执行的验收，不能用单元测试中的替身结果代替。默认跳过项中包括需要专门环境的原生 CLI 场景；Linux/Windows CI 状态以 PR 为准。
 
-复盘中修复了来源分页反复读取隐私版本导致的超时、Windows 荣誉附件清理与结束标志之间的竞态，以及整套组合切换冻结管理通道的问题，没有通过延长断言等待或删去场景掩盖失败。
+复盘中修复了来源分页反复读取隐私版本导致的超时、Windows 荣誉附件清理与结束标志之间的竞态，以及整套组合切换冻结管理通道的问题。扩展资料现在也进入简历保存及导出新旧比较，修改插件字段不会再被漏判。没有通过延长断言等待或删去场景掩盖失败。
 
 ## 5. 数据升级和审查重点
 
@@ -87,7 +89,7 @@ uv run resume-maker --profile standard --data-dir ./output/standard-demo
 以下保持在完整设计范围内，本次不能宣称已经实现：
 
 1. **通用多实例容器。** 当前每本地 Host、每定义一个实例；任务级实例及 multiple 明确拒绝。尚无按 application/workspace/task 选择多实例、独立配置及实例间服务绑定的完整容器。
-2. **全部公开扩展点。** 页面、设置、组件、服务、查询和文档引擎已可贡献；通用命令/快捷键、自定义字段编辑器、来源贡献、工作流步骤/状态贡献及完整文档导入器注册协议尚未全部形成可独立发布 SDK。外部页面和 RPC 不能替代这些契约。
+2. **全部公开扩展点。** 页面、设置、组件、服务、查询和文档引擎已可贡献；命令/快捷键、命名空间资料编辑器、附加工作流步骤/状态贡献已补齐公开接口和实际用户路径。来源贡献、完整文档导入器、事件展示及所有内置细分入口的统一注册仍未全部形成可独立发布 SDK。外部页面和 RPC 不能替代这些契约。
 3. **彻底的内部实现隔离。** API 已使用公开领域 Protocol；存储/事务及部分基础设施还依赖 SQLite 和具体对象。混合路由文件仍按端点归属注册；静态检查覆盖分层、runtime 和 SDK 方向，尚不是覆盖每个插件内部路径的完整导入图门禁。
 4. **所有资料统一进入资源后端。** 新成品使用 assets；历史模板、荣誉、证据目录依然由持久描述保护。首次建库仍包含内置插件的完整表集合。成品保留历史目录和 assets 两份文件，尚未进行带迁移验收的去重归并。
 5. **完整升级运维。** 本地包、不可变环境和停机资料迁移已存在；尚无自动候选 Host 健康监督/失败回切、在线下载适配、安装进度取消，以及版本固定/联合升级/提供方选择的完整交互。当前 Host 更新要求明确重启。

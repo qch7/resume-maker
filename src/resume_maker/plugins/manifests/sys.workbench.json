@@ -29,6 +29,7 @@
     }
   },
   "contributes": {
+    "commands": ["sys.workbench/manage-plugins"],
     "http.routes": [
       "sys.workbench/system"
     ]

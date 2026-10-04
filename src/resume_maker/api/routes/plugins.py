@@ -121,6 +121,7 @@ def capabilities(
             {
                 "id": identifier,
                 "entry": client_entry(host, identifier, manifest),
+                "contributes": manifest.contributes,
                 "provides": {
                     name: spec.model_dump()
                     for name, spec in manifest.provides.get("client", {}).items()

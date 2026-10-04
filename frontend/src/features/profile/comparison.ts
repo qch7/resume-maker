@@ -40,6 +40,7 @@ function documentSnapshot(document?: ResumeDocument | null) {
   if (!document) return null;
   return [
     infoSnapshot(document.personal),
+    extensionSnapshot(document.extensions ?? {}),
     Object.entries(document.project_visibility ?? {})
       .sort(
         /* 项目标识和设置键的排列不代表实际修改 */ ([a], [b]) =>
@@ -69,6 +70,18 @@ function documentSnapshot(document?: ResumeDocument | null) {
       ],
     ),
   ];
+}
+
+/** 扩展字段按 JSON 内容比较，键序无关但数组顺序保留 */
+function extensionSnapshot(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(extensionSnapshot);
+  if (value && typeof value === "object")
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, item]) => [key, extensionSnapshot(item)]),
+    );
+  return value;
 }
 
 /** 保存标记和导出状态共用相同的资料比较规则 */

@@ -2,6 +2,7 @@ export interface ClientDescriptor {
   id: string;
   entry: { mode: string; entry: string };
   provides?: Record<string, { version: string; cardinality: "one" | "many" }>;
+  contributes?: Record<string, string[]>;
   bindings?: Record<
     "client" | "remote",
     Record<string, { owners: string[]; many: boolean }>

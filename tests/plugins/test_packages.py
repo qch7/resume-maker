@@ -254,7 +254,14 @@ def activate(context):
 def test_external_host_and_client_install_without_rebuilding(tmp_path):
     """外部预构建包通过正常管理流程装载，客户端 URL 固定到摘要"""
     archive = tmp_path / "example.rmp"
-    bundle(archive)
+    contributions = {
+        "http.routes": ["example/routes"],
+        "commands": ["community.example/open"],
+        "resume.field_editors": ["community.example/fields"],
+        "workflow.steps": ["community.example/step"],
+        "workflow.state_contributors": ["community.example/state"],
+    }
+    bundle(archive, extra={"contributes": contributions})
     app = create_app(Config(data_dir=tmp_path / "data", token="test", profile="minimal"))
     with TestClient(app) as client:
         inspection = client.post(
@@ -276,6 +283,14 @@ def test_external_host_and_client_install_without_rebuilding(tmp_path):
             "message": "external plugin works"
         }
         capabilities = client.get("/api/capabilities", headers=HEADERS).json()
+        assert (
+            next(
+                row["contributes"]
+                for row in capabilities["client"]
+                if row["id"] == "community.example"
+            )
+            == contributions
+        )
         entry = next(
             row["entry"]["entry"]
             for row in capabilities["client"]

@@ -14,6 +14,7 @@ import type { HonorSource } from "../../shared/types/honors";
 import CustomFields from "./CustomFields";
 import VisibilityField, { VisibilityButton } from "./VisibilityField";
 import { samePersonalInfo } from "./comparison";
+import ExtensionFields from "./ExtensionFields";
 
 const FIELDS: {
   key: Exclude<PersonalField, "photo">;
@@ -402,6 +403,7 @@ export default function ProfileEditor({
             />
           </div>
         </section>
+        <ExtensionFields value={value} onChange={onChange} />
         <div className="section-heading profile-section-intro">
           <h2>简历栏目资料</h2>
           <button className="text-button" onClick={onStructure}>

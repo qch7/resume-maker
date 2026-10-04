@@ -11,6 +11,7 @@ import type {
 } from "./contracts";
 import { IsolatedPage } from "./IsolatedPage";
 import { createClientServices, remoteProvider } from "./services";
+import { clientExtensions } from "./extensions";
 
 const builtins = import.meta.glob<ClientPlugin>([
   "../features/**/plugin.ts",
@@ -129,6 +130,19 @@ export async function initializePlugins() {
         effects.push(() => {
           settingsPages.delete(page.id);
         });
+      },
+      /** 公开扩展点验证清单后归入当前实例的资源作用域 */
+      contribute(point, id, contribution, order, version) {
+        effects.push(
+          clientExtensions.contribute(
+            item,
+            point,
+            id,
+            contribution,
+            order,
+            version,
+          ),
+        );
       },
       /** 插件样式随作用域卸载，资源不会常驻最小工作台 */
       style(css) {
