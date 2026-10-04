@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
+import { storage } from "../lib/storage";
 
 import type { DocumentImporter } from "../types/imports";
 
@@ -9,9 +10,15 @@ export function useDocumentImporters(
   active: boolean,
 ) {
   const [items, setItems] = useState<DocumentImporter[]>([]);
-  const [selected, setSelected] = useState("");
+  const selectionKey = `rm.document.importer.${purpose}`;
+  const [selected, setSelected] = useState(
+    () => storage.getItem(selectionKey) ?? "",
+  );
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    storage.setItem(selectionKey, selected);
+  }, [selectionKey, selected]);
   useEffect(() => {
     if (!active) return;
     const controller = new AbortController();

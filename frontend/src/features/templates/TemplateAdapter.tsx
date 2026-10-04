@@ -6,12 +6,14 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type CSSProperties,
 } from "react";
 import { FileScan, LoaderCircle, Sparkles } from "lucide-react";
 import PathInput from "../../shared/components/PathInput";
 import ImporterSelect from "../../shared/components/ImporterSelect";
 import { useDocumentImporters } from "../../shared/hooks/useDocumentImporters";
+import { subscribeWindow, windowNotice } from "../../plugins/window";
 import ResizeHandle from "../../shared/components/ResizeHandle";
 import TemplatePicker from "../../shared/components/TemplatePicker";
 import { useElementSize } from "../../shared/hooks/useElementSize";
@@ -46,6 +48,7 @@ export default function TemplateAdapter({
   onSelected,
 }: TemplateAdapterProps) {
   const importers = useDocumentImporters("template", active);
+  const pluginNotice = useSyncExternalStore(subscribeWindow, windowNotice);
   const workspace = useRef<HTMLElement>(null);
   const size = useElementSize(workspace);
   const sizes = templateSizes(size.width, size.height, layout);
@@ -332,8 +335,8 @@ export default function TemplateAdapter({
     [taskId],
   );
   useEffect(
-    /* 调整后重新校验并取消旧请求 */ () => {
-      if (!plan || !taskId || running) return;
+    /* 实际资料变化才重新校验，插件切换期间暂停并取消旧请求 */ () => {
+      if (!plan || !taskId || running || pluginNotice) return;
       const controller = new AbortController();
       const timer = setTimeout(
         /* 等待连续编辑结束再校验 */ async () => {
@@ -357,12 +360,13 @@ export default function TemplateAdapter({
         controller.abort();
       };
     },
-    [plan, taskId, document, resume.items, running],
+    [plan, taskId, previewInput, running, pluginNotice],
   );
   useEffect(
     /* 检查通过后串行试填以免 Word 请求堆积 */ () => {
       if (
         !active ||
+        !!pluginNotice ||
         !autoPreview.current ||
         !plan ||
         !review?.ready ||
@@ -375,7 +379,7 @@ export default function TemplateAdapter({
       autoPreview.current = false;
       void perform(trial);
     },
-    [active, plan, review, busy, loading, running],
+    [active, plan, review, busy, loading, running, pluginNotice],
   );
   /** 将人工修改和补充说明交给 AI 生成独立调整结果 */
   async function repair(instructions = feedback) {

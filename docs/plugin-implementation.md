@@ -6,6 +6,8 @@
 
 这次继续补上了文件导入的实际扩展能力：以前证书和模板内部仍只认识写死的格式，现在插件可以登记新格式，直接出现在原有上传界面。文件有多个处理器可用时由用户选择；缺页、取消、处理失败不会保存半份结果。已导入原件会记住采用的处理器，重试不会悄悄换版本，停用插件后原件仍能查看和备份恢复。
 
+界面会分别记住模板和证书选择的处理器，刷新页面仍保留。所选插件被停用时会提示重新选择，不会自动换成其他插件。模板页在切换插件、等待草稿保存时暂停自动核对和试填，切换结束后恢复；普通状态刷新不会反复核对，实际资料或映射变化才会重新检查。
+
 完整设计仍然保留。文末未完成项继续按原目标推进，不能把这次补齐导入功能解释成整个插件化已经完成。
 
 ## 1. 使用方式
@@ -64,17 +66,18 @@ uv run resume-maker --profile standard --data-dir ./output/standard-demo
 | 项目 | 已取得的结果 | 本机证据 |
 | --- | --- | --- |
 | 改造前基线 | 后端 941 passed、12 skipped | 初始基线记录 |
-| 最终全量检查 | 后端 1015 passed、12 skipped；前端 180 passed，质量/格式/类型/生产构建通过 | `output/plugin-importer-full-check2.log` |
+| 最终全量检查 | 后端 1015 passed、12 skipped；前端 180 passed，质量/格式/类型/生产构建通过 | `output/plugin-importer-full-check3.log` |
 | 前端扩展契约 | 清单/快捷键冲突拒绝、取消排空、超时重试、只读状态计算、未知资料保留及新旧比较 | `frontend/tests/plugin-extensions.test.mjs` |
 | 逐项组合 | 每个非系统条目移除均验证依赖拒绝或系统手工/DOCX 闭环；组合用例 32 passed | `output/plugin-composition-matrix.log` |
 | 整套组合往返 | HTTP 标准→最小→标准→最小，确认通道、连续路由发布及代次有效；相关回归 38 passed | `output/plugin-profile-roundtrip.log` |
-| wheel | 构建成功；安装资源及真正的基础依赖 venv 验证通过 | `output/plugin-importer-wheel-build-final.log`、`plugin-importer-wheel-check-final.log` |
+| wheel | 构建成功；安装资源及真正的基础依赖 venv 验证通过 | `output/plugin-importer-wheel-build3.log`、`output/plugin-importer-wheel-check3.log` |
 | 物理最小安装 | 无 PIL、PyMuPDF、pdf2docx、RapidOCR、httpx、pytest，完成手工经历→修订→简历→DOCX→本地 DOCX 导入→ZIP→恢复→再次导出 | `scripts/wheel_minimal.py` 的执行结果 |
 | 原生 CLI | 对本机假 Responses 服务验证普通模型/GPT-5.5/GPT-6-Astra及受控图片组合，6 passed | `output/plugin-native-cli-final.log` |
 | 实际 Word | 注册表路径下正式导出及临时预览均 1 页、无 render_error；分页图已人工查看 | `output/plugin-word-registry/report.json`、`page-1.png` |
 | 外部代码 | 实际包安装后 Host/React、worker 返回 42、独立环境 worker 返回 42、隔离 iframe 返回 42且父页面访问被阻止 | `tests/plugins/test_packages.py`、`output/playwright/plugin-final-rpc.yml`、`plugin-final-isolated-rpc.yml` |
 | 外部文档引擎 | 不改主工程安装新的 DOCX 引擎，预览/导出成功；停用后拒绝重新生成，历史文件可下载 | `tests/plugins/test_packages.py` |
 | 外部文件导入 | 独立包接入合成新格式；真实模板/证书 API、多个处理器选择、缺页拒绝、取消后等待实际结束、停用后原件保留、备份恢复均通过；浏览器实际上传两页证书并完成模板分析，控制台无错误或警告 | `tests/plugins/test_importers.py`、`tests/plugins/test_packages.py`、`output/plugin-importer-browser-report.json`、`output/playwright/plugin-importer-template-final.png` |
+| 导入界面和切换 | 刷新保留选择，停用所选处理器后阻止继续导入；插件切换期间暂停自动核对，空闲轮询不重复核对，修改映射和个人资料后正常核对 | `output/plugin-importer-ui-report.json`、`output/plugin-importer-freeze-observation.json`、`output/playwright/plugin-importer-ui-final.png` |
 | 外部客户端细分贡献 | 安装包提供字段编辑器、命令和工作流，实际填写→保存→DOCX→停用后资料保留；系统管理快捷键有效，控制台 0 错误/警告 | `output/plugin-extension-browser/report.json`、`output/playwright/plugin-extension-retained.yml`、`plugin-extension-fields.png` |
 | 真实浏览器闭环 | 手工项目→保存 r2→固定简历引用→资料→DOCX；备份恢复后再次导出包含保存内容 | `output/plugin-browser-restore-report.json` |
 | 多窗口 | 第二窗口未提交草稿先刷新再确认；切换后恢复草稿，固定修订仍为 r2 | `output/playwright/plugin-final-two-window.png`、`plugin-window2-recovered.yml` |
