@@ -1,4 +1,4 @@
-import { api, ApiError, request } from "../shared/lib/api";
+import { api, request } from "../shared/lib/api";
 import { capabilities } from "../shared/lib/capabilities";
 import { flushDrafts } from "../shared/lib/draftRegistry";
 import { clientExtensions } from "./extensions";
@@ -8,7 +8,7 @@ let stopped = false;
 const listeners = new Set<() => void>();
 let notice = "";
 let connecting = false;
-const drainingOwners = new Set<string>();
+let reloading = false;
 
 /** 工作台订阅配置变化和草稿刷新失败，不清除本地输入 */
 export function subscribeWindow(listener: () => void) {
@@ -33,7 +33,6 @@ function inform(value: string) {
 export async function connectWindow() {
   if (stopped || connecting) return;
   connecting = true;
-  let registered = false;
   try {
     const result = await api<{
       pending_plan: string | null;
@@ -42,7 +41,6 @@ export async function connectWindow() {
       id: windowId,
       generation: capabilities().generation,
     });
-    registered = true;
     if (result.pending_plan && !result.acknowledged) {
       inform("插件配置正在变更，正在保存各页面的草稿…");
       const plan = await api<{ affected: string[]; generation: number }>(
@@ -50,26 +48,34 @@ export async function connectWindow() {
       );
       if (plan.generation !== capabilities().generation)
         throw new Error("插件配置已变化，请保留输入并重新协商。");
-      for (const owner of plan.affected) drainingOwners.add(owner);
       await flushDrafts();
-      await clientExtensions.drain([...drainingOwners]);
+      await clientExtensions.drainAll();
       await flushDrafts();
       await api(`/plugins/plans/${result.pending_plan}/acknowledge`, "POST", {
         id: windowId,
         generation: capabilities().generation,
       });
       inform("草稿已保存，等待插件配置切换完成。");
-    } else if (!result.pending_plan) {
-      clientExtensions.resume([...drainingOwners]);
-      drainingOwners.clear();
+    } else if (!result.pending_plan && !reloading) {
+      clientExtensions.resumeAll();
       inform("");
     }
   } catch (error) {
-    if (!registered && error instanceof ApiError && error.status === 409)
-      stopped = true;
     inform(error instanceof Error ? error.message : String(error));
   } finally {
     connecting = false;
+  }
+}
+
+/** 最终草稿已在确认阶段保存，刷新前再次确保整个窗口没有运行命令 */
+export async function reloadWindow() {
+  reloading = true;
+  try {
+    await clientExtensions.drainAll();
+    location.reload();
+  } catch (error) {
+    inform(error instanceof Error ? error.message : String(error));
+    throw error;
   }
 }
 

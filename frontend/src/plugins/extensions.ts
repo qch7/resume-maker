@@ -112,6 +112,7 @@ export function createClientExtensions(deactivateTimeoutMs = 5000) {
     { owner: string; controller: AbortController; done: Promise<void> }
   >();
   const draining = new Set<string>();
+  let allDraining = false;
 
   /** 先同时发送取消，再等待实际收尾，超时不移除运行记录 */
   async function waitForCommands(
@@ -147,6 +148,17 @@ export function createClientExtensions(deactivateTimeoutMs = 5000) {
   /** 宿主确认计划结束或取消后恢复当前代次的命令入口 */
   function resume(owners: readonly string[]) {
     for (const owner of owners) draining.delete(owner);
+  }
+
+  /** 整页切换会销毁全部客户端，冻结所有新命令并等待已有命令收尾 */
+  async function drainAll() {
+    allDraining = true;
+    await waitForCommands([...runs.values()]);
+  }
+
+  /** 计划取消后恢复整个窗口的命令入口，局部排空仍保留 */
+  function resumeAll() {
+    allDraining = false;
   }
 
   /** 只登记清单声明且属于本插件命名空间的已知版本贡献 */
@@ -242,7 +254,7 @@ export function createClientExtensions(deactivateTimeoutMs = 5000) {
       | Extension<"commands">
       | undefined;
     if (!item) throw new Error(`命令不可用：${id}`);
-    if (draining.has(item.owner))
+    if (allDraining || draining.has(item.owner))
       throw new Error("插件正在排空命令，请等待切换完成。");
     if (runs.has(id)) throw new Error(`命令仍在执行：${item.value.title}`);
     const controller = new AbortController();
@@ -346,6 +358,8 @@ export function createClientExtensions(deactivateTimeoutMs = 5000) {
     execute,
     drain,
     resume,
+    drainAll,
+    resumeAll,
     workflow,
     activity,
     previewers,

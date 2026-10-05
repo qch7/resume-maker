@@ -146,6 +146,76 @@ def test_all_windows_must_acknowledge_and_flush_channel_remains_open(tmp_path):
         assert client.post(path + "/apply", headers=HEADERS, json=body).status_code == 200
 
 
+def test_expired_preparation_can_cancel_tasks_and_abort_without_unlocking_another_plan(
+    tmp_path, monkeypatch
+):
+    """提交过期仍能取消，取消其他预览不会解除当前准备计划的冻结"""
+    from types import SimpleNamespace
+
+    from resume_maker.runtime import manager as manager_module
+
+    app = create_app(Config(data_dir=tmp_path, token="test", profile="minimal"))
+    with TestClient(app) as client:
+        manager = app.state.runtime.require(ServiceKey("plugins"))
+        plan = make_plan(client, {"ext.recruitment"})
+        path = prepare(client, plan)
+        body = {"digest": plan["digest"]}
+        monkeypatch.setattr(
+            manager_module, "time", SimpleNamespace(time=lambda: plan["expires_at"] + 1)
+        )
+        assert client.post(path + "/apply", headers=HEADERS, json=body).status_code == 409
+        assert client.post(path + "/cancel-tasks", headers=HEADERS, json=body).status_code == 200
+        assert client.post(path + "/abort", headers=HEADERS, json=body).status_code == 200
+        assert manager.pending_plan is None and not manager.frozen
+        assert not manager.host.frozen_scopes
+        assert manager.progress(plan["id"])["state"] == "cancelled"
+        active = make_plan(client, {"ext.recruitment"})
+        prepare(client, active)
+        unrelated = make_plan(client, {"ext.recruitment"})
+        cancelled = client.post(
+            f"/api/plugins/plans/{unrelated['id']}/abort",
+            headers=HEADERS,
+            json={"digest": unrelated["digest"]},
+        )
+        assert cancelled.status_code == 200
+        assert manager.pending_plan == active["id"] and manager.frozen
+        manager.abort(active["id"], active["digest"])
+
+
+def test_refreshed_window_joins_preparation_without_discarding_offline_drafts(tmp_path):
+    """刷新后的新窗口可管理原计划，旧窗口仍须显式保留恢复副本"""
+    app = create_app(Config(data_dir=tmp_path, token="test", profile="minimal"))
+    with TestClient(app) as client:
+        manager = app.state.runtime.require(ServiceKey("plugins"))
+        manager.window("before-refresh", 1)
+        plan = make_plan(client, {"ext.recruitment"})
+        path = prepare(client, plan)
+        manager.disconnect("before-refresh", 1)
+        response = client.post(
+            "/api/plugins/windows", headers=HEADERS, json={"id": "after-refresh", "generation": 1}
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["pending_plan"] == plan["id"]
+        assert not response.json()["acknowledged"]
+        operations = client.get("/api/plugins/operations", headers=HEADERS).json()
+        restored = next(item for item in operations if item["id"] == plan["id"])
+        assert set(restored["waiting_windows"]) == {"before-refresh", "after-refresh"}
+        manager.acknowledge("after-refresh", plan["id"], 1)
+        assert (
+            client.post(
+                path + "/apply", headers=HEADERS, json={"digest": plan["digest"]}
+            ).status_code
+            == 409
+        )
+        manager.retain_window("before-refresh", plan["id"], 1)
+        assert (
+            client.post(
+                path + "/apply", headers=HEADERS, json={"digest": plan["digest"]}
+            ).status_code
+            == 200
+        )
+
+
 def test_failed_activation_rolls_back_routes_and_generation(tmp_path, monkeypatch):
     """注册中途失败不会留下半激活路由或污染已经工作的系统服务"""
     from resume_maker.plugins import features

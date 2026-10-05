@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../shared/lib/api";
 import { capabilities } from "../../shared/lib/capabilities";
-import { connectWindow } from "../../plugins/window";
+import { connectWindow, reloadWindow } from "../../plugins/window";
 import PackageDownloads from "./PackageDownloads";
+import { recoverActivePlan } from "./planRecovery";
 
 interface Plugin {
   id: string;
@@ -126,21 +127,12 @@ export default function PluginManager({ onClose }: { onClose: () => void }) {
     setPins(value.pins ?? {});
     setPackages(value.packages ?? {});
     const operations = await api<Plan[]>("/plugins/operations");
-    const latest = operations
-      .filter((item) => item.package_updates)
-      .sort((a, b) => (b.expires_at ?? 0) - (a.expires_at ?? 0))[0];
-    if (
-      latest &&
-      [
-        "preparing",
-        "validating",
-        "restart-required",
-        "booting",
-        "applying",
-      ].includes(latest.state ?? "")
-    )
-      setPlan(latest);
-    else if (latest?.message) setStatus(latest.message);
+    const latest = recoverActivePlan(operations);
+    if (latest) setPlan(latest);
+    const recent = [...operations].sort(
+      (a, b) => (b.expires_at ?? 0) - (a.expires_at ?? 0),
+    )[0];
+    if (!latest && recent?.message) setStatus(recent.message);
     setConfigEdits([]);
     setInstances(value.instances ?? []);
     if (value.task_persistence_errors.length)
@@ -233,7 +225,7 @@ export default function PluginManager({ onClose }: { onClose: () => void }) {
         setPlan(null);
         return;
       }
-      location.reload();
+      await reloadWindow();
     } catch (failure) {
       setError((failure as Error).message);
     } finally {
@@ -245,8 +237,7 @@ export default function PluginManager({ onClose }: { onClose: () => void }) {
       !plan ||
       !["validating", "restart-required", "booting", "applying"].includes(
         plan.state ?? "",
-      ) ||
-      !plan.package_updates
+      )
     )
       return;
     let live = true;
@@ -260,7 +251,7 @@ export default function PluginManager({ onClose }: { onClose: () => void }) {
         if (!live) return;
         setPlan(latest);
         if (["committed", "rolled-back"].includes(latest.state ?? ""))
-          location.reload();
+          await reloadWindow();
         if (
           ["failed", "cancelled", "interrupted", "recovery-required"].includes(
             latest.state ?? "",
@@ -274,7 +265,7 @@ export default function PluginManager({ onClose }: { onClose: () => void }) {
           setStatus("服务正在重新启动，正在恢复连接。");
           try {
             const response = await fetch("/", { cache: "no-store" });
-            if (response.ok && live) location.reload();
+            if (response.ok && live) await reloadWindow();
           } catch {
             /* 监督器尚未重新开放监听 */
           }

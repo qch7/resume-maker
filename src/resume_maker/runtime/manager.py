@@ -271,11 +271,16 @@ class PluginManager:
         if expected != self.host.generation:
             raise Problem("插件配置已变化，请重新加载能力清单；本地输入仍保留。", 409)
 
-    def _plan(self, identifier, digest):
-        """核对代次、摘要、有效期和当前包状态"""
+    def _identified_plan(self, identifier, digest):
+        """核对计划身份，退出准备状态不依赖提交有效期或磁盘包状态"""
         plan = self.plans.get(identifier)
         if plan is None or plan["digest"] != digest:
             raise Problem("变更计划不存在或摘要不匹配。", 409)
+        return plan
+
+    def _plan(self, identifier, digest):
+        """核对代次、摘要、有效期和当前包状态"""
+        plan = self._identified_plan(identifier, digest)
         self._generation(plan["generation"])
         _, parsed = expand_instances(
             self.host.definitions, plan.get("instances", []), missing_ok=True
@@ -347,10 +352,11 @@ class PluginManager:
         }
 
     def cancel_tasks(self, identifier, digest):
-        """计划明确请求取消后仍等待执行真实结束"""
+        """过期准备计划仍可取消当前任务，取消后仍等待执行真实结束"""
         with self.lock:
-            plan = self._plan(identifier, digest)
-            if plan["state"] != "preparing":
+            plan = self._identified_plan(identifier, digest)
+            self._generation(plan["generation"])
+            if plan["state"] != "preparing" or self.pending_plan != identifier:
                 raise Problem("请先准备变更。", 409)
             self.host.services["tasks"].cancel_owned(set(plan["affected"]))
             return self.progress(identifier)
@@ -360,9 +366,17 @@ class PluginManager:
         with self.lock:
             self._generation(generation)
             if identifier not in self.windows:
-                if self.frozen:
+                plan = self.plans.get(self.pending_plan)
+                if self.maintenance or (plan and plan["state"] != "preparing"):
                     raise Problem("插件正在切换，请稍后重新协商。", 409)
-                self.windows[identifier] = {"pending_plan": None, "acknowledged": False}
+                if plan:
+                    updated = {**plan, "windows": [*plan["windows"], identifier]}
+                    self.save_plan(updated)
+                    plan.update(updated)
+                self.windows[identifier] = {
+                    "pending_plan": self.pending_plan,
+                    "acknowledged": False,
+                }
             window = self.windows[identifier]
             window["last_seen"] = time.time()
             window["connected"] = True
@@ -424,11 +438,16 @@ class PluginManager:
                 self.requests[owner] -= 1
 
     def abort(self, identifier, digest):
-        """提交前取消计划，解除冻结且保留已保存草稿"""
+        """提交前始终允许取消，仅解除当前计划的冻结并保留已保存草稿"""
         with self.lock:
-            plan = self._plan(identifier, digest)
-            plan["state"] = "cancelled"
-            self.save_plan(plan)
+            plan = self._identified_plan(identifier, digest)
+            if plan["state"] not in {"planned", "preparing"}:
+                raise Problem("变更计划已经结束。", 409)
+            updated = {**plan, "state": "cancelled"}
+            self.save_plan(updated)
+            plan.update(updated)
+            if self.pending_plan != identifier:
+                return
             self.frozen.clear()
             with self.host.scope_lock:
                 self.host.frozen_scopes.clear()
