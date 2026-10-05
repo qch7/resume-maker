@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 from resume_maker.api import create_app
 from resume_maker.core.config import Config
+from resume_maker.core.errors import Problem
 from resume_maker.infrastructure.asset_migration import migrate_legacy_assets
 from resume_maker.infrastructure.assets import Assets
 from resume_maker.infrastructure.database import Database
@@ -144,3 +145,30 @@ def test_project_delete_releases_evidence_in_same_transaction(tmp_path):
         assert services.db.setting(f"asset:{resource}")["references"] == []
         with services.assets.lease(resource) as path:
             assert path.read_bytes() == b"synthetic"
+
+
+def test_resumed_cleanup_rejects_replaced_resource_and_preserves_legacy(tmp_path, monkeypatch):
+    """中断后资源索引指向其他有效文件时拒绝清理，旧原件继续保留"""
+    directory = tmp_path / "data"
+    db = Database(directory / "resume.db")
+    raw = certificate_bytes()
+    item = Honors(db, directory, None).upload(raw, "certificate.png")
+    assets = Assets(db, directory)
+    key = f"honors/{item['id']}"
+
+    def interrupted(*_):
+        """模拟资源已发布但旧文件尚未清理"""
+        raise OSError("synthetic cleanup interruption")
+
+    with monkeypatch.context() as patch:
+        patch.setattr("resume_maker.infrastructure.asset_migration.remove_legacy", interrupted)
+        with pytest.raises(OSError):
+            migrate_legacy_assets(assets)
+    owner = assets.bundle(key)["owner"]
+    replacement = assets.stage_bundle(owner, {"original.png": b"synthetic replacement"})
+    with db.transaction() as conn:
+        assets.update_bundle(conn, owner, key, replacement)
+    with pytest.raises(Problem, match="迁移资源和原件摘要不一致"):
+        migrate_legacy_assets(assets)
+    assert (directory / key / "original.png").read_bytes() == raw
+    assert db.setting(f"asset-migration:{key}")["state"] == "published"

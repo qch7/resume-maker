@@ -246,6 +246,8 @@ def supervise(config, args):
                 """候选持续健康且尚未开放写入时提交，普通服务消息不充当健康证明"""
                 if value.get("event") != "host-health":
                     return
+                if state["health_since"] is None and not candidate:
+                    print(f"Resume Maker is ready at http://127.0.0.1:{args.port}", flush=True)
                 state["health_since"] = state["health_since"] or time.monotonic()
                 if candidate and value.get("transition") != candidate["id"]:
                     raise Problem("候选宿主返回的维护身份不匹配。", 409)

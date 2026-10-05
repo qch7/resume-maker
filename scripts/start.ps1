@@ -55,5 +55,6 @@ if ($needsBuild) {
 $launchArgs = @('run', '--no-sync', 'python', '-m', 'resume_maker.cli', '--port', "$Port", '--data-dir', $DataDir)
 # 前台运行让终端关闭行为和 CLI 正常退出保持一致
 if ($NoBrowser) { $launchArgs += '--no-browser' }
+Write-Host "Starting Resume Maker at $url; preparing local data..."
 & uv @launchArgs
 exit $LASTEXITCODE

@@ -110,9 +110,11 @@ def migrate_legacy_assets(assets):
         }
         if set(bundle["files"]) != set(expected):
             raise Problem("迁移资源集合和原件清单不一致，旧副本已保留。", 409)
-        for name in bundle["files"]:
-            if hashlib.sha256(assets.read_file(record["key"], name)).hexdigest() != expected[name]:
-                raise Problem("迁移资源和原件摘要不一致，旧副本已保留。", 409)
+        # 复用已核验的索引，避免每个文件都重新解码完整资源集合
+        for name, identifier in bundle["files"].items():
+            with assets.lease(identifier) as path:
+                if hashlib.sha256(path.read_bytes()).hexdigest() != expected[name]:
+                    raise Problem("迁移资源和原件摘要不一致，旧副本已保留。", 409)
         remove_legacy(directory, record)
         db.set_setting(row["key"], {**record, "state": "complete", "completed_at": now()})
     return {"migrated": migrated, "backup": backup}
