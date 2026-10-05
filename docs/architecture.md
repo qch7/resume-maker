@@ -20,7 +20,11 @@ flowchart LR
 
 ## 插件装配和生命周期
 
-`api/app.py` 读取发行清单、已安装包和持久组合，建立 Host；各插件在声明的作用域注册服务、路由、查询和客户端入口。`runtime/` 只解释协议，不创建经历、荣誉或模板业务。`plugins/system.py`、`features.py`、`providers.py` 是组合根，实际业务继续按现有分层组织。
+`api/app.py` 读取发行清单、已安装包和持久组合，建立 Host；各插件在声明的作用域注册服务、路由、查询和客户端入口。`runtime/` 只解释协议，不创建经历、荣誉或模板业务。41 个内置包统一位于 `plugin_packages/<slug>/`，各自的 `entry.py` 是组合根，包内 services、integrations 和 routes 继续遵循分层约束。
+
+`plugins/discovery.py` 只扫描各包 manifest.json 和 package.json，不导入实现。产品组合成员由包内元数据声明；Host 先求解依赖，再执行选中包的入口并发布路由快照。前端同样扫描包元数据独立构建，不通过静态 glob 把所有业务打入宿主。客户端加载能力 API 给出的摘要 URL，执行入口后，页面、导航、服务、插槽、样式及命令才进入系统。
+
+必需身份保留在发行策略；可选身份不进入宿主固定加载表。默认或已保存组合缺包时，求解可用子集并展示阻断原因，保留用户原始选择及资料。显式完整组合仍严格报错。删除全部可选目录后，剩余最小组合可重新构建并完成手工项目、简历及基础 DOCX 导出；代码移除不触发资料清理。
 
 ```mermaid
 flowchart TD
@@ -52,65 +56,60 @@ Host/Client 依赖分别求序，remote 依赖只通过 DTO RPC 消费。`enhanc
 
 统一活动链路由 `api/activity.py` 的 ASGI 包装采集全部业务 API 的开始、状态、耗时和有界正文；`infrastructure/observability.py` 为服务公开入口和后台执行边界建立请求、跨度、项目、会话及任务关联。后台队列入队前登记关联，工作线程恢复自己的上下文。Provider 保留本机原始输入、脱敏模型上下文、CLI 公开事件和工具调用，原进度接口继续使用简要消息。
 
-`infrastructure/activity.py` 使用独立的 `logs/activity.sqlite`，默认仅采集 AI 类别，在正文序列化和连接数据库前跳过未启用类别，落盘前统一遮盖凭据并标注正文截断，不更改业务库结构。`services/activity.py` 在日志写锁内持久保存采集配置，提交成功后切换内存策略；`GET/PUT /api/activity/settings` 读取和保存类别，配置操作自身不产生日志。`/api/activity` 提供有界摘要分页、按需详情、筛选和 JSONL 快照导出；日志自身的查询不回写日志，避免递归增长。前端 `features/settings/ActivitySettings` 统一管理采集类别、隐藏规则、日志布局重置和删除；显示偏好由工作台共享，删除后刷新现有列表和详情。`features/activity` 通过增量游标串行轮询，轨道按实际时间排列，列表仅渲染可见窗口。详见 [系统日志](reference/system-activity.md)。
+`infrastructure/activity.py` 使用独立的 `logs/activity.sqlite`，默认仅采集 AI 类别，在正文序列化和连接数据库前跳过未启用类别，落盘前统一遮盖凭据并标注正文截断，不更改业务库结构。`plugin_packages/sys_activity/services/activity.py` 在日志写锁内持久保存采集配置，提交成功后切换内存策略；`GET/PUT /api/activity/settings` 读取和保存类别，配置操作自身不产生日志。`/api/activity` 提供有界摘要分页、按需详情、筛选和 JSONL 快照导出；日志自身的查询不回写日志，避免递归增长。前端 `plugin_packages/sys_resume/client/features/settings/ActivitySettings.tsx` 统一管理采集类别、隐藏规则、日志布局重置和删除；显示偏好由工作台共享，删除后刷新现有列表和详情。`plugin_packages/ext_activity_ui/client/` 通过增量游标串行轮询，轨道按实际时间排列，列表仅渲染可见窗口。详见 [系统日志](reference/system-activity.md)。
 
 | 位置 | 职责与修改入口 |
 | --- | --- |
 | `api/app.py` | 装配 Host 和路由快照，由插件注册服务及生命周期 |
 | `api/dependencies.py` | 从当前请求的应用读取服务，避免模块全局变量共享用户目录 |
-| `api/routes/` | 按 projects、conversations、jobs、resumes、templates、settings、system 拆分 HTTP 入口 |
+| `plugin_packages/<slug>/routes/` | 所属插件的 HTTP 入口，SDK 服务通过清单依赖注入 |
 | `api/schemas.py` | 请求体约束；HTTP 特有字段留在接口层 |
 | `api/middleware.py` | Host、Origin、令牌检查和统一错误响应 |
 | `api/static.py` | 同源静态资源与首页令牌注入 |
 | `core/` | 配置及可展示的业务异常，不依赖业务服务 |
 | `domain/models.py` | 经历、证据、组合、AI 输出等数据契约 |
 | `domain/experience.py` | 字段读取、替换、排序校验等无副作用规则 |
-| `services/catalog.py` | 经历不可变版本及逐字段草稿的事务边界 |
-| `services/projects.py` / `resumes.py` / `conversations.py` / `workspace.py` | 项目、简历、会话及插件查询聚合 |
-| `services/jobs.py` | 持久队列、真实来源上下文、建议校验、取消和结果发布 |
-| `services/settings.py` | Provider 设置、默认栏目版本事务、CLI 检查和连接测试 |
-| `services/privacy.py` | 敏感词版本事务、本机脱敏预览和发送记录管理 |
-| `services/documents.py` | 模板登记、固定版本导出与追溯清单编排 |
-| `services/templates/tasks.py` | 模板分析任务、映射核对、试填和保存 |
-| `services/templates/analysis.py` / `cache.py` | 建议校验、自动修正与识别缓存 |
-| `services/templates/library.py` / `cleanup.py` | 模板库事务、缩略图与回收站清理 |
+| `plugin_packages/sys_experience/services/catalog.py` | 经历不可变版本及逐字段草稿的事务边界 |
+| `plugin_packages/*/services/` | 所属包的项目、简历、会话及工作台查询聚合服务 |
+| `plugin_packages/ext_ai_conversation/services/jobs.py` | 持久队列、真实来源上下文、建议校验、取消和结果发布 |
+| `plugin_packages/sys_settings/services/settings.py` | Provider 设置、默认栏目版本事务、CLI 检查和连接测试 |
+| `plugin_packages/sys_privacy/services/privacy.py` | 敏感词版本事务、本机脱敏预览和发送记录管理 |
+| `plugin_packages/sys_documents/services/documents.py` | 模板登记、固定版本导出与追溯清单编排 |
+| `plugin_packages/ext_template_adapter/services/templates/tasks.py` | 模板分析任务、映射核对、试填和保存 |
+| `plugin_packages/ext_template_ai/services/templates/analysis.py` / `cache.py` | 建议校验、自动修正与识别缓存 |
+| `plugin_packages/ext_template_library/services/templates/library.py` / `cleanup.py` | 模板库事务、缩略图与回收站清理 |
 | `domain/templates.py` | 字段引文、重复范围、照片和原文处置的声明式映射 |
 | `infrastructure/database.py` | SQLite 短连接、即时写事务和 JSON 列编解码 |
 | `infrastructure/schema.sql` | v9 完整结构参考；生产按插件声明资源建表，只接受当前资料版本 |
 | `infrastructure/storage.py` | 跨进程实例锁、在线备份、离线验证和目录切换 |
 | `integrations/sources.py` | 本机源码目录定位、引用文件留存和原文证据匹配 |
 | `sdk/model.py` / `integrations/privacy_gateway.py` | 可注入的 Provider 协议和经过隐私保护的 Codex CLI 实现 |
-| `integrations/word/` | 导入分流、内置简历、OOXML 基础操作和 Word 渲染进程 |
+| `integrations/word/` | 文档消费者共同使用的 OOXML、内置版式和布局工具，实际平台执行从公开贡献注入 |
+| `plugin_packages/ext_word/integrations/word/` | Word 进程、转换器、精确分页及执行租约 |
+| `plugin_packages/provider_rapidocr/local_ocr.py` | 模型加载、线程锁及识别；预算和原生文字工具在共享 ocr_support 中 |
 | `integrations/word/templates/` | 模板映射、字段补齐和自适应填充 |
 | `integrations/word/pdf/` | PDF 文字流、坐标、素材与版面恢复 |
 | `integrations/word/image/` | 图片识别、局部素材与版面恢复 |
 
 依赖约束由 `scripts/check_quality.py` 检查：`core` 不反向依赖任何业务模块；`domain` 不依赖数据库、适配器、服务或 HTTP；`infrastructure` 与 `integrations` 不依赖服务和 HTTP；`services` 不依赖 HTTP。业务错误通过 `core.errors.Problem` 传递，接口层负责转换成响应。
 
-模型出口由 sys.privacy、ext.ai-runtime 和所选传输提供方装配，经历、模板、荣誉及连接检查共用 PrivacyGateway。`Provider` 契约显式声明图片能力、独立任务隐私上下文和 OCR 登记；调用方直接使用契约，缺失能力不再默认开放原图或跳过隐私登记。`PrivacyGateway` 负责脱敏、还原和结构化结果，Codex 适配器负责传输配置，CLI 版本检查归属 `providers/cli.py`。合成资料测试在 `tests/provider_stub.py` 实现可控契约，模板替身提交和真实 JSON 一致的绑定字典，生产 schema 不再为基础绑定对象增加转换器。
+模型出口由 sys.privacy、ext.ai-runtime 和所选传输提供方装配，经历、模板、荣誉及连接检查共用 PrivacyGateway。`Provider` 契约显式声明图片能力、独立任务隐私上下文和 OCR 登记；调用方直接使用契约，缺失能力不再默认开放原图或跳过隐私登记。`PrivacyGateway` 负责脱敏、还原和结构化结果，Codex 适配器负责传输配置，CLI 版本检查归属 `plugin_packages/ext_provider_codex/integrations/providers/cli.py`。合成资料测试在 `tests/support/providers.py` 实现可控契约，模板替身提交和真实 JSON 一致的绑定字典，生产 schema 不再为基础绑定对象增加转换器。
 
 设置和隐私路由只解析 HTTP 请求并调用对应服务。默认栏目和敏感词的版本校验、规范化和持久化保持同一事务；连接测试直接使用注入的模型出口，不通过队列寻找依赖。活动日志在创建时初始化任务关联索引，观测包装不再动态补建属性；启动不执行废弃轮询派生表的删除语句，原始日志、游标及历史补录保持现有规则。
 
 ## 前端职责
 
-模板选择共用 `shared/components/TemplatePicker.tsx` 与 `template-library/` 下的原生模态浏览器，通过 portal 进入顶层，避免父工作区裁切。分类及 Like 由 `/api/template-library` 写入现有 `settings` 表中的独立配置，单字段事务合并避免并发覆盖，不修改不可变模板映射或简历引用。缩略图使用独立源文件副本并按内容缓存到 `templates/.previews/`；卡片仅在进入可见范围时请求，失败显示原因并允许重试。
+模板选择共用 `shared/components/TemplatePicker.tsx` 的公开插槽代理，模态浏览器及分类实现位于 `plugin_packages/ext_template_library/client/`，通过 portal 进入顶层，避免父工作区裁切。分类及 Like 由 `/api/template-library` 写入现有 `settings` 表中的独立配置，单字段事务合并避免并发覆盖，不修改不可变模板映射或简历引用。缩略图使用独立源文件副本并按内容缓存到 `templates/.previews/`；卡片仅在进入可见范围时请求，失败显示原因并允许重试。
 
-`app/App.tsx` 负责页面贡献、插件管理和窗口状态；简历协调交给 `features/resumes/ResumeWorkspace.tsx`，布局交给同目录的 `useWorkspaceLayout.ts`。每个 `features/` 子目录维护本功能的组件及状态逻辑：
+`plugin_packages/sys_workbench/client/App.tsx` 负责页面贡献、插件管理和窗口状态。简历协调、项目编辑、个人资料和系统设置位于 `plugin_packages/sys_resume/client/features/`。AI 会话、模板适配、荣誉库、招聘、日志、模型设置及制作指引分别归入对应插件的 `client/`；各包私有 CSS 随独立客户端注册和撤销。
 
-- `projects`：侧栏、会话入口及稳定排序。
-- `experiences`：整段编辑、单条亮点编辑与字段草稿 hook。
-- `conversations`：消息输入、建议对比卡和任务事件流。
-- `resumes`：固定版本组合 hook、内容预览与真实分页图片。
-- `settings`：来源、模板与 Provider 设置。
-- `templates`：AI 模板分析、字段和重复区域编辑、原图核对及真实试填。
-- `workflow`：制作指引状态推导和步骤定位。
-- `profile/defaults`：默认字段模型、栏目匹配、导航及设置弹窗
+工作台附加页及领域导航由贡献注册表提供；简历系统不维护可选插件 ID 清单。模板库拥有选择弹窗及分类控件，模板适配使用公开选择插槽，预览使用公开预览贡献，不引用其他插件组件。日志页自持界面状态，通过通用设置回调打开系统采集设置。
 
 模块移动后直接更新全部引用，不保留旧路径转发层。模板映射说明通过包资源读取，源码与 wheel 使用同一入口。
 
 经历编辑器直接使用当前字段草稿协议。项目显隐独立写入简历，不再在挂载时迁移旧元信息草稿；本机草稿恢复、并发版本校验、内容差异判断和不可变修订引用保持原有规则。
 
-`shared/` 只包含可复用控件、尺寸/请求 hooks、网络和本机缓存工具，以及与 API 对齐的数据类型。经历与会话共同使用 `shared/lib/draftRegistry.ts`：导航、保存和导出前先等待注册的草稿写入，失败时保留编辑现场。共享层不能导入 `features` 或 `app`，业务模块不能导入 `app`；前端质量脚本自动检查这些边界。
+`shared/` 只包含可复用控件、尺寸/请求 hooks、网络和本机缓存工具，以及与 API 对齐的数据类型。经历与会话共同使用 `shared/lib/draftRegistry.ts`：导航、保存和导出前先等待注册的草稿写入，失败时保留编辑现场。宿主共享层不能导入插件私有代码，插件只能通过公开 SDK 消费宿主及其他包；前端质量脚本自动检查这些边界。
 
 前端边界检查覆盖普通导入、`export ... from` 重导出和字面量动态导入，后端同时检查 `from resume_maker import services` 等包入口写法。正反向依赖用合成源码回归验证，避免语法变化绕过分层约束。
 
@@ -128,15 +127,15 @@ Host/Client 依赖分别求序，remote 依赖只通过 DTO RPC 消费。`enhanc
 8. **Word 按确认的映射替换**：完整模板按精确引文替换资料、复制条目样式和更换照片。校验节点、重叠范围、未处理原文以及当前资料覆盖，保留样式与页面设置，清除未使用的旧照片资源。渲染在独立进程执行，按 PID 和创建时间核验后回收。
 9. **整体与子项目相互独立**：多来源整体项目通过 `project_hierarchy` 关联单来源子项目；经历、草稿、快照、会话和简历引用仍按各自项目标识隔离。导入和来源更新在事务中同步子项目，启动时不再补建数据。来源移除时解除分组并保留旧子项目历史。
 
-经历历史由 `services/history.py` 管理，`revision_branches` 记录修订所属分支。创建分支时追加一个内容相同的起点修订，并可复制来源草稿到新修订的草稿空间；因此两个分支从同一版本出发也不会共享未发布修改。保存、恢复及 AI 建议采用均校验目标分支头，分支指针和修订、草稿清理在一个 SQLite 写事务中完成。历史树按真实父子关系绘制，不按时间猜测；查看旧节点后必须创建分支或追加恢复才能继续发布。项目创建时在同一事务内建立 `main` 与初始修订。经历数据不双写 Git，避免数据库与仓库出现部分提交。
+经历历史由 `plugin_packages/sys_experience/services/history.py` 管理，`revision_branches` 记录修订所属分支。创建分支时追加一个内容相同的起点修订，并可复制来源草稿到新修订的草稿空间；因此两个分支从同一版本出发也不会共享未发布修改。保存、恢复及 AI 建议采用均校验目标分支头，分支指针和修订、草稿清理在一个 SQLite 写事务中完成。历史树按真实父子关系绘制，不按时间猜测；查看旧节点后必须创建分支或追加恢复才能继续发布。项目创建时在同一事务内建立 `main` 与初始修订。经历数据不双写 Git，避免数据库与仓库出现部分提交。
 
 项目详情的 `uncommitted` 列出各基线版本与有效工作副本的实际差异。历史树用 `working:<base_revision>` 临时节点显示这些内容，虚线连接到基线；该标识仅用于展示，不写入 revisions，也不能成为简历引用或分支起点。打开历史窗口前先刷新字段草稿，排序同样使用 `useField` 的本机恢复副本、串行写入和并发版本检查。
 
 ## 扩展方式
 
-荣誉证书由 `services/honors.py` 独立管理，每个条目以 `honor:<uuid>` 保存到现有 `settings` 表，事务内校验版本，不改变数据库结构。原件和解码后的 PNG 分页通过 assets bundle 发布，逻辑集合为 `honors/<uuid>`，纳入资源备份。二进制上传在 HTTP 层限制 20 MB；适配器按实际文件内容校验格式，PDF 限 12 页，单图限 4000 万像素。实例启动时运行单个识别队列，复用 Provider 的结构化图片输入及 `honor_recognition` 功能设置，取消、删除和退出后拒绝迟到结果；异常退出的在途条目在下次启动时转为可重试状态。识别结果先进入待核对资料，重识别保留已人工确认的字段，由用户选择是否采用新提取结果。
+荣誉证书由 `plugin_packages/ext_honors/services/honors.py` 独立管理，每个条目以 `honor:<uuid>` 保存到现有 `settings` 表，事务内校验版本，不改变数据库结构。原件和解码后的 PNG 分页通过 assets bundle 发布，逻辑集合为 `honors/<uuid>`，纳入资源备份。二进制上传在 HTTP 层限制 20 MB；适配器按实际文件内容校验格式，PDF 限 12 页，单图限 4000 万像素。实例启动时运行单个识别队列，复用 Provider 的结构化图片输入及 `honor_recognition` 功能设置，取消、删除和退出后拒绝迟到结果；异常退出的在途条目在下次启动时转为可重试状态。识别结果先进入待核对资料，重识别保留已人工确认的字段，由用户选择是否采用新提取结果。
 
-前端 `features/honors` 提供独立的全宽荣誉库、批量上传、分类搜索和原件核对表单。加入简历时生成带 `honor:<uuid>` 标识的普通条目并跨栏目去重，加入操作只改变当前草稿。已核对荣誉内容以库中记录为准，`domain/honor_entries.py` 按稳定来源标识统一投影到普通简历条目；工作台读取、保存、预览和正式导出共用 `services/honor_links.py` 解析入口，既有缺字段条目也会补全。读取不写数据库，删除来源前在同一事务中保留最后核对资料；历史导出及清单保持不变。
+前端 `plugin_packages/ext_honors/client/` 提供独立的全宽荣誉库、批量上传、分类搜索和原件核对表单。加入简历时生成带 `honor:<uuid>` 标识的普通条目并跨栏目去重，加入操作只改变当前草稿。已核对荣誉内容以库中记录为准，`domain/honor_entries.py` 按稳定来源标识统一投影到普通简历条目；工作台读取、保存、预览和正式导出共用 `plugin_packages/ext_honors/services/honor_links.py` 解析入口，既有缺字段条目也会补全。读取不写数据库，删除来源前在同一事务中保留最后核对资料；历史导出及清单保持不变。
 
 荣誉类型由 `shared/types/honors.ts` 定义，荣誉库与个人信息共用 `features/honors/fields.ts` 的字段说明。`entry.ts` 将名称、单位、日期、说明逐项对应到普通条目的 `title/subtitle/period/details`，其余资料以稳定的 `honor-field:<key>` 标识保存在 `custom_fields`，不重复存储或拼接字段。新条目只显示名称和日期，库条目明确保存 `ext.honors/library` 来源及版本，手工荣誉使用 `honor:manual:<uuid>` 标识；移动或重命名栏目后字段语义不变。既有条目的内容同步，但整条显隐、各字段显隐、自定义备注和排序不变。五项固定荣誉信息不占用二十个用户自定义名额；条目最多保存二十五项，个人基本信息仍最多二十项。存储及模板填充沿用普通条目的显隐机制。
 
@@ -152,11 +151,11 @@ Host/Client 依赖分别求序，remote 依赖只通过 DTO RPC 消费。`enhanc
 
 `integrations/word/templates/fields.py` 在分配节点编号前按正文、文本框和独立脚注匹配跨文字片段的域边界，冻结除页码以外的域并保留已有显示结果与样式；无显示结果的位置成为可编辑空位，不完整的控制标记自动清理。归一化副本再次读取时编号稳定；不执行域、不访问链接。页码允许格式开关。前端新文件导入错误独立保存文件名与原因，不能冒充下方已有模板的校验结果。
 
-- 新增业务接口：在 `api/schemas.py` 定义请求；把规则或事务放入 `domain/` 或 `services/`，再接入相应路由。不要把后台线程放到导入时启动。
-- 新增 AI Provider：实现 `sdk/model.py` 的协议，通过 `create_app(provider=...)` 注入。`run` 返回经历建议 `AIResult`，`run_structured` 按指定领域模型生成严格结构化结果；适配器不能直接发布修订或登记模板。
-- 新增模板或渲染方式：扩展 `integrations/word/`，保持 DOCX 包保留约束；由 `services/documents.py` 记录结果清单。
+- 新增业务接口：在 `api/schemas.py` 定义请求；把通用规则放入 `domain/`，事务及路由放入所属 `plugin_packages/<slug>/`。不要把后台线程放到导入时启动。
+- 新增 AI Provider：实现 `sdk/model.py` 的协议，通过独立插件声明并注入传输或模型能力。`run` 返回经历建议 `AIResult`，`run_structured` 按指定领域模型生成严格结构化结果；适配器不能直接发布修订或登记模板。
+- 新增模板或渲染方式：在独立插件内注册文档引擎或渲染贡献，保持 DOCX 包保留约束；由 `plugin_packages/sys_documents/services/documents.py` 记录结果清单。
 - 修改数据库：同步维护清单 SQL 资源和完整 `schema.sql` 参考。结构变化时更新 `SCHEMA_VERSION`，开发旧资料先备份、离线转换并验证恢复，运行时只读取当前版本。建库、恢复和安装包检查使用同一协议，不得清空旧库代替迁移。
-- 修改跨功能 UI：状态协调留在 `app/`，通用机制抽到 `shared/`，先验证草稿刷写、快速切换与异步响应的归属。
+- 修改跨功能 UI：状态协调留在拥有工作台的系统包，通用机制抽到 `frontend/src/shared/`，先验证草稿刷写、快速切换与异步响应的归属。
 
 `tests/fixtures/api-contract.json` 记录当前接口定义；测试忽略说明文字，核验路径、参数、请求模型及响应格式。修改通信协议时同步更新前端与该契约，不保留旧客户端适配。`resume_maker.api.create_app` 和 CLI 是应用入口。
 
@@ -170,10 +169,10 @@ Host/Client 依赖分别求序，remote 依赖只通过 DTO RPC 消费。`enhanc
 
 `POST /api/templates/{template_id}/edit` 对已保存完整模板做哈希核验后创建当前实例的独立编辑快照，不调用模型。保存仍生成新的模板 ID，不修改旧模板或已有简历引用。分析、编辑副本和试填都沿用实例鉴权与受控文件路径。
 
-本机路径输入统一使用共享 `PathInput` 组件，调用受实例令牌和来源校验保护的 `POST /api/paths/pick`。`integrations/path_picker.py` 在 HTTP 工作线程初始化 STA 并调用 Windows `IFileOpenDialog`，文件和文件夹都返回文件系统完整路径；取消返回空值。跨请求互斥避免重复窗口，COM 对象与文件名内存在原线程释放，输入路径只决定初始浏览目录，不参与命令执行。多来源输入追加并去重，组件卸载或资料切换时丢弃迟到结果。
+本机路径输入统一使用共享 `PathInput` 组件，调用受实例令牌和来源校验保护的 `POST /api/paths/pick`。`plugin_packages/ext_native_shell/integrations/path_picker.py` 在 HTTP 工作线程初始化 STA 并调用 Windows `IFileOpenDialog`，文件和文件夹都返回文件系统完整路径；取消返回空值。跨请求互斥避免重复窗口，COM 对象与文件名内存在原线程释放，输入路径只决定初始浏览目录，不参与命令执行。多来源输入追加并去重，组件卸载或资料切换时丢弃迟到结果。
 
 
-模板分析把 `skills/resume-template-mapping/SKILL.md` 内容直接注入首轮请求，不要求模型额外读文件；这是运行时使用的唯一映射说明来源。节点清单按部件分组，段落原文与真实父节点、祖先、可插入状态完整保留，表格容器不再重复汇总正文。自动修正只续用本任务 `thread.started` 返回的会话，省去清单和图片；无会话标识时携带完整上下文。人工修正新建任务、首轮携带人工方案。
+模板分析把 `plugin_packages/ext_template_ai/skills/resume-template-mapping/SKILL.md` 内容直接注入首轮请求，不要求模型额外读文件；这是运行时使用的唯一映射说明来源。节点清单按部件分组，段落原文与真实父节点、祖先、可插入状态完整保留，表格容器不再重复汇总正文。自动修正只续用本任务 `thread.started` 返回的会话，省去清单和图片；无会话标识时携带完整上下文。人工修正新建任务、首轮携带人工方案。
 
 `template-cache/` 是可重建的建议缓存，不是已应用模板。缓存键包括规范化包内容、资料字段需求、schema、skill 和执行契约版本；资料值不入键。只有通过结构及当前资料覆盖检查的自动分析结果入缓存，命中后再校验，反馈修正绕过缓存；损坏或不可用缓存不阻塞分析。修改清单编号或填充语义时同时调整缓存契约版本。缓存无需数据库迁移，也不代替已确认模板备份。
 

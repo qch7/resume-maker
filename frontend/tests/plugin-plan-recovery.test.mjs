@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { recoverActivePlan } from "../src/features/plugins/planRecovery.ts";
+import { recoverActivePlan } from "../../src/resume_maker/plugin_packages/sys_workbench/client/features/plugins/planRecovery.ts";
 
 test("恢复过期普通准备计划，较新的预览和结束记录不会遮住取消入口", () => {
   const preparing = { id: "ordinary", state: "preparing", expires_at: 1 };

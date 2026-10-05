@@ -1,10 +1,10 @@
 import type {
   ConversationProps,
-  ActivityProps,
   HonorLibraryProps,
   HonorEditorProps,
   TemplateAdapterProps,
   WorkflowProps,
+  TemplatePickerProps,
 } from "./slots";
 import type { ComponentType } from "react";
 import type { ClientExtensionPoints } from "./extensions";
@@ -13,10 +13,10 @@ export interface Slots {
   workbench: ComponentType;
   workspace: ComponentType;
   conversation: ComponentType<ConversationProps>;
-  activity: ComponentType<ActivityProps>;
   honors: ComponentType<HonorLibraryProps>;
   honorEditor: ComponentType<HonorEditorProps>;
   templates: ComponentType<TemplateAdapterProps>;
+  templatePicker: ComponentType<TemplatePickerProps>;
   recruitment: ComponentType<{ active: boolean }>;
   workflow: ComponentType<WorkflowProps>;
 }
@@ -26,6 +26,24 @@ export interface Page {
   title: string;
   order: number;
   component: ComponentType<{ active: boolean }>;
+}
+
+export interface WorkbenchPageProps {
+  active: boolean;
+  openSettings(section: string): void;
+  settingsVersion: number;
+}
+
+export interface WorkbenchPage extends Omit<Page, "component"> {
+  icon?: ComponentType<{ size?: number }>;
+  component: ComponentType<WorkbenchPageProps>;
+}
+
+export interface Navigation {
+  slot: "honors" | "templates" | "recruitment";
+  title: string;
+  order: number;
+  icon: ComponentType<{ size?: number }>;
 }
 
 export interface SettingsPanelProps {
@@ -59,6 +77,8 @@ export interface ClientContext {
   remoteProviders(service: string): readonly string[];
   component<K extends keyof Slots>(key: K, value: Slots[K]): void;
   page(value: Page): void;
+  workbenchPage(value: WorkbenchPage): void;
+  navigation(value: Navigation): void;
   settingsPage(value: SettingsPage): void;
   contribute<K extends keyof ClientExtensionPoints>(
     point: K,

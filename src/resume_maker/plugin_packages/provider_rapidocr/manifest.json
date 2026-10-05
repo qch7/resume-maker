@@ -1,0 +1,33 @@
+{
+  "manifest_version": 1,
+  "id": "provider.rapidocr",
+  "title": "RapidOCR",
+  "version": "1.0.0",
+  "package": "resume-maker",
+  "entrypoints": {
+    "host": {
+      "mode": "trusted-host",
+      "entry": "resume_maker.plugin_packages.provider_rapidocr.entry:activate"
+    }
+  },
+  "requires": {
+    "host": {}
+  },
+  "provides": {
+    "host": {
+      "ocr.backend": {
+        "version": "1.0.0",
+        "cardinality": "one"
+      }
+    }
+  },
+  "contributes": {},
+  "permissions": [
+    "workspace.trusted"
+  ],
+  "dependencies": [
+    "rapidocr-onnxruntime>=1.4,<2",
+    "pillow>=11,<13",
+    "pymupdf>=1.25,<2"
+  ]
+}

@@ -131,3 +131,17 @@ uv run python scripts/check_wheel.py
 wheel 检查同时创建真正的基础依赖 venv，禁止从源码、开发依赖或用户 site-packages 偷用可选库。真实 CLI 边界用例通过 `RESUME_MAKER_TEST_NATIVE_CLI=1` 启用，只连接本机合成 Responses 服务。真实 Word 的 DOCX、PDF 和分页仍需单独验收。
 
 升级验收包含真正的候选解释器和监督器进程，覆盖取消后退出、正式启动失败回旧宿主及整组迁移失败原子性。开发嵌入 create_app 时重启由调用方接管；日常使用 resume-maker CLI 即可自动切换。下载测试和 CLI 测试使用本机合成服务，不调用真实供应商。
+
+## 独立插件开发和物理移除验收
+
+内置包位于 `src/resume_maker/plugin_packages/<slug>/`，清单、组合归属、Host 入口、服务、路由、查询、数据描述及客户端随所属包保存。新增客户端在 package.json.resumeMaker.client 声明入口；`npm --prefix frontend run build` 会扫描并独立构建全部已存在包，无需添加宿主导入或构建入口。产物位于 `.local/plugin-builds/<slug>/`；wheel 将其分发到所属包的 client_dist。
+
+删除源码目录后的构建和启动验收使用合成资料：
+
+```sh
+uv run python scripts/check_plugin_removal.py
+```
+
+脚本在 `.local/tmp/` 创建完整源码副本，逐个实际移出全部 18 个可选目录，每次用全新 Python 解释器从副本导入并验证启动、项目保存、简历和 DOCX 导出，确认保留的配置及日志历史仍可读。随后同时移出全部可选目录，重新构建宿主及剩余客户端并再次验证基础闭环。实际源代码、用户 data 和凭据不参与移动；Word 使用受控替身，矩阵只验证装配及生成能力，不代表真实排版验收。
+
+该命令是额外架构验收，完整检查仍运行 `uv run python scripts/check.py`，资源或打包改动另运行 wheel 构建及 check_wheel.py。停止运行中的实例后才能物理移除代码；正常插件管理仍遵循任务排空及作用域清理流程。

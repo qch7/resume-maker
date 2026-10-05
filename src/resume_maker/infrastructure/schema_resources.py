@@ -10,7 +10,7 @@ def definitions():
     root = Path(__file__).resolve().parents[1]
     return {
         value["id"]: value.get("data", {})
-        for path in sorted((root / "plugins" / "manifests").glob("*.json"))
+        for path in sorted((root / "plugin_packages").glob("*/manifest.json"))
         for value in [json.loads(path.read_text(encoding="utf-8"))]
     }
 

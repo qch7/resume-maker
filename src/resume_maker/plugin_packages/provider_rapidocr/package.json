@@ -1,0 +1,11 @@
+{
+  "name": "@resume-maker/provider_rapidocr",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "resumeMaker": {
+    "profiles": [
+      "standard"
+    ]
+  }
+}

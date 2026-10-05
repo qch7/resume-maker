@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createClientExtensions, jsonCopy } from "../src/plugins/extensions.ts";
-import { updateExtension } from "../src/features/profile/extensionState.ts";
-import { sameResumeDocument } from "../src/features/profile/comparison.ts";
-import { newDocument } from "../src/features/profile/document.ts";
+import { updateExtension } from "../../src/resume_maker/plugin_packages/sys_resume/client/features/profile/extensionState.ts";
+import { sameResumeDocument } from "../src/shared/resume/comparison.ts";
+import { newDocument } from "../src/shared/resume/document.ts";
 
 /** 构造可发布扩展的清单片段 */
 function descriptor(contributes, id = "community.example") {

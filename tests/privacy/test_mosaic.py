@@ -15,10 +15,12 @@ from resume_maker.domain.templates import TemplatePlan
 from resume_maker.infrastructure.assets import Assets
 from resume_maker.integrations.privacy_store import PrivacyStore
 from resume_maker.integrations.providers.mosaic import mosaic_sheets, mosaic_tile
+from resume_maker.plugin_packages.ext_template_adapter.services.templates.tasks import Templates
+from resume_maker.plugin_packages.ext_template_ai.services.templates.analysis_driver import (
+    TemplateAnalysis,
+)
+from resume_maker.plugin_packages.sys_resume.services.resumes import Resumes
 from resume_maker.sdk.model import Cancelled, MosaicImage, ProviderError
-from resume_maker.services.resumes import Resumes
-from resume_maker.services.templates.analysis_driver import TemplateAnalysis
-from resume_maker.services.templates.tasks import Templates
 from tests.support.privacy import synthetic_image
 from tests.support.providers import privacy_provider
 from tests.support.templates import completed, simple_document

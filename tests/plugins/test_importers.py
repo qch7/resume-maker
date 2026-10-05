@@ -12,6 +12,7 @@ from resume_maker.api import create_app
 from resume_maker.core.config import Config
 from resume_maker.core.errors import Problem
 from resume_maker.integrations.document_importers import importer
+from resume_maker.plugin_packages.sys_documents.services.document_registry import DocumentRegistry
 from resume_maker.plugins.discovery import selection
 from resume_maker.runtime.host import Contribution
 from resume_maker.sdk.imports import (
@@ -22,7 +23,6 @@ from resume_maker.sdk.imports import (
     ImportSource,
 )
 from resume_maker.sdk.model import Cancelled
-from resume_maker.services.document_registry import DocumentRegistry
 
 HEADERS = {"x-resume-token": "test"}
 

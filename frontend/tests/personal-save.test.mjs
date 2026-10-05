@@ -1,12 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { newDocument } from "../src/features/profile/document.ts";
-import { personalComposition } from "../src/features/profile/personal.ts";
-import { samePersonalInfo } from "../src/features/profile/comparison.ts";
+import { newDocument } from "../src/shared/resume/document.ts";
+import { personalComposition } from "../../src/resume_maker/plugin_packages/sys_resume/client/features/profile/personal.ts";
+import { samePersonalInfo } from "../src/shared/resume/comparison.ts";
 import {
   acceptSavedComposition,
   sameComposition,
-} from "../src/features/resumes/composition.ts";
+} from "../src/shared/resume/composition.ts";
 
 test("saving personal information leaves other pending sections and project selections unpublished", /* 基本信息保存后仍保留其他栏目和项目引用草稿 */ () => {
   const saved = {

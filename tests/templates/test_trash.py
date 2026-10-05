@@ -12,9 +12,13 @@ from resume_maker.core.errors import Problem
 from resume_maker.domain.templates import TEMPLATE_LIBRARY_KEY
 from resume_maker.infrastructure.assets import Assets
 from resume_maker.infrastructure.database import dump
-from resume_maker.services.resumes import Resumes
-from resume_maker.services.template_records import TemplateRecords
-from resume_maker.services.templates.library import TemplateLibrary
+from resume_maker.plugin_packages.ext_template_adapter.services.template_records import (
+    TemplateRecords,
+)
+from resume_maker.plugin_packages.ext_template_library.services.templates.library import (
+    TemplateLibrary,
+)
+from resume_maker.plugin_packages.sys_resume.services.resumes import Resumes
 from tests.support.documents import resume_content
 from tests.support.templates import register_template
 
@@ -268,11 +272,17 @@ def test_failed_file_cleanup_stays_in_trash_for_retry(catalog, tmp_path, monkeyp
         """模拟目标模板目录被 Word 锁定"""
         raise PermissionError("locked")
 
-    monkeypatch.setattr("resume_maker.services.templates.cleanup.shutil.rmtree", locked)
+    monkeypatch.setattr(
+        "resume_maker.plugin_packages.ext_template_library.services.templates.cleanup.shutil.rmtree",
+        locked,
+    )
     with pytest.raises(Problem, match="重试"):
         service.delete("mapped", permanent=True)
     assert source.exists() and service.state()["items"]["mapped"]["deleted_at"]
-    monkeypatch.setattr("resume_maker.services.templates.cleanup.shutil.rmtree", original)
+    monkeypatch.setattr(
+        "resume_maker.plugin_packages.ext_template_library.services.templates.cleanup.shutil.rmtree",
+        original,
+    )
     service.delete("mapped", permanent=True)
     assert not artifact.exists() and catalog.assets.bundle("templates/mapped") is None
     assert source.exists()

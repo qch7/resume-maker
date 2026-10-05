@@ -16,8 +16,8 @@ from resume_maker.infrastructure.database import Database
 from resume_maker.infrastructure.execution import Execution, Sandbox
 from resume_maker.infrastructure.storage import instance_lock
 from resume_maker.integrations.providers.process import execute
+from resume_maker.integrations.providers.sandbox import LocalSandbox
 from resume_maker.plugins.discovery import discover
-from resume_maker.plugins.providers import LocalSandbox
 from resume_maker.runtime.packages import PackageStore
 from resume_maker.runtime.state import StateStore
 from resume_maker.runtime.upgrades import transition_digest

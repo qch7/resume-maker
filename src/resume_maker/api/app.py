@@ -46,7 +46,7 @@ def create_app(config: Config | None = None, provider: Provider | None = None) -
     instance_specs = (saved or {}).get("instances", [])
     expanded, parsed_specs = expand_instances(manifests, instance_specs, missing_ok=True)
     desired, blocked = set(selected), {}
-    if saved and config.profile is None and config.plugins is None:
+    if config.plugins is None:
         selected, blocked = available_selection(
             expanded,
             desired,

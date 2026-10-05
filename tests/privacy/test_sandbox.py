@@ -15,12 +15,12 @@ import pytest
 
 from resume_maker.domain.models import Model, ProviderSettings
 from resume_maker.integrations.providers import sandbox
-from resume_maker.integrations.providers.cli import run_cli
 from resume_maker.integrations.providers.credentials import isolated_credentials
 from resume_maker.integrations.providers.material_server import call, dispatch
 from resume_maker.integrations.providers.mosaic import mosaic_sheets
 from resume_maker.integrations.providers.process import execute
 from resume_maker.integrations.providers.sandbox import materials, posix_parent
+from resume_maker.plugin_packages.ext_provider_codex.integrations.providers.cli import run_cli
 from resume_maker.sdk.model import Cancelled, MosaicImage, ProviderError
 from tests.support.privacy import synthetic_image
 from tests.support.providers import privacy_provider

@@ -7,9 +7,9 @@ import pytest
 
 from resume_maker.core.errors import Problem
 from resume_maker.infrastructure.database import uid
-from resume_maker.integrations.source_service import SourceService
-from resume_maker.services.conversations import Conversations
-from resume_maker.services.jobs import Jobs
+from resume_maker.plugin_packages.ext_ai_conversation.services.conversations import Conversations
+from resume_maker.plugin_packages.ext_ai_conversation.services.jobs import Jobs
+from resume_maker.plugin_packages.ext_source_code.integrations.source_service import SourceService
 from tests.support.jobs import FakeProvider, wait_job
 
 

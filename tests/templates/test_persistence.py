@@ -5,10 +5,12 @@ from zipfile import ZipFile
 from resume_maker.infrastructure.assets import Assets
 from resume_maker.infrastructure.database import Database, dump
 from resume_maker.infrastructure.storage import create_backup, restore_backup
-from resume_maker.services.resumes import Resumes
-from resume_maker.services.templates.analysis_driver import TemplateAnalysis
-from resume_maker.services.templates.tasks import Templates
-from resume_maker.services.workspace_storage import WorkspaceStorage
+from resume_maker.plugin_packages.ext_template_adapter.services.templates.tasks import Templates
+from resume_maker.plugin_packages.ext_template_ai.services.templates.analysis_driver import (
+    TemplateAnalysis,
+)
+from resume_maker.plugin_packages.sys_drafts.services.workspace_storage import WorkspaceStorage
+from resume_maker.plugin_packages.sys_resume.services.resumes import Resumes
 from tests.support.data import make_catalog
 from tests.support.templates import TemplateProvider, completed, simple_document, simple_template
 

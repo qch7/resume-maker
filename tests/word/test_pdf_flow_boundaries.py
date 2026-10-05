@@ -15,7 +15,7 @@ from resume_maker.integrations.word.pdf.flow import text_counter
 from resume_maker.integrations.word.pdf.recovery import rebuild_pdf
 from resume_maker.integrations.word.templates.fill import fill_template
 from resume_maker.integrations.word.templates.mapping import TemplatePackage
-from resume_maker.services.templates.analysis import complete_labels
+from resume_maker.plugin_packages.ext_template_ai.services.templates.analysis import complete_labels
 from tests.support.images import forbidden_fallback, quiet
 
 

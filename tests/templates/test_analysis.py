@@ -16,9 +16,11 @@ from resume_maker.domain.templates import TemplatePlan
 from resume_maker.infrastructure.assets import Assets
 from resume_maker.integrations.privacy_gateway import schema
 from resume_maker.integrations.word.templates.mapping import TemplatePackage
-from resume_maker.services.resumes import Resumes
-from resume_maker.services.templates.analysis_driver import TemplateAnalysis
-from resume_maker.services.templates.tasks import Templates
+from resume_maker.plugin_packages.ext_template_adapter.services.templates.tasks import Templates
+from resume_maker.plugin_packages.ext_template_ai.services.templates.analysis_driver import (
+    TemplateAnalysis,
+)
+from resume_maker.plugin_packages.sys_resume.services.resumes import Resumes
 from tests.support.documents import photo_bytes
 from tests.support.templates import TemplateProvider, completed, simple_document, simple_template
 
@@ -31,7 +33,8 @@ def test_analysis_snapshot_save_restart_and_export(tmp_path, monkeypatch):
     config = Config(data_dir=tmp_path / "data", token="test")
     app = create_app(config, provider)
     monkeypatch.setattr(
-        "resume_maker.services.templates.tasks.render_word", lambda *_: (None, "测试无渲染器")
+        "resume_maker.plugin_packages.ext_template_adapter.services.templates.tasks.render_word",
+        lambda *_: (None, "测试无渲染器"),
     )
     monkeypatch.setattr(app.state.services.documents, "renderer", lambda *_: (None, "测试无渲染器"))
     with TestClient(app) as client:

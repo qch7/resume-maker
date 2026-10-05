@@ -12,13 +12,15 @@ from resume_maker.domain.templates import TemplatePlan
 from resume_maker.infrastructure.assets import Assets
 from resume_maker.infrastructure.database import uid
 from resume_maker.integrations.privacy_gateway import PrivacyGateway
-from resume_maker.integrations.providers import cli
-from resume_maker.integrations.source_service import SourceService
-from resume_maker.services.conversations import Conversations
-from resume_maker.services.jobs import Jobs
-from resume_maker.services.resumes import Resumes
-from resume_maker.services.templates.analysis_driver import TemplateAnalysis
-from resume_maker.services.templates.tasks import Templates
+from resume_maker.plugin_packages.ext_ai_conversation.services.conversations import Conversations
+from resume_maker.plugin_packages.ext_ai_conversation.services.jobs import Jobs
+from resume_maker.plugin_packages.ext_provider_codex.integrations.providers import cli
+from resume_maker.plugin_packages.ext_source_code.integrations.source_service import SourceService
+from resume_maker.plugin_packages.ext_template_adapter.services.templates.tasks import Templates
+from resume_maker.plugin_packages.ext_template_ai.services.templates.analysis_driver import (
+    TemplateAnalysis,
+)
+from resume_maker.plugin_packages.sys_resume.services.resumes import Resumes
 from tests.support.jobs import FakeProvider, wait_job
 from tests.support.templates import TemplateProvider, completed, simple_document, simple_template
 

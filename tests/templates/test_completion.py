@@ -17,9 +17,16 @@ from resume_maker.integrations.word.templates.completion import complete_templat
 from resume_maker.integrations.word.templates.fill import fill_template
 from resume_maker.integrations.word.templates.mapping import TemplatePackage
 from resume_maker.integrations.word.templates.values import missing_targets
-from resume_maker.services.resumes import Resumes
-from resume_maker.services.templates.analysis import analyze_plan, assess_plan
-from resume_maker.services.templates.cache import cache_path, cached_plan, remember_plan
+from resume_maker.plugin_packages.ext_template_ai.services.templates.analysis import (
+    analyze_plan,
+    assess_plan,
+)
+from resume_maker.plugin_packages.ext_template_ai.services.templates.cache import (
+    cache_path,
+    cached_plan,
+    remember_plan,
+)
+from resume_maker.plugin_packages.sys_resume.services.resumes import Resumes
 from tests.support.documents import photo_bytes
 from tests.support.layouts import generic_content, generic_template, visible_text
 from tests.support.templates import TemplateProvider, completed
@@ -141,7 +148,8 @@ def test_first_analysis_completes_all_supported_missing_fields(tmp_path, monkeyp
     package, plan = generic_template(source, "cells", 8)
     document, projects = generic_content()
     monkeypatch.setattr(
-        "resume_maker.services.templates.analysis.source_pages", lambda *_: ([], {}, [])
+        "resume_maker.plugin_packages.ext_template_ai.services.templates.analysis.source_pages",
+        lambda *_: ([], {}, []),
     )
 
     class MappedProvider(TemplateProvider):
@@ -173,7 +181,10 @@ def test_library_review_save_and_reopen_share_completion(tmp_path, monkeypatch):
     config = Config(data_dir=tmp_path / "data", token="test")
     provider = TemplateProvider(failure=True)
     app = create_app(config, provider)
-    monkeypatch.setattr("resume_maker.services.templates.tasks.render_word", lambda *_: (1, None))
+    monkeypatch.setattr(
+        "resume_maker.plugin_packages.ext_template_adapter.services.templates.tasks.render_word",
+        lambda *_: (1, None),
+    )
     with TestClient(app) as client:
         catalog = app.state.services.catalog
         folder = config.data_dir / "templates" / "generic"

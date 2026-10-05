@@ -1,0 +1,59 @@
+{
+  "manifest_version": 1,
+  "id": "sys.resume",
+  "title": "简历编排",
+  "version": "1.0.0",
+  "package": "resume-maker",
+  "entrypoints": {
+    "host": {
+      "mode": "trusted-host",
+      "entry": "resume_maker.plugin_packages.sys_resume.entry:activate"
+    },
+    "client": {
+      "mode": "trusted-client",
+      "entry": "bundled:plugin.js"
+    }
+  },
+  "requires": {
+    "host": {
+      "db": ">=1.0.0 <2.0.0",
+      "catalog": ">=1.0.0 <2.0.0",
+      "assets": ">=1.0.0 <2.0.0"
+    }
+  },
+  "provides": {
+    "host": {
+      "resume": {
+        "version": "1.0.0",
+        "cardinality": "one"
+      }
+    }
+  },
+  "contributes": {
+    "documents.previewers": [
+      "sys.resume/content"
+    ],
+    "http.routes": [
+      "sys.resume/resumes"
+    ]
+  },
+  "permissions": [
+    "system.trusted"
+  ],
+  "consumes": [
+    "resume.sources",
+    "documents.previewers"
+  ],
+  "data": {
+    "tables": [
+      "resumes",
+      "resume_deletions"
+    ],
+    "schemas": [
+      "plugin_packages/sys_resume/data/sys.resume.sql"
+    ],
+    "relations": [
+      "plugin_packages/sys_resume/data/sys.resume.references.sql"
+    ]
+  }
+}

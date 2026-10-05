@@ -109,7 +109,10 @@ def test_ocr_fragments_and_structured_aliases_use_the_same_gateway(tmp_path, mon
         "text": "\n".join(fragments),
         "pages": [{"blocks": [{"text": value, "confidence": 1.0} for value in fragments]}],
     }
-    monkeypatch.setattr("resume_maker.integrations.local_ocr.read_document", lambda *_: document)
+    monkeypatch.setattr(
+        "resume_maker.plugin_packages.provider_rapidocr.local_ocr.read_document",
+        lambda *_: document,
+    )
 
     def runner(payload, *_):
         """模型只回显收到的占位符以验证完整的本机字段恢复"""

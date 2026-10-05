@@ -10,7 +10,7 @@ from resume_maker.api import create_app
 from resume_maker.core.config import Config
 from resume_maker.infrastructure.database import Database
 from resume_maker.infrastructure.storage import create_backup, restore_backup
-from resume_maker.services.recruitment import Recruitment
+from resume_maker.plugin_packages.ext_recruitment.services.recruitment import Recruitment
 
 HEADERS = {"x-resume-token": "test"}
 

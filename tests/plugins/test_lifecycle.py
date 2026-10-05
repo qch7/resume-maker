@@ -218,18 +218,18 @@ def test_refreshed_window_joins_preparation_without_discarding_offline_drafts(tm
 
 def test_failed_activation_rolls_back_routes_and_generation(tmp_path, monkeypatch):
     """注册中途失败不会留下半激活路由或污染已经工作的系统服务"""
-    from resume_maker.plugins import features
+    from resume_maker.plugin_packages.ext_recruitment import entry
 
     app = create_app(Config(data_dir=tmp_path, token="test", profile="minimal"))
     with TestClient(app) as client:
-        original = features.recruitment
+        original = entry.activate
 
         def broken(context):
             """先注册真实资源再模拟初始化失败"""
             original(context)
             raise RuntimeError("synthetic activation failure")
 
-        monkeypatch.setattr(features, "recruitment", broken)
+        monkeypatch.setattr(entry, "activate", broken)
         plan = make_plan(client, {"ext.recruitment"})
         path = prepare(client, plan)
         response = client.post(path + "/apply", headers=HEADERS, json={"digest": plan["digest"]})

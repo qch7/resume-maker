@@ -11,9 +11,11 @@ from resume_maker.integrations.word.ooxml import w
 from resume_maker.integrations.word.templates.fill import fill_template
 from resume_maker.integrations.word.templates.mapping import TemplatePackage, paragraph_text
 from resume_maker.integrations.word.templates.supplement import supplement_personal_fields
-from resume_maker.services.resumes import Resumes
-from resume_maker.services.templates.analysis_driver import TemplateAnalysis
-from resume_maker.services.templates.tasks import Templates
+from resume_maker.plugin_packages.ext_template_adapter.services.templates.tasks import Templates
+from resume_maker.plugin_packages.ext_template_ai.services.templates.analysis_driver import (
+    TemplateAnalysis,
+)
+from resume_maker.plugin_packages.sys_resume.services.resumes import Resumes
 from tests.support.documents import make_template, project_content, resume_content
 from tests.support.templates import TemplateProvider, completed, simple_document, simple_template
 

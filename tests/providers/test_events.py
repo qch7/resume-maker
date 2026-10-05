@@ -10,9 +10,9 @@ import pytest
 
 from resume_maker.domain.models import ProviderSettings
 from resume_maker.integrations.privacy_gateway import structured_text
-from resume_maker.integrations.providers import cli
-from resume_maker.integrations.providers.cli import run_cli
 from resume_maker.integrations.providers.process import execute
+from resume_maker.plugin_packages.ext_provider_codex.integrations.providers import cli
+from resume_maker.plugin_packages.ext_provider_codex.integrations.providers.cli import run_cli
 from resume_maker.sdk.model import ProviderError
 
 

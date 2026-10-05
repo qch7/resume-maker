@@ -4,7 +4,7 @@ import httpx
 import pytest
 
 from resume_maker.infrastructure.database import Database
-from resume_maker.services.conversations import Conversations
+from resume_maker.plugin_packages.ext_ai_conversation.services.conversations import Conversations
 from tests.support.data import experience, make_catalog
 
 
@@ -30,8 +30,13 @@ def isolate_model_network(monkeypatch, tmp_path):
         """默认禁止真实 CLI 模型请求，单测必须显式注入执行替身"""
         pytest.fail("测试禁止启动真实模型会话，请注入 CLI runner")
 
-    monkeypatch.setattr("resume_maker.integrations.providers.cli.run_cli", blocked_cli)
-    monkeypatch.setattr("resume_maker.plugins.providers.run_model", blocked_cli)
+    monkeypatch.setattr(
+        "resume_maker.plugin_packages.ext_provider_codex.integrations.providers.cli.run_cli",
+        blocked_cli,
+    )
+    monkeypatch.setattr(
+        "resume_maker.plugin_packages.ext_provider_codex.entry.run_model", blocked_cli
+    )
 
 
 @pytest.fixture(autouse=True)

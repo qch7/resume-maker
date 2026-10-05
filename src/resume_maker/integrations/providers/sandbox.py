@@ -149,3 +149,19 @@ def materials(root, prompt, schema):
     (work / "context.txt").write_text(prompt, encoding="utf-8", newline="")
     (work / "schema.json").write_text(json.dumps(schema, ensure_ascii=False), encoding="utf-8")
     return prompt
+
+
+class LocalSandbox:
+    """本机材料会话的真实强制能力报告"""
+
+    capabilities = {
+        "directory_acl": True,
+        "tool_allowlist": True,
+        "process_cleanup": True,
+        "os_filesystem_isolation": False,
+        "os_network_isolation": False,
+    }
+
+    def session(self):
+        """使用独立控制目录和材料目录创建本轮会话"""
+        return workspace()

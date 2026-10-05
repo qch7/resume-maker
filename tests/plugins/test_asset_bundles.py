@@ -11,7 +11,7 @@ from resume_maker.core.config import Config
 from resume_maker.infrastructure.assets import Assets
 from resume_maker.infrastructure.database import Database
 from resume_maker.infrastructure.storage import create_backup, restore_backup
-from resume_maker.services.honors import Honors
+from resume_maker.plugin_packages.ext_honors.services.honors import Honors
 from tests.support.honors import certificate_bytes
 
 

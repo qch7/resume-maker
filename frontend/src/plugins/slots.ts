@@ -1,4 +1,3 @@
-import type { Dispatch, SetStateAction } from "react";
 import type {
   ConversationDetail,
   Job,
@@ -10,10 +9,9 @@ import type {
   Revision,
   Template,
   Export,
-} from "../shared/types";
+} from "../shared/types/index";
 import type { Layout } from "../shared/lib/layout";
 import type { Honor, HonorSource } from "../shared/types/honors";
-import type { ActivityPreferences } from "../shared/lib/activityPreferences";
 export type GuideTarget =
   | "template-select"
   | "personal-basic"
@@ -69,14 +67,14 @@ export interface ConversationProps {
   onRefresh: () => void;
 }
 
-export interface ActivityProps {
-  preferencesState: {
-    preferences: ActivityPreferences;
-    setPreferences: Dispatch<SetStateAction<ActivityPreferences>>;
-    error: string;
-  };
-  onOpenSettings: () => void;
-  refreshVersion: number;
+export interface TemplatePickerProps {
+  templates: Template[];
+  value: string;
+  onChange(id: string): void;
+  disabled?: boolean;
+  placeholder?: string;
+  guide?: string;
+  label: string;
 }
 
 export interface HonorLibraryProps {

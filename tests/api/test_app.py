@@ -12,8 +12,12 @@ from resume_maker.core.config import Config, frontend_directory
 def test_sidebar_activity_tracks_drafts_and_conversation_edits(tmp_path, monkeypatch):
     """验证项目活动时间聚合草稿和会话修改，重复值不会刷新时间"""
     stamp = "2026-01-01T00:00:00Z"
-    monkeypatch.setattr("resume_maker.services.catalog.now", lambda: stamp)
-    monkeypatch.setattr("resume_maker.services.conversations.now", lambda: stamp)
+    monkeypatch.setattr(
+        "resume_maker.plugin_packages.sys_experience.services.catalog.now", lambda: stamp
+    )
+    monkeypatch.setattr(
+        "resume_maker.plugin_packages.ext_ai_conversation.services.conversations.now", lambda: stamp
+    )
     source = tmp_path / "source"
     source.mkdir()
     headers = {"x-resume-token": "test-token"}

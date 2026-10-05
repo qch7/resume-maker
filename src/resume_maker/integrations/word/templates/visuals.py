@@ -2,8 +2,8 @@
 
 from lxml import etree
 
+from resume_maker.integrations.word.capabilities import word_process
 from resume_maker.integrations.word.ooxml import NS, w
-from resume_maker.integrations.word.rendering import word_process
 from resume_maker.sdk.model import Cancelled
 
 

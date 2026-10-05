@@ -18,10 +18,10 @@ from resume_maker.infrastructure.database import dump
 from resume_maker.integrations.word.full_resume import write_full_resume
 from resume_maker.integrations.word.ooxml import NS
 from resume_maker.integrations.word.templates.values import section_records
+from resume_maker.plugin_packages.ext_honors.services.honor_links import resume_source
+from resume_maker.plugin_packages.sys_resume.services.resume_sources import ResumeSources
+from resume_maker.plugin_packages.sys_resume.services.resumes import Resumes
 from resume_maker.runtime.host import Contribution
-from resume_maker.services.honor_links import resume_source
-from resume_maker.services.resume_sources import ResumeSources
-from resume_maker.services.resumes import Resumes
 from tests.support.document_services import Documents, ResumePreviews
 from tests.support.documents import resume_content
 from tests.support.templates import register_template

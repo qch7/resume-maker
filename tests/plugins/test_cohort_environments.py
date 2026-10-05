@@ -8,7 +8,7 @@ import pytest
 
 from resume_maker.infrastructure.execution import Execution, Sandbox
 from resume_maker.integrations.providers.process import execute
-from resume_maker.plugins.providers import LocalSandbox
+from resume_maker.integrations.providers.sandbox import LocalSandbox
 from resume_maker.runtime.environments import EnvironmentStore
 from resume_maker.runtime.graph import PluginError
 from resume_maker.sdk.manifest import Manifest

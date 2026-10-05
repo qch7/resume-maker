@@ -9,12 +9,12 @@ from pydantic import ValidationError
 from resume_maker.domain.experience import replace_field
 from resume_maker.domain.models import Experience, ResumeItem
 from resume_maker.infrastructure.database import Database, uid
-from resume_maker.integrations.source_service import SourceService
 from resume_maker.integrations.word.full_resume import write_full_resume
 from resume_maker.integrations.word.templates.fill import fill_template
-from resume_maker.services.conversations import Conversations
-from resume_maker.services.jobs import Jobs
-from resume_maker.services.resumes import Resumes
+from resume_maker.plugin_packages.ext_ai_conversation.services.conversations import Conversations
+from resume_maker.plugin_packages.ext_ai_conversation.services.jobs import Jobs
+from resume_maker.plugin_packages.ext_source_code.integrations.source_service import SourceService
+from resume_maker.plugin_packages.sys_resume.services.resumes import Resumes
 from tests.support.data import body_text, experience, make_catalog, project_info
 from tests.support.jobs import FakeProvider, wait_job
 from tests.support.layouts import metadata_template, plan_for, project_document

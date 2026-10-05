@@ -13,12 +13,12 @@ from resume_maker.integrations import sources
 from resume_maker.integrations.privacy import Redactor
 from resume_maker.integrations.source_access import SourceAccess
 from resume_maker.integrations.source_context import source_context
-from resume_maker.integrations.source_service import SourceService
 from resume_maker.integrations.sources import check_evidence
+from resume_maker.plugin_packages.ext_ai_conversation.services.conversations import Conversations
+from resume_maker.plugin_packages.ext_ai_conversation.services.jobs import Jobs
+from resume_maker.plugin_packages.ext_source_code.integrations.source_service import SourceService
+from resume_maker.plugin_packages.sys_experience.services.projects import Projects
 from resume_maker.sdk.model import Cancelled
-from resume_maker.services.conversations import Conversations
-from resume_maker.services.jobs import Jobs
-from resume_maker.services.projects import Projects
 from tests.support.data import record_source_files
 from tests.support.jobs import wait_job
 from tests.support.providers import ProviderStub

@@ -5,7 +5,7 @@ from resume_maker.domain.models import AIResult
 
 def read_test_document(*args):
     """图片测试按需加载真实本机 OCR，测试可替换解码结果"""
-    from resume_maker.integrations.local_ocr import read_document
+    from resume_maker.plugin_packages.provider_rapidocr.local_ocr import read_document
 
     return read_document(*args)
 
@@ -20,7 +20,7 @@ def read_test_page(*args):
 def privacy_provider(*, runner=None, environment=None, privacy=None):
     """显式装配真实隐私网关，模型传输由测试替身控制"""
     from resume_maker.integrations.privacy_gateway import PrivacyGateway
-    from resume_maker.integrations.providers.cli import run_cli
+    from resume_maker.plugin_packages.ext_provider_codex.integrations.providers.cli import run_cli
 
     provider = PrivacyGateway(
         runner=runner or run_cli,
@@ -52,6 +52,10 @@ class ProviderStub:
 
     def register_ocr(self, document):
         """合成资料无须登记，真实身份登记由隐私出口回归测试覆盖"""
+
+    def read_ocr(self, path, cancelled):
+        """测试按公开接口读取当前注入或替换的 OCR 结果"""
+        return read_test_document(path, cancelled)
 
     def run(self, **kwargs):
         """经历请求复用同一结构化替身入口"""

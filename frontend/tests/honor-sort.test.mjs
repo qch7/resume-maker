@@ -4,9 +4,9 @@ import {
   nextHonorSort,
   sortHonors,
   sortHonorEntries,
-} from "../src/features/honors/sort.ts";
-import { newHonorEntry } from "../src/features/profile/honors/entry.ts";
-import { emptyHonor } from "../src/features/profile/honors/fields.ts";
+} from "../src/shared/lib/honorSort.ts";
+import { newHonorEntry } from "../src/shared/resume/honors/entry.ts";
+import { emptyHonor } from "../src/shared/resume/honors/fields.ts";
 
 const honors = [
   {

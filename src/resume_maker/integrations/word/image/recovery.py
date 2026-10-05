@@ -27,9 +27,7 @@ def recognize_image(provider, image, output, settings, flag, emit, *, paper_size
 
     private_page = provider.supports_page_images
     if provider.preprocess_images and not private_page:
-        from resume_maker.integrations.local_ocr import read_document
-
-        local = read_document(image, flag)
+        local = provider.read_ocr(image, flag)
         provider.register_ocr(local)
         return ImagePage(
             texts=[{"text": row["text"], "box": row["box"]} for row in local["pages"][0]["blocks"]],

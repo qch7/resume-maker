@@ -33,7 +33,7 @@ async function application() {
   };
   const result = await build({
     stdin: {
-      contents: `export {default as App} from "./src/app/App";
+      contents: `export {default as App} from "../src/resume_maker/plugin_packages/sys_workbench/client/App";
         export {default as PersistenceStatus} from "./src/shared/components/PersistenceStatus";
         export * from "./src/plugins/window";
         export {clientExtensions} from "./src/plugins/extensions";
@@ -42,6 +42,11 @@ async function application() {
         export {begin} from "react";
         export {events} from "fixture/storage";`,
       resolveDir: fileURLToPath(new URL("../", import.meta.url)),
+    },
+    alias: {
+      "@resume-maker/plugin-sdk": fileURLToPath(
+        new URL("../src/plugins/shared/exports", import.meta.url),
+      ),
     },
     bundle: true,
     platform: "browser",
