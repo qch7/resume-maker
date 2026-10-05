@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/branding/resume-maker-dark.png">
-    <source media="(prefers-color-scheme: light)" srcset="docs/branding/resume-maker-light.png">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/branding/resume-maker-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="docs/assets/branding/resume-maker-light.png">
     <img src="docs/assets/branding/resume-maker-light.png" alt="ResumeMaker" width="600">
   </picture>
 </p>
