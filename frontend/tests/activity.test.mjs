@@ -113,7 +113,7 @@ test("默认过滤开启，保存的开关、规则和面板尺寸可恢复", ()
   );
   const broken = restoreActivityPreferences({
     hidePolling: "false",
-    pollingPaths: 42,
+    hiddenRules: 42,
     overviewHeight: NaN,
     detailWidth: -200,
   });
@@ -130,7 +130,7 @@ test("默认过滤开启，保存的开关、规则和面板尺寸可恢复", ()
   assert.ok(hiddenRuleError("state"));
 });
 
-test("旧日志偏好迁移维护规则且保留原隐藏开关", () => {
+test("未指定规则时沿用当前默认过滤并保留隐藏开关", () => {
   const restored = restoreActivityPreferences({ hidePolling: false });
   assert.ok(restored.hiddenRules.includes("template_library.purge_expired"));
   assert.equal(restored.hidePolling, false);

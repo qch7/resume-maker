@@ -1,4 +1,4 @@
-"""旧原件迁移、原子引用和统一资源恢复的用户行为验收"""
+"""不可变原件、原子引用和统一资源恢复的用户行为验收"""
 
 from io import BytesIO
 from zipfile import ZipFile
@@ -8,8 +8,6 @@ from fastapi.testclient import TestClient
 
 from resume_maker.api import create_app
 from resume_maker.core.config import Config
-from resume_maker.core.errors import Problem
-from resume_maker.infrastructure.asset_migration import migrate_legacy_assets
 from resume_maker.infrastructure.assets import Assets
 from resume_maker.infrastructure.database import Database
 from resume_maker.infrastructure.storage import create_backup, restore_backup
@@ -17,22 +15,15 @@ from resume_maker.services.honors import Honors
 from tests.support.honors import certificate_bytes
 
 
-def test_legacy_certificate_migrates_once_and_backup_restores_without_plugin(tmp_path):
-    """旧证书先备份再移除旧副本，最小组合和缺插件恢复仍能保护原件"""
+def test_certificate_backup_restores_without_optional_plugin(tmp_path):
+    """证书只发布统一资源，最小组合和缺插件恢复仍保留完整原件"""
     directory = tmp_path / "data"
     db = Database(directory / "resume.db")
     raw = certificate_bytes()
-    item = Honors(db, directory, None).upload(raw, "certificate.png")
-    original = directory / "honors" / item["id"] / "original.png"
-    assert original.read_bytes() == raw
     assets = Assets(db, directory)
-    report = migrate_legacy_assets(assets)
-    assert report["migrated"] == [f"honors/{item['id']}"]
-    assert not original.exists()
+    item = Honors(db, directory, None, assets=assets).upload(raw, "certificate.png")
+    assert not (directory / "honors" / item["id"]).exists()
     assert assets.read_file(f"honors/{item['id']}", "original.png") == raw
-    with ZipFile(report["backup"]) as archive:
-        assert archive.read(f"honors/{item['id']}/original.png") == raw
-    assert migrate_legacy_assets(assets) == {"migrated": [], "backup": None}
     backup = create_backup(db, directory)
     with ZipFile(backup) as archive:
         assert not any(name.startswith("honors/") for name in archive.namelist())
@@ -103,30 +94,6 @@ def test_export_uses_only_assets_and_restored_download_matches(tmp_path):
         assert client.get(url + "/manifest.json").json() == result["manifest"]
 
 
-def test_cleanup_interruption_resumes_without_duplicate_assets(tmp_path, monkeypatch):
-    """索引发布后清理中断，下次启动核验原件并继续清理，不再次暂存同一附件"""
-    directory = tmp_path / "data"
-    db = Database(directory / "resume.db")
-    raw = certificate_bytes()
-    item = Honors(db, directory, None).upload(raw, "certificate.png")
-    assets = Assets(db, directory)
-
-    def interrupted(*_):
-        """模拟发布成功后旧文件仍被占用"""
-        raise OSError("synthetic cleanup interruption")
-
-    with monkeypatch.context() as patch:
-        patch.setattr("resume_maker.infrastructure.asset_migration.remove_legacy", interrupted)
-        with pytest.raises(OSError):
-            migrate_legacy_assets(assets)
-    before = db.all("SELECT * FROM settings WHERE key LIKE 'asset:%'")
-    assert assets.read_file(f"honors/{item['id']}", "original.png") == raw
-    assert (directory / "honors" / item["id"] / "original.png").is_file()
-    migrate_legacy_assets(assets)
-    assert db.all("SELECT * FROM settings WHERE key LIKE 'asset:%'") == before
-    assert not (directory / "honors" / item["id"]).exists()
-
-
 def test_project_delete_releases_evidence_in_same_transaction(tmp_path):
     """项目删除解除证据引用，物理原件继续保留到明确回收"""
     from resume_maker.sdk.records import uid
@@ -145,30 +112,3 @@ def test_project_delete_releases_evidence_in_same_transaction(tmp_path):
         assert services.db.setting(f"asset:{resource}")["references"] == []
         with services.assets.lease(resource) as path:
             assert path.read_bytes() == b"synthetic"
-
-
-def test_resumed_cleanup_rejects_replaced_resource_and_preserves_legacy(tmp_path, monkeypatch):
-    """中断后资源索引指向其他有效文件时拒绝清理，旧原件继续保留"""
-    directory = tmp_path / "data"
-    db = Database(directory / "resume.db")
-    raw = certificate_bytes()
-    item = Honors(db, directory, None).upload(raw, "certificate.png")
-    assets = Assets(db, directory)
-    key = f"honors/{item['id']}"
-
-    def interrupted(*_):
-        """模拟资源已发布但旧文件尚未清理"""
-        raise OSError("synthetic cleanup interruption")
-
-    with monkeypatch.context() as patch:
-        patch.setattr("resume_maker.infrastructure.asset_migration.remove_legacy", interrupted)
-        with pytest.raises(OSError):
-            migrate_legacy_assets(assets)
-    owner = assets.bundle(key)["owner"]
-    replacement = assets.stage_bundle(owner, {"original.png": b"synthetic replacement"})
-    with db.transaction() as conn:
-        assets.update_bundle(conn, owner, key, replacement)
-    with pytest.raises(Problem, match="迁移资源和原件摘要不一致"):
-        migrate_legacy_assets(assets)
-    assert (directory / key / "original.png").read_bytes() == raw
-    assert db.setting(f"asset-migration:{key}")["state"] == "published"

@@ -33,8 +33,7 @@
   "data": {
     "settings": [
       "asset:",
-      "asset-bundle:",
-      "asset-migration:"
+      "asset-bundle:"
     ],
     "folders": [
       "assets"

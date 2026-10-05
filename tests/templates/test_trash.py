@@ -10,6 +10,7 @@ from resume_maker.api import create_app
 from resume_maker.core.config import Config
 from resume_maker.core.errors import Problem
 from resume_maker.domain.templates import TEMPLATE_LIBRARY_KEY
+from resume_maker.infrastructure.assets import Assets
 from resume_maker.infrastructure.database import dump
 from resume_maker.services.resumes import Resumes
 from resume_maker.services.template_records import TemplateRecords
@@ -109,17 +110,18 @@ def test_used_templates_and_builtin_cannot_be_removed(catalog, tmp_path):
     """所有保存方案的固定引用均受保护，包括保留历史导出的已删除方案"""
     source = register_template(catalog, tmp_path / "data")
     service = TemplateLibrary(
-        Resumes(catalog, storage=catalog.db),
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
         tmp_path / "data",
         storage=catalog.db,
         records=TemplateRecords(),
+        assets=Assets(catalog.db, tmp_path / "data"),
     )
-    resume = Resumes(catalog, storage=catalog.db).save_resume(
+    resume = Resumes(catalog, storage=catalog.db, assets=catalog.assets).save_resume(
         "正在使用", "mapped", [], document=resume_content()
     )
     before = (
         source.read_bytes(),
-        Resumes(catalog, storage=catalog.db).template("mapped"),
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets).template("mapped"),
         service.state(),
     )
     for permanent in (False, True):
@@ -127,12 +129,14 @@ def test_used_templates_and_builtin_cannot_be_removed(catalog, tmp_path):
             service.delete("mapped", permanent)
         with pytest.raises(Problem, match="内置"):
             service.delete("builtin", permanent)
-    Resumes(catalog, storage=catalog.db).delete_resume(resume["id"], resume["version"])
+    Resumes(catalog, storage=catalog.db, assets=catalog.assets).delete_resume(
+        resume["id"], resume["version"]
+    )
     with pytest.raises(Problem, match="正在使用"):
         service.delete("mapped")
     assert (
         source.read_bytes(),
-        Resumes(catalog, storage=catalog.db).template("mapped"),
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets).template("mapped"),
         service.state(),
     ) == before
 
@@ -141,10 +145,11 @@ def test_exact_deadline_and_restoration_cancel_cleanup(catalog, tmp_path):
     """不足三十天不清理，到期精确清理，恢复后旧清理任务不能删除已恢复项"""
     source = register_template(catalog, tmp_path / "data")
     service = TemplateLibrary(
-        Resumes(catalog, storage=catalog.db),
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
         tmp_path / "data",
         storage=catalog.db,
         records=TemplateRecords(),
+        assets=Assets(catalog.db, tmp_path / "data"),
     )
     service.delete("mapped")
     stamp = datetime(2026, 1, 1, tzinfo=UTC)
@@ -157,7 +162,8 @@ def test_exact_deadline_and_restoration_cancel_cleanup(catalog, tmp_path):
     service.delete("mapped")
     age_item(service, "mapped", stamp)
     service.purge_expired(stamp + timedelta(days=30))
-    assert not source.exists()
+    assert catalog.assets.bundle("templates/mapped") is None
+    assert source.exists()
     assert service.state()["templates"] == []
 
 
@@ -181,7 +187,7 @@ def test_permanent_cleanup_keeps_shared_artifacts_and_external_source(catalog, t
     """永久删除仅清理模板专属目录、缓存和缩略图"""
     root = tmp_path / "data"
     source = register_template(catalog, root)
-    record = Resumes(catalog, storage=catalog.db).template("mapped")
+    record = Resumes(catalog, storage=catalog.db, assets=catalog.assets).template("mapped")
     external = tmp_path / "user-original.docx"
     external.write_bytes(source.read_bytes())
     exclusive = root / "workspaces" / "template-exclusive"
@@ -196,8 +202,9 @@ def test_permanent_cleanup_keeps_shared_artifacts_and_external_source(catalog, t
     thumbnail.mkdir(parents=True)
     (thumbnail / "page-1.png").write_bytes(b"preview")
     artifacts = [directory.relative_to(root).as_posix() for directory in (exclusive, shared)]
+    cache_path = cache.relative_to(root).as_posix()
     with catalog.db.transaction() as conn:
-        mapping = {**record["mapping"], "artifacts": artifacts}
+        mapping = {**record["mapping"], "artifacts": [*artifacts, cache_path]}
         conn.execute("UPDATE templates SET mapping_json=? WHERE id='mapped'", (dump(mapping),))
         conn.execute(
             "INSERT INTO templates VALUES (?,?,?,?,?)",
@@ -205,19 +212,26 @@ def test_permanent_cleanup_keeps_shared_artifacts_and_external_source(catalog, t
                 "other",
                 "共享模板",
                 record["hash"],
-                dump({**record["mapping"], "artifacts": [artifacts[1]]}),
+                dump({**record["mapping"], "artifacts": [artifacts[1], cache_path]}),
                 record["created_at"],
             ),
         )
-    other = root / "templates" / "other" / "template.docx"
-    other.parent.mkdir()
-    other.write_bytes(source.read_bytes())
+    staged = catalog.assets.stage_bundle(
+        "ext.template-adapter", {"template.docx": source.read_bytes()}
+    )
+    with catalog.db.transaction() as conn:
+        catalog.assets.publish_bundle(conn, "ext.template-adapter", "templates/other", staged)
     service = TemplateLibrary(
-        Resumes(catalog, storage=catalog.db), root, storage=catalog.db, records=TemplateRecords()
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
+        root,
+        storage=catalog.db,
+        records=TemplateRecords(),
+        assets=Assets(catalog.db, root),
     )
     service.delete("mapped")
     service.delete("mapped", permanent=True)
-    assert not source.parent.exists() and not exclusive.exists()
+    assert catalog.assets.bundle("templates/mapped") is None and not exclusive.exists()
+    assert source.exists()
     assert shared.exists() and thumbnail.exists() and cache.exists() and external.exists()
     service.delete("other")
     service.delete("other", permanent=True)
@@ -229,8 +243,21 @@ def test_failed_file_cleanup_stays_in_trash_for_retry(catalog, tmp_path, monkeyp
     """文件占用不能返回假成功或删除数据库记录，解除占用后可完成重试"""
     root = tmp_path / "data"
     source = register_template(catalog, root)
+    artifact = root / "workspaces" / "template-owned"
+    artifact.mkdir(parents=True)
+    (artifact / "preview.png").write_bytes(b"preview")
+    with catalog.db.transaction() as conn:
+        conn.execute(
+            "UPDATE templates SET mapping_json=json_set(mapping_json,'$.artifacts',json(?)) "
+            "WHERE id='mapped'",
+            (dump([artifact.relative_to(root).as_posix()]),),
+        )
     service = TemplateLibrary(
-        Resumes(catalog, storage=catalog.db), root, storage=catalog.db, records=TemplateRecords()
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
+        root,
+        storage=catalog.db,
+        records=TemplateRecords(),
+        assets=Assets(catalog.db, root),
     )
     service.delete("mapped")
     import shutil
@@ -247,23 +274,25 @@ def test_failed_file_cleanup_stays_in_trash_for_retry(catalog, tmp_path, monkeyp
     assert source.exists() and service.state()["items"]["mapped"]["deleted_at"]
     monkeypatch.setattr("resume_maker.services.templates.cleanup.shutil.rmtree", original)
     service.delete("mapped", permanent=True)
-    assert not source.exists()
+    assert not artifact.exists() and catalog.assets.bundle("templates/mapped") is None
+    assert source.exists()
 
 
 def test_recycle_and_save_cannot_create_a_dangling_reference(catalog, tmp_path):
     """并发保存和移入只允许一个成功，数据库不会产生引用回收站模板的简历"""
     register_template(catalog, tmp_path / "data")
     service = TemplateLibrary(
-        Resumes(catalog, storage=catalog.db),
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
         tmp_path / "data",
         storage=catalog.db,
         records=TemplateRecords(),
+        assets=Assets(catalog.db, tmp_path / "data"),
     )
     with ThreadPoolExecutor(max_workers=2) as pool:
         operations = [
             pool.submit(service.delete, "mapped"),
             pool.submit(
-                Resumes(catalog, storage=catalog.db).save_resume,
+                Resumes(catalog, storage=catalog.db, assets=catalog.assets).save_resume,
                 "并发方案",
                 "mapped",
                 [],
@@ -289,14 +318,18 @@ def test_cleanup_refuses_paths_outside_data_before_deleting(catalog, tmp_path):
     source = register_template(catalog, root)
     external = tmp_path / "keep.txt"
     external.write_text("keep")
-    record = Resumes(catalog, storage=catalog.db).template("mapped")
+    record = Resumes(catalog, storage=catalog.db, assets=catalog.assets).template("mapped")
     record["mapping"]["artifacts"] = [str(external)]
     with catalog.db.transaction() as conn:
         conn.execute(
             "UPDATE templates SET mapping_json=? WHERE id='mapped'", (dump(record["mapping"]),)
         )
     service = TemplateLibrary(
-        Resumes(catalog, storage=catalog.db), root, storage=catalog.db, records=TemplateRecords()
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
+        root,
+        storage=catalog.db,
+        records=TemplateRecords(),
+        assets=Assets(catalog.db, root),
     )
     service.delete("mapped")
     with pytest.raises(Problem, match="超出"):

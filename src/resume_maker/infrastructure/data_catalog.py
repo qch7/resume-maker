@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS plugin_data_catalog (
 
 
 def initialize_catalog(conn, selected=None):
-    """已有业务表归属转成持久描述，关闭或缺少插件仍可发现附件"""
+    """初始化持久资料描述，关闭或缺少插件仍可发现附件"""
     descriptors = json.loads(
         Path(__file__).with_name("data_descriptors.json").read_text(encoding="utf-8")
     )
@@ -84,10 +84,6 @@ def resource_records(conn):
                     r"[A-Za-z0-9_-]+", identifier
                 ):
                     raise Problem(f"插件 {owner} 的资源标识无效。")
-                if conn.execute(
-                    "SELECT 1 FROM settings WHERE key=?", (f"asset-bundle:{root}/{identifier}",)
-                ).fetchone():
-                    continue
                 resources.append(
                     {
                         "owner": owner,

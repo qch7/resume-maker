@@ -11,8 +11,9 @@ from resume_maker.api import create_app
 from resume_maker.core.config import Config
 from resume_maker.domain.models import ProviderSettings
 from resume_maker.domain.templates import TemplatePlan
-from resume_maker.integrations.providers.base import Cancelled, StructuredOutputError
+from resume_maker.infrastructure.assets import Assets
 from resume_maker.integrations.word.templates.mapping import TemplatePackage
+from resume_maker.sdk.model import Cancelled, StructuredOutputError
 from resume_maker.services.resumes import Resumes
 from resume_maker.services.templates.analysis import analyze_plan, complete_labels
 from resume_maker.services.templates.analysis_driver import TemplateAnalysis
@@ -33,11 +34,12 @@ def test_ai_repairs_its_own_missing_fields(catalog, tmp_path):
     simple_template(source)
     provider = RepairProvider()
     service = Templates(
-        Resumes(catalog, storage=catalog.db),
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
         tmp_path,
         provider,
         storage=catalog.db,
         analysis=TemplateAnalysis(),
+        assets=Assets(catalog.db, tmp_path),
     )
     task = completed(service, service.analyze(source, simple_document())["id"])
     assert task["review"]["ready"] and task["attempts"] == 2
@@ -54,11 +56,12 @@ def test_repair_preserves_best_result_and_is_bounded(catalog, tmp_path, outcome)
     simple_template(source)
     provider = RepairProvider(outcome)
     service = Templates(
-        Resumes(catalog, storage=catalog.db),
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
         tmp_path,
         provider,
         storage=catalog.db,
         analysis=TemplateAnalysis(),
+        assets=Assets(catalog.db, tmp_path),
     )
     task = completed(service, service.analyze(source, simple_document())["id"])
     assert task["status"] == "completed" and not task["review"]["ready"]

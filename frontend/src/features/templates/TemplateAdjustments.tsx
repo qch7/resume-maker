@@ -117,10 +117,7 @@ export default function TemplateAdjustments({
               <input
                 type="checkbox"
                 checked={showBlanks}
-                onChange={
-                  /* 空白只在需要补充填写位置时显示 */ (event) =>
-                    setShowBlanks(event.target.checked)
-                }
+                onChange={(event) => setShowBlanks(event.target.checked)}
               />
               显示空白位置
             </label>

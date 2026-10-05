@@ -7,6 +7,7 @@ from docx import Document
 from lxml import etree
 
 from resume_maker.domain.templates import TemplatePlan, TextBinding
+from resume_maker.infrastructure.assets import Assets
 from resume_maker.integrations.word.ooxml import NS, w
 from resume_maker.integrations.word.templates.fill import fill_template
 from resume_maker.integrations.word.templates.mapping import TemplatePackage
@@ -98,11 +99,12 @@ def test_hyperlink_import_reaches_analysis_and_keeps_snapshot_ids(catalog, tmp_p
     doc.save(source)
     provider = TemplateProvider()
     service = Templates(
-        Resumes(catalog, storage=catalog.db),
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
         tmp_path / "data",
         provider,
         storage=catalog.db,
         analysis=TemplateAnalysis(),
+        assets=Assets(catalog.db, tmp_path / "data"),
     )
     task = service.analyze(source, simple_document())
     result = completed(service, task["id"])

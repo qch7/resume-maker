@@ -15,8 +15,8 @@ class ResumeSources:
         self.db, self.contributions = db, contributions
 
     def entries(self):
-        """拒绝无效接口、重复历史前缀及不兼容版本"""
-        entries, prefixes = {}, set()
+        """拒绝无效接口、重复标识和不兼容版本"""
+        entries = {}
         for item in self.contributions("resume.sources"):
             value = item.value
             if (
@@ -30,10 +30,6 @@ class ResumeSources:
                 or not callable(value.resolve)
             ):
                 raise Problem(f"资料来源协议无效：{item.identifier}", 409)
-            if value.legacy_prefix:
-                if value.legacy_prefix in prefixes:
-                    raise Problem("资料来源历史身份冲突。", 409)
-                prefixes.add(value.legacy_prefix)
             entries[item.identifier] = item
         return entries
 
@@ -86,10 +82,6 @@ class ResumeSources:
                     link = entry.get("source")
                     if link and link.get("provider") == identifier:
                         matched.append((entry, link["id"]))
-                    elif not link and item.value.legacy_prefix:
-                        prefix = item.value.legacy_prefix
-                        if entry["id"].startswith(prefix):
-                            matched.append((entry, entry["id"][len(prefix) :]))
             if not matched:
                 continue
             identifiers = tuple(dict.fromkeys(key for _, key in matched))

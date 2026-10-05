@@ -238,7 +238,12 @@ test("recognized honors must be selected into this resume to complete the honor 
   // 按来源标识识别加入自定义栏目的荣誉
   state.draft.document.sections
     .find((section) => section.id === "skills")
-    .entries.push({ ...newEntry(), id: "honor:h1", title: "示例奖项" });
+    .entries.push({
+      ...newEntry(),
+      id: "honor:h1",
+      source: { provider: "ext.honors/library", id: "h1", version: "1" },
+      title: "示例奖项",
+    });
   assert.deepEqual(getWorkflow(state).substeps[3], [true, true]);
   assert.equal(getWorkflow(state).done[3], true);
 });

@@ -117,5 +117,4 @@ def test_startup_override_is_not_written_as_workspace_setting(tmp_path):
     restored = compose_configuration(manifests(), startup_configuration(store.read()))
     assert restored["configs"]["community.example"]["nullable"] == "bundle"
     assert restored["provenance"]["community.example"]["/nullable"] == "bundle:test"
-    legacy = {"configs": {"community.example": {"optional": "legacy"}}}
-    assert startup_configuration(legacy) == [replacement_layer("workspace", legacy["configs"])]
+    assert startup_configuration({}) == [replacement_layer("workspace", {})]

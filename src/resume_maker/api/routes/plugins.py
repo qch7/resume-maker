@@ -145,7 +145,7 @@ def pin_package(
     plugin_id: str,
     body: PinInput,
 ):
-    """与配置计划串行锁定版本，不能绕过正在进行的变更"""
+    """串行处理版本锁定和配置计划，拒绝正在进行的变更"""
     with dep_plugins.lock:
         if dep_plugins.pending_plan or dep_plugins.maintenance:
             raise Problem("请先完成当前插件变更。", 409)

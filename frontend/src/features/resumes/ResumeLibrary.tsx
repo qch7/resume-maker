@@ -136,9 +136,7 @@ export default function ResumeLibrary(props: ResumeLibraryProps) {
               aria-label="搜索简历方案"
               placeholder="搜索简历方案"
               value={query}
-              onChange={
-                /* 即时筛选方案列表 */ (event) => setQuery(event.target.value)
-              }
+              onChange={(event) => setQuery(event.target.value)}
             />
           </label>
           <div className="resume-library-list">

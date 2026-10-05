@@ -13,7 +13,6 @@ from pydantic import ValidationError
 from resume_maker.core.errors import Problem
 from resume_maker.domain.image_layout import ImageAsset, ImagePage, ImageText
 from resume_maker.domain.templates import RepeatBinding, TemplatePlan, TextBinding
-from resume_maker.integrations.providers.base import Cancelled
 from resume_maker.integrations.word.image.header import check_image_header
 from resume_maker.integrations.word.image.layout import (
     asset_bytes,
@@ -27,6 +26,7 @@ from resume_maker.integrations.word.pdf.geometry import PDF, SOURCE, WP, recover
 from resume_maker.integrations.word.recovery import prepare_template
 from resume_maker.integrations.word.templates.fill import fill_template
 from resume_maker.integrations.word.templates.mapping import TemplatePackage
+from resume_maker.sdk.model import Cancelled
 from tests.support.documents import header_content
 from tests.support.images import image_fixture, quiet, source_plan
 from tests.support.providers import ProviderStub

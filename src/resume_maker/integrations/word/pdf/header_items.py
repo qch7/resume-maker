@@ -128,7 +128,7 @@ def extract_items(package, roots, fields):
 
 
 def drawing_box(anchor):
-    """兼容旧 PDF 恢复图形的坐标，以同栏的局部偏移识别重叠小图和左右照片"""
+    """读取来源坐标，缺省时用同栏局部偏移定位图标和照片"""
     box = rectangle(anchor)
     if box is not None:
         return box

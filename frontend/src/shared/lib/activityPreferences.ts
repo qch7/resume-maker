@@ -1,6 +1,5 @@
 export const DEFAULT_POLLING_PATHS =
   "/api/state\n/api/honors\n/api/templates/analyses/*/progress";
-const PREVIOUS_HIDDEN_RULES = `${DEFAULT_POLLING_PATHS}\ntemplate_library.purge_expired`;
 export const DEFAULT_HIDDEN_RULES = [
   DEFAULT_POLLING_PATHS,
   "GET /api/templates/analyses/*",
@@ -33,10 +32,7 @@ export const DEFAULT_ACTIVITY_PREFERENCES = {
   detailHeight: 280,
 };
 export type ActivityPreferences = typeof DEFAULT_ACTIVITY_PREFERENCES;
-export type SavedActivityPreferences = Partial<ActivityPreferences> & {
-  pollingPaths?: string;
-  hideMaintenance?: boolean;
-};
+export type SavedActivityPreferences = Partial<ActivityPreferences>;
 
 /** 校验本地缓存并补齐新增设置，损坏值不会破坏日志布局 */
 export function restoreActivityPreferences(
@@ -49,29 +45,7 @@ export function restoreActivityPreferences(
     typeof value?.hiddenRules === "string" &&
     !hiddenRuleError(value.hiddenRules)
   ) {
-    result.hiddenRules =
-      value.hiddenRules.trim() === PREVIOUS_HIDDEN_RULES
-        ? DEFAULT_HIDDEN_RULES
-        : value.hiddenRules;
-  } else {
-    const paths =
-      typeof value?.pollingPaths === "string" &&
-      value.pollingPaths.length <= 2000
-        ? value.pollingPaths
-        : DEFAULT_POLLING_PATHS;
-    const migrated = [
-      paths,
-      value?.hideMaintenance === false ? "" : "template_library.purge_expired",
-    ]
-      .filter(Boolean)
-      .join("\n");
-    result.hiddenRules = !hiddenRuleError(migrated)
-      ? migrated
-      : value?.hideMaintenance === false
-        ? DEFAULT_POLLING_PATHS
-        : DEFAULT_HIDDEN_RULES;
-    if (migrated === PREVIOUS_HIDDEN_RULES)
-      result.hiddenRules = DEFAULT_HIDDEN_RULES;
+    result.hiddenRules = value.hiddenRules;
   }
   for (const key of [
     "overviewHeight",

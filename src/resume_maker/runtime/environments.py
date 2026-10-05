@@ -276,7 +276,7 @@ class EnvironmentStore:
         )
 
     def available(self, locations):
-        """启动时只选择与当前包摘要匹配且解释器完整的已准备环境"""
+        """启动时只选择匹配当前包摘要且解释器完整的已准备环境"""
         result = {}
         for owner, record in self.records().items():
             location = locations.get(owner)

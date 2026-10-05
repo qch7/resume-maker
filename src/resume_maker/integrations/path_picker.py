@@ -10,7 +10,7 @@ from uuid import UUID
 from resume_maker.core.errors import Problem
 
 _dialog_lock = threading.Lock()
-_CANCELLED = -2147023673  # HRESULT_FROM_WIN32(ERROR_CANCELLED)
+_CANCELLED = -2147023673  # 用户取消对话框时返回的 Windows 错误码
 
 
 def initial_directory(value: str, kind: str) -> Path:
@@ -143,7 +143,7 @@ def _windows_dialog(kind: str, directory: Path) -> str | None:
             str(directory), None, shell_item, ctypes.byref(folder)
         )
         if status >= 0:
-            _check(_call(dialog, 12, (pointer,), folder))  # SetFolder
+            _check(_call(dialog, 12, (pointer,), folder))  # 设置初始目录
         status = _call(dialog, 3, (pointer,), owner)  # Show：继承所有者的置顶层级
         if status == _CANCELLED:
             return None
@@ -158,7 +158,7 @@ def _windows_dialog(kind: str, directory: Path) -> str | None:
             ole.CoTaskMemFree(filename)
         for item in (result, folder, dialog):
             if item:
-                _call(item, 2)  # IUnknown.Release
+                _call(item, 2)  # 释放 COM 接口引用
         if owner:
             user.DestroyWindow(owner)
         ole.CoUninitialize()

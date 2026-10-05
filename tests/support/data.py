@@ -2,22 +2,29 @@
 
 from docx import Document
 
+from resume_maker.infrastructure.assets import Assets
 from resume_maker.integrations.sources import capture_evidence, project_sources
 from resume_maker.integrations.word.ooxml import w
 from resume_maker.integrations.word.templates.mapping import paragraph_text
+from resume_maker.services.catalog import Catalog
 from resume_maker.services.resumes import Resumes
 from resume_maker.services.settings import Settings
 from resume_maker.services.workspace import Workspace
 
 
+def make_catalog(db):
+    """用同一资料目录的资源服务装配经历服务"""
+    return Catalog(db, assets=Assets(db, db.path.parent))
+
+
 def record_source_files(db, data_dir, project, paths=("README.md",)):
     """仅为测试指定的来源文件建立证据记录以免夹具依赖已经移除的整库采集"""
     return capture_evidence(
-        db,
         data_dir,
         project,
         project_sources(project),
         [{"source": "source-0", "path": path, "status": "document"} for path in paths],
+        publish=Catalog(db, assets=Assets(db, data_dir)).publish_evidence,
     )
 
 
@@ -82,7 +89,7 @@ def children(catalog, parent_id):
 
 def workspace(catalog, *, contributors=None):
     """用真实公开查询接口装配独立测试工作台"""
-    resumes = Resumes(catalog, storage=catalog.db)
+    resumes = Resumes(catalog, storage=catalog.db, assets=catalog.assets)
     settings = Settings(catalog.db, catalog.db.path.parent)
     return Workspace(
         catalog.db,

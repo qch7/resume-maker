@@ -214,10 +214,7 @@ export default function HonorEditor({
                     void download(
                       `/honors/${honor.id}/original`,
                       honor.attachment!.name,
-                    ).catch(
-                      /* 下载失败在当前窗口提示 */ (reason: Error) =>
-                        setError(reason.message),
-                    );
+                    ).catch((reason: Error) => setError(reason.message));
                   }
                 }
               >
@@ -367,12 +364,11 @@ export default function HonorEditor({
                           maxLength={field.max}
                           value={fields[field.key]}
                           placeholder={field.placeholder}
-                          onChange={
-                            /* 只更新当前输入字段 */ (event) =>
-                              setFields({
-                                ...fields,
-                                [field.key]: event.target.value,
-                              })
+                          onChange={(event) =>
+                            setFields({
+                              ...fields,
+                              [field.key]: event.target.value,
+                            })
                           }
                         />
                         <CopyButton

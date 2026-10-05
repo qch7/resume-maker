@@ -136,7 +136,7 @@ class Resumes(Protocol):
         """在调用方快照内返回模块拥有的工作台查询"""
         ...
 
-    def template_bytes(self, template, directory):
+    def template_bytes(self, template):
         """读取不可变模板原件，不向消费者暴露持久文件位置"""
         ...
 
@@ -286,10 +286,6 @@ class Honors(Protocol):
 
     def delete(self, identifier, version):
         """删除库条目并取消识别，关联简历保留删除前最后核对的资料"""
-        ...
-
-    def file(self, identifier, page=None):
-        """仅返回登记过的原件或指定分页图片"""
         ...
 
 

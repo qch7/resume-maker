@@ -3,7 +3,6 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import FileResponse
 from starlette.concurrency import run_in_threadpool
 
 from resume_maker.api.dependencies import service
@@ -94,18 +93,10 @@ def original_honor(
 ):
     """以附件形式下载原始证书"""
     reference = dep_honors.file_reference(honor_id)
-    if reference["id"]:
-        return AssetResponse(
-            dep_assets,
-            reference["id"],
-            reference["name"],
-            media_type="application/octet-stream",
-            headers={"X-Content-Type-Options": "nosniff"},
-        )
-    path, name = dep_honors.file(honor_id)
-    return FileResponse(
-        path,
-        filename=name,
+    return AssetResponse(
+        dep_assets,
+        reference["id"],
+        reference["name"],
         media_type="application/octet-stream",
         headers={"X-Content-Type-Options": "nosniff"},
     )
@@ -120,12 +111,9 @@ def honor_page(
 ):
     """提供由本机解码生成的 PNG 页面，PDF 和图片共用预览"""
     reference = dep_honors.file_reference(honor_id, page)
-    if reference["id"]:
-        return AssetResponse(
-            dep_assets,
-            reference["id"],
-            media_type="image/png",
-            headers={"X-Content-Type-Options": "nosniff"},
-        )
-    path, _ = dep_honors.file(honor_id, page)
-    return FileResponse(path, media_type="image/png", headers={"X-Content-Type-Options": "nosniff"})
+    return AssetResponse(
+        dep_assets,
+        reference["id"],
+        media_type="image/png",
+        headers={"X-Content-Type-Options": "nosniff"},
+    )

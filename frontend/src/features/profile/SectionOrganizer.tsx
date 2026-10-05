@@ -392,19 +392,15 @@ export default function SectionOrganizer({
                 value={title}
                 maxLength={100}
                 placeholder="如：实习经历、校园活动、个人评价"
-                onChange={
-                  /* 记录待创建栏目名称 */ (event) =>
-                    setTitle(event.target.value)
-                }
+                onChange={(event) => setTitle(event.target.value)}
               />
             </label>
             <label>
               内容排版
               <select
                 value={kind}
-                onChange={
-                  /* 选择通用资料或教育经历布局 */ (event) =>
-                    setKind(event.target.value as "education" | "text")
+                onChange={(event) =>
+                  setKind(event.target.value as "education" | "text")
                 }
               >
                 <option value="text">通用 · 标题与正文</option>

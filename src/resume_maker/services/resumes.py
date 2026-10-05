@@ -10,7 +10,7 @@ from resume_maker.sdk.records import dump, now, uid, unpack
 class Resumes:
     """简历插件拥有组合保存，经历服务仅提供不可变引用读取"""
 
-    def __init__(self, experience, *, storage, sources=None, assets=None):
+    def __init__(self, experience, *, storage, assets, sources=None):
         """持有独立经历读取依赖和可撤销的资料来源解析器"""
         self.experience, self.db = experience, storage
         self.sources = sources
@@ -32,11 +32,9 @@ class Resumes:
             resume["document"] = self.resolve_document(resume["document"], conn)
         return result
 
-    def template_bytes(self, template, directory):
-        """通过统一资源读取模板原件，独立调用兼容旧文件布局"""
-        if self.assets:
-            return self.assets.read_file(f"templates/{template['id']}", "template.docx")
-        return (directory / "templates" / template["id"] / "template.docx").read_bytes()
+    def template_bytes(self, template):
+        """通过统一资源读取已发布的模板原件"""
+        return self.assets.read_file(f"templates/{template['id']}", "template.docx")
 
     def freeze_export(self, directory, identifier):
         """在同一快照固定成品所需的简历、修订和模板输入"""

@@ -14,7 +14,7 @@ from resume_maker.services.history import History
 class Catalog:
     """经历版本和草稿的核心事务服务"""
 
-    def __init__(self, db: RelationalStore, *, assets=None):
+    def __init__(self, db: RelationalStore, *, assets):
         """保存当前模块所需依赖，供后续业务操作共享使用"""
         self.db, self.assets = db, assets
         self.history = History(db)

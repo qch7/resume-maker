@@ -6,7 +6,7 @@ import type {
   SectionEntry,
 } from "../../../shared/types/index.ts";
 
-import { isHonorSection, newHonorEntry } from "./entry.ts";
+import { honorSourceId, isHonorSection, newHonorEntry } from "./entry.ts";
 export { CATEGORIES, emptyHonor } from "./fields.ts";
 export type { HonorCategory, HonorFields } from "./fields.ts";
 
@@ -39,7 +39,7 @@ export function hasHonor(document: ResumeDocument | null, id: string) {
     document?.sections.some(
       /* 检查所有栏目中的稳定来源标识 */ (section) =>
         section.entries.some(
-          /* 同一荣誉仅加入一次 */ (entry) => entry.id === `honor:${id}`,
+          /* 同一荣誉仅加入一次 */ (entry) => honorSourceId(entry) === id,
         ),
     ) ?? false
   );
@@ -57,7 +57,7 @@ export function removeHonor(
       /* 按来源标识移除条目以支持自定义栏目 */ (section) => {
         const entries = section.entries.filter(
           /* 同名手动条目和其他来源均保留 */ (entry) =>
-            entry.id !== `honor:${id}`,
+            honorSourceId(entry) !== id,
         );
         return entries.length === section.entries.length
           ? section
@@ -82,8 +82,14 @@ export function addHonors(
         !hasHonor(document, honor.id),
     )
     .map(
-      /* 完整保留各项荣誉资料，默认只显示名称和日期 */ (honor) =>
-        newHonorEntry(honor.fields, `honor:${honor.id}`),
+      /* 完整保留各项荣誉资料，默认只显示名称和日期 */ (honor) => ({
+        ...newHonorEntry(honor.fields, `honor:${honor.id}`),
+        source: {
+          provider: "ext.honors/library",
+          id: honor.id,
+          version: String(honor.version),
+        },
+      }),
     );
   if (!additions.length) return document;
   const section = target

@@ -15,15 +15,15 @@ import pytest
 
 from resume_maker.domain.models import Model, ProviderSettings
 from resume_maker.integrations.providers import sandbox
-from resume_maker.integrations.providers.base import Cancelled, MosaicImage, ProviderError
 from resume_maker.integrations.providers.cli import run_cli
-from resume_maker.integrations.providers.codex import CodexProvider
 from resume_maker.integrations.providers.credentials import isolated_credentials
 from resume_maker.integrations.providers.material_server import call, dispatch
 from resume_maker.integrations.providers.mosaic import mosaic_sheets
 from resume_maker.integrations.providers.process import execute
 from resume_maker.integrations.providers.sandbox import materials, posix_parent
+from resume_maker.sdk.model import Cancelled, MosaicImage, ProviderError
 from tests.support.privacy import synthetic_image
+from tests.support.providers import privacy_provider
 
 
 class BoundaryReply(Model):
@@ -436,7 +436,7 @@ def test_native_cli_tool_boundary(tmp_path, model, with_mosaic):
         encoding="utf-8",
     )
     try:
-        provider = CodexProvider(
+        provider = privacy_provider(
             environment={"CODEX_HOME": str(tmp_path), "SYNTHETIC_KEY": "SECRET-CANARY"},
             runner=run_cli,
         ).with_private_data({"personal": {"name": "合成测试甲", "age": "21"}})

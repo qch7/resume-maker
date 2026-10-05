@@ -11,7 +11,7 @@ function sectionOrder<T extends { id: string; parent_id?: string | null }>(
 ): T[] {
   const result: T[] = [];
   const visited = new Set<string>();
-  /** 每个栏目只进入一次，兼容旧数据中无效的父级关系 */
+  /** 每个栏目只进入一次，孤立栏目仍保留设置入口 */
   function append(section: T) {
     if (visited.has(section.id)) return;
     visited.add(section.id);

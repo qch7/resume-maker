@@ -12,12 +12,12 @@ import pytest
 from resume_maker.core import config
 from resume_maker.integrations.privacy import Redactor
 from resume_maker.integrations.providers import material_server
-from resume_maker.integrations.providers.base import Cancelled
 from resume_maker.integrations.providers.material_server import dispatch, source_call
 from resume_maker.integrations.providers.source_broker import source_broker
 from resume_maker.integrations.source_access import SourceAccess
 from resume_maker.integrations.source_context import source_context
 from resume_maker.integrations.sources import evidence_file
+from resume_maker.sdk.model import Cancelled
 
 
 def access_at(tmp_path, values=()):

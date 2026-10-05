@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from resume_maker.api import create_app
 from resume_maker.core.config import Config
+from resume_maker.infrastructure.assets import Assets
 from resume_maker.integrations.word.templates.mapping import TemplatePackage
 from resume_maker.services.resumes import Resumes
 from resume_maker.services.templates.analysis import compact_inventory
@@ -37,11 +38,12 @@ def test_repair_reuses_only_its_own_session(catalog, tmp_path):
     simple_template(source)
     provider = SessionProvider()
     service = Templates(
-        Resumes(catalog, storage=catalog.db),
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
         tmp_path,
         provider,
         storage=catalog.db,
         analysis=TemplateAnalysis(),
+        assets=Assets(catalog.db, tmp_path),
     )
     task = completed(service, service.analyze(source, simple_document())["id"])
     first, second = provider.calls
@@ -69,20 +71,22 @@ def test_cache_survives_restart_but_rechecks_changed_requirements(catalog, tmp_p
     simple_template(source)
     provider = TemplateProvider()
     service = Templates(
-        Resumes(catalog, storage=catalog.db),
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
         tmp_path,
         provider,
         storage=catalog.db,
         analysis=TemplateAnalysis(),
+        assets=Assets(catalog.db, tmp_path),
     )
     first = completed(service, service.analyze(source, simple_document())["id"])
     service.stop()
     service = Templates(
-        Resumes(catalog, storage=catalog.db),
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
         tmp_path,
         provider,
         storage=catalog.db,
         analysis=TemplateAnalysis(),
+        assets=Assets(catalog.db, tmp_path),
     )
     doc = simple_document()
     doc.personal.name = "另一位使用者"
@@ -102,11 +106,12 @@ def test_corrupted_or_invalid_cache_falls_back_to_analysis(catalog, tmp_path):
     simple_template(source)
     provider = TemplateProvider()
     service = Templates(
-        Resumes(catalog, storage=catalog.db),
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
         tmp_path,
         provider,
         storage=catalog.db,
         analysis=TemplateAnalysis(),
+        assets=Assets(catalog.db, tmp_path),
     )
     first = completed(service, service.analyze(source, simple_document())["id"])
     path = next((tmp_path / "template-cache").glob("*.json"))

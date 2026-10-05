@@ -12,14 +12,9 @@ from resume_maker.integrations.sources import (
 class SourceService:
     """只持有公开经历接口和资源服务，不读取其他业务对象内部状态"""
 
-    def __init__(self, catalog, directory, *, assets=None, storage=None):
-        """生产证据由经历服务发布，独立调用可明确注入旧存储适配"""
-        self.catalog, self.directory, self.assets, self.storage = (
-            catalog,
-            directory,
-            assets,
-            storage,
-        )
+    def __init__(self, catalog, directory, *, assets):
+        """经历服务负责发布证据，资源服务负责读取不可变原件"""
+        self.catalog, self.directory, self.assets = catalog, directory, assets
 
     def scan(self, path):
         """扫描用户明确选择的目录"""
@@ -36,15 +31,14 @@ class SourceService:
     def capture(self, project, sources, references, cancelled):
         """核对后交给经历公开事务接口发布不可变证据"""
         return capture_evidence(
-            self.storage,
             self.directory,
             project,
             sources,
             references,
             cancelled,
-            publish=self.catalog.publish_evidence if self.assets else None,
+            publish=self.catalog.publish_evidence,
         )
 
     def check(self, snapshot, evidence):
         """按留存原件核对引文，缺证据时明确降级"""
-        return check_evidence(self.directory, snapshot, evidence, assets=self.assets)
+        return check_evidence(snapshot, evidence, assets=self.assets)

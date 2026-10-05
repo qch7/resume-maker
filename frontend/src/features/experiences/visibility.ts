@@ -14,7 +14,7 @@ export const META_FIELDS: ExperienceField[] = [
   "description",
 ];
 
-/** 读取当前简历的覆盖设置，未覆盖的旧版本沿用自身的显示状态 */
+/** 优先读取当前简历的覆盖设置，未指定时采用经历版本的显隐 */
 export function fieldVisible(
   value: Meta,
   visibility: ProjectVisibility,

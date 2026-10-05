@@ -9,6 +9,7 @@ from resume_maker.api import create_app
 from resume_maker.core.config import Config
 from resume_maker.domain.models import AIResult, ProviderSettings
 from resume_maker.domain.templates import TemplatePlan
+from resume_maker.infrastructure.assets import Assets
 from resume_maker.infrastructure.database import uid
 from resume_maker.integrations.privacy_gateway import PrivacyGateway
 from resume_maker.integrations.providers import cli
@@ -137,7 +138,7 @@ def test_project_buttons_use_independent_settings_snapshot(
         catalog,
         tmp_path / "data",
         provider,
-        source_service=SourceService(catalog, tmp_path / "data", storage=catalog.db),
+        source_service=SourceService(catalog, tmp_path / "data", assets=catalog.assets),
     )
     settings = ProviderSettings(
         model="default-model",
@@ -221,11 +222,12 @@ def test_template_recognition_and_both_repair_buttons_use_selected_settings(cata
     simple_template(source)
     provider = ThreeRoundProvider(block=True)
     service = Templates(
-        Resumes(catalog, storage=catalog.db),
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
         tmp_path,
         provider,
         storage=catalog.db,
         analysis=TemplateAnalysis(),
+        assets=Assets(catalog.db, tmp_path),
     )
     catalog.db.set_setting(
         "provider",
@@ -280,11 +282,12 @@ def test_changed_template_settings_do_not_reuse_old_model_cache(catalog, tmp_pat
     simple_template(source)
     provider = TemplateProvider()
     service = Templates(
-        Resumes(catalog, storage=catalog.db),
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
         tmp_path,
         provider,
         storage=catalog.db,
         analysis=TemplateAnalysis(),
+        assets=Assets(catalog.db, tmp_path),
     )
     try:
         completed(service, service.analyze(source, simple_document())["id"])

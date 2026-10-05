@@ -1,6 +1,5 @@
 """模板分析、映射核对、试填和登记，复用现有 Provider 并支持取消"""
 
-import shutil
 import threading
 import time
 from copy import deepcopy
@@ -45,7 +44,7 @@ class Templates:
         *,
         storage,
         registry=None,
-        assets=None,
+        assets,
         analysis=None,
     ):
         """初始化实例依赖和受锁保护的任务状态"""
@@ -154,10 +153,7 @@ class Templates:
 
         for key in removed:
             if conn is not None:
-                if self.assets:
-                    self.assets.release_bundle(
-                        conn, "ext.template-adapter", f"template-drafts/{key}"
-                    )
+                self.assets.release_bundle(conn, "ext.template-adapter", f"template-drafts/{key}")
                 conn.execute("DELETE FROM settings WHERE key=?", (f"template-task:{key}",))
                 draft_key = f"workspace-value:rm.template.editor.{key}"
                 previous = unpack(
@@ -185,25 +181,20 @@ class Templates:
         task["elapsed_ms"] = self._elapsed(task)
         staged = (
             self.assets.stage_bundle("ext.template-adapter", {"original.docx": source.read_bytes()})
-            if self.assets and source is not None
+            if source is not None
             else {}
         )
-        if self.assets:
-            staged.update(
-                self.assets.stage_bundle(
-                    "ext.template-adapter",
-                    {path.name: path.read_bytes() for path in folder.glob("uploaded.*")},
-                )
+        staged.update(
+            self.assets.stage_bundle(
+                "ext.template-adapter",
+                {path.name: path.read_bytes() for path in folder.glob("uploaded.*")},
             )
+        )
         with self.db.transaction() as conn:
-            if self.assets and staged:
+            if staged:
                 self.assets.update_bundle(
                     conn, "ext.template-adapter", f"template-drafts/{identifier}", staged
                 )
-            if source is not None and not self.assets:
-                temporary = folder / "original.tmp"
-                shutil.copyfile(source, temporary)
-                temporary.replace(folder / "original.docx")
             conn.execute(
                 "INSERT OR REPLACE INTO settings VALUES (?,?)",
                 (
@@ -223,9 +214,8 @@ class Templates:
                 if execution is not None
                 else None
             )
-        if self.assets:
-            for path in folder.glob("uploaded.*"):
-                path.unlink()
+        for path in folder.glob("uploaded.*"):
+            path.unlink()
         return prepared
 
     def list_tasks(self):
@@ -244,9 +234,7 @@ class Templates:
             task = self.get(identifier)
             if task["status"] not in {"failed", "cancelled"}:
                 raise Problem("仅中断或失败的分析可以重试。", 409)
-            folder = self.data_dir / "template-drafts" / identifier
-            if self.assets:
-                folder = self._working_source(identifier)
+            folder = self._working_source(identifier)
             uploaded = next(folder.glob("uploaded.*"), None)
             saved = self.inputs.get(identifier, {})
             result = self._start(
@@ -634,7 +622,7 @@ class Templates:
         """持有产物锁时打开模板以免永久清理和编辑副本创建交错"""
         template = self.catalog.template(template_id)
         mapping = template["mapping"]
-        data = self.catalog.template_bytes(template, self.data_dir)
+        data = self.catalog.template_bytes(template)
         if digest(data) != template["hash"]:
             raise Problem("模板文件已在程序外变化，请重新导入。")
         plan = TemplatePlan.model_validate(mapping["plan"])
@@ -715,9 +703,7 @@ class Templates:
         """确认任务属于当前实例且分析完成，再取得内部快照路径"""
         if self.get(identifier)["status"] != "completed":
             raise Problem("请先完成模板分析。", 409)
-        if self.assets:
-            return self._working_source(identifier) / "original.docx"
-        return self.data_dir / "template-drafts" / identifier / "original.docx"
+        return self._working_source(identifier) / "original.docx"
 
     def review(
         self,
@@ -760,25 +746,15 @@ class Templates:
         if missing:
             raise Problem("模板未覆盖这些已填写资料，请补充映射或隐藏：" + "、".join(missing))
         template_id = uid()
-        directory = self.data_dir / "templates" / template_id
-        directory.mkdir(parents=True)
         buffer = BytesIO()
         package.write(buffer)
         data = buffer.getvalue()
-        if not self.assets:
-            (directory / "original.docx").write_bytes(data)
-            (directory / "template.docx").write_bytes(data)
-        resources = (
-            self.assets.stage_bundle("ext.template-adapter", {"template.docx": data})
-            if self.assets
-            else None
-        )
+        resources = self.assets.stage_bundle("ext.template-adapter", {"template.docx": data})
         task = self.get(identifier)
         with self.db.transaction() as conn:
-            if resources is not None:
-                self.assets.publish_bundle(
-                    conn, "ext.template-adapter", f"templates/{template_id}", resources
-                )
+            self.assets.publish_bundle(
+                conn, "ext.template-adapter", f"templates/{template_id}", resources
+            )
             conn.execute(
                 "INSERT INTO templates VALUES (?,?,?,?,?)",
                 (

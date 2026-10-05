@@ -49,7 +49,7 @@ import ProjectOrder from "../resumes/ProjectOrder";
 import ProfileEditor from "../profile/ProfileEditor";
 import { addHonors, removeHonor, type Honor } from "../profile/honors/model";
 import { syncHonorResume } from "../profile/honors/sync";
-import { entryWithHonorFields } from "../profile/honors/entry";
+import { entryWithHonorFields, honorSourceId } from "../profile/honors/entry";
 import DefaultsDialog from "../profile/defaults/Dialog";
 import { applyResumeDefaults } from "../profile/defaults/model";
 import SectionOrganizer from "../profile/SectionOrganizer";
@@ -889,9 +889,7 @@ export default function ResumeWorkspace() {
           aria-haspopup="dialog"
           aria-expanded={resumeLibraryOpen}
           title={`导出与模板 · ${draft.name || "未命名方案"}`}
-          onClick={
-            /* 打开方案、模板和导出历史管理 */ () => setResumeLibraryOpen(true)
-          }
+          onClick={() => setResumeLibraryOpen(true)}
         >
           <FileDown size={17} />
           <span className="resume-trigger-copy">
@@ -1080,7 +1078,7 @@ export default function ResumeWorkspace() {
               onStructure={
                 /* 从资料编辑进入栏目编排 */ () => setArea("structure")
               }
-              onProjects={/* 返回项目工作台 */ () => setArea("projects")}
+              onProjects={() => setArea("projects")}
               onHonors={
                 /* 添加证书进入荣誉库，保留当前简历草稿 */ () =>
                   setArea("honors")
@@ -1108,14 +1106,7 @@ export default function ResumeWorkspace() {
                   sectionId,
                   entry,
                 ) =>
-                  void editLinkedHonor(
-                    entry.id.startsWith("honor:") &&
-                      !entry.id.startsWith("honor:manual:")
-                      ? entry.id.slice("honor:".length)
-                      : "",
-                    sectionId,
-                    entry,
-                  )
+                  void editLinkedHonor(honorSourceId(entry), sectionId, entry)
               }
               projects={
                 <ProjectOrder
@@ -1129,16 +1120,15 @@ export default function ResumeWorkspace() {
                   }
                 />
               }
-              onChange={
-                /* 栏目结构和个人资料共用当前完整模板 */ (document) =>
-                  setDraft(
-                    /* 保留栏目编辑期间的其他简历设置 */ (current) => ({
-                      ...current,
-                      document,
-                    }),
-                  )
+              onChange={(document) =>
+                setDraft(
+                  /* 保留栏目编辑期间的其他简历设置 */ (current) => ({
+                    ...current,
+                    document,
+                  }),
+                )
               }
-              onInfo={/* 返回资料编辑 */ () => setArea("personal")}
+              onInfo={() => setArea("personal")}
             />
           ) : !project ? (
             <div className="empty welcome">
@@ -1342,10 +1332,7 @@ export default function ResumeWorkspace() {
         />
         <Composer
           previewFocused={previewFocused}
-          onFocusPreview={
-            /* 切换右侧预览的放大状态 */ () =>
-              setPreviewFocused(!previewFocused)
-          }
+          onFocusPreview={() => setPreviewFocused(!previewFocused)}
           state={state}
           draft={draft}
           revisions={revisionCache}
@@ -1364,7 +1351,7 @@ export default function ResumeWorkspace() {
       {resumeLibraryOpen && (
         <ResumeLibrary
           notice={toast}
-          onDismissNotice={/* 在模态层内清除操作提示 */ () => setToast(null)}
+          onDismissNotice={() => setToast(null)}
           state={state}
           draft={draft}
           previewChanged={previewChanged}
@@ -1469,7 +1456,7 @@ export default function ResumeWorkspace() {
             ...(remoteProject.data ? [remoteProject.data.working.content] : []),
           ]}
           initial={state.resume_defaults}
-          onClose={/* 关闭设置不修改资料 */ () => setDefaultsOpen(false)}
+          onClose={() => setDefaultsOpen(false)}
           onSave={
             /* 先校验应用结果，再保存默认设置并更新当前草稿 */ async (
               settings,
@@ -1514,9 +1501,7 @@ export default function ResumeWorkspace() {
               await saveSectionEntry(editingHonor.sectionId, entry.id, entry);
             }
           }
-          onClose={
-            /* 关闭共享荣誉表单后返回当前资料位置 */ () => setEditingHonor(null)
-          }
+          onClose={() => setEditingHonor(null)}
           onSaved={
             /* 来源成功而简历保存失败时，表单继续使用已确认的新版本重试 */ (
               honor,
@@ -1545,16 +1530,15 @@ export default function ResumeWorkspace() {
           resume={draft}
           revisions={revisionCache}
           previewSources={previewSources}
-          onSelected={
-            /* 将已确认的完整模板用于当前草稿 */ (id) =>
-              setDraft(
-                /* 采用新模板时保留全部个人资料和项目选择 */ (current) => ({
-                  ...current,
-                  template_id: id,
-                  document:
-                    current.document ?? newDocument(state.resume_defaults),
-                }),
-              )
+          onSelected={(id) =>
+            setDraft(
+              /* 采用新模板时保留全部个人资料和项目选择 */ (current) => ({
+                ...current,
+                template_id: id,
+                document:
+                  current.document ?? newDocument(state.resume_defaults),
+              }),
+            )
           }
           templates={state.templates}
           onChanged={

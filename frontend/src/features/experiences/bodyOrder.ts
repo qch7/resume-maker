@@ -4,7 +4,7 @@ import type {
   ProjectVisibility,
 } from "../../shared/types/index.ts";
 
-/** 标题和时间固定在顶部，优先使用版本顺序，旧版本兼容原简历设置 */
+/** 标题和时间固定在顶部，版本未指定正文顺序时采用简历编排 */
 export function projectBodyOrder(
   value: Meta,
   settings: ProjectVisibility,

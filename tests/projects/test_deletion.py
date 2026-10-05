@@ -10,8 +10,8 @@ from resume_maker.api import create_app
 from resume_maker.core.config import Config
 from resume_maker.core.errors import Problem
 from resume_maker.domain.models import ResumeItem
-from resume_maker.integrations.providers.base import Cancelled
 from resume_maker.integrations.source_service import SourceService
+from resume_maker.sdk.model import Cancelled
 from resume_maker.services.jobs import Jobs
 from resume_maker.services.projects import Projects
 from resume_maker.services.resumes import Resumes
@@ -73,13 +73,17 @@ def test_group_deletion_is_blocked_by_child_reference(catalog, tmp_path):
     """任一子项目被引用时整组保留，已删除方案不再阻止项目删除"""
     parent = catalog.create_project("项目组", make_sources(tmp_path))
     subs = list(children(catalog, parent["id"]).values())
-    resume = Resumes(catalog, storage=catalog.db).save_resume("子项目简历", None, [item(subs[0])])
+    resume = Resumes(catalog, storage=catalog.db, assets=catalog.assets).save_resume(
+        "子项目简历", None, [item(subs[0])]
+    )
     projects = Projects(catalog)
     with pytest.raises(Problem, match="子项目简历") as error:
         projects.delete(parent["id"])
     assert error.value.status == 409
     assert len(workspace(catalog).state()["projects"]) == 3
-    Resumes(catalog, storage=catalog.db).delete_resume(resume["id"], resume["version"])
+    Resumes(catalog, storage=catalog.db, assets=catalog.assets).delete_resume(
+        resume["id"], resume["version"]
+    )
     assert set(projects.delete(parent["id"])) == {parent["id"], *(p["id"] for p in subs)}
     assert workspace(catalog).state()["projects"] == []
     assert all(Path(root).is_dir() for root in parent["roots"])
@@ -89,7 +93,7 @@ def test_delete_child_preserves_parent_sibling_and_their_resume(catalog, tmp_pat
     """单独删除子项目只移除该范围，父项目、同组兄弟及其简历保持原样"""
     parent = catalog.create_project("项目组", make_sources(tmp_path))
     first, second = children(catalog, parent["id"]).values()
-    resume = Resumes(catalog, storage=catalog.db).save_resume(
+    resume = Resumes(catalog, storage=catalog.db, assets=catalog.assets).save_resume(
         "保留的简历", None, [item(parent), item(second)]
     )
     assert Projects(catalog).delete(first["id"]) == [first["id"]]
@@ -108,7 +112,7 @@ def test_delete_refuses_active_job_and_cleans_completed_history(catalog, project
         catalog,
         tmp_path / "data",
         FakeProvider(),
-        source_service=SourceService(catalog, tmp_path / "data", storage=catalog.db),
+        source_service=SourceService(catalog, tmp_path / "data", assets=catalog.assets),
     )
     job = jobs.submit(
         conversation["id"], "分析项目", "analysis", project["head_revision"], "all", "one"
@@ -157,7 +161,9 @@ def test_concurrent_resume_save_cannot_reintroduce_deleted_project(catalog, proj
 
     monkeypatch.setattr(catalog, "revision", delete_after_read)
     with pytest.raises(Problem, match="项目已删除"):
-        Resumes(catalog, storage=catalog.db).save_resume("并发简历", None, [item(project)])
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets).save_resume(
+            "并发简历", None, [item(project)]
+        )
     assert catalog.db.all("SELECT * FROM resumes") == []
 
 
@@ -182,7 +188,7 @@ def test_delete_cancelled_project_keeps_job_worker_alive(catalog, project, tmp_p
         catalog,
         tmp_path / "data",
         DelayedProvider(),
-        source_service=SourceService(catalog, tmp_path / "data", storage=catalog.db),
+        source_service=SourceService(catalog, tmp_path / "data", assets=catalog.assets),
     )
     conversation = catalog.db.one(
         "SELECT * FROM conversations WHERE project_id=?", (project["id"],)

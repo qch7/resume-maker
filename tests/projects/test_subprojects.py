@@ -111,7 +111,7 @@ def test_parent_and_subproject_jobs_use_separate_sources_histories_and_threads(c
         catalog,
         tmp_path / "data",
         provider,
-        source_service=SourceService(catalog, tmp_path / "data", storage=catalog.db),
+        source_service=SourceService(catalog, tmp_path / "data", assets=catalog.assets),
     )
     projects = [parent, subs[roots[0]], subs[roots[1]]]
     conversations = [
@@ -178,7 +178,7 @@ def test_parent_and_subproject_jobs_use_separate_sources_histories_and_threads(c
     published = catalog.save_revision(child["id"], child["head_revision"], child["head_revision"])
     assert catalog.working(parent["id"], parent["head_revision"])["content"]["highlights"] == []
     assert catalog.working(projects[2]["id"], projects[2]["head_revision"])["drafts"] == []
-    resume = Resumes(catalog, storage=catalog.db).save_resume(
+    resume = Resumes(catalog, storage=catalog.db, assets=catalog.assets).save_resume(
         "仅子项目",
         None,
         [

@@ -11,6 +11,7 @@ from docx import Document
 from lxml import etree
 
 from resume_maker.domain.templates import RecoveredBlock, RecoveredPage
+from resume_maker.infrastructure.assets import Assets
 from resume_maker.integrations.word.ooxml import NS, w
 from resume_maker.integrations.word.recovery import blank_template, prepare_template
 from resume_maker.integrations.word.templates.fill import fill_template
@@ -97,11 +98,12 @@ def test_complex_word_formats_automatically_recover_and_fill(catalog, tmp_path, 
     monkeypatch.setattr("resume_maker.integrations.word.recovery.render_word", render)
     provider = RecoveryProvider()
     service = Templates(
-        Resumes(catalog, storage=catalog.db),
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
         tmp_path / "data",
         provider,
         storage=catalog.db,
         analysis=TemplateAnalysis(),
+        assets=Assets(catalog.db, tmp_path / "data"),
     )
     task = completed(service, service.analyze(source, simple_document())["id"])
     if kind in {"object", "chart", "altChunk"}:
@@ -143,11 +145,12 @@ def test_pdf_and_scanned_image_sources_enter_same_mapping_workflow(catalog, tmp_
             document[0].get_pixmap().save(source)
     provider = RecoveryProvider()
     service = Templates(
-        Resumes(catalog, storage=catalog.db),
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
         tmp_path / "data",
         provider,
         storage=catalog.db,
         analysis=TemplateAnalysis(),
+        assets=Assets(catalog.db, tmp_path / "data"),
     )
     task = completed(service, service.analyze(source, simple_document())["id"])
     assert task["review"]["ready"] and task["status"] == "completed"
@@ -174,11 +177,12 @@ def test_legacy_word_is_converted_in_background(catalog, tmp_path, monkeypatch):
     monkeypatch.setattr("resume_maker.integrations.word.recovery.convert_word", convert)
     provider = RecoveryProvider()
     service = Templates(
-        Resumes(catalog, storage=catalog.db),
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
         tmp_path / "data",
         provider,
         storage=catalog.db,
         analysis=TemplateAnalysis(),
+        assets=Assets(catalog.db, tmp_path / "data"),
     )
     task = completed(service, service.analyze(source, simple_document())["id"])
     assert task["review"]["ready"] and len(calls) == 1 and not provider.pages
@@ -193,11 +197,12 @@ def test_cancelling_page_recovery_does_not_publish_late_plan(catalog, tmp_path):
     page_pdf(source, scan=True)
     provider = RecoveryProvider(cancel=True)
     service = Templates(
-        Resumes(catalog, storage=catalog.db),
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
         tmp_path / "data",
         provider,
         storage=catalog.db,
         analysis=TemplateAnalysis(),
+        assets=Assets(catalog.db, tmp_path / "data"),
     )
     task = completed(service, service.analyze(source, simple_document())["id"])
     assert task["status"] == "cancelled" and task["plan"] is None
@@ -261,11 +266,12 @@ def test_empty_source_builds_editable_framework(catalog, tmp_path, kind):
             return super().run_structured(**kwargs)
 
     service = Templates(
-        Resumes(catalog, storage=catalog.db),
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
         tmp_path / "data",
         EmptyProvider(),
         storage=catalog.db,
         analysis=TemplateAnalysis(),
+        assets=Assets(catalog.db, tmp_path / "data"),
     )
     task = completed(service, service.analyze(source, simple_document())["id"])
     assert task["status"] == "completed" and task["review"]["ready"]
@@ -325,11 +331,12 @@ def test_recovery_retries_invalid_photo_coordinates(catalog, tmp_path):
 
     provider = RetryProvider()
     service = Templates(
-        Resumes(catalog, storage=catalog.db),
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
         tmp_path / "data",
         provider,
         storage=catalog.db,
         analysis=TemplateAnalysis(),
+        assets=Assets(catalog.db, tmp_path / "data"),
     )
     task = completed(service, service.analyze(source, simple_document())["id"])
     assert task["status"] == "completed" and task["review"]["ready"]
@@ -394,11 +401,12 @@ def test_trial_layout_conflict_keeps_native_table_and_reports_error(
     monkeypatch.setattr("resume_maker.integrations.word.recovery.render_word", render)
     provider = SharedProvider()
     service = Templates(
-        Resumes(catalog, storage=catalog.db),
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
         tmp_path / "data",
         provider,
         storage=catalog.db,
         analysis=TemplateAnalysis(),
+        assets=Assets(catalog.db, tmp_path / "data"),
     )
     task = completed(service, service.analyze(source, simple_document())["id"])
     assert task["status"] == "completed" and task["review"]["ready"] == (not same_paragraph)

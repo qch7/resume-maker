@@ -26,7 +26,7 @@ def register_template(catalog, data_dir):
                 "mapped",
                 "测试模板",
                 digest(path.read_bytes()),
-                dump({"plan": plan.model_dump()}),
+                dump({"plan": plan.model_dump(), "artifacts": []}),
                 now(),
             ),
         )

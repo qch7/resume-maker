@@ -44,7 +44,7 @@ export default function VersionControl({ props }: { props: EditorProps }) {
           <button
             className="history-trigger"
             aria-label="查看经历历史树"
-            onClick={/* 展开包含全部分支的历史树 */ () => setDialog("history")}
+            onClick={() => setDialog("history")}
           >
             <History size={16} />
             <span>

@@ -338,10 +338,7 @@ export default function TemplateInspector({
                 新建区域对应栏目
                 <select
                   value={section}
-                  onChange={
-                    /* 选择新区域要填写的栏目 */ (event) =>
-                      setSection(event.target.value)
-                  }
+                  onChange={(event) => setSection(event.target.value)}
                 >
                   <option value="projects">项目经历</option>
                   {document.sections
@@ -370,9 +367,8 @@ export default function TemplateInspector({
                   调整已有栏目
                   <select
                     value={selectedRegion}
-                    onChange={
-                      /* 将选区用于明确指定的栏目 */ (event) =>
-                        setTargetRegion(Number(event.target.value))
+                    onChange={(event) =>
+                      setTargetRegion(Number(event.target.value))
                     }
                   >
                     {plan.repeats.map(

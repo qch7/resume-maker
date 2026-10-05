@@ -1,6 +1,6 @@
 import type { HonorSource } from "../../shared/types/honors.ts";
 import type { ResumeSection } from "../../shared/types/index.ts";
-import { isHonorEntry } from "../profile/honors/entry.ts";
+import { honorSourceId, isHonorEntry } from "../profile/honors/entry.ts";
 import type { Honor } from "../profile/honors/model.ts";
 
 export type HonorSortKey = "recent" | "date" | "name";
@@ -114,10 +114,7 @@ export function sortHonorEntries(
 ) {
   const sources = new Map(
     honors.map(
-      /* 用来源标识关联更新时间以免同名荣誉串联 */ (honor) => [
-        `honor:${honor.id}`,
-        honor,
-      ],
+      /* 用来源标识关联更新时间以免同名荣誉串联 */ (honor) => [honor.id, honor],
     ),
   );
   const entries = sortItems(
@@ -128,7 +125,7 @@ export function sortHonorEntries(
     /* 日期和名称读取当前简历资料，更新时间来自关联荣誉库 */ (entry) => ({
       name: entry.title,
       date: entry.period,
-      updatedAt: sources.get(entry.id)?.updated_at,
+      updatedAt: sources.get(honorSourceId(entry))?.updated_at,
     }),
   );
   let index = 0;
