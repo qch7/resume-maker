@@ -106,6 +106,25 @@ Provider 和隐私存储由独立插件组合，`api/app.py` 只创建 Host 和�
 - 日志写到数据目录的 `logs/activity.sqlite`，不修改业务库版本且不进入资料 ZIP 备份；日志只在本机显示，凭据统一遮盖，大正文明确截断。新服务入口在应用工厂注册观测包装，新后台线程须在入队前登记任务关联；跨进程细节通过父进程记录，禁止把进程环境或鉴权原文写入日志。具体边界见 [系统日志](docs/system-activity.md)。
 - CLI 的 `control/codex-home` 和 `control/tmp` 保持同级，任务临时文件不能包含 CLI home。日志标题区分版本检查和模型调用，诊断显示具体消息；开发功能启动提示通过 CLI 配置关闭，其他异常继续记录。
 
+## Git 提交消息
+
+- 所有新提交和重写后的提交必须遵循 Conventional Commits：`type(scope): description`；无法归属单个模块时可省略 scope，写成 `type: description`。
+- type 使用小写，并按实际改动选择：`feat` 新功能、`fix` 缺陷修复、`refactor` 不改变行为的重构、`perf` 性能改进、`docs` 文档、`test` 测试、`build` 构建和依赖、`ci` 持续集成、`chore` 其他维护、`revert` 回退。不能把修复或重构写成新功能。
+- scope 使用简短的小写英文模块名，如 `plugins`、`templates`、`drafts`、`startup` 或 `git`，同一模块保持一致。
+- 标题使用英文，以小写祈使动词开头，写明具体动作和对象；整行不超过 72 个字符，末尾不加句号。避免 `update`、`fix bugs`、`complete work` 等无法说明具体变化的描述。
+- 每个提交围绕一个逻辑改动。需要补充背景时，标题后空一行，在正文说明原因、行为变化、兼容性及实际验证结果；不能声称未执行的检查已经通过。
+- 不兼容变更在 type 或 scope 后加 `!`，并在正文后的 footer 中用 `BREAKING CHANGE:` 说明影响和迁移方式。
+- 提交前核对暂存 diff 和消息是否一致，并运行 `git diff --cached --check`。重写已有历史须在用户授权范围内先保存备份引用；同步远端只对目标分支使用带明确旧提交值的 `--force-with-lease`。
+
+示例：
+
+```text
+feat(plugins): add versioned document importers
+fix(plugins): preserve stale window drafts before reload
+perf(startup): reuse verified asset migration indexes
+docs(git): require conventional commit messages
+```
+
 ## 分支和 PR
 
 1. 每个新功能从最新的 `main` 创建独立分支，默认使用 `codex/<简短功能名>`，用户指定名称时使用指定名称。
