@@ -17,9 +17,9 @@ def modified_at(path: Path) -> float:
 
 def main() -> None:
     """在临时目录验证最新 wheel，隔离个人数据和源码导入"""
-    wheels = sorted((ROOT / "dist").glob("*.whl"), key=modified_at)
+    wheels = sorted((ROOT / ".local" / "artifacts").glob("*.whl"), key=modified_at)
     if not wheels:
-        raise SystemExit("请先运行 uv build --wheel。")
+        raise SystemExit("请先运行 uv build --wheel --out-dir .local/artifacts。")
     with tempfile.TemporaryDirectory(prefix="resume-maker-wheel-") as temporary:
         target = Path(temporary)
         with ZipFile(wheels[-1]) as archive:

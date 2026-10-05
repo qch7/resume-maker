@@ -12,7 +12,7 @@ frontend/playwright-report/
 *.egg-info/
 data/
 /ResumeMakerSandbox/
-/.data.instance.lock
+/.*.instance.lock
 .env
 .env.*
 !.env.example

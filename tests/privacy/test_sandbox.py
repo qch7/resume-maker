@@ -83,8 +83,8 @@ def test_project_sandbox_cleans_only_its_task(tmp_path, monkeypatch, exit_reason
     project.mkdir()
     original = project / "main.py"
     original.write_text("ORIGINAL-CANARY", encoding="utf-8")
-    parent = project / "ResumeMakerSandbox"
-    parent.mkdir(mode=0o700)
+    parent = project / ".local" / "sandbox"
+    parent.mkdir(mode=0o700, parents=True)
     other = parent / "task-other"
     other.mkdir()
     marker = other / "context.txt"
@@ -125,6 +125,20 @@ def test_posix_parent_requires_private_permissions(tmp_path, monkeypatch, mode):
             pytest.fail("权限过宽时不得创建任务目录")
     assert parent.stat().st_mode & 0o777 == mode
     assert list(parent.iterdir()) == []
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX 父目录链接由 Linux CI 验证")
+def test_nested_sandbox_rejects_linked_ancestor_before_creating_files(tmp_path, monkeypatch):
+    """本机目录指向项目外时，在创建沙箱之前拒绝使用，外部目录保持原样"""
+    project = tmp_path / "project"
+    project.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir(mode=0o700)
+    (project / ".local").symlink_to(outside, target_is_directory=True)
+    monkeypatch.setattr(sandbox, "sandbox_directory", lambda: project / ".local" / "sandbox")
+    with pytest.raises(ProviderError, match="链接"), sandbox.workspace():
+        pytest.fail("父目录链接不能创建任务")
+    assert list(outside.iterdir()) == []
 
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX 所有权及链接由 Linux CI 验证")

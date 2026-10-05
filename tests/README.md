@@ -36,7 +36,7 @@ uv run pytest -q --durations=15
 uv run python scripts/check.py
 ```
 
-Windows 默认临时目录权限异常时，可以临时指定新的专用目录：`uv run pytest -q --basetemp=output/pytest-local`。pytest 会清空指定目录，只能使用专门存放本轮测试产物的路径。
+Windows 默认临时目录权限异常时，可以临时指定新的专用目录：`uv run pytest -q --basetemp=.local/tmp/pytest-local`。pytest 会清空指定目录，只能使用专门存放本轮测试产物的路径。
 
 ## 共享代码和隔离
 

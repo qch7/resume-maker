@@ -53,10 +53,11 @@ jobs:
       - name: Build frontend
         run: npm --prefix frontend run build
       - name: Build installable wheel
-        run: uv build --wheel
+        run: uv build --wheel --out-dir .local/artifacts
       - name: Verify installed wheel and bundled resources
         run: uv run --locked python scripts/check_wheel.py
       - uses: actions/upload-artifact@v4
         with:
           name: resume-maker-${{ matrix.os }}
-          path: dist/*.whl
+          path: .local/artifacts/*.whl
+          include-hidden-files: true

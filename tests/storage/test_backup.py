@@ -50,6 +50,22 @@ def test_running_instance_blocks_restore(tmp_path):
         restore_backup(tmp_path / "unused.zip", target)
 
 
+@pytest.mark.parametrize("name", ["data", "data.supervisor"])
+def test_repository_lock_survives_data_directory_replacement(tmp_path, name):
+    """源码实例和监督器锁集中在资料目录外，替换资料目录后仍拒绝第二个持有者"""
+    project = tmp_path / "project"
+    target = project / name
+    target.mkdir(parents=True)
+    (project / "pyproject.toml").write_text('[project]\nname = "resume-maker"\n')
+    with instance_lock(target):
+        target.rename(project / "previous")
+        target.mkdir()
+        with pytest.raises(Problem, match="正在使用"), instance_lock(target):
+            pass
+    assert not (project / f".{name}.instance.lock").exists()
+    assert (project / ".local" / "locks" / f".{name}.instance.lock").is_file()
+
+
 @pytest.mark.parametrize("version", [1, 2, 3, 4, 5, SCHEMA_VERSION + 1])
 def test_restore_rejects_unsupported_schema_without_changing_target(catalog, tmp_path, version):
     """备份结构不匹配时保留目标数据并清理暂存目录"""

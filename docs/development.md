@@ -28,6 +28,14 @@ uv run resume-maker --no-browser
 
 Windows 启动脚本在依赖检查后提示正在准备本机数据，宿主健康检查通过后打印工作台地址。旧附件首次迁移会先创建 ZIP 备份，再逐个核验资源和清理旧副本；校验复用每组附件的索引，避免大批源码快照重复解码拖慢启动。
 
+## 本机目录
+
+`data/` 继续保存正式资料。源码沙箱固定在 `.local/sandbox/`，不随启动位置或数据目录覆盖改变；独立安装包继续使用用户目录下的 `.resume-maker-sandbox/`。
+
+`.local/cache/` 保存 pytest 和 Ruff 缓存，`.local/tmp/` 保存指定的临时测试目录，`.local/artifacts/` 保存构建包及评测结果。源码资料目录旁存在 `pyproject.toml` 时，实例锁放在该目录的 `.local/locks/`；其他资料目录沿用同级锁，恢复替换资料目录时锁保持有效。这些目录均不进入 Git 或源码材料。
+
+保留 `frontend/node_modules/`、`frontend/dist/` 和 `.venv/` 的工具默认位置。后端和前端测试只依赖正式夹具及临时合成资料，清理本机检查产物后仍可重新执行。
+
 ## 质量检查
 
 ```sh
@@ -53,12 +61,12 @@ npm --prefix frontend run build
 
 ## 真实模板与供应商对照
 
-隐私保护保留 Windows 原生 CLI，不限定具体版本号，以严格配置和只读材料服务提供脱敏副本；调整 CLI 兼容性时运行真实 CLI 对本机假服务的工具边界验收。评测同样经过本地 OCR 和脱敏，原始像素不外发；支持文件登录。本地输出仍可能包含原件和还原结果。OCR 合成评测运行 `uv run python scripts/benchmark_ocr.py`，非 Windows 环境通过 `--font` 指定本机中文字体。真实 CLI 边界验收见 [隐私保护](privacy.md)。
+隐私保护保留 Windows 原生 CLI，不限定具体版本号，以严格配置和只读材料服务提供脱敏副本；调整 CLI 兼容性时运行真实 CLI 对本机假服务的工具边界验收。评测同样经过本地 OCR 和脱敏，原始像素不外发；支持文件登录。本地输出仍可能包含原件和还原结果。OCR 合成评测运行 `uv run python scripts/benchmark_ocr.py`，非 Windows 环境通过 `--font` 指定本机中文字体。真实 CLI 边界验收见 [隐私保护](reference/privacy.md)。
 
 用户授权发送模板后，可从 CC Switch 只读加载指定的 Codex 供应商：
 
 ```sh
-uv run python scripts/evaluate_templates.py --cc-switch-db <cc-switch.db> --data-db <resume.db> --templates <模板目录> --output output/template-evaluation/run-1 --providers <供应商名称> <另一供应商名称>
+uv run python scripts/evaluate_templates.py --cc-switch-db <cc-switch.db> --data-db <resume.db> --templates <模板目录> --output .local/artifacts/template-evaluation/run-1 --providers <供应商名称> <另一供应商名称>
 ```
 
 可用 `--resume-id` 指定试填资料；缺省选最近更新的未删除简历。供应商名称必须与 CC Switch 一致。每个组合使用独立的 CLI 配置和会话，密钥仅通过子进程环境传递，不修改当前 Codex 配置、CC Switch 选中项或正式简历。脚本不会复用映射缓存，也不手工修正某个模型的结果。
@@ -72,7 +80,7 @@ uv run python scripts/evaluate_templates.py --cc-switch-db <cc-switch.db> --data
 验证通用性时使用独立构造的输入，不需要读取用户简历数据库：
 
 ```sh
-uv run python scripts/evaluate_generalization.py --cc-switch-db <cc-switch.db> --output output/template-generalization/run-1 --providers <供应商名称> <另一供应商名称> --workers 3
+uv run python scripts/evaluate_generalization.py --cc-switch-db <cc-switch.db> --output .local/artifacts/template-generalization/run-1 --providers <供应商名称> <另一供应商名称> --workers 3
 ```
 
 包含中英文段落、整行表格、独立双栏、缺字段模板、原生单栏 PDF 和双栏 PDF；原始样本与试填资料完全不同，姓名、栏目名、项目和照片都重新生成。`--generate-only` 只创建夹具；`--cases english-sidebar-pdf chinese-vector-pdf` 可复测部分类型。PDF 夹具及产物通过本机 Word 渲染。
@@ -84,7 +92,7 @@ uv run python scripts/evaluate_generalization.py --cc-switch-db <cc-switch.db> -
 ```sh
 npm --prefix frontend ci
 npm --prefix frontend run build
-uv build --wheel
+uv build --wheel --out-dir .local/artifacts
 uv run python scripts/check_wheel.py
 ```
 
@@ -93,11 +101,11 @@ uv run python scripts/check_wheel.py
 安装本机构建的 wheel 后，`resume-maker` 可在仓库之外启动，无需重新下载 npm 依赖。示例：
 
 ```sh
-uv tool install ./dist/resume_maker-0.1.0-py3-none-any.whl
+uv tool install ./.local/artifacts/resume_maker-0.1.0-py3-none-any.whl
 resume-maker --no-browser
 ```
 
-`uv build --sdist` 生成包含前后端源码的源码包；从源码包构建 wheel 时同样需要先安装 Node 依赖并构建前端。
+`uv build --sdist --out-dir .local/artifacts` 生成包含前后端源码的源码包；从源码包构建 wheel 时同样需要先安装 Node 依赖并构建前端。
 
 ## 常见问题
 
@@ -107,27 +115,16 @@ resume-maker --no-browser
 - **Word 预览失败**：先确认 Windows 上已安装 Word。只有 DOCX 正文导出是跨平台能力。
 - **换机器后项目来源不存在**：备份不包含原项目源码，恢复后重新绑定来源目录。
 
-早期方案和历史验收记录保存在 [history/](history/)，其中机器环境和测试数量描述的是当时状态。
-
-## 2026-09-12 架构重构验收
-
-- Windows 本机后端 33 项、前端 18 项测试通过；接口契约、实例隔离、异常关闭和共享草稿等待行为均覆盖。
-- 183 个 Python 函数、474 个前端函数/回调通过中文说明和模块边界检查；Ruff、TypeScript、Prettier 及生产构建通过。
-- 独立数据目录中的浏览器验证完成单条发布、旧简历固定引用、新建会话、输入草稿切换恢复及消息回复；AI 使用可控替身。
-- 实际 Microsoft Word 导出成功，生成 DOCX、1 页 PDF、分页图片和版本清单，模板其他栏目保留。
-- 检查桌面和 390px 窄屏布局、重载后的默认侧栏状态，浏览器控制台无错误；正式用户数据未用于写入验收。
-- wheel 在仓库外完成导入、静态资源和初始结构检查，源码包构建成功。
-
 ## 插件开发和验收
 
-当前协议及包示例见 [插件开发](plugin-sdk.md)，设计目标见 [完整架构](plugin-architecture-proposal.md)。新增能力须声明依赖、服务版本、数据归属和生命周期；后台工作使用 sys.jobs，进程通过 execution/sandbox，模型调用使用 privacy.gateway。
+当前协议及包示例见 [插件开发](reference/plugin-sdk.md)，模块职责见 [架构说明](architecture.md)。新增能力须声明依赖、服务版本、数据归属和生命周期；后台工作使用 sys.jobs，进程通过 execution/sandbox，模型调用使用 privacy.gateway。
 
 本地完整验证命令不变。测试目录冲突时可指定一个新的独立目录：
 
 ```powershell
-$env:PYTEST_ADDOPTS='--basetemp=output/plugin-check-fresh'
+$env:PYTEST_ADDOPTS='--basetemp=.local/tmp/plugin-check-fresh'
 uv run python scripts/check.py
-uv build --wheel
+uv build --wheel --out-dir .local/artifacts
 uv run python scripts/check_wheel.py
 ```
 
