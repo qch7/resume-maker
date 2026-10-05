@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { addSource } from "../src/features/profile/sourceState.ts";
-import { sameSectionEntry } from "../src/features/profile/comparison.ts";
+import { addSource } from "../../src/resume_maker/plugin_packages/sys_resume/client/features/profile/sourceState.ts";
+import { sameSectionEntry } from "../src/shared/resume/comparison.ts";
 
 test("选择通用资料产生独立草稿并阻止重复来源，来源版本影响新旧比较", () => {
   const section = { id: "notes", kind: "text", entries: [] };

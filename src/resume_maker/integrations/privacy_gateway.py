@@ -113,6 +113,12 @@ class PrivacyGateway:
         result.sensitive_secrets = self.sensitive_secrets | redactor.secrets
         return result
 
+    def read_ocr(self, path, cancelled):
+        """只调用已注入的 OCR 提供方，文档工具不选择具体模型实现"""
+        if self.ocr is None:
+            raise ProviderError("当前组合没有 OCR 能力。")
+        return self.ocr(path, cancelled)
+
     def register_ocr(self, document):
         """在模板任务的独立 Provider 中登记 OCR 原文和需要整体遮盖的片段"""
         redactor = self.privacy.redactor()

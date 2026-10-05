@@ -10,11 +10,11 @@ from resume_maker.api import create_app
 from resume_maker.core.config import Config
 from resume_maker.core.errors import Problem
 from resume_maker.domain.models import ResumeItem
-from resume_maker.integrations.source_service import SourceService
+from resume_maker.plugin_packages.ext_ai_conversation.services.jobs import Jobs
+from resume_maker.plugin_packages.ext_source_code.integrations.source_service import SourceService
+from resume_maker.plugin_packages.sys_experience.services.projects import Projects
+from resume_maker.plugin_packages.sys_resume.services.resumes import Resumes
 from resume_maker.sdk.model import Cancelled
-from resume_maker.services.jobs import Jobs
-from resume_maker.services.projects import Projects
-from resume_maker.services.resumes import Resumes
 from tests.support.data import children, make_sources, workspace
 from tests.support.jobs import FakeProvider, wait_job
 

@@ -9,8 +9,8 @@ from resume_maker.domain.experience import field_value, same_experience
 from resume_maker.domain.models import ResumeItem
 from resume_maker.domain.project_layout import project_body_order
 from resume_maker.infrastructure.database import Database
-from resume_maker.services.projects import Projects
-from resume_maker.services.resumes import Resumes
+from resume_maker.plugin_packages.sys_experience.services.projects import Projects
+from resume_maker.plugin_packages.sys_resume.services.resumes import Resumes
 from tests.support.data import make_catalog
 
 

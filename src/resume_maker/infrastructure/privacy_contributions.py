@@ -3,6 +3,7 @@
 import hashlib
 
 from resume_maker.core.errors import Problem
+from resume_maker.infrastructure.data_catalog import builtin_descriptors
 from resume_maker.infrastructure.database import dump
 from resume_maker.sdk.manifest import compatible
 from resume_maker.sdk.privacy import PrivacyRuleContribution, PrivacyValues
@@ -10,10 +11,7 @@ from resume_maker.sdk.privacy import PrivacyRuleContribution, PrivacyValues
 
 def retained_private_data(db):
     """通过持久资料目录读取已存身份，停用或缺包不撤销这些保护"""
-    import json
-    from pathlib import Path
-
-    builtins = json.loads(Path(__file__).with_name("data_descriptors.json").read_text("utf-8"))
+    builtins = builtin_descriptors()
     prefixes = set()
     for row in db.all("SELECT plugin_id,descriptor_json FROM plugin_data_catalog"):
         descriptor = row["descriptor"]

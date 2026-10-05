@@ -10,12 +10,12 @@ import {
   filledEntries,
   toggleHiddenField,
   visibleCustomFields,
-} from "../src/features/profile/document.ts";
+} from "../src/shared/resume/document.ts";
 import {
   sameComposition,
   isCurrentExport,
   acceptSavedComposition,
-} from "../src/features/resumes/composition.ts";
+} from "../src/shared/resume/composition.ts";
 
 test("saving preserves newer typing and never switches away from another resume", /* 验证保存请求期间继续输入和切换方案不会被迟到的服务器响应覆盖 */ () => {
   const submitted = {

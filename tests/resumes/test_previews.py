@@ -14,7 +14,7 @@ from resume_maker.core.errors import Problem
 from resume_maker.domain.models import ResumeItem
 from resume_maker.domain.resume import ResumeSection, SectionEntry
 from resume_maker.infrastructure.assets import Assets
-from resume_maker.services.resumes import Resumes
+from resume_maker.plugin_packages.sys_resume.services.resumes import Resumes
 from tests.support import document_services as resume_previews
 from tests.support.document_services import Documents, ResumePreviews
 from tests.support.documents import resume_content
@@ -228,7 +228,7 @@ def test_rejects_invalid_references_and_changed_template(preview, project, popul
 def test_preview_routes_enforce_auth_instance_and_file_scope(tmp_path, monkeypatch):
     """预览接口要求令牌和正确来源且只能读取本实例公布的预览文件"""
     monkeypatch.setattr(
-        "resume_maker.integrations.word.controlled.ControlledWord.render",
+        "resume_maker.plugin_packages.ext_word.integrations.word.controlled.ControlledWord.render",
         lambda *_: (None, "No renderer"),
     )
     app = create_app(Config(data_dir=tmp_path / "left", token="left"))

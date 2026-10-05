@@ -65,6 +65,8 @@ uv run resume-maker --profile minimal --data-dir ./data-minimal
 
 当前架构和扩展方式见 [架构说明](docs/architecture.md) 和 [插件开发](docs/reference/plugin-sdk.md)。
 
+41 个内置插件均以独立目录存放在 `src/resume_maker/plugin_packages/`，各包拥有清单、入口、业务代码、资料声明及客户端。宿主扫描目录发现插件，按能力依赖装配；前端按包独立构建并通过公开 SDK 注册界面。停机后移除可选代码目录并重新构建，缺失能力及依赖它的扩展会不可用，手工资料、历史和基础 DOCX 流程仍可用。移除代码不会删除已存资料。物理缺包验收见开发指南。
+
 ## 快速开始
 
 ### 1. 安装并启动

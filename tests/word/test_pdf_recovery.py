@@ -13,13 +13,13 @@ from PIL import Image, ImageChops
 from resume_maker.core.errors import Problem
 from resume_maker.domain.models import ProviderSettings
 from resume_maker.domain.templates import TemplatePlan, TextBinding
-from resume_maker.integrations import local_ocr
 from resume_maker.integrations.word.pdf.assets import extract_assets, separate_bullets
 from resume_maker.integrations.word.pdf.flow import text_counter
 from resume_maker.integrations.word.pdf.recovery import native_text, normalized_page, rebuild_pdf
 from resume_maker.integrations.word.recovery import prepare_template
 from resume_maker.integrations.word.templates.fill import fill_template
 from resume_maker.integrations.word.templates.mapping import TemplatePackage
+from resume_maker.plugin_packages.provider_rapidocr import local_ocr
 from resume_maker.sdk.model import Cancelled
 from tests.support.documents import record_content, record_plan
 from tests.support.images import forbidden_fallback, quiet

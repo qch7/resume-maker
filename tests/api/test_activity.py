@@ -15,8 +15,8 @@ from resume_maker.domain.activity import ACTIVITY_CATEGORIES, ActivityCaptureSet
 from resume_maker.infrastructure.activity import MAX_DETAIL, ActivityLog
 from resume_maker.infrastructure.database import now, uid
 from resume_maker.infrastructure.observability import activity_scope, record
-from resume_maker.integrations.providers.cli import run_cli
-from resume_maker.services.activity import save_capture_settings
+from resume_maker.plugin_packages.ext_provider_codex.integrations.providers.cli import run_cli
+from resume_maker.plugin_packages.sys_activity.services.activity import save_capture_settings
 from tests.support.jobs import FakeProvider, wait_job
 
 
@@ -546,7 +546,7 @@ def test_cli_trace_records_tool_arguments_result_and_agent_message(tmp_path, mon
     from contextlib import contextmanager
 
     from resume_maker.domain.models import ProviderSettings
-    from resume_maker.integrations.providers import cli
+    from resume_maker.plugin_packages.ext_provider_codex.integrations.providers import cli
 
     @contextmanager
     def credentials(root, env, flag):

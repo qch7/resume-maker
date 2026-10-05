@@ -1392,3 +1392,69 @@
 .honor-original > .import-details {
   padding: 0 16px;
 }
+
+.activity-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.activity-settings small {
+  color: var(--subtle);
+}
+.activity-settings label {
+  margin: 0;
+}
+.activity-settings textarea {
+  font:
+    12px/1.5 ui-monospace,
+    Consolas,
+    monospace;
+  resize: vertical;
+  min-height: 150px;
+}
+.activity-settings [role="alert"] {
+  color: var(--danger);
+}
+.activity-settings .row {
+  justify-content: flex-end;
+}
+.activity-capture-settings {
+  margin: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  min-width: 0;
+}
+.activity-capture-settings legend {
+  padding-inline: 4px;
+}
+.activity-capture-categories {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.activity-capture-categories label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+.activity-capture-categories input {
+  width: auto;
+  margin: 0;
+}
+.activity-delete-settings {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.activity-delete-settings select {
+  flex: 1;
+  padding: 5px 7px;
+  font-size: 12px;
+}
+.activity-delete-settings button {
+  color: var(--danger);
+}

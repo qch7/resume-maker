@@ -6,10 +6,10 @@ from resume_maker.infrastructure.assets import Assets
 from resume_maker.integrations.sources import capture_evidence, project_sources
 from resume_maker.integrations.word.ooxml import w
 from resume_maker.integrations.word.templates.mapping import paragraph_text
-from resume_maker.services.catalog import Catalog
-from resume_maker.services.resumes import Resumes
-from resume_maker.services.settings import Settings
-from resume_maker.services.workspace import Workspace
+from resume_maker.plugin_packages.sys_experience.services.catalog import Catalog
+from resume_maker.plugin_packages.sys_resume.services.resumes import Resumes
+from resume_maker.plugin_packages.sys_settings.services.settings import Settings
+from resume_maker.plugin_packages.sys_workbench.services.workspace import Workspace
 
 
 def make_catalog(db):

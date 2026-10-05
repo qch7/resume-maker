@@ -3,21 +3,21 @@ import assert from "node:assert/strict";
 import {
   syncHonorDocument,
   syncHonorResume,
-} from "../src/features/profile/honors/sync.ts";
+} from "../src/shared/resume/honors/sync.ts";
 import {
   emptyHonor,
   HONOR_FIELDS,
-} from "../src/features/profile/honors/fields.ts";
+} from "../src/shared/resume/honors/fields.ts";
 import {
   honorFieldValue,
   honorFieldHidden,
   newHonorEntry,
-} from "../src/features/profile/honors/entry.ts";
-import { newDocument, newEntry } from "../src/features/profile/document.ts";
+} from "../src/shared/resume/honors/entry.ts";
+import { newDocument, newEntry } from "../src/shared/resume/document.ts";
 import {
   sameComposition,
   isCurrentExport,
-} from "../src/features/resumes/composition.ts";
+} from "../src/shared/resume/composition.ts";
 
 /** 完整已核对资料，和个人数据库无关 */
 function source() {

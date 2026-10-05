@@ -8,9 +8,9 @@ import pytest
 from resume_maker.core.errors import Problem
 from resume_maker.domain.resume import ResumeDocument
 from resume_maker.infrastructure.database import Database
+from resume_maker.plugin_packages.sys_resume.services.resume_sources import ResumeSources
 from resume_maker.runtime.host import Contribution
 from resume_maker.sdk.sources import ResumeSource, SourceField, SourceItem, SourcePage
-from resume_maker.services.resume_sources import ResumeSources
 
 
 def test_sources_share_read_transaction_and_keep_local_layout(tmp_path):

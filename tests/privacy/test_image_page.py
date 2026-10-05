@@ -18,8 +18,8 @@ from resume_maker.integrations.providers import page_images
 from resume_maker.integrations.word.image.layout import text_layer
 from resume_maker.integrations.word.image.recovery import rebuild_image
 from resume_maker.integrations.word.templates.mapping import TemplatePackage
+from resume_maker.plugin_packages.ext_template_ai.services.templates.analysis import visual_evidence
 from resume_maker.sdk.model import Cancelled, PageImage, ProviderError
-from resume_maker.services.templates.analysis import visual_evidence
 from tests.support.images import page_fixture
 from tests.support.providers import privacy_provider
 

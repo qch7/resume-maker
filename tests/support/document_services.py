@@ -1,10 +1,16 @@
 """独立领域测试的显式文档装配，生产服务只接受插件注入"""
 
 from resume_maker.integrations.word.full_resume import write_full_resume
-from resume_maker.integrations.word.rendering import render_word as native_render
 from resume_maker.integrations.word.templates.fill import fill_template
-from resume_maker.services.documents import Documents as DocumentService
-from resume_maker.services.resume_previews import ResumePreviews as PreviewService
+from resume_maker.plugin_packages.ext_word.integrations.word.rendering import (
+    render_word as native_render,
+)
+from resume_maker.plugin_packages.sys_documents.services.documents import (
+    Documents as DocumentService,
+)
+from resume_maker.plugin_packages.sys_documents.services.resume_previews import (
+    ResumePreviews as PreviewService,
+)
 
 render_word = native_render
 

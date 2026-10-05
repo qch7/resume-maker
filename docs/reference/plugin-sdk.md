@@ -4,7 +4,21 @@
 
 ## 本地组合
 
-`plugins/profiles.json` 定义发行策略、minimal 和 standard。18 个系统职责必装，5 个本地提供方补全依赖；标准组合另含 18 个扩展及提供方。系统身份由发行策略判断，第三方不能占用内置 ID。
+`plugins/profiles.json` 定义必需身份和发行策略，minimal / standard 成员来自各独立包的 `package.json.resumeMaker.profiles`。18 个系统职责必装，5 个本地提供方补全依赖；标准组合另含 18 个扩展及提供方。系统身份由发行策略判断，第三方不能占用内置 ID。
+
+## 内置代码包和加载流程
+
+所有内置包位于 `src/resume_maker/plugin_packages/<slug>/`。以荣誉库为例，完整实现位于 `ext_honors/`：`manifest.json` 声明能力、依赖及贡献，`package.json` 声明产品组合和客户端构建入口，`entry.py` 注册服务、HTTP 路由及工作台查询，`services/`、`routes/`、`query.py`、`data/` 和 `client/` 保存对应实现。识别策略单独归属 `ext_honor_recognition/recognition.py`，按公开回调附接，删除识别插件仍保留手工荣誉库。系统插件同样遵循这一组织方式。
+
+发现阶段只读取 JSON，不执行插件。Host 求解已选择能力图，按依赖顺序导入清单中的 `entry.py:activate`，并为入口创建作用域。入口调用 `provide` 或 `contribute` 后，服务、路由和查询进入当前代次；未选择的入口不执行。服务通过 SDK Protocol 和声明的能力注入，宿主及其他插件禁止直接导入包内实现。
+
+`frontend/scripts/build-plugins.mjs` 扫描包元数据，把每个客户端分别构建为 `.local/plugin-builds/<slug>/plugin.js`、样式及块，并登记逐文件 SHA-256。wheel 将这些产物带入包内 `client_dist/`。清单使用 `bundled:plugin.js`；能力 API 将其改写为含索引摘要的 `/bundled-plugin-assets/<ID>/<digest>/plugin.js`，客户端按依赖加载该模块并执行注册入口。React 和 SDK 子入口由宿主同一构建图提供，多个包共享 React 实例。
+
+包内客户端通过 `@resume-maker/plugin-sdk/<子入口>` 使用公开控件、hooks、类型及注册 API。新增包不需要编辑宿主导入表、Vite 入口表或导航 ID 清单。`context.workbenchPage` 注册工作台附加页面，`context.navigation` 贡献领域导航，`context.component` 注册公开插槽；所有贡献归属作用域，停用时撤销。`templatePicker` 是模板库贡献，缺包时宿主显示明确的不可用状态。
+
+保留 `frontend/src/shared/` 的可复用资料转换、字段编辑和控件；`integrations/word/` 是文档引擎和导入器共同使用的工具库。实际 RapidOCR 模型位于 `provider_rapidocr/local_ocr.py`，Word 进程和渲染器位于 `ext_word/integrations/word/`，模型 CLI 位于 `ext_provider_codex/integrations/providers/`。共享工具通过注入参数及 `Provider.read_ocr` 消费能力，缺少提供方不会隐式启动插件实现。实现新的 Provider 时须补充 `read_ocr`；荣誉识别附接须传入策略回调。
+
+停机后移除任一可选包目录再构建，无需修改其他代码文件。默认或已保存选择启动时报告缺包并阻断缺依赖的消费者，保留原始选择以便恢复安装；显式 `Config.plugins` 仍严格校验。必需包缺失拒绝启动。代码删除不清理数据库、附件、未知扩展或历史日志；已持久登记的资料描述继续用于备份及隐私保护。运行时停用和安装包卸载仍使用排空、停止屏障及作用域清理协议。
 
 首次默认使用 standard；`--profile minimal` 或 `--profile standard` 可显式指定启动组合。未指定 profile 时优先读取数据目录 `plugins.json`。已有数据上显式指定 profile 会覆盖保存的选择，日常切换应使用插件管理的排空协议。
 

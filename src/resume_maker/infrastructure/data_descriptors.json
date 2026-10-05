@@ -1,7 +1,0 @@
-{
-  "sys.experience": {},
-  "sys.documents": {},
-  "sys.assets": {"resources": [{"root": "assets", "prefix": "asset:", "state": "published", "files": ["payload"]}]},
-  "ext.template-adapter": {},
-  "ext.honors": {"privacy_settings": ["honor:"]}
-}

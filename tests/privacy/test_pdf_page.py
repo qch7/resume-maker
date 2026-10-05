@@ -15,16 +15,16 @@ from resume_maker.core.errors import Problem
 from resume_maker.domain.image_layout import ImagePage
 from resume_maker.domain.models import ProviderSettings
 from resume_maker.domain.templates import TemplatePlan
-from resume_maker.integrations import local_ocr
-from resume_maker.integrations.local_ocr import OCRBudget
+from resume_maker.integrations.ocr_support import OCRBudget
 from resume_maker.integrations.providers import page_images
 from resume_maker.integrations.word.image.header import private_image_text
 from resume_maker.integrations.word.pdf.geometry import SOURCE, recovered_pdf
 from resume_maker.integrations.word.recovery import prepare_template
 from resume_maker.integrations.word.templates.fill import fill_template
 from resume_maker.integrations.word.templates.mapping import TemplatePackage
+from resume_maker.plugin_packages.ext_template_ai.services.templates.analysis import visual_evidence
+from resume_maker.plugin_packages.provider_rapidocr import local_ocr
 from resume_maker.sdk.model import Cancelled, PageImage, ProviderError
-from resume_maker.services.templates.analysis import visual_evidence
 from tests.support.documents import header_content
 from tests.support.images import page_fixture, source_plan
 from tests.support.providers import privacy_provider
@@ -372,6 +372,7 @@ def test_private_mixed_pdf_recovers_only_scanned_page(tmp_path, monkeypatch, bla
         }
 
     monkeypatch.setattr(local_ocr, "recognize", recognize)
+    monkeypatch.setattr(page_images, "read_document", local_ocr.read_document)
 
     def runner(payload, *args, safe_images):
         """扫描页模型只获得脱敏图和占位文字，回复使用本地 OCR 坐标"""

@@ -14,12 +14,14 @@ from resume_maker.core.config import Config
 from resume_maker.domain.models import Model, ProviderSettings
 from resume_maker.integrations.privacy import TOKEN, Redactor
 from resume_maker.integrations.privacy_store import PrivacyStore
-from resume_maker.integrations.providers.connection import connection
 from resume_maker.integrations.providers.material_server import call
 from resume_maker.integrations.providers.sandbox import materials
 from resume_maker.integrations.source_access import SourceAccess
 from resume_maker.integrations.source_context import source_context
 from resume_maker.integrations.sources import project_sources
+from resume_maker.plugin_packages.ext_provider_codex.integrations.providers.connection import (
+    connection,
+)
 from resume_maker.sdk.model import Cancelled, ProviderError, StructuredOutputError
 from tests.support.privacy import provider_at, reply, run
 from tests.support.providers import privacy_provider

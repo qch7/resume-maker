@@ -80,6 +80,10 @@ class Provider(Protocol):
         """登记本机 OCR 身份及低置信度文字，供后续轮次继续保护"""
         ...
 
+    def read_ocr(self, path: Path, cancelled: threading.Event) -> dict:
+        """使用当前绑定的 OCR 能力提取本机文字，缺少能力时明确失败"""
+        ...
+
     def run(
         self,
         *,

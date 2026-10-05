@@ -19,17 +19,16 @@ FORBIDDEN = {
     "sdk": {"api", "services", "plugins", "runtime", "infrastructure", "integrations"},
 }
 OWNERS = {
-    module: owner
-    for owner, modules in json.loads(
-        (PACKAGE / "plugins" / "ownership.json").read_text(encoding="utf-8")
-    ).items()
-    for module in modules
+    "resume_maker.plugin_packages." + path.parent.name: json.loads(
+        path.read_text(encoding="utf-8")
+    )["id"]
+    for path in (PACKAGE / "plugin_packages").glob("*/manifest.json")
 }
 
 
 def owner_of(module):
     """属性导入和模块导入共用最长模块前缀归属"""
-    return next(
+    declared = next(
         (
             OWNERS[key]
             for key in sorted(OWNERS, key=len, reverse=True)
@@ -37,6 +36,18 @@ def owner_of(module):
         ),
         None,
     )
+    if declared:
+        return declared
+    parts = module.split(".")
+    return parts[2] if parts[:2] == ["resume_maker", "plugin_packages"] and len(parts) > 2 else None
+
+
+def layer_of(module):
+    """独立插件目录内保留服务、路由和适配器的原有分层约束"""
+    parts = module.split(".")
+    if parts[:2] == ["resume_maker", "plugin_packages"]:
+        return {"routes": "api"}.get(parts[3], parts[3]) if len(parts) > 3 else ""
+    return parts[1] if parts[0] == "resume_maker" and len(parts) > 1 else ""
 
 
 def check_file(path: Path) -> tuple[list[str], int]:
@@ -51,6 +62,7 @@ def check_file(path: Path) -> tuple[list[str], int]:
         else ""
     )
     source_owner = owner_of(source)
+    layer = layer_of(source) or layer
     if layer == "services" and path.name != "__init__.py" and source_owner is None:
         errors.append(f"{relative} 未声明插件实现所有者")
     for node in ast.walk(tree):
@@ -60,7 +72,7 @@ def check_file(path: Path) -> tuple[list[str], int]:
                 errors.append(f"{relative}:{node.lineno} {node.name} 缺少中文函数说明")
         modules = []
         if isinstance(node, ast.ImportFrom):
-            if node.level and layer not in {"__init__.py", "cli.py"}:
+            if node.level and path.name != "__init__.py" and source != "resume_maker.cli":
                 errors.append(f"{relative}:{node.lineno} 包内部请使用绝对导入")
             module = node.module or ""
             modules = [module, *(f"{module}.{alias.name}" for alias in node.names)]
@@ -74,15 +86,17 @@ def check_file(path: Path) -> tuple[list[str], int]:
                     modules = [node.args[0].value]
         for module in modules:
             target_owner = owner_of(module)
-            if source_owner and target_owner and source_owner != target_owner:
+            if target_owner and source_owner != target_owner and path.is_relative_to(PACKAGE):
                 errors.append(
                     f"{relative}:{node.lineno} {source_owner} 不能导入 {target_owner} 私有实现，"
                     "请使用 SDK 协议及能力注入"
                 )
             if module.startswith("resume_maker."):
-                target = module.split(".")[1]
+                target = layer_of(module)
                 if target in FORBIDDEN.get(layer, set()):
                     errors.append(f"{relative}:{node.lineno} 禁止 {layer} 依赖 {target}")
+                if module == "resume_maker.plugin_packages" and path.is_relative_to(PACKAGE):
+                    errors.append(f"{relative}:{node.lineno} 不可导入插件集合，请声明能力依赖")
     return errors, functions
 
 

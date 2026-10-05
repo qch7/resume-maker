@@ -1,0 +1,45 @@
+{
+  "manifest_version": 1,
+  "id": "ext.provider-codex",
+  "title": "Codex 适配器",
+  "version": "1.0.0",
+  "package": "resume-maker",
+  "entrypoints": {
+    "host": {
+      "mode": "trusted-host",
+      "entry": "resume_maker.plugin_packages.ext_provider_codex.entry:activate"
+    },
+    "client": {
+      "mode": "trusted-client",
+      "entry": "bundled:plugin.js"
+    }
+  },
+  "requires": {
+    "host": {
+      "sandbox": ">=1.0.0 <2.0.0",
+      "execution": ">=1.0.0 <2.0.0",
+      "credentials": ">=1.0.0 <2.0.0",
+      "settings": ">=1.0.0 <2.0.0"
+    }
+  },
+  "provides": {
+    "host": {
+      "model.transport": {
+        "version": "1.0.0",
+        "cardinality": "one"
+      },
+      "model.inspection": {
+        "version": "1.0.0",
+        "cardinality": "one"
+      }
+    }
+  },
+  "contributes": {
+    "http.routes": [
+      "ext.provider-codex/settings"
+    ]
+  },
+  "permissions": [
+    "workspace.trusted"
+  ]
+}

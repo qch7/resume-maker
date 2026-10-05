@@ -19,7 +19,7 @@ from resume_maker.infrastructure.database import Database
 from resume_maker.infrastructure.storage import create_backup, restore_backup
 from resume_maker.integrations.word.full_resume import write_full_resume
 from resume_maker.integrations.word.ooxml import NS
-from resume_maker.services.resumes import Resumes
+from resume_maker.plugin_packages.sys_resume.services.resumes import Resumes
 from tests.support.data import make_catalog
 from tests.support.document_services import Documents
 

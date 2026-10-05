@@ -4,6 +4,9 @@ export type {
   Page,
   SettingsPage,
   SettingsPanelProps,
+  WorkbenchPage,
+  WorkbenchPageProps,
+  Navigation,
 } from "../contracts";
 export type {
   ClientExtensionPoints,

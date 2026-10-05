@@ -22,9 +22,11 @@ from resume_maker.integrations.word.templates.supplement import (
     supplement_personal_fields,
 )
 from resume_maker.integrations.word.templates.visuals import layout_context
-from resume_maker.services.resumes import Resumes
-from resume_maker.services.templates.analysis_driver import TemplateAnalysis
-from resume_maker.services.templates.tasks import Templates
+from resume_maker.plugin_packages.ext_template_adapter.services.templates.tasks import Templates
+from resume_maker.plugin_packages.ext_template_ai.services.templates.analysis_driver import (
+    TemplateAnalysis,
+)
+from resume_maker.plugin_packages.sys_resume.services.resumes import Resumes
 from tests.support.documents import photo_bytes
 from tests.support.layouts import generic_content, generic_template, visible_text
 from tests.support.templates import TemplateProvider, completed, simple_document, simple_template
@@ -368,7 +370,7 @@ def test_failed_structural_repair_restores_matching_best_snapshot_and_resets_mod
 
 def test_cached_mapping_reenters_repair_when_current_trial_fails(catalog, tmp_path, monkeypatch):
     """缓存映射在当前资料上试填失败时重新识别"""
-    from resume_maker.services.templates.analysis import check_trial
+    from resume_maker.plugin_packages.ext_template_ai.services.templates.analysis import check_trial
 
     source = tmp_path / "source.docx"
     simple_template(source)
@@ -394,7 +396,10 @@ def test_cached_mapping_reenters_repair_when_current_trial_fails(catalog, tmp_pa
             return review
         return check_trial(source, plan, review, document, projects)
 
-    monkeypatch.setattr("resume_maker.services.templates.tasks.check_trial", fail_cached_trial_once)
+    monkeypatch.setattr(
+        "resume_maker.plugin_packages.ext_template_adapter.services.templates.tasks.check_trial",
+        fail_cached_trial_once,
+    )
     task = completed(service, service.analyze(source, simple_document())["id"])
     assert task["review"]["ready"] and not task["reused"] and len(provider.calls) == 2
 

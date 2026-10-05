@@ -9,7 +9,7 @@ from resume_maker.api import create_app
 from resume_maker.core.config import Config
 from resume_maker.core.errors import Problem
 from resume_maker.integrations import desktop
-from resume_maker.services.projects import Projects
+from resume_maker.plugin_packages.sys_experience.services.projects import Projects
 from tests.support.data import record_source_files
 
 

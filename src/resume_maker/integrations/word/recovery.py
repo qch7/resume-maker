@@ -10,7 +10,7 @@ from docx.shared import Pt
 
 from resume_maker.core.errors import Problem
 from resume_maker.domain.templates import RecoveredPage
-from resume_maker.integrations.word.rendering import convert_word, render_word
+from resume_maker.integrations.word.capabilities import convert_word, render_word
 from resume_maker.integrations.word.templates.anchors import separate_anchors
 from resume_maker.integrations.word.templates.mapping import NS, TemplatePackage
 from resume_maker.integrations.word.templates.values import personal_values, section_records
@@ -99,9 +99,7 @@ def append_page(document, recovered, page, number):
 def recover_page(provider, output, prompt, image, settings, flag, emit, number):
     """页面恢复失败时重试一次并响应取消，重试失败则中止"""
     if provider.preprocess_images:
-        from resume_maker.integrations.local_ocr import read_document
-
-        result = read_document(image, flag)
+        result = provider.read_ocr(image, flag)
         provider.register_ocr(result)
         return ocr_page(result["pages"][0])
     for attempt in range(1, 3):
@@ -142,7 +140,7 @@ def rebuild_pages(pdf, output, provider, settings, flag, emit, *, native_pdf=Fal
     import pymupdf
 
     if native_pdf:
-        from resume_maker.integrations.local_ocr import OCRBudget, native_blocks, pdf_page
+        from resume_maker.integrations.ocr_support import OCRBudget, native_blocks
         from resume_maker.integrations.word.pdf.recovery import rebuild_pdf
 
         private = provider.preprocess_images
@@ -169,7 +167,10 @@ def rebuild_pages(pdf, output, provider, settings, flag, emit, *, native_pdf=Fal
                     document, page, number, output, provider, settings, flag, emit, budget
                 )
             if private:
-                local = pdf_page(page, flag)
+                image = output.parent / f"recovery-page-{number}.png"
+                scale = min(3, 2400 / max(page.rect.width, page.rect.height, 1))
+                page.get_pixmap(matrix=pymupdf.Matrix(scale, scale), alpha=False).save(image)
+                local = provider.read_ocr(image, flag)["pages"][0]
                 budget.register(number, local["blocks"])
                 register_page(local)
                 return append_page(document, ocr_page(local), page, number)

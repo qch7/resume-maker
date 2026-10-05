@@ -121,8 +121,8 @@ def test_privacy_policy_change_cancels_existing_material_context(tmp_path):
     """保护规则变化后即使传输返回正常结果也不能发布旧请求结果"""
     from resume_maker.infrastructure.database import Database
     from resume_maker.integrations.privacy_store import PrivacyStore
+    from resume_maker.plugin_packages.sys_privacy.services.privacy import Privacy
     from resume_maker.sdk.model import Cancelled
-    from resume_maker.services.privacy import Privacy
 
     db = Database(tmp_path / "resume.db")
     store = PrivacyStore(db)

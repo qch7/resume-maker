@@ -22,17 +22,17 @@ from resume_maker.domain.models import ProviderSettings
 from resume_maker.domain.resume import ResumeDocument
 from resume_maker.infrastructure.read_session import ReadSession
 from resume_maker.integrations.privacy_gateway import PrivacyGateway
-from resume_maker.integrations.providers.cli import run_cli
 from resume_maker.integrations.word.recovery import prepare_template
-from resume_maker.integrations.word.rendering import render_word
 from resume_maker.integrations.word.templates.fill import fill_template
 from resume_maker.integrations.word.templates.mapping import TemplatePackage
 from resume_maker.integrations.word.templates.values import personal_values, section_records
+from resume_maker.plugin_packages.ext_honors.services.honor_links import resume_source
+from resume_maker.plugin_packages.ext_provider_codex.integrations.providers.cli import run_cli
+from resume_maker.plugin_packages.ext_template_ai.services.templates.analysis import analyze_plan
+from resume_maker.plugin_packages.ext_word.integrations.word.rendering import render_word
+from resume_maker.plugin_packages.sys_resume.services.resume_sources import ResumeSources
 from resume_maker.runtime.host import Contribution
 from resume_maker.sdk.model import StructuredOutputError
-from resume_maker.services.honor_links import resume_source
-from resume_maker.services.resume_sources import ResumeSources
-from resume_maker.services.templates.analysis import analyze_plan
 
 
 def save(path, value):
@@ -155,11 +155,10 @@ class RecordedProvider(PrivacyGateway):
 
     def __init__(self, environment, directory):
         """配置仅属于本次模型和模板的独立会话目录"""
-        from resume_maker.integrations.local_ocr import read_document
-        from resume_maker.integrations.providers.page_images import read_document as read_page
+        from resume_maker.plugin_packages.provider_rapidocr.local_ocr import read_document
 
         super().__init__(runner=run_cli, environment=environment, ocr=read_document, images=True)
-        self.page_ocr = read_page
+        self.page_ocr = read_document
         self.directory, self.calls = directory, 0
 
     def run_structured(self, **kwargs):

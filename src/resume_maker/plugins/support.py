@@ -33,11 +33,30 @@ def routes(
     only: set[str] | None = None,
     exclude: set[str] | None = None,
 ):
-    """登记插件拥有的路由，混合模块只发布显式归属的端点"""
-    router = import_module(f"resume_maker.api.routes.{module}").router
+    """登记当前插件私有目录内拥有的路由"""
+    package = "resume_maker.plugin_packages." + context.manifest.id.replace(".", "_").replace(
+        "-", "_"
+    )
+    if not module.startswith(package + ".routes."):
+        raise ValueError("路由必须位于当前插件包内。")
+    router = import_module(module).router
     selected = tuple(
         route
         for route in router.routes
         if (only is None or route.name in only) and (exclude is None or route.name not in exclude)
     )
-    context.contribute("http.routes", f"{context.instance_id}/{module}", selected)
+    name = module.rsplit(".", 1)[-1]
+    context.contribute("http.routes", f"{context.instance_id}/{name}", selected)
+
+
+def task_queue(context):
+    """固定任务所有者、插件版本及提供方绑定，执行租约由系统持有"""
+    return dependency(context, "tasks").scope(
+        context.instance_id,
+        context.generation,
+        {
+            name: {"id": owner, "version": context.host.manifests[owner].version}
+            for name, owner in context.host.resolution.providers.items()
+        },
+        context.manifest.version,
+    )

@@ -252,7 +252,7 @@ class Jobs(Protocol):
 class Honors(Protocol):
     """Honors 的公开业务操作，插件消费者不依赖具体实现"""
 
-    def attach_recognition(self, provider, execution_queue):
+    def attach_recognition(self, provider, execution_queue, recognition):
         """附接识别处理器，撤销等待实际任务和资源清理结束"""
         ...
 

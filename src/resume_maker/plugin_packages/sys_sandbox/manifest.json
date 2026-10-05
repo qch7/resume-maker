@@ -1,0 +1,32 @@
+{
+  "manifest_version": 1,
+  "id": "sys.sandbox",
+  "title": "执行策略与材料隔离",
+  "version": "1.0.0",
+  "package": "resume-maker",
+  "entrypoints": {
+    "host": {
+      "mode": "trusted-host",
+      "entry": "resume_maker.plugin_packages.sys_sandbox.entry:activate"
+    }
+  },
+  "requires": {
+    "host": {
+      "execution": ">=1.0.0 <2.0.0",
+      "sandbox.backend": ">=1.0.0 <2.0.0",
+      "activity": ">=1.0.0 <2.0.0"
+    }
+  },
+  "provides": {
+    "host": {
+      "sandbox": {
+        "version": "1.0.0",
+        "cardinality": "one"
+      }
+    }
+  },
+  "contributes": {},
+  "permissions": [
+    "system.trusted"
+  ]
+}

@@ -7,12 +7,12 @@ import {
   hasHonor,
   matchesHonor,
   removeHonor,
-} from "../src/features/profile/honors/model.ts";
+} from "../src/shared/resume/honors/model.ts";
 import {
   filledEntries,
   newDocument,
   newEntry,
-} from "../src/features/profile/document.ts";
+} from "../src/shared/resume/document.ts";
 import {
   honorFieldHidden,
   honorFieldValue,
@@ -23,11 +23,14 @@ import {
   updateHonorField,
   entryWithHonorFields,
   honorFieldsFromEntry,
-} from "../src/features/profile/honors/entry.ts";
-import { HONOR_FIELDS } from "../src/features/profile/honors/fields.ts";
-import { entryComposition, findEntry } from "../src/features/profile/entry.ts";
-import { sameSectionEntry } from "../src/features/profile/comparison.ts";
-import { syncHonorDocument } from "../src/features/profile/honors/sync.ts";
+} from "../src/shared/resume/honors/entry.ts";
+import { HONOR_FIELDS } from "../src/shared/resume/honors/fields.ts";
+import {
+  entryComposition,
+  findEntry,
+} from "../../src/resume_maker/plugin_packages/sys_resume/client/features/profile/entry.ts";
+import { sameSectionEntry } from "../src/shared/resume/comparison.ts";
+import { syncHonorDocument } from "../src/shared/resume/honors/sync.ts";
 
 test("removing a linked honor preserves same-name entries, sections and other resume data", /* 自定义栏目也可移除，原始简历、同名资料及库中来源保持不变 */ () => {
   const source = honor();

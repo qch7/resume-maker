@@ -32,8 +32,8 @@ sys.path.insert(0, str(Path.cwd() / "package"))
 from resume_maker.api import create_app
 from resume_maker.core.config import Config, sandbox_directory
 from resume_maker.infrastructure.database import SCHEMA_VERSION
-from resume_maker.services.templates.analysis import INSTRUCTIONS
-from resume_maker.integrations import local_ocr
+from resume_maker.plugin_packages.ext_template_ai.services.templates.analysis import INSTRUCTIONS
+from resume_maker.plugin_packages.provider_rapidocr import local_ocr
 from resume_maker.integrations.providers import material_server
 from resume_maker.integrations.providers.source_broker import source_broker
 from resume_maker.integrations.source_access import SourceAccess
@@ -61,6 +61,19 @@ config = Config(data_dir=Path.cwd() / "data")
 assert config.frontend == (Path.cwd() / "package/resume_maker/web").resolve(), config.frontend
 assert (config.frontend / "index.html").is_file()
 assert list((config.frontend / "assets").glob("*.js"))
+from resume_maker.plugins.discovery import discover
+from resume_maker.plugins.client_assets import client_directory
+import hashlib
+definitions, _, _ = discover()
+for identifier, manifest in definitions.items():
+    if "client" not in manifest.entrypoints:
+        continue
+    directory = client_directory(identifier)
+    index = json.loads((directory / "artifacts.json").read_text(encoding="utf-8"))
+    assert "plugin.js" in index
+    for name, checksum in index.items():
+        assert hashlib.sha256((directory / name).read_bytes()).hexdigest() == checksum
+assert (config.frontend / "shared/sdk/shared/components/TemplatePicker.js").is_file()
 app = create_app(config)
 assert app.state.services.db.one("PRAGMA user_version")["user_version"] == SCHEMA_VERSION
 assert "/api/state" in app.openapi()["paths"]

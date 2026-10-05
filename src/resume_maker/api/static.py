@@ -55,6 +55,41 @@ def mount_frontend(app: FastAPI, config: Config) -> None:
             raise Problem("插件资源摘要发生变化。", 409)
         return FileResponse(path, headers={"Access-Control-Allow-Origin": "*"})
 
+    @app.get("/bundled-plugin-assets/{plugin_id}/{digest}/{resource:path}", include_in_schema=False)
+    def bundled_asset(plugin_id: str, digest: str, resource: str):
+        """发行包仅公开活动插件索引内的客户端产物，源码和私有文件不可下载"""
+        from resume_maker.plugins.client_assets import client_digest, client_directory
+        from resume_maker.runtime.packages import safe_member
+
+        host = app.state.runtime
+        manifest = host.definitions.get(plugin_id)
+        entry = manifest.entrypoints.get("client") if manifest else None
+        enabled = any(host.definition_id(key) == plugin_id for key in host.selected)
+        if (
+            not enabled
+            or entry is None
+            or not entry.entry.startswith("bundled:")
+            or plugin_id in host.bootstrap["packages"]
+        ):
+            raise Problem("插件客户端资源不可用。", 404)
+        location = client_directory(plugin_id).resolve()
+        relative = safe_member(resource)
+        path = location.joinpath(*relative.parts)
+        if (
+            path.suffix not in {".js", ".mjs", ".css", ".svg", ".png", ".woff2"}
+            or not path.is_file()
+            or not path.resolve().is_relative_to(location)
+        ):
+            raise Problem("客户端资源不存在。", 404)
+        if client_digest(plugin_id) != digest:
+            raise Problem("插件资源清单发生变化。", 409)
+        index = json.loads((location / "artifacts.json").read_text(encoding="utf-8"))
+        if resource not in index:
+            raise Problem("资源不属于客户端构建。", 404)
+        if hashlib.sha256(path.read_bytes()).hexdigest() != index[resource]:
+            raise Problem("插件资源摘要发生变化。", 409)
+        return FileResponse(path)
+
     @app.get("/plugin-ui/{plugin_id}/{digest}", include_in_schema=False)
     def isolated_ui(plugin_id: str, digest: str):
         """隔离页面无同源权限，只能通过宿主允许的消息端口调用声明操作"""

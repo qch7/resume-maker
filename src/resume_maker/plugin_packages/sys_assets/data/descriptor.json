@@ -1,0 +1,12 @@
+{
+  "resources": [
+    {
+      "root": "assets",
+      "prefix": "asset:",
+      "state": "published",
+      "files": [
+        "payload"
+      ]
+    }
+  ]
+}

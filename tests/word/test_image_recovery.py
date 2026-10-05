@@ -302,7 +302,9 @@ def test_header_repeat_conflict_is_reported_but_sidebar_is_preserved(tmp_path, s
 
 def test_image_mapping_constraints_do_not_change_word_or_pdf_prompts(tmp_path):
     """图片专属边界提示不进入 Word/PDF 映射上下文及其缓存键"""
-    from resume_maker.services.templates.analysis import analysis_context
+    from resume_maker.plugin_packages.ext_template_ai.services.templates.analysis import (
+        analysis_context,
+    )
 
     path = tmp_path / "source.docx"
     document = Document()

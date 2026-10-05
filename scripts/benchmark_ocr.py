@@ -12,7 +12,7 @@ from pathlib import Path
 import psutil
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-from resume_maker.integrations import local_ocr
+from resume_maker.plugin_packages.provider_rapidocr import local_ocr
 
 FIELDS = [
     "张明远",

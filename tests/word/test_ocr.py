@@ -9,7 +9,7 @@ import pytest
 from PIL import Image, ImageDraw, ImageFont
 
 from resume_maker.domain.models import Model, ProviderSettings
-from resume_maker.integrations import local_ocr
+from resume_maker.plugin_packages.provider_rapidocr import local_ocr
 from resume_maker.sdk.model import Cancelled, ProviderError
 from tests.support.providers import privacy_provider
 

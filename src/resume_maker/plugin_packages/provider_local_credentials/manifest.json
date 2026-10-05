@@ -1,0 +1,28 @@
+{
+  "manifest_version": 1,
+  "id": "provider.local-credentials",
+  "title": "本地凭据后端",
+  "version": "1.0.0",
+  "package": "resume-maker",
+  "entrypoints": {
+    "host": {
+      "mode": "trusted-host",
+      "entry": "resume_maker.plugin_packages.provider_local_credentials.entry:activate"
+    }
+  },
+  "requires": {
+    "host": {}
+  },
+  "provides": {
+    "host": {
+      "credentials.backend": {
+        "version": "1.0.0",
+        "cardinality": "one"
+      }
+    }
+  },
+  "contributes": {},
+  "permissions": [
+    "workspace.trusted"
+  ]
+}

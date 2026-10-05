@@ -1,0 +1,47 @@
+{
+  "manifest_version": 1,
+  "id": "ext.ai-runtime",
+  "title": "AI 编排",
+  "version": "1.0.0",
+  "package": "resume-maker",
+  "entrypoints": {
+    "host": {
+      "mode": "trusted-host",
+      "entry": "resume_maker.plugin_packages.ext_ai_runtime.entry:activate"
+    }
+  },
+  "requires": {
+    "host": {
+      "model.transport": ">=1.0.0 <2.0.0",
+      "settings": ">=1.0.0 <2.0.0",
+      "sandbox": ">=1.0.0 <2.0.0",
+      "credentials": ">=1.0.0 <2.0.0",
+      "execution": ">=1.0.0 <2.0.0",
+      "activity": ">=1.0.0 <2.0.0",
+      "privacy.gateway": ">=1.0.0 <2.0.0"
+    }
+  },
+  "provides": {
+    "host": {
+      "provider": {
+        "version": "1.0.0",
+        "cardinality": "one"
+      }
+    }
+  },
+  "contributes": {
+    "http.routes": [
+      "ext.ai-runtime/settings"
+    ]
+  },
+  "permissions": [
+    "workspace.trusted"
+  ],
+  "optional": {
+    "ocr": ">=1.0.0 <2.0.0",
+    "import.image": ">=1.0.0 <2.0.0"
+  },
+  "enhances": [
+    "settings"
+  ]
+}

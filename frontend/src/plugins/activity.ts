@@ -1,3 +1,16 @@
+export const CATEGORIES = {
+  api: "API",
+  ai: "AI 消息",
+  tool: "工具",
+  task: "任务",
+  service: "业务操作",
+  system: "系统",
+  client: "浏览器",
+} as const;
+
+export type ActivityCategory = keyof typeof CATEGORIES;
+export type ActivityCaptureSettings = { categories: ActivityCategory[] };
+
 export interface ActivityInput {
   id: number;
   created_at: string;

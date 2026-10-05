@@ -16,11 +16,20 @@ CREATE TABLE IF NOT EXISTS plugin_data_catalog (
 """
 
 
+def builtin_descriptors():
+    """从代码包读取初始描述，缺包时数据库中的持久目录册仍保留"""
+    root = Path(__file__).parents[1] / "plugin_packages"
+    return {
+        json.loads(path.parent.parent.joinpath("manifest.json").read_text(encoding="utf-8"))[
+            "id"
+        ]: json.loads(path.read_text(encoding="utf-8"))
+        for path in sorted(root.glob("*/data/descriptor.json"))
+    }
+
+
 def initialize_catalog(conn, selected=None):
     """初始化持久资料描述，关闭或缺少插件仍可发现附件"""
-    descriptors = json.loads(
-        Path(__file__).with_name("data_descriptors.json").read_text(encoding="utf-8")
-    )
+    descriptors = builtin_descriptors()
     for owner, descriptor in descriptors.items():
         if selected is not None and owner not in selected:
             continue
@@ -176,9 +185,7 @@ def data_blockers(db, manifests, locations):
 
 def synchronize_catalog(db, manifests, locations):
     """登记已验证清单的数据归属，停用不删除目录册或重写未知版本"""
-    builtins = json.loads(
-        Path(__file__).with_name("data_descriptors.json").read_text(encoding="utf-8")
-    )
+    builtins = builtin_descriptors()
     with db.transaction() as conn:
         check_versions(conn, manifests)
         for owner, manifest in manifests.items():

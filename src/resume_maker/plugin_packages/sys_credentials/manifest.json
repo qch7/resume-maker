@@ -1,0 +1,30 @@
+{
+  "manifest_version": 1,
+  "id": "sys.credentials",
+  "title": "凭据借用",
+  "version": "1.0.0",
+  "package": "resume-maker",
+  "entrypoints": {
+    "host": {
+      "mode": "trusted-host",
+      "entry": "resume_maker.plugin_packages.sys_credentials.entry:activate"
+    }
+  },
+  "requires": {
+    "host": {
+      "credentials.backend": ">=1.0.0 <2.0.0"
+    }
+  },
+  "provides": {
+    "host": {
+      "credentials": {
+        "version": "1.0.0",
+        "cardinality": "one"
+      }
+    }
+  },
+  "contributes": {},
+  "permissions": [
+    "system.trusted"
+  ]
+}

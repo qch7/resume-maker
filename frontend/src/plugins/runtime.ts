@@ -8,6 +8,8 @@ import type {
   Page,
   SettingsPage,
   Slots,
+  WorkbenchPage,
+  Navigation,
 } from "./contracts";
 import { IsolatedPage } from "./IsolatedPage";
 import { createClientServices, remoteProvider } from "./services";
@@ -18,12 +20,10 @@ import {
   instanceIdentifier,
 } from "./identity";
 
-const builtins = import.meta.glob<ClientPlugin>([
-  "../features/**/plugin.ts",
-  "../app/plugin.ts",
-]);
 const components = new Map<keyof Slots, ComponentType<never>>();
 const pages = new Map<string, Page>();
+const workbenchPages = new Map<string, WorkbenchPage>();
+const navigation = new Map<string, Navigation>();
 const settingsPages = new Map<string, SettingsPage>();
 const scopes = new Map<string, (() => void | Promise<void>)[]>();
 const services = createClientServices();
@@ -39,11 +39,33 @@ export function pluginComponent<K extends keyof Slots>(key: K): Slots[K] {
   return (components.get(key) ?? Empty) as Slots[K];
 }
 
+/** 调用方可为尚未安装的可选能力提供公开回退界面 */
+export function pluginOptionalComponent<K extends keyof Slots>(
+  key: K,
+): Slots[K] | undefined {
+  return components.get(key) as Slots[K] | undefined;
+}
+
 /** 外部页面按稳定标识排序，工作台不需要知道页面实现 */
 export function pluginPages() {
   return [...pages.values()].sort(
     (left, right) =>
       left.order - right.order || left.id.localeCompare(right.id),
+  );
+}
+
+/** 发行插件通过通用工作台页面贡献接入导航，无需修改主页面 */
+export function pluginWorkbenchPages() {
+  return [...workbenchPages.values()].sort(
+    (left, right) =>
+      left.order - right.order || left.id.localeCompare(right.id),
+  );
+}
+
+/** 领域插槽仅贡献自身导航，卸载后相应入口自动消失 */
+export function pluginNavigation() {
+  return [...navigation.values()].sort(
+    (left, right) => left.order - right.order,
   );
 }
 
@@ -115,7 +137,7 @@ export async function initializePlugins() {
       },
       /** 只向本插件声明的内置插槽注册组件 */
       component(key, component) {
-        if (!item.entry.entry.startsWith("builtin:"))
+        if (!item.entry.entry.startsWith("/bundled-plugin-assets/"))
           throw new Error("外部插件须使用自己的页面标识，不能覆盖系统插槽。");
         if (components.has(key)) throw new Error(`客户端插槽重复：${key}`);
         components.set(key, component as ComponentType<never>);
@@ -131,6 +153,28 @@ export async function initializePlugins() {
         pages.set(page.id, page);
         effects.push(() => {
           pages.delete(page.id);
+        });
+      },
+      /** 普通页面在工作台内显示，设置和草稿协调仍由宿主持有 */
+      workbenchPage(page) {
+        page = { ...page, id: instanceIdentifier(item, page.id) };
+        if (!page.id.startsWith(item.id + "/") || workbenchPages.has(page.id))
+          throw new Error("页面标识须属于当前插件且不能重复。");
+        workbenchPages.set(page.id, page);
+        effects.push(() => {
+          workbenchPages.delete(page.id);
+        });
+      },
+      /** 发行插件为公开领域插槽登记导航，外部插件使用自己的通用页面 */
+      navigation(value) {
+        if (
+          !item.entry.entry.startsWith("/bundled-plugin-assets/") ||
+          navigation.has(value.slot)
+        )
+          throw new Error("领域导航须由唯一的发行插件提供。");
+        navigation.set(value.slot, value);
+        effects.push(() => {
+          navigation.delete(value.slot);
         });
       },
       /** 设置页面使用相同的命名空间和撤销规则 */
@@ -201,20 +245,17 @@ export async function initializePlugins() {
       }
       if (item.entry.mode !== "trusted-client")
         throw new Error("未知客户端信任模式。");
-      let module: ClientPlugin;
-      if (item.entry.entry.startsWith("builtin:")) {
-        const key = "../" + item.entry.entry.slice("builtin:".length);
-        if (!builtins[key]) throw new Error(`安装包缺少入口：${key}`);
-        module = await builtins[key]();
-      } else {
-        const url = new URL(item.entry.entry, location.origin);
-        if (
-          url.origin !== location.origin ||
-          !url.pathname.startsWith("/plugin-assets/")
+      const url = new URL(item.entry.entry, location.origin);
+      if (
+        url.origin !== location.origin ||
+        !["/plugin-assets/", "/bundled-plugin-assets/"].some((prefix) =>
+          url.pathname.startsWith(prefix),
         )
-          throw new Error("插件资源路径未通过验证。");
-        module = (await import(/* @vite-ignore */ url.href)) as ClientPlugin;
-      }
+      )
+        throw new Error("插件资源路径未通过验证。");
+      const module = (await import(
+        /* @vite-ignore */ url.href
+      )) as ClientPlugin;
       if (typeof module.activate !== "function")
         throw new Error("客户端入口缺少 activate。");
       await module.activate(context);

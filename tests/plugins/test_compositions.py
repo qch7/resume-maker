@@ -145,8 +145,8 @@ def test_minimal_does_not_import_optional_modules(tmp_path):
             "from resume_maker.api import create_app",
             "from resume_maker.core.config import Config",
             "app=create_app(Config(data_dir=Path(sys.argv[1]),profile='minimal'))",
-            "blocked=('pymupdf','rapidocr_onnxruntime','resume_maker.integrations.providers.cli',"
-            "'resume_maker.services.templates.tasks','resume_maker.services.honors')",
+            "blocked=('pymupdf','rapidocr_onnxruntime','resume_maker.plugin_packages.ext_provider_codex.integrations.providers.cli',"
+            "'resume_maker.plugin_packages.ext_template_adapter.services.templates.tasks','resume_maker.plugin_packages.ext_honors.services.honors')",
             "assert not any(key in sys.modules for key in blocked), "
             "sorted(set(blocked)&sys.modules.keys())",
             "app.state.runtime.close()",

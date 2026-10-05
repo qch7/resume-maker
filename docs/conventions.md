@@ -11,14 +11,13 @@
 | `src/resume_maker/api/` | 应用工厂、依赖注入、HTTP 路由、请求模型和本机访问校验 |
 | `src/resume_maker/core/` | 运行配置和业务异常 |
 | `src/resume_maker/domain/` | 数据模型、经历规则、栏目结构和模板映射契约 |
-| `src/resume_maker/services/` | 项目、草稿、修订、会话、荣誉、任务、模板库和导出业务 |
+| `src/resume_maker/plugin_packages/<slug>/` | 插件清单、入口、服务、路由、查询、私有适配器、资料声明和客户端 |
 | `src/resume_maker/infrastructure/` | SQLite 访问、初始结构、实例锁、备份和恢复 |
-| `src/resume_maker/integrations/` | 源码证据、隐私网关、模型连接、本机文件选择和文档处理 |
-| `src/resume_maker/integrations/word/` | OOXML、模板填充、PDF 恢复、图片恢复和 Word 子进程 |
-| `frontend/src/app/` | 跨功能协调、导航和工作台布局 |
-| `frontend/src/features/` | 各功能的组件、状态和业务规则 |
+| `src/resume_maker/integrations/` | 多个插件复用的隐私、源码访问和文档工具；具体 CLI、OCR 模型和 Word 执行归属插件包 |
+| `src/resume_maker/integrations/word/` | 多个文档引擎和导入器复用的 OOXML、布局及恢复工具 |
+| `frontend/src/plugins/` | 客户端加载器、作用域、贡献注册表和公开 SDK 入口 |
 | `frontend/src/shared/` | 通用控件、hooks、网络、本机缓存和 API 类型 |
-| `frontend/src/styles/` | 按功能拆分的样式，导入顺序由 `index.css` 管理 |
+| `frontend/src/styles/` | 宿主基础样式；功能样式随所属插件独立构建 |
 | `tests/`、`frontend/tests/` | 按功能分组的后端回归测试和前端逻辑测试，后端共享辅助代码在 `tests/support/` |
 | `scripts/` | 启停、检查、构建和模板评测脚本 |
 
@@ -26,7 +25,7 @@
 
 Provider 和隐私存储由独立插件组合，`api/app.py` 只创建 Host 和路由快照；任务队列不负责其他服务的依赖装配。适配器显式实现 `Provider` 中的图片能力、任务隐私副本及 OCR 登记，不用属性探测绕过契约。设置及隐私规则的事务放在对应服务，路由只负责 HTTP 输入输出。
 
-前端 `shared` 不导入 `features` 或 `app`，`features` 不导入 `app`；通用草稿提交通过 `shared/lib/draftRegistry.ts` 协调。
+前后端宿主和插件均不能导入另一插件的私有实现。后端按清单消费 SDK 服务及贡献，前端通过 `@resume-maker/plugin-sdk/<子入口>` 消费公开类型、控件和注册接口。目录搬迁后继续检查包内 services、integrations、routes 的原有分层。通用草稿提交通过 `shared/lib/draftRegistry.ts` 协调。
 
 依赖检查同时覆盖 Python 包入口导入、前端重导出及字面量动态导入，不能通过改写导入语法绕过模块边界。
 
@@ -78,6 +77,9 @@ Provider 和隐私存储由独立插件组合，`api/app.py` 只创建 Host 和�
 
 ## 插件实现约束
 
+- 内置插件独立目录统一放在 `plugin_packages/<slug>/`，slug 是插件 ID 将点及连字符改为下划线。发现和构建扫描 manifest.json / package.json；产品组合归属写在包内，禁止在宿主新增可选 ID 清单、入口导入或私有文件转发。
+- 删除可选代码目录后重新构建及启动应自动阻断缺依赖的消费者，保留已存资料和用户选择；显式要求完整组合时仍严格报错。系统必需目录缺失必须明确拒绝启动。运行中的卸载仍先执行原有排空流程，不能直接删正在执行的文件。
+- 仅多个消费者复用的工具和稳定数据契约进入宿主共享层；共享工具通过公开参数消费可选实现，不能加载具体模型、供应商或平台插件。荣誉识别策略由识别插件注入，库服务负责事务和任务收尾。
 - 当前协议见 `docs/reference/plugin-sdk.md`，装配和生命周期见 `docs/architecture.md`。清单声明必须由实际实现和测试验证。
 - 系统插件依赖闭包只包含系统职责及必需提供方，隐私和 sandbox 不可选。服务通过声明的能力消费，API 依赖必须与路由所有者清单一致。
 - 注册、订阅、样式、RPC 和后台资源归属插件作用域；清理失败保留依赖。附接别的服务时声明 enhances，纳入反向排空。

@@ -8,7 +8,7 @@ from resume_maker.domain.models import ProjectVisibility, ResumeItem
 from resume_maker.infrastructure.assets import Assets
 from resume_maker.infrastructure.database import Database, dump, now
 from resume_maker.integrations.sources import digest
-from resume_maker.services.resumes import Resumes
+from resume_maker.plugin_packages.sys_resume.services.resumes import Resumes
 from tests.support.data import body_text, make_catalog, project_info
 from tests.support.document_services import Documents, ResumePreviews
 from tests.support.layouts import metadata_template, project_document

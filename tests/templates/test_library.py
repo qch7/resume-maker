@@ -11,11 +11,15 @@ from resume_maker.core.errors import Problem
 from resume_maker.domain.templates import TemplatePlan
 from resume_maker.infrastructure.assets import Assets
 from resume_maker.infrastructure.database import dump, now
-from resume_maker.plugins.queries import templates as query_templates
+from resume_maker.plugin_packages.ext_template_adapter.services.template_records import (
+    TemplateRecords,
+)
+from resume_maker.plugin_packages.ext_template_library.query import templates as query_templates
+from resume_maker.plugin_packages.ext_template_library.services.templates.library import (
+    TemplateLibrary,
+)
+from resume_maker.plugin_packages.sys_resume.services.resumes import Resumes
 from resume_maker.runtime.host import Contribution
-from resume_maker.services.resumes import Resumes
-from resume_maker.services.template_records import TemplateRecords
-from resume_maker.services.templates.library import TemplateLibrary
 from tests.support.data import workspace
 from tests.support.document_services import Documents, ResumePreviews
 from tests.support.documents import resume_content
@@ -179,7 +183,10 @@ def test_thumbnail_cache_and_original_are_isolated(catalog, tmp_path, monkeypatc
         (pdf.parent / "page-1.png").write_bytes(b"thumbnail")
         return 1, None
 
-    monkeypatch.setattr("resume_maker.services.templates.library.render_word", render)
+    monkeypatch.setattr(
+        "resume_maker.plugin_packages.ext_template_library.services.templates.library.render_word",
+        render,
+    )
     service = TemplateLibrary(
         Resumes(catalog, storage=catalog.db, assets=catalog.assets),
         data_dir,
@@ -232,7 +239,10 @@ def test_thumbnail_failure_can_retry_and_builtin_is_real_docx(catalog, tmp_path,
         (pdf.parent / "page-1.png").write_bytes(b"png")
         return 1, None
 
-    monkeypatch.setattr("resume_maker.services.templates.library.render_word", render)
+    monkeypatch.setattr(
+        "resume_maker.plugin_packages.ext_template_library.services.templates.library.render_word",
+        render,
+    )
     service = TemplateLibrary(
         Resumes(catalog, storage=catalog.db, assets=catalog.assets),
         tmp_path / "data",
