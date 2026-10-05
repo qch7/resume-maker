@@ -18,11 +18,11 @@ def data_directory() -> Path:
 
 
 def sandbox_directory() -> Path:
-    """源码运行使用项目内沙箱，安装包使用独立用户目录且不跟随启动位置"""
+    """源码运行使用项目 .local 沙箱，安装包使用独立用户目录且不跟随启动位置"""
     source = Path(__file__).resolve().parents[2]
     project = source.parent
     if source.name == "src" and (project / "pyproject.toml").is_file():
-        return project / "ResumeMakerSandbox"
+        return project / ".local" / "sandbox"
     return Path.home() / ".resume-maker-sandbox"
 
 

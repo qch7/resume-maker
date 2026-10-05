@@ -5,7 +5,7 @@
 ## 验证
 
 - [ ] `uv run python scripts/check.py`
-- [ ] 涉及构建资源时验证 `uv build --wheel` 和 `scripts/check_wheel.py`
+- [ ] 涉及构建资源时验证 `uv build --wheel --out-dir .local/artifacts` 和 `scripts/check_wheel.py`
 - [ ] 中文说明、文档和锁文件已同步更新
 - [ ] 未包含个人数据、密钥或生成产物
 

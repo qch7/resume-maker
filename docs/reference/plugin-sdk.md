@@ -1,6 +1,6 @@
 # 当前插件开发协议
 
-本文对应 `codex/plugin-architecture` 的实际接口。长期目标保留在 [完整规范](plugin-architecture-proposal.md)，差距及最终验收见 [实施记录](plugin-implementation.md)。
+本文说明当前插件接口、包格式和运行边界。宿主装配及生命周期见 [架构说明](../architecture.md)，开发检查见 [开发指南](../development.md)。
 
 ## 本地组合
 
@@ -249,7 +249,7 @@ worker 清单使用 `entrypoints.worker`，声明 execution/sandbox 依赖及 `e
 
 代码更新使用新进程和新的客户端资源 URL，不原地替换 Python 模块。可复现包构造见 `tests/support/plugins.py`，完整流程见 `tests/plugins/test_upgrades.py`。
 
-插件作者可直接复制 [独立笔记示例](examples/notes-plugin/README.md)，它不依赖内部实现或测试辅助代码。[联合升级请求示例](examples/notes-plugin/package-plan.json) 会作为真实 HTTP 请求纳入 wheel 验收，避免文档字段和接口模型不同步。`scripts/check_wheel.py` 还在仓库外验收独立构建、官方启动器、安装、多实例 JS 下载、RPC、停用、再次启用和重启恢复。
+插件作者可直接复制 [独立笔记示例](../examples/notes-plugin/README.md)，它不依赖内部实现或测试辅助代码。[联合升级请求示例](../examples/notes-plugin/package-plan.json) 会作为真实 HTTP 请求纳入 wheel 验收，避免文档字段和接口模型不同步。`scripts/check_wheel.py` 还在仓库外验收独立构建、官方启动器、安装、多实例 JS 下载、RPC、停用、再次启用和重启恢复。
 
 客户端资源 URL 使用插件定义 ID 和包摘要，多个实例共享同一份不可变代码；页面贡献及 RPC 使用实例 ID。只启用自定义实例也能读取定义资源；最后一个实例停用后，资源和隔离页面入口均返回 404。隔离 iframe 的页面地址同样来自定义资源 URL，其消息桥仍绑定当前实例。
 

@@ -172,7 +172,7 @@ def test_source_access_rejects_unlinked_private_paths_and_hardlinks(tmp_path):
 def test_project_sandbox_never_becomes_source_material(tmp_path, monkeypatch, selection):
     """项目沙箱及其子目录即使被直接选为来源，也不能列出、搜索、读取或留存证据"""
     project = tmp_path / "project"
-    control = project / "ResumeMakerSandbox/task-synthetic/control"
+    control = project / ".local/sandbox/task-synthetic/control"
     control.mkdir(parents=True)
     (project / "pyproject.toml").write_text('[project]\nname="resume-maker"\n')
     private = control / "session.txt"
@@ -184,7 +184,7 @@ def test_project_sandbox_never_becomes_source_material(tmp_path, monkeypatch, se
         "task": control.parent,
         "control": control,
     }[selection]
-    ordinary = tmp_path / "ordinary/ResumeMakerSandbox"
+    ordinary = tmp_path / "ordinary/sandbox"
     ordinary.mkdir(parents=True)
     (ordinary / "main.py").write_text("ORDINARY-CANARY", encoding="utf-8")
     sources = [

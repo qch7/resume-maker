@@ -1,8 +1,8 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/branding/resume-maker-dark.png">
-    <source media="(prefers-color-scheme: light)" srcset="docs/branding/resume-maker-light.png">
-    <img src="docs/branding/resume-maker-light.png" alt="ResumeMaker" width="600">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/branding/resume-maker-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="docs/assets/branding/resume-maker-light.png">
+    <img src="docs/assets/branding/resume-maker-light.png" alt="ResumeMaker" width="600">
   </picture>
 </p>
 
@@ -24,16 +24,18 @@
   <a href="#功能预览">功能预览</a> ·
   <a href="docs/user-guide.md">使用文档</a> ·
   <a href="https://github.com/qch7/resume-maker/issues">反馈问题</a> ·
-  <a href="CONTRIBUTING.md">参与贡献</a>
+  <a href=".github/CONTRIBUTING.md">参与贡献</a>
 </p>
 
 ## 简介
+
+项目处于开发阶段，尚未正式发布。
 
 ResumeMaker 是面向开发者的开源简历工作台，在本机运行。导入项目源码，让 AI 根据代码整理经历；按岗位选择内容和版本，再用自己的模板生成可编辑的 Word 简历。
 
 它适合需要持续积累项目经历、为不同岗位维护多份简历，以及希望沿用已有 Word 模板的求职者。
 
-[![项目经历工作台：左侧管理项目，中间编辑经历，右侧预览简历](docs/screenshot/项目经历页.png)](docs/screenshot/项目经历页.png)
+[![项目经历工作台：左侧管理项目，中间编辑经历，右侧预览简历](docs/assets/screenshots/项目经历页.png)](docs/assets/screenshots/项目经历页.png)
 
 ## 功能特性
 
@@ -61,7 +63,7 @@ uv run resume-maker --profile minimal --data-dir ./data-minimal
 
 已构建 wheel 的基础安装不需要 OCR、PDF 和图片处理库；需要对应能力时使用 `resume-maker[pdf]`、`resume-maker[images]`、`resume-maker[ocr]`、`resume-maker[word]` 或 `resume-maker[all]`。依赖安装后重启，再启用相关插件。源码开发环境默认包含完整依赖，方便回归。
 
-设计、实际边界和扩展方式分别见 [完整目标](docs/plugin-architecture-proposal.md)、[实施记录](docs/plugin-implementation.md)、[插件开发](docs/plugin-sdk.md)。
+当前架构和扩展方式见 [架构说明](docs/architecture.md) 和 [插件开发](docs/reference/plugin-sdk.md)。
 
 ## 快速开始
 
@@ -134,11 +136,11 @@ uv run resume-maker
 
 **结合源码讨论项目经历**
 
-![项目 AI 会话：讨论经历并查看右侧简历预览](docs/screenshot/项目经历AI会话.png)
+![项目 AI 会话：讨论经历并查看右侧简历预览](docs/assets/screenshots/项目经历AI会话.png)
 
 **查看分支、修订和历史内容**
 
-![经历历史树：查看版本内容并从所选版本创建分支](docs/screenshot/项目经历版本管理.png)
+![经历历史树：查看版本内容并从所选版本创建分支](docs/assets/screenshots/项目经历版本管理.png)
 
 </details>
 
@@ -148,14 +150,14 @@ uv run resume-maker
 
 | 原模板 | 识别后的试填预览 |
 | --- | --- |
-| [![导入前的简历模板](docs/screenshot/原模板.png)](docs/screenshot/原模板.png) | [![模板识别后的 Word 试填和字段修正界面](docs/screenshot/模板识别结果.png)](docs/screenshot/模板识别结果.png) |
+| [![导入前的简历模板](docs/assets/screenshots/原模板.png)](docs/assets/screenshots/原模板.png) | [![模板识别后的 Word 试填和字段修正界面](docs/assets/screenshots/模板识别结果.png)](docs/assets/screenshots/模板识别结果.png) |
 
 <details>
 <summary>查看模板库：分类、收藏和缩略图</summary>
 
 已保存的模板支持搜索、改名、分类、收藏和回收站恢复，可按卡片或列表浏览。
 
-![模板库：分类、收藏、模板卡片和选中模板预览](docs/screenshot/模板库.png)
+![模板库：分类、收藏、模板卡片和选中模板预览](docs/assets/screenshots/模板库.png)
 
 </details>
 
@@ -168,19 +170,19 @@ uv run resume-maker
 
 **个人信息和教育经历**
 
-![个人资料编辑：基本信息、照片和教育经历](docs/screenshot/个人信息编辑1.png)
+![个人资料编辑：基本信息、照片和教育经历](docs/assets/screenshots/个人信息编辑1.png)
 
 **荣誉资料和专业技能**
 
-![个人资料编辑：荣誉信息和多条专业技能](docs/screenshot/个人信息编辑2.png)
+![个人资料编辑：荣誉信息和多条专业技能](docs/assets/screenshots/个人信息编辑2.png)
 
 **证书识别和人工核对**
 
-![荣誉证书库：批量上传、分类筛选、信息核对和加入简历](docs/screenshot/荣誉识别管理.png)
+![荣誉证书库：批量上传、分类筛选、信息核对和加入简历](docs/assets/screenshots/荣誉识别管理.png)
 
 **栏目顺序、层级和显隐**
 
-![栏目编排：调整大栏目、子栏目和条目顺序](docs/screenshot/栏目编排.png)
+![栏目编排：调整大栏目、子栏目和条目顺序](docs/assets/screenshots/栏目编排.png)
 
 </details>
 
@@ -191,7 +193,7 @@ uv run resume-maker
 <details>
 <summary>查看简历方案和历史导出记录</summary>
 
-![简历库：方案管理、模板选择和历史导出记录](docs/screenshot/简历库.png)
+![简历库：方案管理、模板选择和历史导出记录](docs/assets/screenshots/简历库.png)
 
 </details>
 
@@ -199,9 +201,9 @@ uv run resume-maker
 
 **本机保存。** 应用面向单用户，仅监听 `127.0.0.1`。源码运行的数据保存在项目下的 `data/`，独立安装包默认使用用户目录下的 `.resume-maker/`。编辑会自动保存为草稿，正式版本仍需保存或提交。
 
-**AI 请求先脱敏。** 文本在本机提取并替换敏感信息；图片和扫描页经过本地 OCR、身份遮盖和图像打码，模板原图及照片不外发。处理后的材料会交给配置的模型供应商，结果在本机还原。自动规则和 OCR 可能漏检，请补充敏感词并核对发送记录。详见[隐私保护](docs/privacy.md)和[安全说明](SECURITY.md)。
+**AI 请求先脱敏。** 文本在本机提取并替换敏感信息；图片和扫描页经过本地 OCR、身份遮盖和图像打码，模板原图及照片不外发。处理后的材料会交给配置的模型供应商，结果在本机还原。自动规则和 OCR 可能漏检，请补充敏感词并核对发送记录。详见[隐私保护](docs/reference/privacy.md)和[安全说明](.github/SECURITY.md)。
 
-**备份和恢复。** 在设置中导出 ZIP，包含资料、草稿、经历、会话、模板和荣誉原件，停止服务后可离线恢复。原项目源码和系统日志不在备份中；换机时需另行迁移源码并重新关联目录。详见[数据持久化](docs/persistence.md)。
+**备份和恢复。** 在设置中导出 ZIP，包含资料、草稿、经历、会话、模板和荣誉原件，停止服务后可离线恢复。原项目源码和系统日志不在备份中；换机时需另行迁移源码并重新关联目录。详见[数据持久化](docs/reference/persistence.md)。
 
 <details>
 <summary>自定义端口和数据目录</summary>
@@ -228,7 +230,7 @@ uv run resume-maker --port 8768 --data-dir ./my-resume-data --no-browser
 <details>
 <summary>AI 连接失败时，先检查什么？</summary>
 
-先确认本机 Codex CLI 的路径、登录或供应商配置，再点击“测试实际连接”。项目按 CLI 的配置和工具能力检查兼容性，不限定固定版本号；失败时显示具体错误。关联请求和任务详情可在“系统日志”查看，见[系统日志说明](docs/system-activity.md)。
+先确认本机 Codex CLI 的路径、登录或供应商配置，再点击“测试实际连接”。项目按 CLI 的配置和工具能力检查兼容性，不限定固定版本号；失败时显示具体错误。关联请求和任务详情可在“系统日志”查看，见[系统日志说明](docs/reference/system-activity.md)。
 
 </details>
 
@@ -248,15 +250,16 @@ npm --prefix frontend run build
 
 ## 文档
 
+完整索引见 [文档目录](docs/README.md)。
+
 | 文档 | 内容 |
 | --- | --- |
 | [使用指南](docs/user-guide.md) | 完整操作流程、AI 设置和模板适配 |
-| [隐私保护](docs/privacy.md) | 脱敏机制、发送范围和能力边界 |
-| [数据持久化](docs/persistence.md) | 草稿、备份和离线恢复 |
-| [系统日志](docs/system-activity.md) | API、AI 和后台任务的记录及排查 |
+| [隐私保护](docs/reference/privacy.md) | 脱敏机制、发送范围和能力边界 |
+| [数据持久化](docs/reference/persistence.md) | 草稿、备份和离线恢复 |
+| [系统日志](docs/reference/system-activity.md) | API、AI 和后台任务的记录及排查 |
 | [开发指南](docs/development.md) | 开发环境、检查、打包和常见问题 |
 | [架构说明](docs/architecture.md) | 模块职责、依赖和数据流 |
-| [更新记录](CHANGELOG.md) | 功能更新和问题修复 |
 
 ## 开发和贡献
 
@@ -268,7 +271,9 @@ frontend/src/      # 工作台界面、功能模块和共享组件
 tests/             # 后端回归测试
 frontend/tests/    # 前端逻辑测试
 scripts/           # 启停、检查、构建和模板评测
-docs/              # 使用指南、架构、品牌资源和界面截图
+docs/              # 当前使用指南、架构、协议和展示资源
+data/              # 本机正式资料，不进入 Git
+.local/            # 沙箱、缓存、锁和构建产物，不进入 Git
 ```
 
 完成快速开始中的依赖安装后，在仓库根目录运行完整检查：
@@ -279,9 +284,9 @@ uv run python scripts/check.py
 
 该命令覆盖代码规范、模块依赖、后端测试、前端类型和格式检查、前端测试及生产构建。CI 在 Windows 和 Ubuntu 上执行检查，并额外验证 wheel 中的资源。
 
-欢迎通过 [Issue](https://github.com/qch7/resume-maker/issues) 反馈问题，也欢迎提交代码、文档改进或可复现的模板适配案例。开始前请阅读[贡献指南](CONTRIBUTING.md)和 [Agent 开发约定](AGENTS.md)。
+欢迎通过 [Issue](https://github.com/qch7/resume-maker/issues) 反馈问题，也欢迎提交代码、文档改进或可复现的模板适配案例。开始前请阅读[贡献指南](.github/CONTRIBUTING.md)和 [Agent 开发约定](AGENTS.md)。
 
-问题报告请附上运行环境、复现步骤和脱敏截图；安全问题按[安全说明](SECURITY.md)中的流程提交。
+问题报告请附上运行环境、复现步骤和脱敏截图；安全问题按[安全说明](.github/SECURITY.md)中的流程提交。
 
 ## 许可证
 

@@ -94,9 +94,9 @@ def workspace():
     """在应用专用沙箱内生成独立副本，清理前再次核验归属及路径"""
     base = sandbox_directory()
     try:
-        base.mkdir(mode=0o700, exist_ok=True)
         if base.is_symlink() or base.resolve() != base.absolute():
-            raise ProviderError("沙箱根目录不能是链接，请检查 ResumeMakerSandbox 目录。")
+            raise ProviderError("沙箱路径不能包含链接，请检查沙箱及其父目录。")
+        base.mkdir(mode=0o700, parents=True, exist_ok=True)
         if os.name == "nt":
             windows_parent(base)
         else:

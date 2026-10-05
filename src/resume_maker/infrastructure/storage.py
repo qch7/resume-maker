@@ -33,9 +33,12 @@ FOLDERS = (
 def instance_lock(directory: Path):
     """持有数据目录的跨进程排他锁以防运行实例和离线恢复互相覆盖"""
     directory = directory.resolve()
-    directory.parent.mkdir(parents=True, exist_ok=True)
-    # 锁文件位于数据目录同级，恢复交换目录时排他锁仍然有效
-    with (directory.parent / f".{directory.name}.instance.lock").open("a+b") as lock:
+    lock_directory = directory.parent
+    if (lock_directory / "pyproject.toml").is_file():
+        lock_directory = lock_directory / ".local" / "locks"
+    lock_directory.mkdir(parents=True, exist_ok=True)
+    # 锁保存在数据目录外，源码运行集中到 .local，恢复交换目录时排他锁继续有效
+    with (lock_directory / f".{directory.name}.instance.lock").open("a+b") as lock:
         if os.name == "nt":
             import msvcrt
 
