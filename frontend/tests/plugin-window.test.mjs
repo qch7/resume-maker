@@ -10,7 +10,9 @@ async function windowModule() {
       contents: `export * from "./src/plugins/window";
         export { clientExtensions } from "./src/plugins/extensions";
         export { registerDraft } from "./src/shared/lib/draftRegistry";
-        export { setCapabilities } from "./src/shared/lib/capabilities";`,
+        export { setCapabilities, capabilities } from "./src/shared/lib/capabilities";
+        export { storage } from "./src/shared/lib/storage";
+        export { api } from "./src/shared/lib/api";`,
       resolveDir: fileURLToPath(new URL("../", import.meta.url)),
     },
     bundle: true,
@@ -282,4 +284,150 @@ test("并发刷新共用一次保存，保存失败后保留页面并允许重�
     globalThis.document = previousDocument;
     globalThis.location = previousLocation;
   }
+});
+
+/** 使用实际存储及请求模块，模拟旧窗口返回时服务器已经提交了新代次 */
+async function recoveryWindow(t) {
+  const previous = ["document", "location", "localStorage"].map((key) => [
+    key,
+    Object.getOwnPropertyDescriptor(globalThis, key),
+  ]);
+  const local = {};
+  const state = { generation: 8, writable: true, reloads: 0, writes: [] };
+  Object.defineProperties(local, {
+    getItem: { value: (key) => local[key] ?? null },
+    setItem: {
+      value: (key, value) => {
+        if (!state.writable) throw new Error("synthetic quota exceeded");
+        local[key] = value;
+      },
+    },
+    removeItem: { value: (key) => delete local[key] },
+  });
+  for (const [key, value] of Object.entries({
+    document: { querySelector: () => ({ content: "synthetic" }) },
+    location: { reload: () => state.reloads++ },
+    localStorage: local,
+  }))
+    Object.defineProperty(globalThis, key, { configurable: true, value });
+  const modules = [];
+  t.after(() => {
+    for (const module of modules) module.storage.dispose();
+    for (const [key, descriptor] of previous) {
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+      else delete globalThis[key];
+    }
+  });
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    if (url === "/api/capabilities")
+      return Response.json({ generation: state.generation, ready: true });
+    if (url === "/api/workspace-storage")
+      return Response.json({ namespace: "synthetic", values: {} });
+    if (url === "/api/plugins/windows")
+      return Response.json({ detail: "插件配置已变化" }, { status: 409 });
+    state.writes.push({
+      url,
+      generation: options.headers["x-resume-generation"],
+    });
+    return Response.json({ detail: "草稿写入被拒绝" }, { status: 409 });
+  });
+  const module = await windowModule();
+  modules.push(module);
+  await module.storage.initialize();
+  return { module, modules, state, local };
+}
+
+test("旧代次刷新等命令及全部草稿收尾，输入只作为新窗口的恢复副本", async (t) => {
+  const { module, modules, state, local } = await recoveryWindow(t);
+  module.storage.setItem("rm.resume.v2.new", "离线输入");
+  const active = command(module, "community.offline", () => {
+    module.storage.setItem("rm.resume.v2.new", "命令结束后的输入");
+  });
+  const removeDraft = module.registerDraft("rejected-domain", () =>
+    module.api("/projects/synthetic/draft", "PUT", { value: "合成草稿" }),
+  );
+  let finishDraft;
+  const removeLate = module.registerDraft(
+    "late-domain",
+    () =>
+      new Promise((resolve) => {
+        finishDraft = () => {
+          module.storage.setItem("rm.chat.synthetic", "最后一份输入");
+          resolve();
+        };
+      }),
+  );
+  try {
+    await module.connectWindow();
+    assert.match(module.windowNotice(), /配置已变化/);
+    const reloading = module.reloadWindow();
+    let settled = false;
+    void reloading.then(
+      () => (settled = true),
+      () => (settled = true),
+    );
+    assert.equal(active.signal().aborted, true);
+    assert.equal(state.reloads, 0);
+    active.finish();
+    await active.pending;
+    await new Promise(setImmediate);
+    assert.equal(settled, false);
+    assert.equal(state.reloads, 0);
+    finishDraft();
+    await reloading;
+    assert.equal(state.reloads, 1);
+    assert.equal(module.capabilities().generation, 7);
+    assert.ok(state.writes.length > 0);
+    assert.ok(state.writes.every((request) => request.generation === "7"));
+    assert.deepEqual(
+      Object.values(local).map((value) => JSON.parse(value).plugin_generation),
+      [7, 7],
+    );
+    module.storage.dispose();
+    const restored = await windowModule();
+    modules.push(restored);
+    restored.setCapabilities({ ...restored.capabilities(), generation: 8 });
+    await restored.storage.initialize();
+    assert.equal(restored.storage.getItem("rm.resume.v2.new"), null);
+    assert.deepEqual(
+      restored.storage.recoveries().map(({ key, value }) => ({ key, value })),
+      [
+        { key: "rm.resume.v2.new", value: "命令结束后的输入" },
+        { key: "rm.chat.synthetic", value: "最后一份输入" },
+      ],
+    );
+    const writes = state.writes.length;
+    await restored.storage.flush();
+    assert.equal(state.writes.length, writes);
+  } finally {
+    finishDraft?.();
+    active.finish();
+    await active.pending;
+    await active.dispose();
+    removeLate();
+    removeDraft();
+  }
+});
+
+test("旧代次输入无法写入恢复副本时阻止刷新，存储恢复后可重试", async (t) => {
+  const { module, state, local } = await recoveryWindow(t);
+  state.writable = false;
+  module.storage.setItem("rm.resume.v2.new", "不能丢失的输入");
+  await assert.rejects(module.reloadWindow(), /恢复副本不可用/);
+  assert.equal(state.reloads, 0);
+  assert.deepEqual(Object.keys(local), []);
+  state.writable = true;
+  await module.reloadWindow();
+  assert.equal(state.reloads, 1);
+  assert.equal(JSON.parse(Object.values(local)[0]).value, "不能丢失的输入");
+});
+
+test("同代次普通草稿冲突不因存在浏览器副本而绕过处理", async (t) => {
+  const { module, state, local } = await recoveryWindow(t);
+  state.generation = 7;
+  module.storage.setItem("rm.resume.v2.new", "有冲突的输入");
+  await assert.rejects(module.reloadWindow(), /草稿未写入/);
+  assert.equal(state.reloads, 0);
+  assert.equal(Object.keys(local).length, 1);
+  assert.equal(module.storage.warnBeforeUnload(), true);
 });

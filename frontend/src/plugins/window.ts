@@ -1,6 +1,7 @@
 import { api, request } from "../shared/lib/api";
-import { capabilities } from "../shared/lib/capabilities";
+import { capabilities, type Capabilities } from "../shared/lib/capabilities";
 import { flushDrafts } from "../shared/lib/draftRegistry";
+import { storage } from "../shared/lib/storage";
 import { clientExtensions } from "./extensions";
 
 export const windowId = crypto.randomUUID();
@@ -69,12 +70,31 @@ export async function connectWindow() {
 }
 
 /** 所有页面刷新共用一次排空，调用方的保存或冲突处理只能在命令结束后执行 */
-export function reloadWindow(prepare: () => Promise<void> = flushDrafts) {
+export function reloadWindow(
+  prepare: () => Promise<void> = prepareWindowReload,
+) {
   if (!reloadAttempt)
     reloadAttempt = finishReload(prepare).finally(() => {
       reloadAttempt = undefined;
     });
   return reloadAttempt;
+}
+
+/** 旧代次不能覆盖新资料，确认恢复副本已保存后再重新协商 */
+async function prepareWindowReload() {
+  try {
+    await flushDrafts();
+  } catch (error) {
+    const latest = await api<Capabilities>("/capabilities");
+    if (
+      !latest.ready ||
+      !Number.isSafeInteger(latest.generation) ||
+      latest.generation < 1 ||
+      latest.generation === capabilities().generation
+    )
+      throw error;
+    await storage.prepareReload();
+  }
 }
 
 /** 命令停止后保存最终输入，失败保留页面，由后续心跳核验能否解除冻结 */
