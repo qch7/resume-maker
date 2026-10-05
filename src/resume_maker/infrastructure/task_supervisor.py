@@ -29,6 +29,7 @@ class TaskSupervisor:
         self.handlers, self.running = {}, {}
         self.lock = threading.RLock()
         self.executor = None
+        self.stopping = False
         self.adapters = {}
         self.owned = {}
         self.condition = threading.Condition(self.lock)
@@ -77,7 +78,7 @@ class TaskSupervisor:
 
     def prepare(self, conn, queue, identifier, metadata):
         """调度意图同业务输入原子保存，崩溃后明确中断且不自动重放"""
-        if self.executor is None:
+        if self.executor is None or self.stopping:
             raise Problem("系统任务执行器尚未启动。", 409)
         record = {
             "id": uid(),
@@ -133,7 +134,7 @@ class TaskSupervisor:
     def schedule(self, queue, identifier, flag, work, metadata, prepared=None):
         """统一持有执行句柄，领域结果沿用其原子事务且不复制第二份业务状态"""
         with self.lock:
-            if self.executor is None:
+            if self.executor is None or self.stopping:
                 raise Problem("系统任务执行器尚未启动。", 409)
             record = prepared
             if record is None:
@@ -240,6 +241,7 @@ class TaskSupervisor:
                             (dump(record), row["key"]),
                         )
             self.executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="plugin-task")
+            self.stopping = False
 
     def submit(
         self,
@@ -256,7 +258,7 @@ class TaskSupervisor:
         """同事务去重并固定代次，执行结果须再次校验取消状态"""
         key = f"{owner}:{handler}"
         with self.lock:
-            if key not in self.handlers or self.executor is None:
+            if key not in self.handlers or self.executor is None or self.stopping:
                 raise Problem("任务处理器不可用。", 409)
             with self.db.transaction() as conn:
                 existing = conn.execute(
@@ -342,15 +344,16 @@ class TaskSupervisor:
                 record["state"] = "cancelling"
                 self.db.set_setting(f"task:{identifier}", record)
 
-    def stop(self):
-        """等待所有已取消执行真正结束后关闭线程池"""
+    def stop(self, timeout=30):
+        """拒绝新任务并等待已取消执行真正结束，超时保留执行器供重试"""
         with self.condition:
+            self.stopping = True
             executor = self.executor
             for event in self.running.values():
                 event.set()
             for _, event in self.owned.values():
                 event.set()
-            if not self.condition.wait_for(lambda: not self.running and not self.owned, 30):
+            if not self.condition.wait_for(lambda: not self.running and not self.owned, timeout):
                 raise Problem("系统任务仍持有执行租约，关闭尚未完成。", 409)
             self.executor = None
         if executor:

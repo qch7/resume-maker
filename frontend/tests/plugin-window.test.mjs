@@ -244,3 +244,42 @@ test("准备期间注册冲突不会永久停止心跳，计划取消后可以�
     globalThis.document = previous;
   }
 });
+
+test("并发刷新共用一次保存，保存失败后保留页面并允许重试", async (t) => {
+  const previousDocument = globalThis.document,
+    previousLocation = globalThis.location;
+  globalThis.document = { querySelector: () => ({ content: "synthetic" }) };
+  let reloads = 0,
+    saves = 0;
+  globalThis.location = {
+    reload: () => {
+      reloads++;
+    },
+  };
+  t.mock.method(globalThis, "fetch", async () =>
+    Response.json({ pending_plan: null, acknowledged: false }),
+  );
+  try {
+    const module = await windowModule();
+    const first = module.reloadWindow(async () => {
+      saves++;
+      throw new Error("synthetic save conflict");
+    });
+    const second = module.reloadWindow(async () => {
+      saves++;
+    });
+    assert.equal(first, second);
+    await assert.rejects(first, /save conflict/);
+    assert.equal(reloads, 0);
+    await module.connectWindow();
+    assert.equal(module.windowNotice(), "");
+    await module.reloadWindow(async () => {
+      saves++;
+    });
+    assert.equal(saves, 2);
+    assert.equal(reloads, 1);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.location = previousLocation;
+  }
+});

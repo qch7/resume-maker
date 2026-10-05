@@ -1,6 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { storage, storageVersion, subscribeStorage } from "../lib/storage";
+import { reloadWindow } from "../../plugins/window";
 
 /** 展示自动保存失败和窗口冲突，处理前始终保留本页输入 */
 export default function PersistenceStatus() {
@@ -42,11 +43,12 @@ export default function PersistenceStatus() {
     setBusy(true);
     setError("");
     try {
-      await work();
       if (reload) {
-        await storage.prepareReload();
-        location.reload();
-      }
+        await reloadWindow(async () => {
+          await work();
+          await storage.prepareReload();
+        });
+      } else await work();
     } catch (failure) {
       setError((failure as Error).message);
     } finally {

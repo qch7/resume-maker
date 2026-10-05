@@ -222,6 +222,7 @@ class Host:
             raise PluginError("作用域须使用稳定标识，不得包含目录分隔符")
         self.children = {}
         self.scope_lock = threading.RLock()
+        self.close_lock = threading.RLock()
         self.closing = False
         self.frozen_scopes = set()
         self.inherited = set()
@@ -373,11 +374,16 @@ class Host:
             return child
 
     def close_scope(self, kind, identifier):
-        """实际释放成功后才从父容器移除作用域"""
+        """等待执行时不占用父容器锁，重复关闭不误删后来创建的同名作用域"""
+        key = (kind, identifier)
         with self.scope_lock:
-            child = self.children[(kind, identifier)]
-            child.close()
-            self.children.pop((kind, identifier))
+            child = self.children.get(key)
+        if child is None:
+            return
+        child.close()
+        with self.scope_lock:
+            if self.children.get(key) is child:
+                self.children.pop(key)
 
     def active_scopes(self, affected):
         """变更协调器等待所有引用受影响服务的子作用域实际关闭"""
@@ -614,7 +620,7 @@ class Host:
             self.close()
             raise
 
-    def deactivate(self, owners, *, remove=False):
+    def deactivate(self, owners, *, remove=False, before_release=None):
         """先停止完整消费闭包再释放资源，任一步失败保留尚未释放的依赖"""
         selected = set(owners) & self.instances.keys() - self.inherited
         ordered = [
@@ -624,6 +630,8 @@ class Host:
             if key in selected
         ]
         for release in (False, True):
+            if release and before_release is not None:
+                before_release()
             for key in ordered:
                 context = self.instances[key]
                 context.state = "draining"
@@ -640,16 +648,22 @@ class Host:
                     if remove:
                         self.instances.pop(key)
 
-    def close(self) -> None:
-        """子作用域结束后停止完整消费闭包，资源释放遵守同一依赖顺序"""
+    def _close_children(self):
+        """执行停止后回收残留子作用域，等待期间允许任务线程完成自身清理"""
         with self.scope_lock:
-            self.closing = True
-            for key in list(self.children):
-                self.close_scope(*key)
-        try:
-            self.deactivate(self.instances)
-        finally:
-            self.started = False
+            children = tuple(self.children)
+        for key in children:
+            self.close_scope(*key)
+
+    def close(self) -> None:
+        """停止全部执行后回收子作用域，最后释放父资源，失败仍可重试"""
+        with self.close_lock:
+            with self.scope_lock:
+                self.closing = True
+            try:
+                self.deactivate(self.instances, before_release=self._close_children)
+            finally:
+                self.started = False
 
     def status(self) -> list[dict]:
         """分别报告已安装、所选和实际运行状态"""

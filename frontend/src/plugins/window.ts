@@ -9,6 +9,7 @@ const listeners = new Set<() => void>();
 let notice = "";
 let connecting = false;
 let reloading = false;
+let reloadAttempt: Promise<void> | undefined;
 
 /** 工作台订阅配置变化和草稿刷新失败，不清除本地输入 */
 export function subscribeWindow(listener: () => void) {
@@ -67,13 +68,24 @@ export async function connectWindow() {
   }
 }
 
-/** 最终草稿已在确认阶段保存，刷新前再次确保整个窗口没有运行命令 */
-export async function reloadWindow() {
+/** 所有页面刷新共用一次排空，调用方的保存或冲突处理只能在命令结束后执行 */
+export function reloadWindow(prepare: () => Promise<void> = flushDrafts) {
+  if (!reloadAttempt)
+    reloadAttempt = finishReload(prepare).finally(() => {
+      reloadAttempt = undefined;
+    });
+  return reloadAttempt;
+}
+
+/** 命令停止后保存最终输入，失败保留页面，由后续心跳核验能否解除冻结 */
+async function finishReload(prepare: () => Promise<void>) {
   reloading = true;
   try {
     await clientExtensions.drainAll();
+    await prepare();
     location.reload();
   } catch (error) {
+    reloading = false;
     inform(error instanceof Error ? error.message : String(error));
     throw error;
   }

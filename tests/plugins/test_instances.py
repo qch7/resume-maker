@@ -2,6 +2,7 @@
 
 import sys
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from types import ModuleType
 
 import pytest
@@ -258,3 +259,131 @@ def test_child_cleanup_failure_keeps_application_resources_alive(definitions):
     waiting[0] = False
     root.close()
     assert application["closed"] and not root.children
+
+
+@pytest.mark.parametrize("operation", ["host", "workspace"])
+def test_host_shutdown_waits_for_task_before_releasing_child_resources(
+    definitions, tmp_path, operation
+):
+    """退出先取消任务，任务收尾期间父子资源仍可用且作用域只回收一次"""
+    from resume_maker.infrastructure.database import Database
+    from resume_maker.infrastructure.task_supervisor import TaskSupervisor
+    from resume_maker.sdk.tasks import current_task
+
+    root = Host(definitions, {"example.application"}, set(), scope="application")
+    root.activate()
+    host = root.open_scope(
+        "workspace", "first", [{"id": "example.counter", "plugin": "example.counter"}]
+    )
+    supervisor = TaskSupervisor(
+        Database(tmp_path / "tasks.db"), host.task_context, host.prepare_task
+    )
+    supervisor.start()
+    host.instances["example.counter"].scope.barriers.append(supervisor.stop)
+    entered, cancelled_seen, release = threading.Event(), threading.Event(), threading.Event()
+    observations = {}
+
+    def work(_payload, cancelled):
+        """取消及最终返回时观察真实任务作用域的资源是否仍然开放"""
+        state = current_task().require("task.instance", ServiceKey("task"))
+        observations["state"] = state
+        entered.set()
+        assert cancelled.wait(10)
+        observations["closed_on_cancel"] = state["closed"]
+        cancelled_seen.set()
+        assert release.wait(10)
+        observations["closed_on_exit"] = state["closed"]
+
+    supervisor.register("example.counter", "run", work)
+    task = supervisor.submit(
+        "example.counter",
+        "run",
+        {},
+        generation=1,
+        idempotency_key="shutdown",
+        plugin_instances=[{"id": "task.instance", "plugin": "example.task"}],
+    )
+    with ThreadPoolExecutor(max_workers=1) as closer:
+        try:
+            assert entered.wait(10)
+            closing = closer.submit(
+                root.close
+                if operation == "host"
+                else lambda: root.close_scope("workspace", "first")
+            )
+            assert cancelled_seen.wait(10)
+            assert not observations["closed_on_cancel"]
+            assert not observations["state"]["counter"]["closed"]
+            assert not closing.done()
+            release.set()
+            closing.result(timeout=10)
+            assert not observations["closed_on_exit"]
+            assert observations["state"]["closed"]
+            record = supervisor.db.setting(f"task:{task['id']}")
+            assert record["state"] == "cancelled" and "error_type" not in record
+            assert not host.children
+            host.close_scope("task", task["id"])
+        finally:
+            release.set()
+            supervisor.stop()
+            root.close()
+
+
+def test_shutdown_timeout_retains_task_resources_and_rejects_new_work(definitions, tmp_path):
+    """停止超时保留全部资源并拒绝新任务，旧执行退出后仍能完成关闭"""
+    from resume_maker.core.errors import Problem
+    from resume_maker.infrastructure.database import Database
+    from resume_maker.infrastructure.task_supervisor import TaskSupervisor
+    from resume_maker.sdk.tasks import current_task
+
+    host = Host(definitions, {"example.application", "example.counter"}, set())
+    host.activate()
+    supervisor = TaskSupervisor(
+        Database(tmp_path / "tasks.db"), host.task_context, host.prepare_task
+    )
+    supervisor.start()
+    host.instances["example.counter"].scope.barriers.append(lambda: supervisor.stop(timeout=0.01))
+    entered, release = threading.Event(), threading.Event()
+    states = []
+
+    def work(_payload, cancelled):
+        """故意延后响应取消，收尾时仍需使用父子资源"""
+        state = current_task().require("task.instance", ServiceKey("task"))
+        states.append(state)
+        entered.set()
+        assert release.wait(10)
+        assert cancelled.is_set() and not state["closed"] and not state["counter"]["closed"]
+
+    supervisor.register("example.counter", "run", work)
+    task = supervisor.submit(
+        "example.counter",
+        "run",
+        {},
+        generation=1,
+        idempotency_key="timeout",
+        plugin_instances=[{"id": "task.instance", "plugin": "example.task"}],
+    )
+    try:
+        assert entered.wait(10)
+        with pytest.raises(ExceptionGroup):
+            host.close()
+        assert host.children and not states[0]["closed"]
+        assert not states[0]["counter"]["closed"]
+        with pytest.raises(Problem):
+            supervisor.submit("example.counter", "run", {}, generation=1, idempotency_key="late")
+        queue = supervisor.scope("example.counter", 1, {})
+        with pytest.raises(Problem):
+            queue.submit("late", threading.Event(), lambda: None, {})
+        with pytest.raises(Problem), supervisor.db.transaction() as conn:
+            queue.prepare(conn, "late", {})
+        release.set()
+        with supervisor.condition:
+            assert supervisor.condition.wait_for(lambda: not supervisor.running, 10)
+        record = supervisor.db.setting(f"task:{task['id']}")
+        assert record["state"] == "cancelled" and "error_type" not in record
+        host.close()
+        assert not host.children and states[0]["closed"] and states[0]["counter"]["closed"]
+    finally:
+        release.set()
+        supervisor.stop()
+        host.close()

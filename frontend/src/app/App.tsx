@@ -4,7 +4,12 @@ import {
   pluginComponent,
   pluginPages,
 } from "../plugins/runtime";
-import { startWindow, subscribeWindow, windowNotice } from "../plugins/window";
+import {
+  reloadWindow,
+  startWindow,
+  subscribeWindow,
+  windowNotice,
+} from "../plugins/window";
 import PluginManager from "../features/plugins/PluginManager";
 import CommandMenu from "../plugins/CommandMenu";
 import PluginBoundary from "../plugins/PluginBoundary";
@@ -44,7 +49,9 @@ export default function App() {
       {notice && (
         <div role="alert" className="plugin-notice">
           {notice}{" "}
-          <button onClick={() => location.reload()}>重新协商并加载</button>
+          <button onClick={() => void reloadWindow().catch(() => undefined)}>
+            重新协商并加载
+          </button>
         </div>
       )}
       {[...clientFailures].map(([id, error]) => (
