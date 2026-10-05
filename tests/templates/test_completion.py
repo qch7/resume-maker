@@ -242,6 +242,8 @@ def test_library_review_save_and_reopen_share_completion(tmp_path, monkeypatch):
             folder / "template.docx"
         ).read_bytes() == original and task_source.read_bytes() == task_bytes
         assert (
-            Resumes(catalog, storage=catalog.db).template("generic")["mapping"]["plan"]
+            Resumes(catalog, storage=catalog.db, assets=catalog.assets).template("generic")[
+                "mapping"
+            ]["plan"]
             == plan.model_dump()
         )

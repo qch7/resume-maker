@@ -2,6 +2,7 @@
 
 import json
 from copy import deepcopy
+from io import BytesIO
 from zipfile import ZipFile
 
 import pytest
@@ -10,9 +11,9 @@ from lxml import etree
 
 from resume_maker.api import create_app
 from resume_maker.core.config import Config
-from resume_maker.domain.honor_entries import sync_honor_document
 from resume_maker.domain.honors import HonorFields
 from resume_maker.domain.resume import ResumeDocument, ResumeSection, SectionEntry
+from resume_maker.infrastructure.assets import Assets
 from resume_maker.infrastructure.database import dump
 from resume_maker.integrations.word.full_resume import write_full_resume
 from resume_maker.integrations.word.ooxml import NS
@@ -46,9 +47,12 @@ def test_honor_snapshot_roundtrip_and_rendering(catalog, tmp_path, fixtures_dir)
             ]
         }
     )
-    saved = Resumes(catalog, sources=honor_registry(catalog.db), storage=catalog.db).save_resume(
-        "荣誉测试", None, [], document=document
-    )
+    saved = Resumes(
+        catalog,
+        sources=honor_registry(catalog.db),
+        storage=catalog.db,
+        assets=catalog.assets,
+    ).save_resume("荣誉测试", None, [], document=document)
     restored = ResumeDocument.model_validate(saved["document"])
     stored = restored.sections[1].entries[0]
     assert stored.field_definitions is None
@@ -106,8 +110,8 @@ def fields(name="同步后的证书"):
     ).model_dump()
 
 
-def legacy_document(identifier):
-    """构造旧版四字段快照和填满的自定义资料"""
+def linked_document(identifier):
+    """构造明确关联来源的过时快照和填满的自定义资料"""
     return ResumeDocument.model_validate(
         {
             "personal": {"name": "姓名草稿"},
@@ -119,6 +123,11 @@ def legacy_document(identifier):
                     "entries": [
                         {
                             "id": f"honor:{identifier}",
+                            "source": {
+                                "provider": "ext.honors/library",
+                                "id": identifier,
+                                "version": "1",
+                            },
                             "title": "旧名称 · 一等奖",
                             "subtitle": "旧单位",
                             "period": "旧日期",
@@ -147,10 +156,10 @@ def test_existing_linked_honors_sync_on_read_save_and_delete(tmp_path):
     app = create_app(Config(data_dir=tmp_path, token="test"))
     with TestClient(app, headers={"x-resume-token": "test"}) as client:
         source = client.post("/api/honors", json={"fields": fields()}).json()
-        document = legacy_document(source["id"])
+        document = linked_document(source["id"])
         payload = {"name": "合成简历", "items": [], "document": document}
         saved = client.post("/api/resumes", json=payload).json()
-        # 用临时数据库模拟先前版本保存的条目，读取不写入或迁移用户数据库
+        # 用临时数据库模拟来源修改前的确认快照，读取不修改持久版本
         with app.state.services.db.transaction() as conn:
             conn.execute(
                 "UPDATE resumes SET document_json=? WHERE id=?", (dump(document), saved["id"])
@@ -215,19 +224,23 @@ def test_existing_linked_honors_sync_on_read_save_and_delete(tmp_path):
         )
 
 
-def test_only_confirmed_matching_sources_update_entries():
+def test_only_confirmed_matching_sources_update_entries(catalog):
     """未核对建议、同名不同来源、手工条目不参与同步，输入对象保持不变"""
-    document = legacy_document("linked")
+    document = linked_document("linked")
     before = deepcopy(document)
-    source = {"id": "linked", "fields": fields(), "reviewed": False}
-    assert sync_honor_document(document, [source]) == before
-    assert sync_honor_document(document, [{**source, "reviewed": True, "id": "another"}]) == before
+    source = {"id": "linked", "fields": fields(), "reviewed": False, "version": 1}
+    registry = honor_registry(catalog.db)
+    catalog.db.set_setting("honor:linked", source)
+    assert registry.resolve(document) == before
+    catalog.db.set_setting("honor:another", {**source, "reviewed": True, "id": "another"})
+    assert registry.resolve(document) == before
     source["reviewed"] = True
-    updated = sync_honor_document(document, [source])
+    catalog.db.set_setting("honor:linked", source)
+    updated = registry.resolve(document)
     ResumeDocument.model_validate(updated)
     assert updated["personal"] == document["personal"]
     assert document == before
-    assert sync_honor_document(updated, [source]) == updated
+    assert registry.resolve(updated) == updated
 
 
 @pytest.mark.parametrize("template_id", [None, "mapped"])
@@ -256,25 +269,41 @@ def test_preview_and_export_resolve_current_honors_and_invalidate_cache(
             entries=[
                 SectionEntry(
                     id="honor:linked",
+                    source={"provider": "ext.honors/library", "id": "linked", "version": "1"},
                     title="旧证书",
                     hidden_fields=["subtitle", "details"],
                 )
             ],
         )
     )
-    saved = Resumes(catalog, sources=honor_registry(catalog.db), storage=catalog.db).save_resume(
-        "合成简历", template_id, [], document=document
-    )
+    saved = Resumes(
+        catalog,
+        sources=honor_registry(catalog.db),
+        storage=catalog.db,
+        assets=catalog.assets,
+    ).save_resume("合成简历", template_id, [], document=document)
     service = ResumePreviews(
-        Resumes(catalog, sources=honor_registry(catalog.db), storage=catalog.db), data_dir
+        Resumes(
+            catalog,
+            sources=honor_registry(catalog.db),
+            storage=catalog.db,
+            assets=catalog.assets,
+        ),
+        data_dir,
     )
     try:
         first = service.render(template_id, document.model_dump(), [])
         assert service.render(template_id, document.model_dump(), []) == first
         history = Documents(
-            Resumes(catalog, sources=honor_registry(catalog.db), storage=catalog.db),
+            Resumes(
+                catalog,
+                sources=honor_registry(catalog.db),
+                storage=catalog.db,
+                assets=catalog.assets,
+            ),
             data_dir,
             storage=catalog.db,
+            assets=Assets(catalog.db, data_dir),
         ).export(saved["id"])
         original_manifest = deepcopy(history["manifest"])
         source["fields"]["name"] = "修改后的共享证书"
@@ -283,13 +312,19 @@ def test_preview_and_export_resolve_current_honors_and_invalidate_cache(
         second = service.render(template_id, document.model_dump(), [])
         assert second["id"] != first["id"]
         exported = Documents(
-            Resumes(catalog, sources=honor_registry(catalog.db), storage=catalog.db),
+            Resumes(
+                catalog,
+                sources=honor_registry(catalog.db),
+                storage=catalog.db,
+                assets=catalog.assets,
+            ),
             data_dir,
             storage=catalog.db,
+            assets=Assets(catalog.db, data_dir),
         ).export(saved["id"])
         for path in [
             service.file(second["id"], "resume.docx"),
-            data_dir / "exports" / exported["id"] / "resume.docx",
+            BytesIO(catalog.assets.read_file(f"exports/{exported['id']}", "resume.docx")),
         ]:
             with ZipFile(path) as archive:
                 xml = archive.read("word/document.xml").decode()

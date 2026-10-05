@@ -99,14 +99,14 @@ class Experience(Model):
     @field_validator("body_order")
     @classmethod
     def unique_body_order(cls, value):
-        """正文排序随经历版本保存，旧版缺省值沿用原有简历设置"""
+        """正文排序随经历版本保存，空值继承简历编排"""
         if value is not None and len(value) != len(set(value)):
             raise ValueError("项目内容顺序不能包含重复条目。")
         return value
 
     @model_validator(mode="after")
     def validate_custom_fields(self):
-        """校验项目自定义信息的稳定标识，兼容没有扩展字段的历史版本"""
+        """校验项目自定义信息的稳定标识"""
         validate_custom_field_ids(self.custom_fields)
         return self
 

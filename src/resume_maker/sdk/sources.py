@@ -61,4 +61,3 @@ class ResumeSource:
     browse: Callable[[SourceReader, str | None, str, int], SourcePage]
     resolve: Callable[[SourceReader, tuple[str, ...]], tuple[SourceItem, ...]]
     api_version: str = "1.0.0"
-    legacy_prefix: str | None = None

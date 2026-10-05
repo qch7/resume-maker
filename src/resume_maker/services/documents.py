@@ -21,7 +21,7 @@ class Documents:
         data_dir: Path,
         *,
         storage,
-        assets=None,
+        assets,
         runtime_snapshot=None,
         render=None,
         templates=False,
@@ -48,8 +48,6 @@ class Documents:
 
     def export(self, resume_id: str, *, engine_id=None, renderer_id=None) -> dict:
         """使用临时工作目录生成成品，发布后只保留统一资源里的文件"""
-        if self.assets is None:
-            return self._export(resume_id, engine_id=engine_id, renderer_id=renderer_id)
         root = self.data_dir / "workspaces"
         root.mkdir(parents=True, exist_ok=True)
         with TemporaryDirectory(prefix="export-", dir=root) as directory:
@@ -57,7 +55,7 @@ class Documents:
                 resume_id, engine_id=engine_id, renderer_id=renderer_id, directory=Path(directory)
             )
 
-    def _export(self, resume_id, *, engine_id=None, renderer_id=None, directory=None):
+    def _export(self, resume_id, *, directory, engine_id=None, renderer_id=None):
         """读取固定资料及项目引用，按所选完整模板或内置版式生成文件和清单"""
         inputs = self.catalog.freeze_export(self.data_dir, resume_id)
         resume, manifest_items, template = inputs.values()
@@ -76,9 +74,6 @@ class Documents:
             raise Problem("此简历引用了已停用的模板引擎，请启用后导出或另存内置版式。", 409)
         displayed = display_document(resume["document"])
         export_id = uid()
-        if directory is None:
-            directory = self.data_dir / "exports" / export_id
-            directory.mkdir(parents=True)
         output = directory / "resume.docx"
         if selected_engine:
             selected_engine.value.generate(
@@ -123,24 +118,20 @@ class Documents:
             else None,
             "input_hash": digest(dump([resume, manifest_items, template]).encode()),
         }
-        (directory / "manifest.json").write_text(dump(manifest), encoding="utf-8")
         resources = {}
-        if self.assets:
-            for path in sorted(directory.iterdir()):
-                if path.name == "manifest.json" or path.name == "input-template.docx":
-                    continue
-                resources[path.name] = self.assets.stage(
-                    "sys.documents",
-                    path.read_bytes(),
-                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                    if path.suffix == ".docx"
-                    else "application/octet-stream",
-                )
-            manifest["assets"] = {name: row["id"] for name, row in resources.items()}
-            (directory / "manifest.json").write_text(dump(manifest), encoding="utf-8")
+        for path in sorted(directory.iterdir()):
+            if path.name == "input-template.docx":
+                continue
+            resources[path.name] = self.assets.stage(
+                "sys.documents",
+                path.read_bytes(),
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                if path.suffix == ".docx"
+                else "application/octet-stream",
+            )
+        manifest["assets"] = {name: row["id"] for name, row in resources.items()}
         with self.db.transaction() as conn:
-            if self.assets:
-                self.assets.publish_bundle(conn, "sys.documents", f"exports/{export_id}", resources)
+            self.assets.publish_bundle(conn, "sys.documents", f"exports/{export_id}", resources)
             conn.execute(
                 "INSERT INTO exports VALUES (?,?,?,?,?,?)",
                 (export_id, resume["id"], dump(manifest), pages, render_error, now()),

@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw, PngImagePlugin
 
 from resume_maker.domain.models import ProviderSettings
 from resume_maker.integrations.privacy_store import PrivacyStore
-from resume_maker.integrations.providers.codex import CodexProvider
+from tests.support.providers import privacy_provider
 
 
 def reply(text="完成"):
@@ -24,7 +24,7 @@ def provider_at(tmp_path, handler, db=None, *, source_handler=None):
         result = source_handler(payload, source_access) if source_handler else handler(payload)
         return json.dumps(result, ensure_ascii=False)
 
-    return CodexProvider(privacy=PrivacyStore(db), runner=runner)
+    return privacy_provider(privacy=PrivacyStore(db), runner=runner)
 
 
 def run(provider, tmp_path, prompt, **options):

@@ -21,7 +21,7 @@ def test_independent_sessions_and_stale_proposal(catalog, project, tmp_path):
         catalog,
         tmp_path / "data",
         provider,
-        source_service=SourceService(catalog, tmp_path / "data", storage=catalog.db),
+        source_service=SourceService(catalog, tmp_path / "data", assets=catalog.assets),
     )
     first = catalog.db.all("SELECT * FROM conversations")[0]
     second = Conversations(catalog, storage=catalog.db).create_conversation(project["id"], "Second")
@@ -64,7 +64,7 @@ def test_cancel_does_not_publish_reply(catalog, project, tmp_path):
         catalog,
         tmp_path / "data",
         FakeProvider(block=True),
-        source_service=SourceService(catalog, tmp_path / "data", storage=catalog.db),
+        source_service=SourceService(catalog, tmp_path / "data", assets=catalog.assets),
     )
     conv = catalog.db.all("SELECT * FROM conversations")[0]
     jobs.start()

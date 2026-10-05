@@ -23,7 +23,16 @@ export function isHonorSection(section: ResumeSection) {
 
 /** 来源标识用于在栏目移动或改名后识别荣誉字段 */
 export function isHonorEntry(entry: SectionEntry, section: ResumeSection) {
-  return entry.id.startsWith("honor:") || isHonorSection(section);
+  return (
+    !!honorSourceId(entry) ||
+    entry.id.startsWith("honor:manual:") ||
+    isHonorSection(section)
+  );
+}
+
+/** 读取明确关联的荣誉来源，手工条目返回空标识 */
+export function honorSourceId(entry: SectionEntry) {
+  return entry.source?.provider === "ext.honors/library" ? entry.source.id : "";
 }
 
 /** 固定荣誉信息使用独立标识，用户自行添加的信息仍可命名和删除 */

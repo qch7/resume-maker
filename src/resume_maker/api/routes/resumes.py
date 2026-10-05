@@ -8,7 +8,6 @@ from fastapi.responses import FileResponse, Response
 from resume_maker.api.dependencies import service
 from resume_maker.api.resources import AssetResponse
 from resume_maker.api.schemas import ResumeInput, ResumePreviewInput
-from resume_maker.core.config import Config
 from resume_maker.core.errors import Problem, need
 from resume_maker.infrastructure.assets import Assets
 from resume_maker.infrastructure.database import Database
@@ -131,7 +130,6 @@ def export_history(dep_db: Annotated[Database, Depends(service("db"))], resume_i
 @router.get("/exports/{export_id}/{file_name}")
 def export_file(
     dep_assets: Annotated[Assets, Depends(service("assets"))],
-    dep_config: Annotated[Config, Depends(service("config"))],
     dep_db: Annotated[Database, Depends(service("db"))],
     export_id: str,
     file_name: str,
@@ -148,9 +146,7 @@ def export_file(
             media_type="application/json",
             headers={"Content-Disposition": 'attachment; filename="manifest.json"'},
         )
-    if asset_id := record["manifest"].get("assets", {}).get(file_name):
-        return AssetResponse(dep_assets, asset_id, file_name)
-    path = dep_config.data_dir / "exports" / export_id / file_name
-    if not path.exists():
+    asset_id = record["manifest"]["assets"].get(file_name)
+    if not asset_id:
         raise Problem("该文件尚未生成。", 404)
-    return FileResponse(path, filename=file_name)
+    return AssetResponse(dep_assets, asset_id, file_name)

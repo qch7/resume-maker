@@ -13,7 +13,8 @@ from resume_maker.core.config import Config
 from resume_maker.core.errors import Problem
 from resume_maker.domain.models import AIResult, ResumeItem
 from resume_maker.domain.templates import TemplatePlan
-from resume_maker.integrations.providers.codex import schema
+from resume_maker.infrastructure.assets import Assets
+from resume_maker.integrations.privacy_gateway import schema
 from resume_maker.integrations.word.templates.mapping import TemplatePackage
 from resume_maker.services.resumes import Resumes
 from resume_maker.services.templates.analysis_driver import TemplateAnalysis
@@ -110,11 +111,12 @@ def test_cancel_and_stop_discard_late_analysis(catalog, tmp_path):
     simple_template(source)
     with TemplateProvider(block=True) as provider:
         service = Templates(
-            Resumes(catalog, storage=catalog.db),
+            Resumes(catalog, storage=catalog.db, assets=catalog.assets),
             tmp_path / "data",
             provider,
             storage=catalog.db,
             analysis=TemplateAnalysis(),
+            assets=Assets(catalog.db, tmp_path / "data"),
         )
         task = service.analyze(source, simple_document())
         assert provider.started.wait(2)
@@ -193,11 +195,12 @@ def test_failure_and_invalid_save_do_not_register_templates(catalog, tmp_path):
     simple_template(source)
     provider = TemplateProvider(failure=True)
     service = Templates(
-        Resumes(catalog, storage=catalog.db),
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
         tmp_path / "data",
         provider,
         storage=catalog.db,
         analysis=TemplateAnalysis(),
+        assets=Assets(catalog.db, tmp_path / "data"),
     )
     task = service.analyze(source, simple_document())
     assert completed(service, task["id"])["status"] == "failed"
@@ -218,11 +221,12 @@ def test_failure_and_invalid_save_do_not_register_templates(catalog, tmp_path):
 def test_preview_checks_fixed_references(catalog, project, populated, tmp_path):
     """重复项目、无效亮点及跨项目修订不能通过模板试填绕过引用校验"""
     service = Templates(
-        Resumes(catalog, storage=catalog.db),
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
         tmp_path / "data",
         TemplateProvider(),
         storage=catalog.db,
         analysis=TemplateAnalysis(),
+        assets=Assets(catalog.db, tmp_path / "data"),
     )
     valid = ResumeItem(project_id=project["id"], revision_id=populated["id"], highlight_ids=["one"])
     assert service.projects([valid])[0]["content"]["title"] == "Example"

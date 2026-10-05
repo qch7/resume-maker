@@ -37,10 +37,7 @@ export default function Composer(props: Props) {
           <select
             aria-label="预览缩放"
             value={zoom}
-            onChange={
-              /* 缩放矢量页面，零值表示适应可用宽度 */ (event) =>
-                setZoom(Number(event.target.value))
-            }
+            onChange={(event) => setZoom(Number(event.target.value))}
           >
             <option value={0}>适应宽度</option>
             <option value={0.75}>75%</option>

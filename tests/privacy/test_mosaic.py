@@ -12,14 +12,15 @@ from PIL import Image
 
 from resume_maker.domain.models import ProviderSettings
 from resume_maker.domain.templates import TemplatePlan
+from resume_maker.infrastructure.assets import Assets
 from resume_maker.integrations.privacy_store import PrivacyStore
-from resume_maker.integrations.providers.base import Cancelled, MosaicImage, ProviderError
-from resume_maker.integrations.providers.codex import CodexProvider
 from resume_maker.integrations.providers.mosaic import mosaic_sheets, mosaic_tile
+from resume_maker.sdk.model import Cancelled, MosaicImage, ProviderError
 from resume_maker.services.resumes import Resumes
 from resume_maker.services.templates.analysis_driver import TemplateAnalysis
 from resume_maker.services.templates.tasks import Templates
 from tests.support.privacy import synthetic_image
+from tests.support.providers import privacy_provider
 from tests.support.templates import completed, simple_document
 
 
@@ -74,7 +75,7 @@ def test_unsafe_mosaics_never_reach_runner(tmp_path, failure):
         Image.new("1", (5000, 5000)).save(buffer, format="PNG")
         images = [MosaicImage("n1", buffer.getvalue())]
     calls = []
-    provider = CodexProvider(runner=lambda *args, **kwargs: calls.append(args))
+    provider = privacy_provider(runner=lambda *args, **kwargs: calls.append(args))
     with pytest.raises(ProviderError):
         provider.run_structured(
             result_model=TemplatePlan,
@@ -130,13 +131,14 @@ def test_template_mosaic_repair_covers_photo_without_original_upload(tmp_path, c
             }
         )
 
-    provider = CodexProvider(runner=runner, privacy=PrivacyStore(catalog.db))
+    provider = privacy_provider(runner=runner, privacy=PrivacyStore(catalog.db))
     service = Templates(
-        Resumes(catalog, storage=catalog.db),
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
         tmp_path / "data",
         provider,
         storage=catalog.db,
         analysis=TemplateAnalysis(),
+        assets=Assets(catalog.db, tmp_path / "data"),
     )
     document = simple_document()
     document.personal.name = "合成测试甲"

@@ -280,9 +280,7 @@ export default function LibraryDialog({
             aria-label="搜索模板"
             placeholder={`搜索${folderName}`}
             value={query}
-            onChange={
-              /* 即时筛选当前分类名称 */ (event) => setQuery(event.target.value)
-            }
+            onChange={(event) => setQuery(event.target.value)}
           />
           {query && (
             <button
@@ -407,10 +405,7 @@ export default function LibraryDialog({
               <select
                 aria-label="模板排序"
                 value={sort}
-                onChange={
-                  /* 两种视图使用相同的排序方式 */ (event) =>
-                    setSort(event.target.value)
-                }
+                onChange={(event) => setSort(event.target.value)}
               >
                 <option value="name">名称排序</option>
                 <option value="newest">最近保存</option>

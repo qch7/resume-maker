@@ -1,6 +1,7 @@
 """当前模板预览的草稿隔离、缓存、重试和文件访问边界"""
 
 from copy import deepcopy
+from io import BytesIO
 from pathlib import Path
 from zipfile import ZipFile
 
@@ -12,6 +13,7 @@ from resume_maker.core.config import Config
 from resume_maker.core.errors import Problem
 from resume_maker.domain.models import ResumeItem
 from resume_maker.domain.resume import ResumeSection, SectionEntry
+from resume_maker.infrastructure.assets import Assets
 from resume_maker.services.resumes import Resumes
 from tests.support import document_services as resume_previews
 from tests.support.document_services import Documents, ResumePreviews
@@ -34,7 +36,10 @@ def preview(catalog, tmp_path, monkeypatch):
 
     monkeypatch.setattr("tests.support.document_services.render_word", render)
     register_template(catalog, tmp_path / "data")
-    service = ResumePreviews(Resumes(catalog, storage=catalog.db), tmp_path / "data")
+    service = ResumePreviews(
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
+        tmp_path / "data",
+    )
     yield service, calls
     service.stop()
 
@@ -66,7 +71,7 @@ def test_current_template_uses_unsaved_content_without_publishing(
     output = service.file(result["id"], "resume.docx")
     with (
         ZipFile(output) as archive,
-        ZipFile(tmp_path / "data/templates/mapped/template.docx") as source,
+        ZipFile(BytesIO(catalog.assets.read_file("templates/mapped", "template.docx"))) as source,
     ):
         xml = archive.read("word/document.xml").decode()
         assert "尚未保存的姓名" in xml
@@ -104,7 +109,10 @@ def test_complete_template_preview_matches_formal_export(
     """完整模板的预览和正式导出具有相同内容和版式，关闭只回收临时预览"""
     service, _ = preview
     documents = Documents(
-        Resumes(catalog, storage=catalog.db), tmp_path / "data", storage=catalog.db
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
+        tmp_path / "data",
+        storage=catalog.db,
+        assets=Assets(catalog.db, tmp_path / "data"),
     )
     document = resume_content()
     # 预览和正式导出均须自动补齐模板缺少的字段
@@ -120,9 +128,11 @@ def test_complete_template_preview_matches_formal_export(
             entries=[SectionEntry(id="company", title="示例公司", details="研发实习内容")],
         ),
     )
-    source = tmp_path / "data/templates/mapped/template.docx"
-    original = source.read_bytes()
-    mapping = deepcopy(Resumes(catalog, storage=catalog.db).template("mapped")["mapping"])
+    source = catalog.assets.read_file("templates/mapped", "template.docx")
+    original = source
+    mapping = deepcopy(
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets).template("mapped")["mapping"]
+    )
     catalog.put_draft(
         project["id"],
         populated["id"],
@@ -139,7 +149,7 @@ def test_complete_template_preview_matches_formal_export(
     saved = catalog.save_revision(project["id"], populated["id"], populated["id"])
     item = ResumeItem(project_id=project["id"], revision_id=saved["id"], highlight_ids=["two"])
     result = service.render(template_id, document.model_dump(), [item.model_dump()])
-    resume = Resumes(catalog, storage=catalog.db).save_resume(
+    resume = Resumes(catalog, storage=catalog.db, assets=catalog.assets).save_resume(
         "固定方案", template_id, [item], document=document
     )
     monkeypatch.setattr(
@@ -148,7 +158,9 @@ def test_complete_template_preview_matches_formal_export(
     exported = documents.export(resume["id"])
     with (
         ZipFile(service.file(result["id"], "resume.docx")) as left,
-        ZipFile(tmp_path / "data/exports" / exported["id"] / "resume.docx") as right,
+        ZipFile(
+            BytesIO(catalog.assets.read_file(f"exports/{exported['id']}", "resume.docx"))
+        ) as right,
     ):
         assert left.namelist() == right.namelist()
         assert all(left.read(name) == right.read(name) for name in left.namelist())
@@ -159,13 +171,16 @@ def test_complete_template_preview_matches_formal_export(
         assert "https://example.test/project" in xml
         assert "仅保留的角色原文" not in xml and "Python" not in xml
     assert exported["manifest"]["items"][0]["content"]["role"] == "仅保留的角色原文"
-    assert source.read_bytes() == original
-    assert Resumes(catalog, storage=catalog.db).template("mapped")["mapping"] == mapping
+    assert catalog.assets.read_file("templates/mapped", "template.docx") == original
+    assert (
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets).template("mapped")["mapping"]
+        == mapping
+    )
     workspace = Path(service.directory.name)
     service.stop()
     assert not workspace.exists()
-    assert (tmp_path / "data/templates/mapped/template.docx").is_file()
-    assert (tmp_path / "data/exports" / exported["id"] / "resume.docx").is_file()
+    assert catalog.assets.read_file("templates/mapped", "template.docx") == original
+    assert catalog.assets.read_file(f"exports/{exported['id']}", "resume.docx")
 
 
 def test_failed_render_can_download_word_and_retry(preview, monkeypatch):
@@ -202,9 +217,10 @@ def test_rejects_invalid_references_and_changed_template(preview, project, popul
             service.render("mapped", doc, invalid)
     assert not calls
     service.render("mapped", doc, [item])
-    source = service.data_dir / "templates/mapped/template.docx"
+    asset_id = service.catalog.assets.file_id("templates/mapped", "template.docx")
+    source = service.data_dir / "assets" / asset_id / "payload"
     source.write_bytes(source.read_bytes() + b"changed")
-    with pytest.raises(Problem, match="程序外变化"):
+    with pytest.raises(Problem, match="摘要不匹配"):
         service.render("mapped", doc, [item])
     assert len(calls) == 1
 

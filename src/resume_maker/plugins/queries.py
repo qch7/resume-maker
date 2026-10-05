@@ -30,7 +30,7 @@ def conversations(conn, state):
 
 
 def honors(conn, state):
-    """已核对的荣誉与简历在同一读取事务同步"""
+    """在同一读取事务同步已核对的荣誉和简历"""
     from resume_maker.services.honor_links import honor_sources
 
     state["honors"] = honor_sources(conn)

@@ -36,7 +36,7 @@ def freeze_export(catalog, directory, identifier):
         template, data = None, None
         if resume["template_id"]:
             template = catalog.template(resume["template_id"], conn=conn)
-            data = catalog.template_bytes(template, directory)
+            data = catalog.template_bytes(template)
             if digest(data) != template["hash"]:
                 raise Problem("模板文件已在程序外变化，请重新导入。", 409)
         return DocumentInput(dump(resume), dump(projects), dump(template), data)
@@ -62,7 +62,7 @@ def freeze_preview(catalog, directory, template_id, document, items):
         template = catalog.template(template_id, conn=conn) if template_id else None
         data = None
         if template:
-            data = catalog.template_bytes(template, directory)
+            data = catalog.template_bytes(template)
             if digest(data) != template["hash"]:
                 raise Problem("模板文件已在程序外变化，请重新导入。", 409)
         return DocumentInput(dump({"document": document}), dump(projects), dump(template), data)

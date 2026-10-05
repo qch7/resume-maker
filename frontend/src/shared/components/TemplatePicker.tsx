@@ -59,7 +59,7 @@ export default function TemplatePicker({
         aria-label={`${label}：${name}，打开模板库`}
         aria-haspopup="dialog"
         aria-expanded={open}
-        onClick={/* 打开模板选择弹窗 */ () => setOpen(true)}
+        onClick={() => setOpen(true)}
       >
         <FolderOpen size={17} />
         <span>{name}</span>

@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 from resume_maker.api import create_app
 from resume_maker.core.config import Config
+from resume_maker.infrastructure.assets import Assets
 from resume_maker.infrastructure.database import uid
 from resume_maker.integrations.privacy import TOKEN
 from resume_maker.integrations.source_service import SourceService
@@ -75,7 +76,7 @@ def test_masked_source_paths_and_quotes_are_restored_before_evidence_validation(
         catalog,
         tmp_path / "data",
         provider,
-        source_service=SourceService(catalog, tmp_path / "data", storage=catalog.db),
+        source_service=SourceService(catalog, tmp_path / "data", assets=catalog.assets),
     )
     conversation = catalog.db.one(
         "SELECT id FROM conversations WHERE project_id=?", (project["id"],)
@@ -130,11 +131,12 @@ def test_template_quote_restored_and_original_images_never_sent(tmp_path, catalo
 
     provider = provider_at(tmp_path, handle, catalog.db)
     service = Templates(
-        Resumes(catalog, storage=catalog.db),
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
         tmp_path / "data",
         provider,
         storage=catalog.db,
         analysis=TemplateAnalysis(),
+        assets=Assets(catalog.db, tmp_path / "data"),
     )
     task = service.analyze(source, simple_document())
     result = completed(service, task["id"])

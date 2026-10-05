@@ -1,10 +1,8 @@
 """永久删除模板的受控文件清理，保留其他模板共享的识别产物"""
 
-import json
 import shutil
 from pathlib import Path
 
-from resume_maker.core.content import digest
 from resume_maker.core.errors import Problem
 
 
@@ -24,8 +22,8 @@ def managed_path(root, path):
 
 
 def artifact_paths(template):
-    """读取随模板保存的相对产物索引，兼容尚未登记索引的旧模板"""
-    return set(template["mapping"].get("artifacts", []))
+    """读取随模板保存的相对产物索引"""
+    return set(template["mapping"]["artifacts"])
 
 
 def cleanup_template(root, template, others, tasks=None, previews=None, conn=None):
@@ -37,25 +35,8 @@ def cleanup_template(root, template, others, tasks=None, previews=None, conn=Non
     same_hash = any(item["hash"] == template["hash"] for item in others)
     if not same_hash:
         paths.add(root / "templates" / ".previews" / template["hash"])
-        # 旧版本没有产物索引，按内容哈希寻找本应用的原始分析和试填目录
-        for directory in (root / "workspaces").glob("template-*"):
-            source = directory / "original.docx"
-            if source.is_file() and digest(source.read_bytes()) == template["hash"]:
-                if directory.relative_to(root).as_posix() not in shared:
-                    paths.add(directory)
-    if not any(item["mapping"].get("plan") == template["mapping"].get("plan") for item in others):
-        for cache in (root / "template-cache").glob("*.json"):
-            try:
-                if (
-                    cache.relative_to(root).as_posix() not in shared
-                    and json.loads(cache.read_text(encoding="utf-8")) == template["mapping"]["plan"]
-                ):
-                    paths.add(cache)
-            except (ValueError, OSError):
-                continue
     if previews:
         paths.update(previews.template_artifacts(template["id"]))
-    paths.add(root / "templates" / template["id"])
     # 必须先验证全部目标，再执行首个删除，永久删除过程中失败可在回收站重试
     checked = [managed_path(root, path) for path in paths]
     try:

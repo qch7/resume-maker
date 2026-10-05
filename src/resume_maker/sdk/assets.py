@@ -45,5 +45,5 @@ class Assets(Protocol):
         ...
 
     def read_file(self, key: str, name: str) -> bytes:
-        """在租约内读取完整原件，返回与存储独立的字节"""
+        """在租约内读取完整原件并返回独立字节"""
         ...

@@ -12,14 +12,14 @@ from resume_maker.integrations.word.templates.layout import child_in
 def private_image_text(package):
     """按分节重建图片和扫描 PDF 身份登记，重开任务后继续保护每页页首"""
     root = package.parts["word/document.xml"]
-    legacy_image = root.get(SOURCE) == "image-v1"
+    image_source = root.get(SOURCE) == "image-v1"
     pages, nodes = [], []
     for child in root.find(w("body")):
         nodes.extend(child.iter(w("p")))
         section = child if child.tag == w("sectPr") else child.find(f"{w('pPr')}/{w('sectPr')}")
         if section is None:
             continue
-        if legacy_image or section.get(SOURCE) == "image-v1":
+        if image_source or section.get(SOURCE) == "image-v1":
             pages.append({"blocks": private_page_blocks(nodes, section)})
         nodes = []
     if not pages:

@@ -20,7 +20,7 @@ from resume_maker.sdk.records import unpack as unpack
 # SQL 随 Python 包分发，读取位置和当前工作目录无关
 SCHEMA = Path(__file__).with_name("schema.sql").read_text(encoding="utf-8")
 # 只接受当前数据库结构
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 
 class Connection(sqlite3.Connection):
@@ -51,29 +51,26 @@ class Database:
     """短连接 SQLite 访问和事务边界，统一 JSON 编解码和配置存储"""
 
     def __init__(self, path: Path, *, plugins=None):
-        """新库只建立所选插件的表，旧库先留存原件再原子升级"""
+        """校验资料版本后建立所选插件的表，拒绝未迁移的旧库"""
         self.path = path
         self.activity = None
         path.parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as conn:
             version = conn.execute("PRAGMA user_version").fetchone()[0]
-            if version not in {0, 6, 7, SCHEMA_VERSION} or (
+            if version not in {0, SCHEMA_VERSION} or (
                 version == 0
                 and conn.execute("SELECT 1 FROM sqlite_master WHERE type='table'").fetchone()
             ):
-                raise RuntimeError("数据库结构不受当前程序支持，请使用新的数据目录。")
+                raise RuntimeError("数据库结构不受当前程序支持，请先迁移资料或恢复当前版本备份。")
             conn.execute("PRAGMA journal_mode=WAL")
-            if version in {6, 7}:
-                self._upgrade(conn, version, plugins)
-            else:
-                try:
-                    conn.execute("BEGIN IMMEDIATE")
-                    self._install(conn, plugins)
-                    conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
-                    conn.commit()
-                except BaseException:
-                    conn.rollback()
-                    raise
+            try:
+                conn.execute("BEGIN IMMEDIATE")
+                self._install(conn, plugins)
+                conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+                conn.commit()
+            except BaseException:
+                conn.rollback()
+                raise
 
     def _schema_script(self, plugins):
         """读取各插件自行声明的初始结构，不在数据库类维护业务名单"""
@@ -89,37 +86,6 @@ class Database:
         execute_script(conn, CATALOG_SCHEMA)
         execute_script(conn, resources(relational_owners(conn), "relations"))
         initialize_catalog(conn, plugins)
-
-    def _upgrade(self, conn, version, plugins):
-        """升级前保存完整原库，失败回滚业务表和所属插件的引用规则"""
-        backup = self.path.parent / "backups" / "migrations" / f"v{version}-{uid()}.db"
-        backup.parent.mkdir(parents=True, exist_ok=True)
-        target = sqlite3.connect(backup)
-        try:
-            conn.backup(target)
-        finally:
-            target.close()
-        conn.execute("PRAGMA foreign_keys=OFF")
-        try:
-            conn.execute("BEGIN IMMEDIATE")
-            conn.execute(
-                "CREATE TABLE resumes_v8 (id TEXT PRIMARY KEY, name TEXT NOT NULL, "
-                "template_id TEXT, items_json TEXT NOT NULL, version INTEGER NOT NULL, "
-                "created_at TEXT NOT NULL, updated_at TEXT NOT NULL, document_json TEXT)"
-            )
-            conn.execute("INSERT INTO resumes_v8 SELECT * FROM resumes")
-            conn.execute("DROP TABLE resumes")
-            conn.execute("ALTER TABLE resumes_v8 RENAME TO resumes")
-            self._install(conn, plugins)
-            if conn.execute("PRAGMA foreign_key_check").fetchone():
-                raise RuntimeError("数据库迁移发现无效引用，原资料及迁移前备份已保留。")
-            conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
-            conn.commit()
-        except BaseException:
-            conn.rollback()
-            raise
-        finally:
-            conn.execute("PRAGMA foreign_keys=ON")
 
     def ensure_schemas(self, plugins):
         """按清单补建新启用的结构，已有资料和停用模块的引用规则继续保留"""

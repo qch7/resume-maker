@@ -18,15 +18,7 @@ from resume_maker.infrastructure.data_catalog import resource_records
 from resume_maker.infrastructure.database import SCHEMA_VERSION, Database, dump, now, uid
 from resume_maker.infrastructure.filesystem import publish_directory
 
-FOLDERS = (
-    "templates",
-    "snapshots",
-    "exports",
-    "honors",
-    "template-drafts",
-    "assets",
-    "plugin-data",
-)
+FOLDERS = ("assets", "plugin-data")
 
 
 @contextmanager
@@ -116,17 +108,12 @@ def create_backup(db: Database, directory: Path) -> Path:
         pending.unlink(missing_ok=True)
 
 
-def backup_resources(conn):
-    """只枚举已登记且不可变的附件，排除缓存、日志及供应商临时文件"""
-    return [resource["path"] for resource in resource_records(conn)]
-
-
 def validate_database(path: Path):
     """只读检查备份数据库版本、完整性、外键及模板快照资源"""
     with closing(sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True)) as conn:
         if conn.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
             raise Problem("备份数据库完整性检查失败。")
-        if conn.execute("PRAGMA user_version").fetchone()[0] not in {6, 7, SCHEMA_VERSION}:
+        if conn.execute("PRAGMA user_version").fetchone()[0] != SCHEMA_VERSION:
             raise Problem("备份版本不受当前程序支持。")
         if conn.execute("PRAGMA foreign_key_check").fetchone():
             raise Problem("备份数据库存在无效引用。")
@@ -174,15 +161,11 @@ def validate_database(path: Path):
                 "SELECT value_json FROM settings WHERE key=?",
                 (f"asset-bundle:exports/{identifier}",),
             ).fetchone()
-            if bundle:
-                files = json.loads(bundle[0])["files"]
-                if "resume.docx" not in files or json.loads(raw).get("assets") != files:
-                    raise Problem("导出资源和成品追溯不一致。")
-            elif not all(
-                (path.parent / "exports" / identifier / name).is_file()
-                for name in ("resume.docx", "manifest.json")
-            ):
-                raise Problem(f"备份缺少导出文件：{identifier}")
+            if not bundle:
+                raise Problem(f"备份缺少导出资源：{identifier}")
+            files = json.loads(bundle[0])["files"]
+            if "resume.docx" not in files or json.loads(raw).get("assets") != files:
+                raise Problem("导出资源和成品追溯不一致。")
         for (payload,) in conn.execute(
             "SELECT value_json FROM settings WHERE key LIKE 'template-task:%'"
         ):
@@ -191,14 +174,8 @@ def validate_database(path: Path):
             bundle = conn.execute(
                 "SELECT value_json FROM settings WHERE key=?", (f"asset-bundle:{key}",)
             ).fetchone()
-            if bundle:
-                names = json.loads(bundle[0])["files"]
-                if not names:
-                    raise Problem("模板分析资源索引无效。")
-            else:
-                folder = path.parent / key
-                if not folder.is_dir() or not any(folder.iterdir()):
-                    raise Problem("备份缺少模板分析原件。")
+            if not bundle or not json.loads(bundle[0])["files"]:
+                raise Problem("备份缺少模板分析原件。")
             if (
                 item["task"]["status"] == "completed"
                 and not stored_file(conn, path.parent, key, "original.docx").is_file()
@@ -207,7 +184,7 @@ def validate_database(path: Path):
 
 
 def stored_file(conn, directory, key, name):
-    """离线校验使用持久资源索引，旧备份保留原布局兼容"""
+    """离线校验通过持久资源索引定位必要附件"""
     logical = PurePosixPath(key) / name
     if logical.is_absolute() or ".." in logical.parts or "\\" in str(logical):
         raise Problem("备份资源位置无效。")
@@ -215,7 +192,7 @@ def stored_file(conn, directory, key, name):
         "SELECT value_json FROM settings WHERE key=?", (f"asset-bundle:{key}",)
     ).fetchone()
     if row is None:
-        return directory / logical
+        raise Problem("备份缺少资源集合。")
     identifier = json.loads(row[0])["files"].get(name)
     if not identifier:
         raise Problem("备份资源集合缺少必要文件。")
@@ -267,6 +244,11 @@ def restore_backup(archive_path: Path, directory: Path) -> Path | None:
         raise Problem("恢复目标必须是独立的普通数据目录。")
     allowed = {
         *FOLDERS,
+        "templates",
+        "snapshots",
+        "exports",
+        "honors",
+        "template-drafts",
         "workspaces",
         "backups",
         "logs",
@@ -327,26 +309,23 @@ def restore_backup(archive_path: Path, directory: Path) -> Path | None:
                         with archive.open(item) as source, destination.open("wb") as target:
                             shutil.copyfileobj(source, target)
             metadata = json.loads((staging / "backup.json").read_text(encoding="utf-8"))
-            if metadata.get("version") not in {1, 2}:
+            if metadata.get("version") != 2:
                 raise Problem("备份格式版本不受支持。")
-            if metadata["version"] == 2:
-                expected = metadata.get("files", {})
-                actual = {
-                    p.relative_to(staging).as_posix()
-                    for p in staging.rglob("*")
-                    if p.is_file() and p != staging / "backup.json"
-                }
-                if set(expected) != actual or "resume.db" not in expected:
-                    raise Problem("备份文件清单不完整。")
-                for name, check in expected.items():
-                    file = staging / name
-                    with file.open("rb") as source:
-                        fingerprint = hashlib.file_digest(source, "sha256").hexdigest()
-                    if file.stat().st_size != check["size"] or fingerprint != check["sha256"]:
-                        raise Problem(f"备份文件校验失败：{name}")
+            expected = metadata.get("files", {})
+            actual = {
+                p.relative_to(staging).as_posix()
+                for p in staging.rglob("*")
+                if p.is_file() and p != staging / "backup.json"
+            }
+            if set(expected) != actual or "resume.db" not in expected:
+                raise Problem("备份文件清单不完整。")
+            for name, check in expected.items():
+                file = staging / name
+                with file.open("rb") as source:
+                    fingerprint = hashlib.file_digest(source, "sha256").hexdigest()
+                if file.stat().st_size != check["size"] or fingerprint != check["sha256"]:
+                    raise Problem(f"备份文件校验失败：{name}")
             validate_database(staging / "resume.db")
-            # 已知旧结构仅在隔离副本转换，原目录和原 ZIP 保持完整
-            Database(staging / "resume.db", plugins=[])
             # CLI 会话文件不在备份内，恢复后根据已保存消息重新建立上下文
             with closing(sqlite3.connect(staging / "resume.db")) as conn, conn:
                 tables = {

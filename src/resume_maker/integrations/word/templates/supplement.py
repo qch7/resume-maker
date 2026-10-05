@@ -249,19 +249,8 @@ def supplement_personal_fields(package, plan, document, projects, source=None):
         for field in loose_contact_fields(package, plan, body, donor)
         if values.get(field.target)
     ]
-    # 旧版自动生成的位置有可验证的占位符，重建它们即可让已保存模板也获得样式修复
-    legacy = [
-        field
-        for field in plan.fields
-        if field.quote == PLACEHOLDER
-        and not package.node(field.node).get(SLOT_VERSION)
-        and paragraph_text(package.node(field.node)).strip()
-        == PERSONAL_LABELS.get(field.target, field.target.partition(":")[2]) + "：" + PLACEHOLDER
-        and sum(other.node == field.node for other in plan.fields) == 1
-        and field.node not in {*plan.keep, *plan.remove}
-    ]
     base = plan.model_copy(deep=True)
-    base.fields = [field for field in base.fields if field not in [*loose, *legacy]]
+    base.fields = [field for field in base.fields if field not in loose]
     try:
         missing = [
             target
@@ -279,9 +268,6 @@ def supplement_personal_fields(package, plan, document, projects, source=None):
     package.write(buffer)
     working = TemplatePackage(buffer)
     previous = dict(working.nodes)
-    for field in legacy:
-        node = working.node(field.node)
-        node.getparent().remove(node)
     body, position, donor = personal_insertion(working, base, document)
     style_donor = (
         labelled_contact(

@@ -29,7 +29,7 @@ def configurations(manifests, overrides):
 
 
 def replacement_layer(name, configs):
-    """旧格式整份配置转为明确替换操作，不猜测深合并"""
+    """把整份配置转换为明确替换操作"""
     return {
         "name": name,
         "edits": [
@@ -199,10 +199,7 @@ def startup_configuration(saved, path=None, bundles=()):
         startup: tuple[ConfigurationEdit, ...] = Field(default=(), max_length=10000)
 
     saved = saved or {}
-    if "config_layers" in saved:
-        layers = deepcopy(saved["config_layers"])
-    else:
-        layers = [*bundles, replacement_layer("workspace", saved.get("configs", {}))]
+    layers = deepcopy(saved.get("config_layers", [*bundles, replacement_layer("workspace", {})]))
     if path is not None:
         source = Input.model_validate(json.loads(path.read_text(encoding="utf-8")))
         configured = [

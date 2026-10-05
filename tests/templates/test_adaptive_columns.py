@@ -273,12 +273,9 @@ def test_contact_blank_with_an_explicit_label_after_contacts_is_preserved(tmp_pa
     ]
 
 
-@pytest.mark.parametrize("legacy", [False, True])
 @pytest.mark.parametrize("hyperlink", [False, True])
-def test_supplement_uses_label_and_value_styles_instead_of_isolated_city(
-    tmp_path, legacy, hyperlink
-):
-    """新增字段和旧生成字段均沿用完整联系方式样式"""
+def test_supplement_uses_label_and_value_styles_instead_of_isolated_city(tmp_path, hyperlink):
+    """新增字段沿用完整联系方式样式"""
     source, completed, output = (
         tmp_path / name for name in ("source.docx", "completed.docx", "result.docx")
     )
@@ -295,9 +292,6 @@ def test_supplement_uses_label_and_value_styles_instead_of_isolated_city(
     city = doc.add_paragraph("Old city")
     city.paragraph_format.right_indent = Pt(320)
     city.paragraph_format.first_line_indent = Pt(12)
-    if legacy:
-        added = doc.add_paragraph("个人主页：〔待填写〕")
-        added.paragraph_format.right_indent = Pt(320)
     doc.save(source)
     package = TemplatePackage(source)
     nodes = {paragraph_text(node): key for key, node in package.nodes.items() if node.tag == w("p")}
@@ -305,12 +299,6 @@ def test_supplement_uses_label_and_value_styles_instead_of_isolated_city(
         TextBinding(node=nodes["电话： Old phone"], quote="Old phone", target="personal.phone"),
         TextBinding(node=nodes["Old city"], quote="Old city", target="personal.location"),
     ]
-    if legacy:
-        fields.append(
-            TextBinding(
-                node=nodes["个人主页：〔待填写〕"], quote="〔待填写〕", target="personal.website"
-            )
-        )
     plan = TemplatePlan(
         summary="测试", fields=fields, repeats=[], photos=[], keep=[], remove=[], warnings=[]
     )

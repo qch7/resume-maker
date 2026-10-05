@@ -29,7 +29,7 @@ class TemplateLibrary:
         storage,
         records,
         registry=None,
-        assets=None,
+        assets,
     ):
         """绑定当前应用的数据目录，隔离缩略图生成锁"""
         self.catalog, self.db, self.data_dir = catalog, storage, data_dir
@@ -119,10 +119,7 @@ class TemplateLibrary:
                 cleanup_template(
                     self.data_dir, template, others, self.templates, self.previews, conn
                 )
-                if self.assets:
-                    self.assets.release_bundle(
-                        conn, "ext.template-adapter", f"templates/{template_id}"
-                    )
+                self.assets.release_bundle(conn, "ext.template-adapter", f"templates/{template_id}")
                 self.records.delete(conn, template_id)
                 del state["items"][template_id]
             else:
@@ -134,15 +131,10 @@ class TemplateLibrary:
         """在写事务中恢复模板及原分类收藏以排除到期清理竞争"""
         with self.db.transaction() as conn:
             self.records.get(conn, template_id)
-            available = (
-                self.assets.bundle(f"templates/{template_id}", conn)
-                if self.assets
-                else (self.data_dir / "templates" / template_id / "template.docx").is_file()
-            )
+            available = self.assets.bundle(f"templates/{template_id}", conn)
             if not available:
                 raise Problem("模板文件已被清理，无法恢复；请完成永久删除或重新导入。", 409)
-            if self.assets:
-                self.assets.read_file(f"templates/{template_id}", "template.docx")
+            self.assets.read_file(f"templates/{template_id}", "template.docx")
             state = self._read(conn)
             item = state["items"].get(template_id, {})
             item.pop("deleted_at", None)
@@ -222,7 +214,7 @@ class TemplateLibrary:
             fingerprint = "builtin-v1"
         else:
             template = self.catalog.template(template_id, include_trashed=True)
-            data = self.catalog.template_bytes(template, self.data_dir)
+            data = self.catalog.template_bytes(template)
             fingerprint = digest(data)
             if fingerprint != template["hash"]:
                 raise Problem("模板文件已在程序外变化，请重新导入。")

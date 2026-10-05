@@ -292,11 +292,9 @@ def plugins(context):
 
 def assets(context):
     """为插件持有不可变资源目录及事务内登记接口"""
-    from resume_maker.infrastructure.asset_migration import migrate_legacy_assets
     from resume_maker.infrastructure.assets import Assets
 
     service = Assets(dependency(context, "db"), dependency(context, "assets.backend"))
-    migrate_legacy_assets(service)
     publish(context, "assets", service)
 
 

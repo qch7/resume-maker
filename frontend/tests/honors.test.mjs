@@ -83,7 +83,14 @@ test("removed honors stay absent during source sync and can be added again", /* 
 
 test("unified honor editing preserves resume preferences and separates source data", /* 内容双向对应，显隐及自定义备注不进入共享荣誉 */ () => {
   const source = honor();
-  const existing = newHonorEntry(source.fields, `honor:${source.id}`);
+  const existing = {
+    ...newHonorEntry(source.fields, `honor:${source.id}`),
+    source: {
+      provider: "ext.honors/library",
+      id: source.id,
+      version: String(source.version),
+    },
+  };
   existing.visible = false;
   existing.custom_fields.push({
     id: "note",
@@ -110,6 +117,7 @@ test("unified honor editing preserves resume preferences and separates source da
 function honor(id = "sample") {
   return {
     id,
+    version: 1,
     status: "ready",
     reviewed: true,
     fields: {

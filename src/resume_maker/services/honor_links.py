@@ -4,7 +4,7 @@ from resume_maker.sdk.records import unpack
 
 
 def resume_source():
-    """荣誉库通过公开来源契约提供已核对内容，旧条目标识继续可读"""
+    """荣誉库通过公开来源契约提供已核对内容"""
     from resume_maker.sdk.sources import ResumeSource, SourcePage
 
     def resolve(reader, identifiers):
@@ -27,7 +27,7 @@ def resume_source():
             cursor="honor:" + selected[-1]["value"]["id"] if len(rows) > limit else None,
         )
 
-    return ResumeSource("荣誉库", "1.0.0", browse, resolve, legacy_prefix="honor:")
+    return ResumeSource("荣誉库", "1.0.0", browse, resolve)
 
 
 def source_item(honor):

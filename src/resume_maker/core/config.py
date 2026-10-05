@@ -53,7 +53,7 @@ class Config:
     environment_records: dict | None = None
 
     def prepare(self) -> None:
-        """规范化数据目录并创建快照、模板、导出等运行资源目录"""
+        """规范化数据目录并创建工作副本和缓存目录"""
         self.data_dir = self.data_dir.resolve()
-        for name in ("snapshots", "workspaces", "templates", "exports", "backups"):
+        for name in ("workspaces", "templates"):
             (self.data_dir / name).mkdir(parents=True, exist_ok=True)

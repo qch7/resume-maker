@@ -21,7 +21,7 @@ from resume_maker.sdk.records import dump, now, uid, unpack
 
 
 def prepare_certificate(*args):
-    """兼容独立调用，证书解码器按需加载"""
+    """按需加载本机证书解码器"""
     from resume_maker.integrations.certificates import prepare_certificate as prepare
 
     return prepare(*args)
@@ -34,9 +34,7 @@ ACTIVE = {"queued", "running"}
 class Honors:
     """集中保存荣誉资料并校验版本，简历按来源标识读取同一份已核对内容"""
 
-    def __init__(
-        self, db, data_dir, provider, *, preserve_sources=None, registry=None, assets=None
-    ):
+    def __init__(self, db, data_dir, provider, *, assets, preserve_sources=None, registry=None):
         """绑定实例资源，构造阶段不启动后台线程"""
         self.db, self.root, self.provider = db, data_dir / "honors", provider
         self.workspaces = data_dir / "workspaces"
@@ -200,28 +198,16 @@ class Honors:
                 reviewed=False,
                 status="cancelled",
             )
-            resources = (
-                self.assets.stage_bundle(
-                    "ext.honors",
-                    {
-                        path.name: path.read_bytes()
-                        for path in directory.iterdir()
-                        if path.is_file()
-                    },
-                )
-                if self.assets
-                else None
+            resources = self.assets.stage_bundle(
+                "ext.honors",
+                {path.name: path.read_bytes() for path in directory.iterdir() if path.is_file()},
             )
             with self.lock, self.db.transaction() as conn:
                 if self.stopped.is_set():
                     raise Problem("应用正在关闭。", 409)
-                if resources is not None:
-                    self.assets.publish_bundle(
-                        conn, "ext.honors", f"honors/{item['id']}", resources
-                    )
+                self.assets.publish_bundle(conn, "ext.honors", f"honors/{item['id']}", resources)
                 self._write(conn, item)
-            if resources is not None:
-                remove_owned_directory(self.root, directory)
+            remove_owned_directory(self.root, directory)
         except Exception:
             shutil.rmtree(directory, ignore_errors=True)
             raise
@@ -293,8 +279,7 @@ class Honors:
                 self.flags[identifier].set()
             if self.preserve_sources:
                 self.preserve_sources(conn)
-            if self.assets:
-                self.assets.release_bundle(conn, "ext.honors", f"honors/{identifier}")
+            self.assets.release_bundle(conn, "ext.honors", f"honors/{identifier}")
             conn.execute("DELETE FROM settings WHERE key=?", (PREFIX + identifier,))
             if identifier not in self.flags:
                 shutil.rmtree(self.root / identifier, ignore_errors=True)
@@ -310,31 +295,17 @@ class Honors:
             raise Problem("证书页码不存在。", 404)
         name = f"page-{page}.png" if page else "original" + attachment["extension"]
         return {
-            "id": self.assets.file_id(f"honors/{identifier}", name) if self.assets else None,
+            "id": self.assets.file_id(f"honors/{identifier}", name),
             "name": attachment["name"],
             "file": name,
         }
-
-    def file(self, identifier, page=None):
-        """兼容独立调用的文件路径，统一资源的消费者使用租约或字节读取"""
-        reference = self.file_reference(identifier, page)
-        if self.assets:
-            raise Problem("统一资源须通过资源租约读取。", 409)
-        path = self.root / identifier / reference["file"]
-        if not path.is_file():
-            raise Problem("证书文件不存在，请重新上传。", 404)
-        return path, reference["name"]
 
     def copy_attachment(self, identifier, page, directory):
         """在租约内复制到本次识别工作目录，名称和类型保留用于隐私预处理"""
         reference = self.file_reference(identifier, page)
         target = directory / reference["file"]
-        if self.assets:
-            data = self.assets.read_file(f"honors/{identifier}", reference["file"])
-            target.write_bytes(data)
-        else:
-            source, _ = self.file(identifier, page)
-            shutil.copyfile(source, target)
+        data = self.assets.read_file(f"honors/{identifier}", reference["file"])
+        target.write_bytes(data)
         return target
 
     def _status(self, identifier, status, error="", result=None):

@@ -15,6 +15,7 @@ import {
   isHonorEntry,
   isHonorSection,
   isHonorCustomField,
+  honorSourceId,
 } from "./honors/entry";
 import HonorEntryFields from "./honors/HonorEntryFields";
 import type { HonorSource } from "../../shared/types/honors";
@@ -131,7 +132,7 @@ export default function SectionEditor({
           <EntryEditor
             source={honors.find(
               /* 来源身份和所在栏目名称无关 */ (item) =>
-                item.reviewed && entry.id === `honor:${item.id}`,
+                item.reviewed && honorSourceId(entry) === item.id,
             )}
             onEditHonor={onEditHonor}
             key={entry.id}

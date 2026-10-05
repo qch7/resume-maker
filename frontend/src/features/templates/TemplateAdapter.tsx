@@ -796,10 +796,7 @@ export default function TemplateAdapter({
                   <nav className="tabs" aria-label="模板视图">
                     <button
                       className={view === "summary" ? "active" : ""}
-                      onClick={
-                        /* 以资料和栏目概览代替底层段落清单 */ () =>
-                          setView("summary")
-                      }
+                      onClick={() => setView("summary")}
                     >
                       识别摘要
                     </button>
@@ -1007,9 +1004,7 @@ export default function TemplateAdapter({
                         : "还有需要确认的内容，可让 AI 继续完善。"}
                     </p>
                     {!review.ready && (
-                      <button
-                        onClick={/* 返回问题列表 */ () => setView("summary")}
-                      >
+                      <button onClick={() => setView("summary")}>
                         查看需要确认的内容
                       </button>
                     )}

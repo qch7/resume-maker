@@ -9,10 +9,10 @@ from resume_maker.core.errors import Problem
 from resume_maker.domain.models import ResumeItem
 from resume_maker.infrastructure.database import Database, uid
 from resume_maker.integrations.source_service import SourceService
-from resume_maker.services.catalog import Catalog
 from resume_maker.services.conversations import Conversations
 from resume_maker.services.jobs import Jobs
 from resume_maker.services.resumes import Resumes
+from tests.support.data import make_catalog
 from tests.support.jobs import FakeProvider, wait_job
 
 
@@ -35,7 +35,7 @@ def test_fork_drafts_save_restore_and_pinned_resume(catalog, project, populated)
     assert catalog.working(p, saved["id"])["content"]["highlights"][1]["text"] == "Pending"
     assert catalog.working(p, base)["content"]["highlights"][0]["text"] == "Copied draft"
     assert catalog.project(p)["head_revision"] == base
-    resume = Resumes(catalog, storage=catalog.db).save_resume(
+    resume = Resumes(catalog, storage=catalog.db, assets=catalog.assets).save_resume(
         "分支简历", None, [ResumeItem(project_id=p, revision_id=saved["id"], highlight_ids=["one"])]
     )
     main_saved = catalog.save_revision(p, base, base)
@@ -59,7 +59,7 @@ def test_fork_drafts_save_restore_and_pinned_resume(catalog, project, populated)
         catalog.save_revision(p, complete["id"], restored["id"])
     with pytest.raises(Problem, match="项目已有新版本"):
         catalog.save_revision(p, restored["id"], complete["id"])
-    reopened = Catalog(Database(catalog.db.path))
+    reopened = make_catalog(Database(catalog.db.path))
     assert reopened.history.branches(p) == catalog.history.branches(p)
 
 
@@ -107,7 +107,7 @@ def test_ai_adoption_tracks_branch_head(catalog, project, tmp_path):
         catalog,
         tmp_path / "data",
         provider,
-        source_service=SourceService(catalog, tmp_path / "data", storage=catalog.db),
+        source_service=SourceService(catalog, tmp_path / "data", assets=catalog.assets),
     )
     conv = Conversations(catalog, storage=catalog.db).create_conversation(p, "讨论岗位经历")
     jobs.start()

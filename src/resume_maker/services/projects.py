@@ -63,13 +63,10 @@ class Projects:
             placeholders = ",".join("?" for _ in ids)
             self.db.prepare_delete("project", ids, conn)
             revisions = f"SELECT id FROM revisions WHERE project_id IN ({placeholders})"
-            if self.catalog.assets:
-                for row in conn.execute(
-                    f"SELECT id FROM snapshots WHERE project_id IN ({placeholders})", ids
-                ).fetchall():
-                    self.catalog.assets.release_bundle(
-                        conn, "sys.experience", f"snapshots/{row['id']}"
-                    )
+            for row in conn.execute(
+                f"SELECT id FROM snapshots WHERE project_id IN ({placeholders})", ids
+            ).fetchall():
+                self.catalog.assets.release_bundle(conn, "sys.experience", f"snapshots/{row['id']}")
             conn.execute(f"DELETE FROM drafts WHERE project_id IN ({placeholders})", ids)
             conn.execute(f"DELETE FROM revision_branches WHERE revision_id IN ({revisions})", ids)
             conn.execute(

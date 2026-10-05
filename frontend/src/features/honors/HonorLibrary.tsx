@@ -279,9 +279,7 @@ export default function HonorLibrary({
                 key={value}
                 className={category === value ? "active" : ""}
                 aria-pressed={category === value}
-                onClick={
-                  /* 分类变更不清除搜索或核对筛选 */ () => setCategory(value)
-                }
+                onClick={() => setCategory(value)}
               >
                 <span>{value || "全部荣誉"}</span>
                 <span>
@@ -376,9 +374,7 @@ export default function HonorLibrary({
               )}
               <button
                 className="text-button"
-                onClick={
-                  /* 用户阅读后清除这次批量上传错误 */ () => setUploadErrors([])
-                }
+                onClick={() => setUploadErrors([])}
               >
                 收起
               </button>
@@ -406,7 +402,7 @@ export default function HonorLibrary({
               <button
                 className="icon-button"
                 aria-label="关闭荣誉提示"
-                onClick={/* 清除非错误提示 */ () => setNotice("")}
+                onClick={() => setNotice("")}
               >
                 <X size={14} />
               </button>
@@ -423,18 +419,13 @@ export default function HonorLibrary({
                 aria-label="搜索荣誉"
                 placeholder="搜索名称、单位、获奖人或编号"
                 value={query}
-                onChange={
-                  /* 即时筛选当前已加载条目 */ (event) =>
-                    setQuery(event.target.value)
-                }
+                onChange={(event) => setQuery(event.target.value)}
               />
             </label>
             <select
               aria-label="核对状态"
               value={status}
-              onChange={
-                /* 按完成状态筛选 */ (event) => setStatus(event.target.value)
-              }
+              onChange={(event) => setStatus(event.target.value)}
             >
               <option value="">全部状态</option>
               <option value="ready">已核对</option>
@@ -498,16 +489,14 @@ export default function HonorLibrary({
                             aria-label={`选择 ${item.fields.name || item.attachment?.name}`}
                             disabled={item.status !== "ready" || included}
                             checked={selected.includes(item.id)}
-                            onChange={
-                              /* 独立维护跨筛选的批量选择 */ (event) =>
-                                setSelected(
-                                  event.target.checked
-                                    ? [...selected, item.id]
-                                    : selected.filter(
-                                        /* 取消指定条目 */ (id) =>
-                                          id !== item.id,
-                                      ),
-                                )
+                            onChange={(event) =>
+                              setSelected(
+                                event.target.checked
+                                  ? [...selected, item.id]
+                                  : selected.filter(
+                                      /* 取消指定条目 */ (id) => id !== item.id,
+                                    ),
+                              )
                             }
                           />
                           <span>{item.fields.category}</span>
@@ -574,11 +563,7 @@ export default function HonorLibrary({
                         )}
                       </div>
                       <div className="honor-card-actions">
-                        <button
-                          onClick={
-                            /* 打开详细资料表单 */ () => setEditing(item.id)
-                          }
-                        >
+                        <button onClick={() => setEditing(item.id)}>
                           {item.status === "review" ? "核对信息" : "查看与编辑"}
                         </button>
                         <button

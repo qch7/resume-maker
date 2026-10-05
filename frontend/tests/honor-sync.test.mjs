@@ -46,6 +46,7 @@ test("existing linked honors recover all library fields without changing layout 
   const legacy = {
     ...newEntry(),
     id: "honor:linked",
+    source: { provider: "ext.honors/library", id: "linked", version: "1" },
     title: "旧名称 · 一等奖",
     details: "省级\n旧说明",
     hidden_fields: ["subtitle", "details"],
@@ -84,7 +85,14 @@ test("confirmed source changes and clearing fields update every selected resume 
   const originalSource = source();
   const document = newDocument();
   document.sections[3].entries = [
-    newHonorEntry(originalSource.fields, "honor:linked"),
+    {
+      ...newHonorEntry(originalSource.fields, "honor:linked"),
+      source: {
+        provider: "ext.honors/library",
+        id: "linked",
+        version: String(originalSource.version),
+      },
+    },
   ];
   const resume = {
     id: "resume",
@@ -136,7 +144,14 @@ test("confirmed source changes and clearing fields update every selected resume 
 test("unreviewed suggestions, same-name records and manual entries cannot overwrite linked content", /* 同名不同标识、人工条目和未核对识别结果都不会被误关联 */ () => {
   const document = newDocument();
   document.sections[3].entries = [
-    newHonorEntry(source().fields, "honor:linked"),
+    {
+      ...newHonorEntry(source().fields, "honor:linked"),
+      source: {
+        provider: "ext.honors/library",
+        id: "linked",
+        version: String(source().version),
+      },
+    },
     newHonorEntry(source().fields),
   ];
   assert.equal(

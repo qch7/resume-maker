@@ -1,7 +1,7 @@
 import type { Resume, ResumeDocument } from "../../../shared/types/index.ts";
 import type { HonorSource } from "../../../shared/types/honors.ts";
 import { HONOR_FIELDS } from "./fields.ts";
-import { updateHonorField } from "./entry.ts";
+import { honorSourceId, updateHonorField } from "./entry.ts";
 
 /** 按来源标识同步已核对荣誉并保留各份简历的排版设置 */
 export function syncHonorDocument(
@@ -12,9 +12,7 @@ export function syncHonorDocument(
   const sources = new Map(
     honors
       .filter(/* 未核对的识别建议不能进入简历 */ (honor) => honor.reviewed)
-      .map(
-        /* 不按可能重复的名称关联 */ (honor) => [`honor:${honor.id}`, honor],
-      ),
+      .map(/* 不按可能重复的名称关联 */ (honor) => [honor.id, honor]),
   );
   let changed = false;
   const sections = document.sections.map(
@@ -22,13 +20,21 @@ export function syncHonorDocument(
       let sectionChanged = false;
       const entries = section.entries.map(
         /* 手动录入、删除来源和同名荣誉各自保持原内容 */ (entry) => {
-          const source = sources.get(entry.id);
+          const source = sources.get(honorSourceId(entry));
           if (!source) return entry;
           let synced = entry;
           for (const field of HONOR_FIELDS)
             synced = updateHonorField(synced, field.key, {
               value: source.fields[field.key],
             });
+          synced = {
+            ...synced,
+            source: {
+              provider: "ext.honors/library",
+              id: source.id,
+              version: String(source.version),
+            },
+          };
           if (JSON.stringify(synced) === JSON.stringify(entry)) return entry;
           sectionChanged = true;
           return synced;

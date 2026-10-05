@@ -95,8 +95,10 @@ test("missing and invalid dates stay last while equal dates retain manual order"
 
 test("organizer sorting preserves complete entries and unrelated positions", /* 调整实际简历顺序时保留来源引用、隐藏资料、自定义字段及混合栏目中的普通条目 */ () => {
   const entries = honors.map(
-    /* 和库来源关联，日期和名称由当前简历提供 */ (honor) =>
-      newHonorEntry(honor.fields, `honor:${honor.id}`),
+    /* 和库来源关联，日期和名称由当前简历提供 */ (honor) => ({
+      ...newHonorEntry(honor.fields, `honor:${honor.id}`),
+      source: { provider: "ext.honors/library", id: honor.id, version: "1" },
+    }),
   );
   entries[0].visible = false;
   entries[1].period = "2027-01";
