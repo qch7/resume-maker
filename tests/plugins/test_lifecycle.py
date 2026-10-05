@@ -323,3 +323,86 @@ def test_rollback_cleanup_failure_keeps_actual_dependency_graph(tmp_path, monkey
     finally:
         waiting[0] = False
         host.close()
+
+
+@pytest.mark.parametrize("operation", ["switch", "close"])
+@pytest.mark.parametrize("cycle", [False, True])
+def test_contribution_consumers_stop_before_any_provider_resource_is_released(
+    tmp_path, monkeypatch, operation, cycle
+):
+    """集合消费和增强环先完成停止屏障，失败时保留实际被消费的资源"""
+    module = ModuleType("synthetic_consumer_drain")
+    waiting, events = [True], []
+    resources = []
+
+    def activate(context):
+        """消费者在注册后持有贡献资源，提供方的关闭动作可被观察"""
+        name = context.instance_id
+        if name == "a.consumer":
+            context.provide(ServiceKey("consumer"), object())
+        else:
+            resource = {"open": True}
+            resources.append(resource)
+            context.contribute("example.items", "z.provider/item", resource)
+            context.effect(lambda: resource.update(open=False))
+
+        def stop():
+            """消费者停止期间仍须能够使用贡献提供方的资源"""
+            events.append(("stop", name))
+            if name == "a.consumer":
+                assert resources[-1]["open"]
+                if waiting[0]:
+                    raise RuntimeError("synthetic consumer still running")
+
+        context.lifecycle(lambda: None, stop)
+        context.effect(lambda: events.append(("release", name)))
+
+    module.activate = activate
+    monkeypatch.setitem(sys.modules, module.__name__, module)
+    base = dict(
+        title="合成排空",
+        version="1.0.0",
+        package="synthetic",
+        entrypoints={
+            "host": {"mode": "trusted-host", "entry": "synthetic_consumer_drain:activate"}
+        },
+    )
+    definitions = {
+        "a.consumer": Manifest(
+            id="a.consumer", **base, provides={"host": {"consumer": {}}}, consumes=["example.items"]
+        ),
+        "z.provider": Manifest(
+            id="z.provider",
+            **base,
+            contributes={"example.items": ["z.provider/item"]},
+            requires={"host": {"consumer": ">=1.0.0"}} if cycle else {},
+            enhances=["consumer"] if cycle else [],
+        ),
+    }
+    host = Host(definitions, set(definitions), set())
+    host.activate()
+    host.start()
+    manager = PluginManager(host, StateStore(tmp_path))
+    try:
+        if operation == "switch":
+            plan = manager.plan(set(), 1)
+            manager.prepare(plan["id"], plan["digest"])
+            with pytest.raises(PluginError, match="维护状态"):
+                manager.apply(plan["id"], plan["digest"])
+            assert manager.maintenance
+        else:
+            with pytest.raises(ExceptionGroup):
+                host.close()
+        assert resources[-1]["open"]
+        assert "z.provider" in host.instances
+        assert host.collection("example.items")[0].value is resources[-1]
+        assert not any(event == "release" for event, _ in events)
+    finally:
+        waiting[0] = False
+        host.close()
+    assert not resources[-1]["open"]
+    first_release = next(index for index, event in enumerate(events) if event[0] == "release")
+    assert all(event[0] == "stop" for event in events[:first_release])
+    assert not any(event[0] == "stop" for event in events[first_release:])
+    if not cycle:
+        assert events.index(("release", "a.consumer")) < events.index(("release", "z.provider"))

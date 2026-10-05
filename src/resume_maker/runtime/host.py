@@ -11,7 +11,13 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import TypeVar, cast
 
-from resume_maker.runtime.graph import PluginError, Resolution, available_selection, resolve
+from resume_maker.runtime.graph import (
+    PluginError,
+    Resolution,
+    available_selection,
+    deactivation_groups,
+    resolve,
+)
 from resume_maker.runtime.instances import definition_id, expand_instances
 from resume_maker.runtime.packages import check_dependencies
 from resume_maker.sdk.context import ServiceKey
@@ -28,8 +34,8 @@ class Scope:
     barriers: list[Callable[[], None]] = field(default_factory=list)
     closed: bool = False
 
-    def close(self) -> None:
-        """重复释放只重试此前失败的步骤，不重复关闭成功资源"""
+    def stop(self) -> None:
+        """完成执行停止屏障，保留全部资源和失败的停止步骤"""
         pending, errors = [], []
         for stop in reversed(self.barriers):
             try:
@@ -40,6 +46,10 @@ class Scope:
         self.barriers = list(reversed(pending))
         if errors:
             raise ExceptionGroup("插件后台执行尚未停止，保留其依赖资源", errors)
+
+    def close(self) -> None:
+        """重复释放只重试此前失败的步骤，不重复关闭成功资源"""
+        self.stop()
         failed, errors = [], []
         for dispose in reversed(self.disposers):
             try:
@@ -604,33 +614,42 @@ class Host:
             self.close()
             raise
 
+    def deactivate(self, owners, *, remove=False):
+        """先停止完整消费闭包再释放资源，任一步失败保留尚未释放的依赖"""
+        selected = set(owners) & self.instances.keys() - self.inherited
+        ordered = [
+            key
+            for group in deactivation_groups(self.resolution)
+            for key in group
+            if key in selected
+        ]
+        for release in (False, True):
+            for key in ordered:
+                context = self.instances[key]
+                context.state = "draining"
+                try:
+                    if release:
+                        context.scope.close()
+                    else:
+                        context.scope.stop()
+                except Exception as exc:
+                    context.state = "cleanup-failed"
+                    raise ExceptionGroup("宿主仍有未释放资源", [exc]) from exc
+                if release:
+                    context.state = "stopped"
+                    if remove:
+                        self.instances.pop(key)
+
     def close(self) -> None:
-        """逆依赖关闭并报告真实清理结果"""
-        errors, protected = [], set()
+        """子作用域结束后停止完整消费闭包，资源释放遵守同一依赖顺序"""
         with self.scope_lock:
             self.closing = True
             for key in list(self.children):
                 self.close_scope(*key)
-        for identifier in reversed(self.resolution.order):
-            if identifier in protected or identifier in self.inherited:
-                continue
-            if context := self.instances.get(identifier):
-                context.state = "draining"
-                try:
-                    context.scope.close()
-                    context.state = "stopped"
-                except Exception as exc:
-                    context.state = "cleanup-failed"
-                    errors.append(exc)
-                    pending = list(self.resolution.edges[identifier])
-                    while pending:
-                        dependency = pending.pop()
-                        if dependency not in protected:
-                            protected.add(dependency)
-                            pending.extend(self.resolution.edges[dependency])
-        self.started = False
-        if errors:
-            raise ExceptionGroup("宿主仍有未释放资源", errors)
+        try:
+            self.deactivate(self.instances)
+        finally:
+            self.started = False
 
     def status(self) -> list[dict]:
         """分别报告已安装、所选和实际运行状态"""

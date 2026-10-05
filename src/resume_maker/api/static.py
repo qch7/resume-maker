@@ -36,7 +36,8 @@ def mount_frontend(app: FastAPI, config: Config) -> None:
 
         relative = safe_member(resource)
         entry = host.definitions[plugin_id].entrypoints.get("client")
-        if entry is None or not resource.startswith(entry.entry.rpartition("/")[0] + "/"):
+        parent = entry.entry.rpartition("/")[0] if entry else ""
+        if entry is None or (parent and not resource.startswith(parent + "/")):
             raise Problem("资源不属于客户端入口。", 404)
         path = location.joinpath(*relative.parts)
         if (

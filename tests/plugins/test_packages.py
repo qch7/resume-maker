@@ -546,17 +546,19 @@ def test_external_config_is_validated_and_applied_with_generation(tmp_path):
 
 
 @pytest.mark.parametrize("instance", ["community.example", "community.one"])
-def test_isolated_client_uses_opaque_sandbox_and_no_instance_token(tmp_path, instance):
+@pytest.mark.parametrize("entry", ["client/index.js", "index.js"])
+def test_isolated_client_uses_opaque_sandbox_and_no_instance_token(tmp_path, instance, entry):
     """隔离页面仅公开端口握手，CSP 禁止资料网络访问且不注入实例凭据"""
     archive = tmp_path / "example.rmp"
     bundle(
         archive,
         extra={
             "instances": {"multiple": True},
-            "entrypoints": {"client": {"mode": "isolated-client", "entry": "client/index.js"}},
+            "entrypoints": {"client": {"mode": "isolated-client", "entry": entry}},
             "provides": {},
             "contributes": {},
         },
+        artifacts_extra={entry: b"export function activate(context) {}"},
     )
     app = create_app(
         Config(data_dir=tmp_path / "data", token="synthetic-ui-token", profile="minimal")
@@ -578,7 +580,7 @@ def test_isolated_client_uses_opaque_sandbox_and_no_instance_token(tmp_path, ins
         assert "sandbox allow-scripts;" in policy and "allow-same-origin" not in policy
         assert "connect-src 'none'" in policy
         assert "synthetic-ui-token" not in response.text
-        entry = f"/plugin-assets/community.example/{inspected['digest']}/client/index.js"
+        entry = f"/plugin-assets/community.example/{inspected['digest']}/{entry}"
         assert entry in response.text
         assert client.get(entry).status_code == 200
         plan = manager.plan(app.state.runtime.selected - {instance}, app.state.runtime.generation)
@@ -586,6 +588,37 @@ def test_isolated_client_uses_opaque_sandbox_and_no_instance_token(tmp_path, ins
         manager.apply(plan["id"], plan["digest"])
         assert client.get(entry).status_code == 404
         assert client.get(f"/plugin-ui/community.example/{inspected['digest']}").status_code == 404
+
+
+@pytest.mark.parametrize("entry", ["index.js", "client/index.js"])
+def test_trusted_client_entry_at_package_root_or_subdirectory_is_downloadable(tmp_path, entry):
+    """实际提交可信客户端后下载入口及相邻资源，包元数据仍不可公开"""
+    archive = tmp_path / "client.rmp"
+    parent = entry.rpartition("/")[0]
+    stylesheet = f"{parent}/style.css" if parent else "style.css"
+    code = b"export function activate(context) {}"
+    bundle(
+        archive,
+        extra={
+            "entrypoints": {"client": {"mode": "trusted-client", "entry": entry}},
+            "provides": {},
+            "contributes": {},
+        },
+        artifacts_extra={entry: code, stylesheet: b".synthetic { color: blue; }"},
+    )
+    app = create_app(Config(data_dir=tmp_path / "data", token="test", profile="minimal"))
+    with TestClient(app) as client:
+        manager = app.state.services.plugins
+        inspected = app.state.runtime.bootstrap["package_store"].inspect(archive)
+        manager.install(archive, inspected["digest"], {"trusted-client"})
+        enable(client, "community.example")
+        entries = client.get("/api/capabilities", headers=HEADERS).json()["client"]
+        descriptor = next(item for item in entries if item["id"] == "community.example")
+        response = client.get(descriptor["entry"]["entry"])
+        assert response.status_code == 200 and response.content == code
+        base = f"/plugin-assets/community.example/{inspected['digest']}/"
+        assert client.get(base + stylesheet).status_code == 200
+        assert client.get(base + "manifest.json").status_code == 404
 
 
 def test_inspect_rejects_hash_mismatch_and_identity_conflict(tmp_path):

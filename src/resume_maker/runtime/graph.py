@@ -80,6 +80,38 @@ def topological(edges, label):
     return tuple(order)
 
 
+def deactivation_groups(resolution):
+    """按完整消费图先关闭消费者，增强环作为共同停止的组处理"""
+    indices, lows, stack, active, groups = {}, {}, [], set(), []
+    rank = {key: index for index, key in enumerate(resolution.order)}
+
+    def visit(key):
+        """收拢强连通分组，组内保持逆注册顺序但共享停止屏障"""
+        indices[key] = lows[key] = len(indices)
+        stack.append(key)
+        active.add(key)
+        for dependency in sorted(resolution.edges[key]):
+            if dependency not in indices:
+                visit(dependency)
+                lows[key] = min(lows[key], lows[dependency])
+            elif dependency in active:
+                lows[key] = min(lows[key], indices[dependency])
+        if lows[key] == indices[key]:
+            group = []
+            while True:
+                member = stack.pop()
+                active.remove(member)
+                group.append(member)
+                if member == key:
+                    break
+            groups.append(tuple(sorted(group, key=rank.__getitem__, reverse=True)))
+
+    for key in resolution.order:
+        if key not in indices:
+            visit(key)
+    return tuple(reversed(groups))
+
+
 def resolve(manifests: dict[str, Manifest], selected: set[str], required: set[str]) -> Resolution:
     """独立验证 Host、Client 和远端依赖的版本、基数及生命周期作用域"""
     if missing := required - selected:

@@ -476,7 +476,7 @@ class PluginManager:
                 if key in affected:
                     for prepare in host.instances[key].before_deactivate:
                         prepare()
-            self._close_affected(old_resolution, affected)
+            host.deactivate(affected, remove=True)
             host.selected, host.resolution = new_selected, resolution
             host.manifests, host.instance_specs = manifests, specs
             host.configs, host.desired = deepcopy(plan["configs"]), set(new_selected)
@@ -508,7 +508,7 @@ class PluginManager:
             try:
                 # 旧组合尚未排空时仍用旧依赖图，候选开始激活后才使用新图
                 # 清理失败立即停止，保留失败实例及尚未释放的依赖
-                self._close_affected(host.resolution, affected)
+                host.deactivate(affected, remove=True)
                 host.selected, host.resolution, host.generation = (
                     old_selected,
                     old_resolution,
@@ -546,18 +546,3 @@ class PluginManager:
                 self.pending_plan = None
                 for window in self.windows.values():
                     window.update(pending_plan=None, acknowledged=False)
-
-    def _close_affected(self, resolution, affected):
-        """按当前实例的逆依赖顺序关闭，失败实例保留以供重试及维护诊断"""
-        for key in reversed(resolution.order):
-            if key not in affected or key not in self.host.instances:
-                continue
-            context = self.host.instances[key]
-            context.state = "draining"
-            try:
-                context.scope.close()
-            except Exception:
-                context.state = "cleanup-failed"
-                raise
-            context.state = "stopped"
-            self.host.instances.pop(key)

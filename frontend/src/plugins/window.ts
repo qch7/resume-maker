@@ -1,12 +1,14 @@
 import { api, ApiError, request } from "../shared/lib/api";
 import { capabilities } from "../shared/lib/capabilities";
 import { flushDrafts } from "../shared/lib/draftRegistry";
+import { clientExtensions } from "./extensions";
 
 export const windowId = crypto.randomUUID();
 let stopped = false;
 const listeners = new Set<() => void>();
 let notice = "";
 let connecting = false;
+const drainingOwners = new Set<string>();
 
 /** 工作台订阅配置变化和草稿刷新失败，不清除本地输入 */
 export function subscribeWindow(listener: () => void) {
@@ -27,7 +29,7 @@ function inform(value: string) {
   for (const listener of listeners) listener();
 }
 
-/** 固定代次心跳，先领域后工作区刷新成功才向宿主确认 */
+/** 固定代次心跳，保存草稿并排空命令后再次刷新最终输入才确认 */
 export async function connectWindow() {
   if (stopped || connecting) return;
   connecting = true;
@@ -43,13 +45,25 @@ export async function connectWindow() {
     registered = true;
     if (result.pending_plan && !result.acknowledged) {
       inform("插件配置正在变更，正在保存各页面的草稿…");
+      const plan = await api<{ affected: string[]; generation: number }>(
+        `/plugins/plans/${result.pending_plan}`,
+      );
+      if (plan.generation !== capabilities().generation)
+        throw new Error("插件配置已变化，请保留输入并重新协商。");
+      for (const owner of plan.affected) drainingOwners.add(owner);
+      await flushDrafts();
+      await clientExtensions.drain([...drainingOwners]);
       await flushDrafts();
       await api(`/plugins/plans/${result.pending_plan}/acknowledge`, "POST", {
         id: windowId,
         generation: capabilities().generation,
       });
       inform("草稿已保存，等待插件配置切换完成。");
-    } else if (!result.pending_plan) inform("");
+    } else if (!result.pending_plan) {
+      clientExtensions.resume([...drainingOwners]);
+      drainingOwners.clear();
+      inform("");
+    }
   } catch (error) {
     if (!registered && error instanceof ApiError && error.status === 409)
       stopped = true;

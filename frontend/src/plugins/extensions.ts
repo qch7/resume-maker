@@ -109,8 +109,45 @@ export function createClientExtensions(deactivateTimeoutMs = 5000) {
   const entries = new Map<string, Extension<keyof ClientExtensionPoints>>();
   const runs = new Map<
     string,
-    { controller: AbortController; done: Promise<void> }
+    { owner: string; controller: AbortController; done: Promise<void> }
   >();
+  const draining = new Set<string>();
+
+  /** 先同时发送取消，再等待实际收尾，超时不移除运行记录 */
+  async function waitForCommands(
+    active: Array<{ controller: AbortController; done: Promise<void> }>,
+  ) {
+    for (const run of active) run.controller.abort();
+    if (!active.length) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        Promise.all(active.map((run) => run.done.catch(() => undefined))),
+        new Promise<never>((_resolve, reject) => {
+          timer = setTimeout(
+            () => reject(new Error("命令未结束，暂不能卸载或确认插件切换。")),
+            deactivateTimeoutMs,
+          );
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /** 切换前冻结受影响实例的新命令，保留注册供计划取消后继续使用 */
+  async function drain(owners: readonly string[]) {
+    for (const owner of owners) draining.add(owner);
+    const selected = new Set(owners);
+    await waitForCommands(
+      [...runs.values()].filter((run) => selected.has(run.owner)),
+    );
+  }
+
+  /** 宿主确认计划结束或取消后恢复当前代次的命令入口 */
+  function resume(owners: readonly string[]) {
+    for (const owner of owners) draining.delete(owner);
+  }
 
   /** 只登记清单声明且属于本插件命名空间的已知版本贡献 */
   function contribute<K extends keyof ClientExtensionPoints>(
@@ -182,21 +219,7 @@ export function createClientExtensions(deactivateTimeoutMs = 5000) {
       entries.delete(key);
       const active = point === "commands" && runs.get(id);
       if (active) {
-        active.controller.abort();
-        let timer: ReturnType<typeof setTimeout> | undefined;
-        try {
-          await Promise.race([
-            active.done.catch(() => undefined),
-            new Promise<never>((_resolve, reject) => {
-              timer = setTimeout(
-                () => reject(new Error(`命令未结束，暂不能卸载：${id}`)),
-                deactivateTimeoutMs,
-              );
-            }),
-          ]);
-        } finally {
-          clearTimeout(timer);
-        }
+        await waitForCommands([active]);
       }
     };
   }
@@ -219,13 +242,15 @@ export function createClientExtensions(deactivateTimeoutMs = 5000) {
       | Extension<"commands">
       | undefined;
     if (!item) throw new Error(`命令不可用：${id}`);
+    if (draining.has(item.owner))
+      throw new Error("插件正在排空命令，请等待切换完成。");
     if (runs.has(id)) throw new Error(`命令仍在执行：${item.value.title}`);
     const controller = new AbortController();
     const done = Promise.resolve().then(() => {
       controller.signal.throwIfAborted();
       return item.value.run({ signal: controller.signal });
     });
-    runs.set(id, { controller, done });
+    runs.set(id, { owner: item.owner, controller, done });
     try {
       await done;
     } finally {
@@ -315,7 +340,16 @@ export function createClientExtensions(deactivateTimeoutMs = 5000) {
       });
   }
 
-  return { contribute, list, execute, workflow, activity, previewers };
+  return {
+    contribute,
+    list,
+    execute,
+    drain,
+    resume,
+    workflow,
+    activity,
+    previewers,
+  };
 }
 
 /** 每种公开扩展点校验实际值，类型断言不能替代装载校验 */
