@@ -2,7 +2,10 @@
 export function recoverActivePlan<
   T extends { state?: string; expires_at?: number },
 >(operations: readonly T[]): T | undefined {
-  const active = operations.filter((item) =>
+  const ordered = [...operations].sort(
+    (a, b) => (b.expires_at ?? 0) - (a.expires_at ?? 0),
+  );
+  const active = ordered.find((item) =>
     [
       "preparing",
       "validating",
@@ -11,10 +14,5 @@ export function recoverActivePlan<
       "applying",
     ].includes(item.state ?? ""),
   );
-  const candidates = active.length
-    ? active
-    : operations.filter((item) => item.state === "planned");
-  return candidates.sort(
-    (a, b) => (b.expires_at ?? 0) - (a.expires_at ?? 0),
-  )[0];
+  return active ?? (ordered[0]?.state === "planned" ? ordered[0] : undefined);
 }

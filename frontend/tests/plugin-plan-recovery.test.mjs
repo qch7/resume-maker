@@ -36,4 +36,11 @@ test("恢复各类进行中计划，不要求包更新字段，全部结束时�
     ]),
     undefined,
   );
+  assert.equal(
+    recoverActivePlan([
+      { state: "planned", expires_at: 1 },
+      { state: "recovery-required", expires_at: 2 },
+    ]),
+    undefined,
+  );
 });
