@@ -326,16 +326,11 @@ export default function HonorLibrary({
               }
             }
           >
-            <Upload size={20} />
-            <div>
+            <div className="honor-upload-heading">
+              <Upload size={18} />
               <h2>{uploading || "拖入证书，提取可用文字"}</h2>
-              <p>支持批量 · 单文件 ≤20 MB · 每份证书 ≤12 页</p>
-              <ImporterSelect value={importers} disabled={!!uploading} />
-              <p>
-                图片和 PDF 先在本机提取文字，再脱敏识别。
-                原图不外发，识别结果需对照原件核对。
-              </p>
             </div>
+            <ImporterSelect value={importers} disabled={!!uploading} compact />
             <button
               className="primary"
               title="上传原件至本机；仅可提取的文字经过脱敏后交给 AI"
@@ -352,6 +347,18 @@ export default function HonorLibrary({
               )}
               {uploading ? "上传中…" : "上传证书"}
             </button>
+            <details className="honor-upload-details">
+              <summary>批量上传 · 格式与限制</summary>
+              <p>
+                单文件 ≤20 MB · 每份证书 ≤12 页
+                {importers.extensions.length > 0 &&
+                  ` · 支持：${importers.extensions.join("、")}`}
+              </p>
+              <p>
+                图片和 PDF 先在本机提取文字，再脱敏识别。
+                原图不外发，识别结果需对照原件核对。
+              </p>
+            </details>
             <input
               ref={input}
               type="file"

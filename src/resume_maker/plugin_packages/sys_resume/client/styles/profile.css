@@ -492,7 +492,13 @@
   font-size: 12px;
 }
 .add-section {
-  margin-top: 24px;
+  margin-top: 0;
+}
+.add-section > .section-heading {
+  margin-bottom: 4px;
+}
+.add-section > .section-heading > button {
+  padding: 5px 10px;
 }
 
 /* 参考简历的蓝色横幅、两列联系信息和并列大栏目 */

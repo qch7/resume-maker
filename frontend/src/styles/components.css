@@ -998,6 +998,20 @@
   gap: 12px;
   padding: 9px 12px;
   border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.preview-toolbar .document-preview-selector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  min-width: 0;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.preview-toolbar .document-preview-selector select {
+  min-width: 0;
+  max-width: 170px;
 }
 .preview-toolbar > strong {
   flex: 1;
@@ -1379,6 +1393,21 @@
 .importer-select small {
   color: var(--subtle);
   overflow-wrap: anywhere;
+}
+.importer-select.compact {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 4px 8px;
+  margin: 0;
+  max-width: none;
+}
+.importer-select.compact select {
+  padding: 5px 8px;
+  font-size: 12px;
+}
+.importer-select.compact small {
+  grid-column: 1 / -1;
 }
 .import-details {
   margin: 6px 0;

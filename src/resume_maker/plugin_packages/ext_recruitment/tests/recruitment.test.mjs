@@ -6,9 +6,18 @@ import {
   filterBookmarks,
   newBookmark,
   restoreDisplayPreferences,
+  restoreSidebarWidth,
   scopeCategories,
   sortBookmarks,
 } from "../client/model.ts";
+
+test("招聘侧栏恢复有效宽度，损坏及越界偏好保持可用", () => {
+  assert.equal(restoreSidebarWidth(320), 320);
+  assert.equal(restoreSidebarWidth(40), 160);
+  assert.equal(restoreSidebarWidth(2000), 520);
+  for (const value of [undefined, null, "wide", NaN, Infinity])
+    assert.equal(restoreSidebarWidth(value), 210);
+});
 
 test("标签已经包含的描述只展示一次，保留原数据及标签搜索", () => {
   const item = {

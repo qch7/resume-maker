@@ -393,7 +393,17 @@ export default function SectionOrganizer({
             }
           }
         >
-          <h2>添加大栏目</h2>
+          <div className="section-heading">
+            <h2>添加大栏目</h2>
+            <button
+              className="primary"
+              type="submit"
+              disabled={!title.trim() || value.sections.length >= 40}
+            >
+              <Plus size={15} />
+              添加栏目
+            </button>
+          </div>
           <div className="profile-fields">
             <label>
               栏目名称
@@ -418,14 +428,6 @@ export default function SectionOrganizer({
               </select>
             </label>
           </div>
-          <button
-            className="primary"
-            type="submit"
-            disabled={!title.trim() || value.sections.length >= 40}
-          >
-            <Plus size={15} />
-            添加栏目
-          </button>
         </form>
         <div className="organizer-pinned">
           <LockKeyhole size={18} />
