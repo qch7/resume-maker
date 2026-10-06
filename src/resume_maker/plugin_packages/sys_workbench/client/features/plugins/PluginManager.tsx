@@ -10,6 +10,7 @@ import {
 } from "@resume-maker/plugin-sdk/plugins/window";
 import PackageDownloads from "./PackageDownloads";
 import { recoverActivePlan } from "./planRecovery";
+import WaitingWindows, { type WindowDetail } from "./WaitingWindows";
 
 interface Plugin {
   id: string;
@@ -72,7 +73,7 @@ interface Plan {
   inflight?: number;
   tasks?: { id: string; owner: string; state: string }[];
   scopes?: { kind: string; id: string }[];
-  windows_detail?: Record<string, { connected?: boolean; last_seen?: number }>;
+  windows_detail?: Record<string, WindowDetail>;
 }
 
 interface Inspection {
@@ -226,7 +227,11 @@ export default function PluginManager(props: SettingsPanelProps) {
         progress.tasks?.length ||
         progress.scopes?.length
       ) {
-        setError("仍有窗口等待保存，请在各窗口完成草稿保存后再次应用。");
+        setError(
+          progress.waiting_windows?.length
+            ? "还有窗口未完成草稿保存，请查看下方窗口信息。"
+            : "当前操作尚未结束，请等待完成后再次应用。",
+        );
         return;
       }
       const applied = await api<{ state: string }>(path + "/apply", "POST", {
@@ -253,9 +258,13 @@ export default function PluginManager(props: SettingsPanelProps) {
   useEffect(() => {
     if (
       !plan ||
-      !["validating", "restart-required", "booting", "applying"].includes(
-        plan.state ?? "",
-      )
+      ![
+        "preparing",
+        "validating",
+        "restart-required",
+        "booting",
+        "applying",
+      ].includes(plan.state ?? "")
     )
       return;
     let live = true;
@@ -280,6 +289,10 @@ export default function PluginManager(props: SettingsPanelProps) {
         }
       } catch {
         if (live) {
+          if (plan?.state === "preparing") {
+            setStatus("暂时无法更新保存进度，请稍后重试。");
+            return;
+          }
           setStatus("服务正在重新启动，正在恢复连接。");
           try {
             const response = await fetch("/", { cache: "no-store" });
@@ -722,22 +735,13 @@ export default function PluginManager(props: SettingsPanelProps) {
               </button>
             </div>
           )}
-          {plan.waiting_windows?.map((id) => (
-            <div key={id}>
-              <p>等待窗口：{id}</p>
-              {(!plan.windows_detail?.[id]?.connected ||
-                Date.now() / 1000 -
-                  (plan.windows_detail?.[id]?.last_seen ?? 0) >
-                  10) && (
-                <button
-                  disabled={busy}
-                  onClick={() => void resolveWaiting("retain-window", id)}
-                >
-                  保留离线副本
-                </button>
-              )}
-            </div>
-          ))}
+          <WaitingWindows
+            ids={plan.waiting_windows ?? []}
+            details={plan.windows_detail}
+            busy={busy}
+            onRetain={(id) => void resolveWaiting("retain-window", id)}
+            onStatus={setStatus}
+          />
           {plan.state === "validating" && (
             <button
               disabled={plan.stage === "cancelling"}

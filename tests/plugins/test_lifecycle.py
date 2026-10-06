@@ -146,6 +146,95 @@ def test_all_windows_must_acknowledge_and_flush_channel_remains_open(tmp_path):
         assert client.post(path + "/apply", headers=HEADERS, json=body).status_code == 200
 
 
+def test_waiting_windows_keep_page_names_and_stable_tab_numbers(tmp_path):
+    """页面改名和断连保留可辨认信息，标签序号不因其他窗口关闭而重复"""
+    with TestClient(
+        create_app(Config(data_dir=tmp_path, token="test", profile="minimal"))
+    ) as client:
+        for identifier, title, number in (
+            ("closed", "ResumeMaker · 模板库", 1),
+            ("editor", "ResumeMaker · 项目经历 · 合成项目", 2),
+        ):
+            response = client.post(
+                "/api/plugins/windows",
+                headers=HEADERS,
+                json={"id": identifier, "generation": 1, "title": title},
+            )
+            assert response.status_code == 200, response.text
+            assert response.json()["number"] == number
+        assert (
+            client.post(
+                "/api/plugins/windows/close",
+                headers=HEADERS,
+                json={"id": "closed", "generation": 1},
+            ).status_code
+            == 200
+        )
+        response = client.post(
+            "/api/plugins/windows",
+            headers=HEADERS,
+            json={"id": "settings", "generation": 1, "title": "ResumeMaker · 个人信息"},
+        )
+        assert response.json()["number"] == 3
+        plan = make_plan(client, {"ext.recruitment"})
+        path = prepare(client, plan)
+        response = client.post(
+            "/api/plugins/windows",
+            headers=HEADERS,
+            json={
+                "id": "editor",
+                "generation": 1,
+                "title": "ResumeMaker · 项目经历 · 已改名项目",
+                "status": "草稿版本冲突，请核对输入。",
+            },
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["number"] == 2
+        assert (
+            client.post(
+                "/api/plugins/windows",
+                headers=HEADERS,
+                json={"id": "editor", "generation": 2, "title": "过期标题"},
+            ).status_code
+            == 409
+        )
+        assert (
+            client.post(
+                "/api/plugins/windows/disconnect",
+                headers=HEADERS,
+                json={"id": "editor", "generation": 1},
+            ).status_code
+            == 200
+        )
+        progress = client.get(path, headers=HEADERS).json()
+        detail = progress["windows_detail"]["editor"]
+        assert detail["title"] == "ResumeMaker · 项目经历 · 已改名项目"
+        assert detail["status"] == "草稿版本冲突，请核对输入。"
+        assert detail["number"] == 2 and not detail["connected"]
+        assert detail["last_seen"] > 0
+        assert set(progress["waiting_windows"]) == {"editor", "settings"}
+        assert (
+            client.post(
+                path + "/apply", headers=HEADERS, json={"digest": plan["digest"]}
+            ).status_code
+            == 409
+        )
+
+
+@pytest.mark.parametrize("field, length", [("title", 301), ("status", 501)])
+def test_window_heartbeat_rejects_unbounded_display_text(tmp_path, field, length):
+    """窗口显示信息保持有界，非法请求不会登记窗口"""
+    app = create_app(Config(data_dir=tmp_path, token="test", profile="minimal"))
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/plugins/windows",
+            headers=HEADERS,
+            json={"id": "invalid", "generation": 1, field: "字" * length},
+        )
+        assert response.status_code == 422
+        assert not app.state.runtime.require(ServiceKey("plugins")).windows
+
+
 def test_expired_preparation_can_cancel_tasks_and_abort_without_unlocking_another_plan(
     tmp_path, monkeypatch
 ):

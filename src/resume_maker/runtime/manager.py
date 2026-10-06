@@ -30,6 +30,7 @@ class PluginManager:
         self.maintenance = False
         self.publish_routes = None
         self.pending_plan = None
+        self.next_window_number = 1
 
     def package_lock(self):
         """锁定插件清单及协议版本，不在启动时自动取最新版本"""
@@ -361,7 +362,7 @@ class PluginManager:
             self.host.services["tasks"].cancel_owned(set(plan["affected"]))
             return self.progress(identifier)
 
-    def window(self, identifier, generation):
+    def window(self, identifier, generation, *, title=None, status=None):
         """窗口心跳同时取得冻结通知，过时代次不得自动刷新旧草稿"""
         with self.lock:
             self._generation(generation)
@@ -376,8 +377,14 @@ class PluginManager:
                 self.windows[identifier] = {
                     "pending_plan": self.pending_plan,
                     "acknowledged": False,
+                    "number": self.next_window_number,
                 }
+                self.next_window_number += 1
             window = self.windows[identifier]
+            if title is not None:
+                window["title"] = title.strip()
+            if status is not None:
+                window["status"] = status.strip()
             window["last_seen"] = time.time()
             window["connected"] = True
             return dict(window)

@@ -4136,7 +4136,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/WindowInput"
+                "$ref": "#/components/schemas/WindowHeartbeatInput"
               }
             }
           },
@@ -6877,6 +6877,53 @@
       ],
       "title": "SelectionInput",
       "description": "完整候选选择和用于并发校验的配置代次"
+    },
+    "WindowHeartbeatInput": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Id"
+        },
+        "generation": {
+          "type": "integer",
+          "minimum": 1.0,
+          "title": "Generation"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 300
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Title"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 500
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Status"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "id",
+        "generation"
+      ],
+      "title": "WindowHeartbeatInput",
+      "description": "心跳携带页面名称及保存状态，供其他窗口辨认"
     },
     "WindowInput": {
       "properties": {

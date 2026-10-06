@@ -5,6 +5,7 @@ import {
   pluginNavigation,
 } from "@resume-maker/plugin-sdk/plugins/runtime";
 import { hasPlugin } from "@resume-maker/plugin-sdk/shared/lib/capabilities";
+import { registerWindowTitle } from "@resume-maker/plugin-sdk/plugins/window";
 import {
   FileDown,
   FilePenLine,
@@ -233,6 +234,21 @@ export default function ResumeWorkspace() {
   const initialized = useRef(false),
     navigation = useRef(0);
   const project = state.projects.find((p) => p.id === activeProject);
+  const windowPage =
+    selectedPage?.title ??
+    (area === "projects"
+      ? `项目经历${project?.name ? ` · ${project.name}` : ""}`
+      : {
+          personal: "个人信息",
+          structure: "栏目编排",
+          templates: "模板库",
+          honors: "荣誉库",
+          recruitment: "招聘收藏",
+        }[area]);
+  useEffect(
+    () => registerWindowTitle(`ResumeMaker · ${windowPage}`),
+    [windowPage],
+  );
   const parentProject = state.projects.find(
     /* 识别当前子项目所属的整体项目，用于范围提示和返回导航 */ (p) =>
       p.id === project?.parent_id,
