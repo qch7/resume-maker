@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { ChevronDown, Puzzle, Search } from "lucide-react";
+import type { SettingsPanelProps } from "@resume-maker/plugin-sdk/plugins/contracts";
+import CommandMenu from "@resume-maker/plugin-sdk/plugins/CommandMenu";
 import { api } from "@resume-maker/plugin-sdk/shared/lib/api";
 import { capabilities } from "@resume-maker/plugin-sdk/shared/lib/capabilities";
 import {
@@ -84,9 +87,20 @@ interface Inspection {
   trust_modes: string[];
 }
 
+const STATE_LABELS: Record<string, string> = {
+  active: "运行中",
+  disabled: "已停用",
+  declared: "未启用",
+  blocked: "不可用",
+  failed: "失败",
+  missing: "缺失",
+  stopped: "已停止",
+};
+
 /** 展示完整配置影响，再由用户应用已审查的计划 */
-export default function PluginManager({ onClose }: { onClose: () => void }) {
-  const dialog = useRef<HTMLDialogElement>(null);
+export default function PluginManager(props: SettingsPanelProps) {
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(true);
   const [plugins, setPlugins] = useState<Plugin[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [plan, setPlan] = useState<Plan | null>(null);
@@ -156,12 +170,13 @@ export default function PluginManager({ onClose }: { onClose: () => void }) {
     );
   }
   useEffect(() => {
-    dialog.current?.showModal();
-    void reload().catch((failure: Error) => setError(failure.message));
-    return () => dialog.current?.close();
+    void reload()
+      .catch((failure: Error) => setError(failure.message))
+      .finally(() => setLoading(false));
   }, []);
   /** 任何依赖冲突都保留当前选择，供用户继续调整 */
   async function preview() {
+    setMigrationAccepted(false);
     setBusy(true);
     setError("");
     try {
@@ -431,7 +446,7 @@ export default function PluginManager({ onClose }: { onClose: () => void }) {
     setInspection(null);
     setTrusted(false);
     setPackagePath("");
-    setStatus("已加入候选清单。可以继续添加其他包，再一起检查和应用。");
+    setStatus("已加入候选，可继续添加插件。");
   }
   /** 停用后移除代码安装记录，业务资料继续保留 */
   async function uninstall(id: string) {
@@ -501,536 +516,684 @@ export default function PluginManager({ onClose }: { onClose: () => void }) {
       setError((failure as Error).message);
     }
   }
-  /** 关闭前撤销尚未提交的计划，解除其他窗口的编辑冻结 */
-  async function close() {
-    if (
-      plan &&
-      ["validating", "restart-required", "booting", "applying"].includes(
-        plan.state ?? "",
-      )
-    ) {
-      onClose();
-      return;
-    }
-    if (plan) {
-      try {
-        await api(`/plugins/plans/${plan.id}/abort`, "POST", {
-          digest: plan.digest,
+  const live = useRef({ plan, busy });
+  live.current = { plan, busy };
+  useEffect(
+    () =>
+      props.registerBeforeClose?.(async () => {
+        const current = live.current;
+        if (current.busy) throw new Error("操作处理中，请稍候。");
+        if (
+          !current.plan ||
+          ["validating", "restart-required", "booting", "applying"].includes(
+            current.plan.state ?? "",
+          )
+        )
+          return;
+        await api(`/plugins/plans/${current.plan.id}/abort`, "POST", {
+          digest: current.plan.digest,
         });
-      } catch (failure) {
-        setError((failure as Error).message);
-        return;
-      }
-    }
-    onClose();
-  }
+        setPlan(null);
+        await connectWindow();
+      }),
+    [props.registerBeforeClose],
+  );
+  const minimal = profiles.minimal;
+  const mode =
+    minimal &&
+    selected.length === minimal.length &&
+    minimal.every((id) => selected.includes(id))
+      ? "minimal"
+      : "extended";
+  const matching = plugins.filter((item) =>
+    `${item.title} ${item.id}`
+      .toLocaleLowerCase()
+      .includes(query.trim().toLocaleLowerCase()),
+  );
+  const essential = new Set([
+    ...(minimal ?? []),
+    ...plugins.filter((item) => item.required).map((item) => item.id),
+  ]);
+  const groups = [
+    {
+      title: "可选插件",
+      required: false,
+      items: matching.filter((item) => !essential.has(item.id)),
+    },
+    {
+      title: "基础插件",
+      required: true,
+      items: matching.filter((item) => essential.has(item.id)),
+    },
+  ];
   return (
-    <dialog
-      ref={dialog}
-      className="settings-dialog plugin-manager"
-      onCancel={(event) => {
-        event.preventDefault();
-        void close();
-      }}
-    >
-      <div className="dialog-title">
-        <h2>插件管理</h2>
-        <button disabled={busy} onClick={() => void close()}>
-          关闭
-        </button>
-      </div>
-      <div className="settings-body">
-        {status && <p role="status">{status}</p>}
-        <p>
-          系统插件组成最小工作台。停用能力保留已有资料；依赖尚未满足的组合无法应用。
-        </p>
-        {error && (
-          <p role="alert" className="error-panel">
-            {error}
-          </p>
-        )}
-        {Object.entries(pins)
-          .filter(([id]) => !packages[id])
-          .map(([id, pin]) => (
-            <div className="row" key={id}>
-              <span>
-                {id} 已卸载，仍保留 {pin.version} 的版本锁
-              </span>
-              <button
-                disabled={busy || !!plan}
-                onClick={() => void togglePin(id)}
-              >
-                解除 {id} 的版本锁
-              </button>
-            </div>
-          ))}
-        <div className="row">
-          {Object.entries(profiles).map(([name, ids]) => (
-            <button
-              key={name}
-              disabled={busy || !!plan}
-              onClick={() => setSelected(ids)}
-            >
-              {name === "minimal"
-                ? "选择最小组合"
-                : name === "standard"
-                  ? "选择标准组合"
-                  : `选择 ${name}`}
-            </button>
-          ))}
+    <div className="plugin-manager-panel">
+      <div className="plugin-mode-row">
+        <div>
+          <h3>插件组合</h3>
+          <p className="subtle">选择模式，确认后生效。</p>
         </div>
-        <details>
-          <summary>添加独立实例</summary>
-          <p>同一插件可使用不同配置和提供方，资料按实例名称分别保留。</p>
-          <select
-            aria-label="实例使用的插件"
-            value={instancePlugin}
-            disabled={busy || !!plan}
-            onChange={(event) => setInstancePlugin(event.target.value)}
+        <select
+          aria-label="插件模式"
+          hidden={loading}
+          value={mode}
+          disabled={busy || !!plan || !profiles.minimal || !profiles.standard}
+          onChange={(event) =>
+            setSelected(
+              profiles[
+                event.target.value === "minimal" ? "minimal" : "standard"
+              ],
+            )
+          }
+        >
+          <option value="minimal">极简模式</option>
+          <option value="extended">扩展模式</option>
+        </select>
+        {!plan && (
+          <button
+            className="primary"
+            disabled={busy || !plugins.length}
+            onClick={() => void preview()}
           >
-            <option value="">选择插件</option>
-            {plugins
-              .filter(
-                (item) =>
-                  item.multiple &&
-                  item.id === item.plugin &&
-                  item.scope !== "task",
-              )
-              .map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.title}
-                </option>
-              ))}
-          </select>
-          <input
-            aria-label="新实例名称"
-            placeholder="例如 community.my-instance"
-            value={instanceName}
-            disabled={busy || !!plan}
-            onChange={(event) => setInstanceName(event.target.value)}
-          />
-          <button disabled={busy || !!plan} onClick={addInstance}>
-            添加到候选组合
+            查看变更
           </button>
-        </details>
-        {plugins.map((item) => (
-          <div key={item.id}>
-            <label className="plugin-choice">
-              <input
-                type="checkbox"
-                checked={selected.includes(item.id)}
-                disabled={
-                  item.required || item.scope === "task" || busy || !!plan
-                }
-                onChange={(event) => {
-                  setSelected((values) =>
-                    event.target.checked
-                      ? [...values, item.id]
-                      : values.filter((id) => id !== item.id),
-                  );
-                }}
-              />
-              <span>
-                <strong>{item.title}</strong>{" "}
-                <small>
-                  {item.required ? "系统必需" : item.state} · {item.version}
-                </small>
-                <br />
-                <small>{item.id}</small>
-                {item.reason && <small>{item.reason}</small>}
-              </span>
-            </label>
-            {!item.builtin && packages[item.plugin ?? item.id] && (
-              <button
-                disabled={busy || !!plan}
-                onClick={() => void togglePin(item.plugin ?? item.id)}
-              >
-                {pins[item.plugin ?? item.id]
-                  ? `解除 ${pins[item.plugin ?? item.id].version} 的版本锁`
-                  : `锁定当前版本 ${item.version}`}
-              </button>
+        )}
+      </div>
+      <p className="plugin-mode-description" hidden={loading}>
+        {mode === "minimal"
+          ? "手工编辑、DOCX 导出和备份。"
+          : "按需启用 AI、模板和其他扩展。"}
+      </p>
+      {status && (
+        <p className="plugin-feedback" role="status">
+          {status}
+        </p>
+      )}
+      {error && (
+        <p role="alert" className="error-panel">
+          {error}
+        </p>
+      )}
+      {plan ? (
+        <section className="plugin-plan">
+          <h3>变更计划</h3>
+          <p>
+            启用 {plan.added.length} 项 · 停用 {plan.removed.length} 项 · 影响{" "}
+            {plan.affected.length} 项
+          </p>
+          <details>
+            <summary>变更明细</summary>
+            {[
+              { title: "启用", ids: plan.added },
+              { title: "停用", ids: plan.removed },
+              { title: "受影响", ids: plan.affected },
+            ].map(
+              (group) =>
+                group.ids.length > 0 && (
+                  <div key={group.title}>
+                    <h4>{group.title}</h4>
+                    <ul>
+                      {group.ids.map((id) => (
+                        <li key={id}>
+                          {plugins.find((item) => item.id === id)?.title ?? id}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ),
             )}
-            {item.plugin && item.plugin !== item.id && (
-              <button
-                disabled={busy || !!plan}
-                onClick={() => removeInstance(item.id)}
-              >
-                移除实例并保留资料
-              </button>
-            )}
-            {item.scope === "task" && (
-              <p>由任务创建独立实例，任务结束后释放。</p>
-            )}
-            {selected.includes(item.id) &&
-              Object.keys(item.dependencies ?? { host: item.requires }).length >
-                0 && (
-                <details>
-                  <summary>{item.id} 使用的提供方</summary>
-                  {Object.entries(
-                    item.dependencies ?? { host: item.requires },
-                  ).flatMap(([domain, dependencies]) =>
-                    Object.keys(dependencies).map((name) => (
-                      <label key={`${domain}/${name}`}>
-                        {domain} / {name}
-                        <select
-                          aria-label={`${item.id} 的 ${domain}/${name} 提供方`}
-                          disabled={busy || !!plan}
-                          value={
-                            instances.find((value) => value.id === item.id)
-                              ?.bindings[domain]?.[name] ?? ""
-                          }
-                          onChange={(event) =>
-                            bindProvider(item, domain, name, event.target.value)
-                          }
-                        >
-                          <option value="">按清单选择</option>
-                          {plugins
-                            .filter(
-                              (candidate) =>
-                                selected.includes(candidate.id) &&
-                                name in
-                                  (candidate.provided?.[
-                                    domain === "remote" ? "host" : domain
-                                  ] ?? {}),
-                            )
-                            .map((candidate) => (
-                              <option key={candidate.id} value={candidate.id}>
-                                {candidate.title} · {candidate.id}
-                              </option>
-                            ))}
-                        </select>
-                      </label>
-                    )),
-                  )}
-                </details>
-              )}
-            {!item.builtin &&
-              item.id === item.plugin &&
-              item.environment_lock && (
-                <button
-                  disabled={busy || !!plan}
-                  onClick={() => void prepareEnvironment(item.id)}
-                >
-                  准备锁定依赖环境
-                </button>
-              )}
-            {!item.builtin && item.id === item.plugin && !item.enabled && (
-              <button
-                disabled={busy || !!plan}
-                onClick={() => void uninstall(item.id)}
-              >
-                卸载代码并保留资料
-              </button>
-            )}
-            {(Object.keys(item.config ?? {}).length > 0 ||
-              Object.keys(item.config_schema?.properties ?? {}).length > 0) && (
-              <details>
-                <summary>{item.title} 配置</summary>
-                <textarea
-                  aria-label={`${item.title} 配置`}
-                  disabled={busy || !!plan}
-                  value={configs[item.id] ?? "{}"}
-                  onChange={(event) => {
-                    setConfigEdits((values) =>
-                      values.filter((edit) => edit.instance !== item.id),
-                    );
-                    setConfigs((values) => ({
-                      ...values,
-                      [item.id]: event.target.value,
-                    }));
-                  }}
-                />
-                <p className="subtle">
-                  编辑 JSON 会整体替换该实例的工作区配置。null
-                  是空值，恢复继承请使用下方操作。
-                </p>
-                <button
-                  disabled={busy || !!plan}
-                  onClick={() => {
-                    setConfigs((values) => ({
-                      ...values,
-                      [item.id]: JSON.stringify(item.config ?? {}, null, 2),
-                    }));
-                    setConfigEdits((values) => [
-                      ...values.filter((edit) => edit.instance !== item.id),
-                      { instance: item.id, operation: "reset", path: [] },
-                    ]);
-                  }}
-                >
-                  恢复全部继承值
-                </button>
-                {Object.entries(item.config_provenance ?? {}).map(
-                  ([path, source]) => (
-                    <div key={path} className="row">
-                      <span>
-                        {path} · 来源：{source}
-                      </span>
-                      {path !== "/" && (
-                        <button
-                          disabled={busy || !!plan}
-                          onClick={() => {
-                            const fields = path
-                              .slice(1)
-                              .split("/")
-                              .map((key) =>
-                                key.replaceAll("~1", "/").replaceAll("~0", "~"),
-                              );
-                            setConfigEdits((values) => [
-                              ...values,
-                              {
-                                instance: item.id,
-                                operation: "reset",
-                                path: fields,
-                              },
-                            ]);
-                          }}
-                        >
-                          恢复此字段继承值
-                        </button>
-                      )}
-                    </div>
-                  ),
-                )}
-                {configEdits.some((edit) => edit.instance === item.id) && (
-                  <p role="status">已加入恢复操作，查看变更计划后生效。</p>
-                )}
-              </details>
-            )}
-          </div>
-        ))}
-        {plan ? (
-          <section>
-            <h3>变更计划</h3>
-            <p>新增：{plan.added.join("、") || "无"}</p>
-            <p>停用：{plan.removed.join("、") || "无"}</p>
-            <p>受影响：{plan.affected.join("、") || "无"}</p>
-            <p>
-              生效方式：
-              {plan.mode === "host-restart"
-                ? "验证后重新启动服务"
-                : "等待当前操作完成后切换"}
-              ；已有资料保留。
-            </p>
-            {plan.package_updates && (
+          </details>
+          <p>
+            生效方式：
+            {plan.mode === "host-restart"
+              ? "验证后重新启动服务"
+              : "等待当前操作完成后切换"}
+            ；已有资料保留。
+          </p>
+          {plan.package_updates && (
+            <ul>
+              {Object.entries(plan.package_updates).map(([id, item]) => (
+                <li key={id}>
+                  {id} → {item.version} · 摘要 {item.digest}
+                </li>
+              ))}
+            </ul>
+          )}
+          {plan.message && <p role="status">{plan.message}</p>}
+          {!!plan.data_intents?.length && (
+            <div>
+              <p>本次还需升级插件资料：</p>
               <ul>
-                {Object.entries(plan.package_updates).map(([id, item]) => (
-                  <li key={id}>
-                    {id} → {item.version} · 摘要 {item.digest}
+                {plan.data_intents.map((item) => (
+                  <li key={item.owner}>
+                    {item.owner}：版本 {item.from} → {item.to}
                   </li>
                 ))}
               </ul>
-            )}
-            {plan.message && <p role="status">{plan.message}</p>}
-            {!!plan.data_intents?.length && (
-              <div>
-                <p>本次还需升级插件资料：</p>
-                <ul>
-                  {plan.data_intents.map((item) => (
-                    <li key={item.owner}>
-                      {item.owner}：版本 {item.from} → {item.to}
-                    </li>
-                  ))}
-                </ul>
-                <p>
-                  会先在副本完成整组迁移和健康检查，再停机备份并迁移正式资料。正式资料升级后，不自动退回旧代码；失败时保留完整备份并进入恢复状态。
-                </p>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={migrationAccepted}
-                    onChange={(event) =>
-                      setMigrationAccepted(event.target.checked)
-                    }
-                  />
-                  我确认迁移这些资料，了解失败后可能需要恢复完整备份。
-                </label>
-              </div>
-            )}
-            {plan.configuration && (
-              <details>
-                <summary>应用后的配置及字段来源</summary>
-                <pre>
-                  {JSON.stringify(
-                    {
-                      configs: plan.configuration.configs,
-                      sources: plan.configuration.provenance,
-                    },
-                    null,
-                    2,
-                  )}
-                </pre>
-              </details>
-            )}
-            {!!plan.scopes?.length && (
+              <p>先备份再升级资料。升级失败时需从完整备份恢复。</p>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={migrationAccepted}
+                  onChange={(event) =>
+                    setMigrationAccepted(event.target.checked)
+                  }
+                />
+                确认升级资料，失败时使用备份恢复。
+              </label>
+            </div>
+          )}
+          {plan.configuration && (
+            <details>
+              <summary>配置详情</summary>
+              <pre>
+                {JSON.stringify(
+                  {
+                    configs: plan.configuration.configs,
+                    sources: plan.configuration.provenance,
+                  },
+                  null,
+                  2,
+                )}
+              </pre>
+            </details>
+          )}
+          {!!plan.scopes?.length && (
+            <p>
+              等待作用域结束：
+              {plan.scopes
+                .map((item) => `${item.kind} / ${item.id}`)
+                .join("、")}
+            </p>
+          )}
+          {!!plan.tasks?.length && (
+            <div>
               <p>
-                等待作用域结束：
-                {plan.scopes
-                  .map((item) => `${item.kind} / ${item.id}`)
+                活动任务：
+                {plan.tasks
+                  .map((task) => `${task.owner} / ${task.id}`)
                   .join("、")}
               </p>
-            )}
-            {!!plan.tasks?.length && (
-              <div>
-                <p>
-                  活动任务：
-                  {plan.tasks
-                    .map((task) => `${task.owner} / ${task.id}`)
-                    .join("、")}
-                </p>
+              <button
+                disabled={busy}
+                onClick={() => void resolveWaiting("cancel-tasks")}
+              >
+                取消任务
+              </button>
+            </div>
+          )}
+          {plan.waiting_windows?.map((id) => (
+            <div key={id}>
+              <p>等待窗口：{id}</p>
+              {(!plan.windows_detail?.[id]?.connected ||
+                Date.now() / 1000 -
+                  (plan.windows_detail?.[id]?.last_seen ?? 0) >
+                  10) && (
                 <button
                   disabled={busy}
-                  onClick={() => void resolveWaiting("cancel-tasks")}
+                  onClick={() => void resolveWaiting("retain-window", id)}
                 >
-                  取消这些任务并等待结束
+                  保留离线副本
                 </button>
-              </div>
-            )}
-            {plan.waiting_windows?.map((id) => (
-              <div key={id}>
-                <p>等待窗口：{id}</p>
-                {(!plan.windows_detail?.[id]?.connected ||
-                  Date.now() / 1000 -
-                    (plan.windows_detail?.[id]?.last_seen ?? 0) >
-                    10) && (
-                  <button
-                    disabled={busy}
-                    onClick={() => void resolveWaiting("retain-window", id)}
-                  >
-                    保留离线恢复副本并继续
-                  </button>
-                )}
-              </div>
-            ))}
-            {plan.state === "validating" && (
-              <button
-                disabled={plan.stage === "cancelling"}
-                onClick={() => void cancelValidation()}
-              >
-                取消验证并等待结束
-              </button>
-            )}
+              )}
+            </div>
+          ))}
+          {plan.state === "validating" && (
             <button
-              disabled={
-                busy ||
-                !["planned", "preparing"].includes(plan.state ?? "planned")
-              }
-              onClick={() => void apply()}
+              disabled={plan.stage === "cancelling"}
+              onClick={() => void cancelValidation()}
             >
-              保存所有窗口草稿并应用
+              取消验证
             </button>
-            <button
-              disabled={
-                busy ||
-                !["planned", "preparing"].includes(plan.state ?? "planned")
-              }
-              onClick={() => void editSelection()}
-            >
-              返回修改选择
-            </button>
-          </section>
-        ) : (
-          <button disabled={busy} onClick={() => void preview()}>
-            查看变更计划
+          )}
+          <button
+            disabled={
+              busy ||
+              !["planned", "preparing"].includes(plan.state ?? "planned")
+            }
+            onClick={() => void apply()}
+          >
+            保存草稿并应用
           </button>
-        )}
-        {!plan && (
-          <section>
-            <h3>安装或升级插件</h3>
-            <PackageDownloads
-              onChoose={(path) => {
-                setPackagePath(path);
-                setInspection(null);
-              }}
-            />
-            {!!candidates.length && (
-              <div>
-                <h4>联合候选清单</h4>
-                {candidates.map((item) => (
-                  <div key={item.id}>
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={item.enable}
-                        onChange={(event) =>
-                          setCandidates((values) =>
-                            values.map((value) =>
-                              value.id === item.id
-                                ? { ...value, enable: event.target.checked }
-                                : value,
-                            ),
+          <button
+            disabled={
+              busy ||
+              !["planned", "preparing"].includes(plan.state ?? "planned")
+            }
+            onClick={() => void editSelection()}
+          >
+            返回修改
+          </button>
+        </section>
+      ) : null}
+      <label className="plugin-search">
+        <Search size={18} />
+        <input
+          aria-label="搜索插件"
+          placeholder="搜索插件"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+      </label>
+      {Object.entries(pins)
+        .filter(([id]) => !packages[id])
+        .map(([id, pin]) => (
+          <div className="row" key={id}>
+            <span>
+              {id} · 版本锁 {pin.version}
+            </span>
+            <button
+              disabled={busy || !!plan}
+              onClick={() => void togglePin(id)}
+            >
+              解锁
+            </button>
+          </div>
+        ))}
+      {groups.map(
+        (group) =>
+          group.items.length > 0 && (
+            <details
+              className="plugin-group"
+              key={group.title}
+              open={!group.required || !!query}
+            >
+              <summary>
+                <ChevronDown size={16} />
+                <strong>{group.title}</strong>
+                <span>{group.items.length}</span>
+              </summary>
+              <div className="plugin-grid">
+                {group.items.map((item) => (
+                  <article className="plugin-card" key={item.id}>
+                    <div className="plugin-card-header">
+                      <div className="plugin-card-title">
+                        <Puzzle size={17} />
+                        <strong>{item.title}</strong>
+                      </div>
+                      <button
+                        className="plugin-switch"
+                        role="switch"
+                        aria-label={`启用 ${item.title}`}
+                        aria-checked={selected.includes(item.id)}
+                        disabled={
+                          item.required ||
+                          item.scope === "task" ||
+                          busy ||
+                          !!plan
+                        }
+                        onClick={() =>
+                          setSelected((values) =>
+                            values.includes(item.id)
+                              ? values.filter((id) => id !== item.id)
+                              : [...values, item.id],
                           )
                         }
-                      />
-                      随此次变更启用 {item.title} · {item.version}
-                    </label>
-                    <button
-                      onClick={() =>
+                      >
+                        <span />
+                      </button>
+                    </div>
+                    <div className="plugin-card-state">
+                      <span>
+                        {item.required
+                          ? "必需"
+                          : selected.includes(item.id) !== item.enabled
+                            ? selected.includes(item.id)
+                              ? "待启用"
+                              : "待停用"
+                            : (STATE_LABELS[item.state] ?? item.state)}
+                      </span>
+                      <small>v{item.version}</small>
+                    </div>
+                    {item.reason && (
+                      <p className="plugin-card-reason">{item.reason}</p>
+                    )}
+                    <details className="plugin-card-details">
+                      <summary>
+                        详情
+                        <ChevronDown size={14} />
+                      </summary>
+                      <div className="plugin-card-body">
+                        <code>{item.id}</code>
+                        {!item.builtin && packages[item.plugin ?? item.id] && (
+                          <button
+                            disabled={busy || !!plan}
+                            onClick={() =>
+                              void togglePin(item.plugin ?? item.id)
+                            }
+                          >
+                            {pins[item.plugin ?? item.id]
+                              ? `解除 ${pins[item.plugin ?? item.id].version} 的版本锁`
+                              : `锁定当前版本 ${item.version}`}
+                          </button>
+                        )}
+                        {item.plugin && item.plugin !== item.id && (
+                          <button
+                            disabled={busy || !!plan}
+                            onClick={() => removeInstance(item.id)}
+                          >
+                            移除实例
+                          </button>
+                        )}
+                        {item.scope === "task" && (
+                          <p>随任务启动，结束后释放。</p>
+                        )}
+                        {selected.includes(item.id) &&
+                          Object.keys(
+                            item.dependencies ?? { host: item.requires },
+                          ).length > 0 && (
+                            <details>
+                              <summary>{item.id} 使用的提供方</summary>
+                              {Object.entries(
+                                item.dependencies ?? { host: item.requires },
+                              ).flatMap(([domain, dependencies]) =>
+                                Object.keys(dependencies).map((name) => (
+                                  <label key={`${domain}/${name}`}>
+                                    {domain} / {name}
+                                    <select
+                                      aria-label={`${item.id} 的 ${domain}/${name} 提供方`}
+                                      disabled={busy || !!plan}
+                                      value={
+                                        instances.find(
+                                          (value) => value.id === item.id,
+                                        )?.bindings[domain]?.[name] ?? ""
+                                      }
+                                      onChange={(event) =>
+                                        bindProvider(
+                                          item,
+                                          domain,
+                                          name,
+                                          event.target.value,
+                                        )
+                                      }
+                                    >
+                                      <option value="">按清单选择</option>
+                                      {plugins
+                                        .filter(
+                                          (candidate) =>
+                                            selected.includes(candidate.id) &&
+                                            name in
+                                              (candidate.provided?.[
+                                                domain === "remote"
+                                                  ? "host"
+                                                  : domain
+                                              ] ?? {}),
+                                        )
+                                        .map((candidate) => (
+                                          <option
+                                            key={candidate.id}
+                                            value={candidate.id}
+                                          >
+                                            {candidate.title} · {candidate.id}
+                                          </option>
+                                        ))}
+                                    </select>
+                                  </label>
+                                )),
+                              )}
+                            </details>
+                          )}
+                        {!item.builtin &&
+                          item.id === item.plugin &&
+                          item.environment_lock && (
+                            <button
+                              disabled={busy || !!plan}
+                              onClick={() => void prepareEnvironment(item.id)}
+                            >
+                              准备锁定依赖环境
+                            </button>
+                          )}
+                        {!item.builtin &&
+                          item.id === item.plugin &&
+                          !item.enabled && (
+                            <button
+                              disabled={busy || !!plan}
+                              onClick={() => void uninstall(item.id)}
+                            >
+                              卸载插件
+                            </button>
+                          )}
+                        {(Object.keys(item.config ?? {}).length > 0 ||
+                          Object.keys(item.config_schema?.properties ?? {})
+                            .length > 0) && (
+                          <details>
+                            <summary>{item.title} 配置</summary>
+                            <textarea
+                              aria-label={`${item.title} 配置`}
+                              disabled={busy || !!plan}
+                              value={configs[item.id] ?? "{}"}
+                              onChange={(event) => {
+                                setConfigEdits((values) =>
+                                  values.filter(
+                                    (edit) => edit.instance !== item.id,
+                                  ),
+                                );
+                                setConfigs((values) => ({
+                                  ...values,
+                                  [item.id]: event.target.value,
+                                }));
+                              }}
+                            />
+                            <p className="subtle">
+                              JSON 会替换实例配置；null 表示空值。
+                            </p>
+                            <button
+                              disabled={busy || !!plan}
+                              onClick={() => {
+                                setConfigs((values) => ({
+                                  ...values,
+                                  [item.id]: JSON.stringify(
+                                    item.config ?? {},
+                                    null,
+                                    2,
+                                  ),
+                                }));
+                                setConfigEdits((values) => [
+                                  ...values.filter(
+                                    (edit) => edit.instance !== item.id,
+                                  ),
+                                  {
+                                    instance: item.id,
+                                    operation: "reset",
+                                    path: [],
+                                  },
+                                ]);
+                              }}
+                            >
+                              恢复继承
+                            </button>
+                            {Object.entries(item.config_provenance ?? {}).map(
+                              ([path, source]) => (
+                                <div key={path} className="row">
+                                  <span>
+                                    {path} · 来源：{source}
+                                  </span>
+                                  {path !== "/" && (
+                                    <button
+                                      disabled={busy || !!plan}
+                                      onClick={() => {
+                                        const fields = path
+                                          .slice(1)
+                                          .split("/")
+                                          .map((key) =>
+                                            key
+                                              .replaceAll("~1", "/")
+                                              .replaceAll("~0", "~"),
+                                          );
+                                        setConfigEdits((values) => [
+                                          ...values,
+                                          {
+                                            instance: item.id,
+                                            operation: "reset",
+                                            path: fields,
+                                          },
+                                        ]);
+                                      }}
+                                    >
+                                      恢复继承
+                                    </button>
+                                  )}
+                                </div>
+                              ),
+                            )}
+                            {configEdits.some(
+                              (edit) => edit.instance === item.id,
+                            ) && (
+                              <p role="status">
+                                已加入恢复操作，查看变更计划后生效。
+                              </p>
+                            )}
+                          </details>
+                        )}
+                      </div>
+                    </details>
+                  </article>
+                ))}
+              </div>
+            </details>
+          ),
+      )}
+      {loading ? (
+        <p className="subtle" role="status">
+          读取中…
+        </p>
+      ) : (
+        !matching.length && <p className="subtle">没有匹配的插件。</p>
+      )}
+      <details>
+        <summary>添加独立实例</summary>
+        <p>同一插件可创建多个独立实例。</p>
+        <select
+          aria-label="实例使用的插件"
+          value={instancePlugin}
+          disabled={busy || !!plan}
+          onChange={(event) => setInstancePlugin(event.target.value)}
+        >
+          <option value="">选择插件</option>
+          {plugins
+            .filter(
+              (item) =>
+                item.multiple &&
+                item.id === item.plugin &&
+                item.scope !== "task",
+            )
+            .map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.title}
+              </option>
+            ))}
+        </select>
+        <input
+          aria-label="新实例名称"
+          placeholder="例如 community.my-instance"
+          value={instanceName}
+          disabled={busy || !!plan}
+          onChange={(event) => setInstanceName(event.target.value)}
+        />
+        <button disabled={busy || !!plan} onClick={addInstance}>
+          添加到候选组合
+        </button>
+      </details>
+      {!plan && (
+        <details className="plugin-advanced">
+          <summary>安装插件</summary>
+          <PackageDownloads
+            onChoose={(path) => {
+              setPackagePath(path);
+              setInspection(null);
+            }}
+          />
+          {!!candidates.length && (
+            <div>
+              <h4>待安装</h4>
+              {candidates.map((item) => (
+                <div key={item.id}>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={item.enable}
+                      onChange={(event) =>
                         setCandidates((values) =>
-                          values.filter((value) => value.id !== item.id),
+                          values.map((value) =>
+                            value.id === item.id
+                              ? { ...value, enable: event.target.checked }
+                              : value,
+                          ),
                         )
                       }
-                    >
-                      移出候选
-                    </button>
-                  </div>
-                ))}
-                <button disabled={busy} onClick={() => void previewPackages()}>
-                  一起检查依赖和变更范围
-                </button>
-              </div>
-            )}
-            <input
-              aria-label="插件包路径"
-              placeholder="本机 .rmp 文件完整路径"
-              value={packagePath}
-              onChange={(event) => {
-                setPackagePath(event.target.value);
-                setInspection(null);
-              }}
-            />
-            <button
-              disabled={busy || !packagePath}
-              onClick={() => void inspectPackage()}
-            >
-              检查插件包
-            </button>
-            {inspection && (
-              <div>
+                    />
+                    随此次变更启用 {item.title} · {item.version}
+                  </label>
+                  <button
+                    onClick={() =>
+                      setCandidates((values) =>
+                        values.filter((value) => value.id !== item.id),
+                      )
+                    }
+                  >
+                    移出候选
+                  </button>
+                </div>
+              ))}
+              <button disabled={busy} onClick={() => void previewPackages()}>
+                查看安装计划
+              </button>
+            </div>
+          )}
+          <input
+            aria-label="插件包路径"
+            placeholder="本机 .rmp 文件完整路径"
+            value={packagePath}
+            onChange={(event) => {
+              setPackagePath(event.target.value);
+              setInspection(null);
+            }}
+          />
+          <button
+            disabled={busy || !packagePath}
+            onClick={() => void inspectPackage()}
+          >
+            检查插件包
+          </button>
+          {inspection && (
+            <div>
+              <p>
+                {inspection.manifest.title} · {inspection.manifest.version}
+              </p>
+              <p>
+                权限：
+                {inspection.manifest.permissions.join("、") || "无额外声明"}
+              </p>
+              <p>
+                摘要：<code>{inspection.digest}</code>
+              </p>
+              {!!inspection.missing_dependencies.length && (
                 <p>
-                  {inspection.manifest.title} · {inspection.manifest.version}
+                  尚需准备依赖：{inspection.missing_dependencies.join("、")}
                 </p>
-                <p>
-                  权限：
-                  {inspection.manifest.permissions.join("、") || "无额外声明"}
-                </p>
-                <p>
-                  摘要：<code>{inspection.digest}</code>
-                </p>
-                {!!inspection.missing_dependencies.length && (
-                  <p>
-                    尚需准备依赖：{inspection.missing_dependencies.join("、")}
-                  </p>
-                )}
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={trusted}
-                    onChange={(event) => setTrusted(event.target.checked)}
-                  />
-                  我信任此插件以 {inspection.trust_modes.join("、")}{" "}
-                  模式运行。宿主及 worker 代码具有本机账户权限。
-                </label>
-                <button
-                  disabled={busy || !trusted}
-                  onClick={() => void installPackage()}
-                >
-                  加入联合候选
-                </button>
-              </div>
-            )}
-          </section>
-        )}
+              )}
+              <label>
+                <input
+                  type="checkbox"
+                  checked={trusted}
+                  onChange={(event) => setTrusted(event.target.checked)}
+                />
+                我信任此插件以 {inspection.trust_modes.join("、")}{" "}
+                模式运行。宿主及 worker 代码具有本机账户权限。
+              </label>
+              <button
+                disabled={busy || !trusted}
+                onClick={() => void installPackage()}
+              >
+                加入候选
+              </button>
+            </div>
+          )}
+        </details>
+      )}
+      <div className="plugin-command-entry">
+        <CommandMenu disabled={busy || !!plan} shortcuts={false} />
       </div>
-    </dialog>
+    </div>
   );
 }

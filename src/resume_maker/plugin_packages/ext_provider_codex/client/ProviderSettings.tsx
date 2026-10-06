@@ -53,7 +53,7 @@ export default function ProviderSettingsPanel(props: SettingsPanelProps) {
   return (
     <>
       <>
-        <h3>模型连接配置</h3>
+        <h3>连接</h3>
         <PathInput
           label="Codex 可执行文件"
           kind="executable"
@@ -66,7 +66,7 @@ export default function ProviderSettingsPanel(props: SettingsPanelProps) {
         />
         <div className="form-grid">
           <label>
-            CLI Profile（可留空）
+            Profile（选填）
             <input
               disabled={busy || !loaded}
               value={provider.profile}
@@ -110,11 +110,11 @@ export default function ProviderSettingsPanel(props: SettingsPanelProps) {
                 setProvider(saved);
                 baseline.current = JSON.stringify(saved);
                 storage.removeItem("rm.settings.provider");
-                setNotice("Codex 设置已保存，将用于新提交的 AI 任务。");
+                setNotice("已保存，新任务生效。");
               })
             }
           >
-            保存设置
+            保存
           </button>
           <button
             disabled={busy || !loaded}
@@ -136,7 +136,7 @@ export default function ProviderSettingsPanel(props: SettingsPanelProps) {
               })
             }
           >
-            {busy ? "连接测试中…" : "测试实际连接"}
+            {busy ? "测试中…" : "测试连接"}
           </button>
         </div>
       </>

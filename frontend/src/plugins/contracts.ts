@@ -50,6 +50,7 @@ export interface SettingsPanelProps {
   active: boolean;
   run: (work: () => Promise<void>) => void;
   onChanged: () => Promise<void>;
+  registerBeforeClose?: (guard: () => Promise<void>) => () => void;
 }
 
 export interface SettingsPage {
@@ -58,6 +59,8 @@ export interface SettingsPage {
   order: number;
   component: ComponentType<SettingsPanelProps>;
   openFor?: string[];
+  group?: "projects";
+  icon?: ComponentType<{ size?: number }>;
 }
 
 export interface ClientContext {

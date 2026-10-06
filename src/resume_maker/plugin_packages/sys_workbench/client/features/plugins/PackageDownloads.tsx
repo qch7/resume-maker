@@ -96,10 +96,7 @@ export default function PackageDownloads({
   return (
     <details>
       <summary>从明确地址下载插件</summary>
-      <p>
-        填写发布者提供的 HTTPS 地址和 SHA-256
-        文件摘要。下载完成后仍需检查插件权限。
-      </p>
+      <p>填写 HTTPS 地址和 SHA-256 摘要，下载后检查权限。</p>
       <input
         aria-label="插件下载地址"
         value={url}
@@ -122,7 +119,7 @@ export default function PackageDownloads({
         disabled={busy || !url || !/^[a-f0-9]{64}$/.test(digest)}
         onClick={() => void start()}
       >
-        下载或查询本次请求
+        下载
       </button>
       {error && <p role="alert">{error}</p>}
       {downloads.map((row) => (

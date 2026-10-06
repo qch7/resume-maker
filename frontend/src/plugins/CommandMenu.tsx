@@ -3,7 +3,15 @@ import { clientExtensions } from "./extensions";
 import { runPluginCommand, shortcutCommand } from "./commands";
 
 /** 命令菜单和快捷键共用执行入口，失败显示在本窗口 */
-export default function CommandMenu({ disabled }: { disabled: boolean }) {
+export default function CommandMenu({
+  disabled,
+  hidden = false,
+  shortcuts = true,
+}: {
+  disabled: boolean;
+  hidden?: boolean;
+  shortcuts?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
@@ -23,7 +31,7 @@ export default function CommandMenu({ disabled }: { disabled: boolean }) {
   useEffect(() => {
     /** 快捷键仅在当前代次的工作区可编辑时接管事件 */
     function keydown(event: KeyboardEvent) {
-      if (disabled || busy) return;
+      if (!shortcuts || disabled || busy) return;
       const id = shortcutCommand(event);
       if (!id) return;
       event.preventDefault();
@@ -31,17 +39,18 @@ export default function CommandMenu({ disabled }: { disabled: boolean }) {
     }
     window.addEventListener("keydown", keydown);
     return () => window.removeEventListener("keydown", keydown);
-  }, [disabled, busy]);
+  }, [disabled, busy, shortcuts]);
   return (
     <div className="plugin-commands">
       <button
+        hidden={hidden}
         disabled={disabled}
         aria-expanded={open}
         onClick={() => setOpen(!open)}
       >
         插件命令
       </button>
-      {open && (
+      {!hidden && open && (
         <div aria-label="插件命令列表">
           {clientExtensions.list("commands").map((item) => (
             <button
