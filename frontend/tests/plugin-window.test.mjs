@@ -431,3 +431,130 @@ test("同代次普通草稿冲突不因存在浏览器副本而绕过处理", as
   assert.equal(Object.keys(local).length, 1);
   assert.equal(module.storage.warnBeforeUnload(), true);
 });
+
+test("心跳报告页面名称及保存失败，浏览器标签显示服务分配的窗口序号", async (t) => {
+  const previous = globalThis.document;
+  globalThis.document = {
+    title: "",
+    querySelector: () => ({ content: "synthetic" }),
+  };
+  const bodies = [];
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    if (url === "/api/plugins/windows") {
+      bodies.push(JSON.parse(options.body));
+      return Response.json({
+        pending_plan: "change",
+        acknowledged: false,
+        number: 3,
+      });
+    }
+    assert.equal(url, "/api/plugins/plans/change");
+    return Response.json({ affected: [], generation: 7 });
+  });
+  try {
+    const module = await windowModule();
+    const removeTitle = module.registerWindowTitle("ResumeMaker · 合成项目");
+    const removePage = module.registerWindowTitle("ResumeMaker · 扩展页面", 1);
+    const removeDraft = module.registerDraft("conflict", async () => {
+      throw new Error("合成草稿版本冲突");
+    });
+    try {
+      await module.connectWindow();
+      assert.equal(bodies[0].title, "ResumeMaker · 扩展页面");
+      assert.equal(
+        globalThis.document.title,
+        "ResumeMaker · 扩展页面［窗口 3］",
+      );
+      removePage();
+      await module.connectWindow();
+      assert.equal(bodies[1].title, "ResumeMaker · 合成项目");
+      assert.equal(bodies[1].status, "合成草稿版本冲突");
+      assert.equal(
+        globalThis.document.title,
+        "ResumeMaker · 合成项目［窗口 3］",
+      );
+      assert.equal(module.windowNotice(), "合成草稿版本冲突");
+    } finally {
+      removeDraft();
+      removePage();
+      removeTitle();
+    }
+  } finally {
+    globalThis.document = previous;
+  }
+});
+
+test("定位只标记目标标签并尝试聚焦，不改变保存状态或发送确认", async (t) => {
+  const previousDocument = globalThis.document,
+    previousWindow = globalThis.window,
+    previousChannel = globalThis.BroadcastChannel;
+  const channels = [];
+  class Channel {
+    constructor() {
+      channels.push(this);
+    }
+    postMessage(value) {
+      this.sent = value;
+    }
+    close() {
+      this.closed = true;
+    }
+  }
+  let focused = 0;
+  const events = new Map();
+  globalThis.document = {
+    title: "",
+    querySelector: () => ({ content: "synthetic" }),
+  };
+  globalThis.window = {
+    focus: () => focused++,
+    addEventListener: (name, callback) => events.set(name, callback),
+    removeEventListener: (name) => events.delete(name),
+  };
+  globalThis.BroadcastChannel = Channel;
+  t.mock.method(globalThis, "fetch", async (url) => {
+    assert.ok(
+      ["/api/plugins/windows", "/api/plugins/windows/close"].includes(url),
+    );
+    return Response.json({
+      pending_plan: null,
+      acknowledged: false,
+      number: 2,
+    });
+  });
+  try {
+    const module = await windowModule();
+    const removeTitle = module.registerWindowTitle("ResumeMaker · 目标项目");
+    const dispose = module.startWindow();
+    try {
+      await new Promise(setImmediate);
+      assert.equal(module.locateWindow("another"), true);
+      assert.deepEqual(channels[0].sent, { type: "locate", id: "another" });
+      assert.equal(focused, 0);
+      channels[0].onmessage({ data: { type: "locate", id: "another" } });
+      assert.equal(focused, 0);
+      channels[0].onmessage({ data: { type: "locate", id: module.windowId } });
+      assert.equal(focused, 1);
+      assert.equal(
+        globalThis.document.title,
+        "【待保存】ResumeMaker · 目标项目［窗口 2］",
+      );
+      assert.equal(module.windowNotice(), "");
+      events.get("pointerdown")();
+      assert.equal(
+        globalThis.document.title,
+        "ResumeMaker · 目标项目［窗口 2］",
+      );
+    } finally {
+      await dispose();
+      removeTitle();
+    }
+    assert.equal(channels[0].closed, true);
+    assert.equal(events.size, 0);
+    assert.equal(module.locateWindow("another"), false);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.window = previousWindow;
+    globalThis.BroadcastChannel = previousChannel;
+  }
+});

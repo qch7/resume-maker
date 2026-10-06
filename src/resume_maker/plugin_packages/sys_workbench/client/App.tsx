@@ -6,6 +6,7 @@ import {
 } from "@resume-maker/plugin-sdk/plugins/runtime";
 import {
   reloadWindow,
+  registerWindowTitle,
   startWindow,
   subscribeWindow,
   windowNotice,
@@ -18,6 +19,11 @@ export default function App() {
   const Workspace = pluginComponent("workspace");
   const [page, setPage] = useState("");
   const notice = useSyncExternalStore(subscribeWindow, windowNotice);
+  const selectedPage = pluginPages().find((item) => item.id === page);
+  useEffect(() => {
+    if (selectedPage)
+      return registerWindowTitle(`ResumeMaker · ${selectedPage.title}`, 1);
+  }, [selectedPage?.title]);
   useEffect(() => {
     const dispose = startWindow();
     /** 系统命令通过工作台事件打开管理页，组件状态留在壳中 */

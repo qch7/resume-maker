@@ -57,6 +57,8 @@ async function application() {
       }
       export async function connectWindow() { requests.push({path: "connect"}); }
       export async function reloadWindow() { requests.push({path: "reload"}); }
+      export const windowId = "synthetic-window";
+      export function locateWindow() { return true; }
       export const DEFAULT_ACTIVITY_PREFERENCES = {};
       export async function download() {}
       export function registerBeforeClose(guard) { guards.push(guard); return () => guards.splice(guards.indexOf(guard), 1); }

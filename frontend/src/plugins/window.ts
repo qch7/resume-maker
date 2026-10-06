@@ -11,6 +11,47 @@ let notice = "";
 let connecting = false;
 let reloading = false;
 let reloadAttempt: Promise<void> | undefined;
+let windowNumber: number | undefined;
+let locating = false;
+let locator: BroadcastChannel | undefined;
+const titles = new Map<symbol, { title: string; priority: number }>();
+
+/** 页面按层级提供名称，浏览器标签和窗口提示使用同一份标题 */
+export function registerWindowTitle(title: string, priority = 0) {
+  const key = Symbol();
+  titles.set(key, { title: title.slice(0, 300), priority });
+  renderWindowTitle();
+  return () => {
+    titles.delete(key);
+    renderWindowTitle();
+  };
+}
+
+/** 高层扩展页面覆盖后台工作台，标题不携带内部窗口编号 */
+function currentWindowTitle() {
+  return (
+    [...titles.values()].sort((a, b) => b.priority - a.priority)[0]?.title ??
+    "ResumeMaker · 简历工作台"
+  );
+}
+
+/** 待保存标记保留到用户操作目标窗口，方便浏览器拒绝切换时辨认 */
+function renderWindowTitle() {
+  document.title = `${locating ? "【待保存】" : ""}${currentWindowTitle()}${windowNumber ? `［窗口 ${windowNumber}］` : ""}`;
+}
+
+/** 尝试切换目标窗口，同时标记对应的浏览器标签 */
+export function locateWindow(id: string) {
+  if (id === windowId) {
+    locating = true;
+    renderWindowTitle();
+    window.focus();
+    return true;
+  }
+  if (!locator) return false;
+  locator.postMessage({ type: "locate", id });
+  return true;
+}
 
 /** 工作台订阅配置变化和草稿刷新失败，不清除本地输入 */
 export function subscribeWindow(listener: () => void) {
@@ -39,10 +80,15 @@ export async function connectWindow() {
     const result = await api<{
       pending_plan: string | null;
       acknowledged: boolean;
+      number?: number;
     }>("/plugins/windows", "POST", {
       id: windowId,
       generation: capabilities().generation,
+      title: currentWindowTitle(),
+      status: notice.slice(0, 500),
     });
+    windowNumber = result.number;
+    renderWindowTitle();
     if (result.pending_plan && !result.acknowledged) {
       inform("插件配置正在变更，正在保存各页面的草稿…");
       const plan = await api<{ affected: string[]; generation: number }>(
@@ -114,6 +160,20 @@ async function finishReload(prepare: () => Promise<void>) {
 /** 心跳属于工作台作用域，关闭前保存成功才撤销窗口 */
 export function startWindow() {
   stopped = false;
+  if (typeof BroadcastChannel !== "undefined") {
+    locator = new BroadcastChannel("resume-maker-windows");
+    locator.onmessage = (event: MessageEvent) => {
+      if (event.data?.type === "locate" && event.data.id === windowId)
+        locateWindow(windowId);
+    };
+  }
+  /** 用户开始操作后移除定位标记，不改变草稿和冻结状态 */
+  function clearLocation() {
+    locating = false;
+    renderWindowTitle();
+  }
+  window.addEventListener("pointerdown", clearLocation);
+  window.addEventListener("keydown", clearLocation);
   /** 页面离开只标记断连，未完成的草稿不会被当成已经确认 */
   function leaving() {
     void request("/plugins/windows/disconnect", {
@@ -130,6 +190,10 @@ export function startWindow() {
   void connectWindow();
   return async () => {
     stopped = true;
+    locator?.close();
+    locator = undefined;
+    window.removeEventListener("pointerdown", clearLocation);
+    window.removeEventListener("keydown", clearLocation);
     window.removeEventListener("pagehide", leaving);
     clearInterval(timer);
     await flushDrafts();

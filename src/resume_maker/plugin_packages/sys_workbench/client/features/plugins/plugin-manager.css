@@ -205,6 +205,12 @@
 .plugin-plan button {
   margin: 6px 8px 0 0;
 }
+.plugin-waiting-window {
+  border-top: 1px solid var(--line);
+  margin-top: 14px;
+  padding: 12px 0;
+  overflow-wrap: anywhere;
+}
 .plugin-feedback {
   font-size: 13px;
   color: var(--accent);

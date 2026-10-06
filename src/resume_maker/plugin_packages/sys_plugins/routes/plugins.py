@@ -42,6 +42,13 @@ class WindowInput(Contract):
     generation: int = Field(ge=1)
 
 
+class WindowHeartbeatInput(WindowInput):
+    """心跳携带页面名称及保存状态，供其他窗口辨认"""
+
+    title: str | None = Field(default=None, max_length=300)
+    status: str | None = Field(default=None, max_length=500)
+
+
 class PackageInspectInput(Contract):
     """本机用户选择的完整插件包路径"""
 
@@ -359,10 +366,10 @@ def abort_plugins(
 
 @router.post("/plugins/windows")
 def plugin_window(
-    dep_plugins: Annotated[PluginManager, Depends(service("plugins"))], body: WindowInput
+    dep_plugins: Annotated[PluginManager, Depends(service("plugins"))], body: WindowHeartbeatInput
 ):
     """登记窗口并读取需要确认的插件变更"""
-    return dep_plugins.window(body.id, body.generation)
+    return dep_plugins.window(body.id, body.generation, title=body.title, status=body.status)
 
 
 @router.post("/plugins/plans/{plan_id}/acknowledge")
