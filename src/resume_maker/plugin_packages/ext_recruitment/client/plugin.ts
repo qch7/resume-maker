@@ -16,8 +16,9 @@ export function activate(context: ClientContext) {
 
   context.settingsPage({
     id: context.id + "/settings",
-    title: "招聘收藏夹",
-    order: 30,
+    title: "收藏",
+    icon: Bookmark,
+    order: 80,
     component: RecruitmentSettings,
   });
   context.component("recruitment", RecruitmentPage);

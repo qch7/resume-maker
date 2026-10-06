@@ -5,9 +5,10 @@ import type { ClientContext } from "@resume-maker/plugin-sdk/plugins/contracts";
 export function activate(context: ClientContext) {
   context.settingsPage({
     id: context.id + "/import",
-    title: "来源扫描",
+    title: "扫描导入",
     order: 5,
     component: SourceSettings,
     openFor: ["projects"],
+    group: "projects",
   });
 }

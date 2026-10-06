@@ -166,9 +166,7 @@ export default function ActivitySettings({
           </button>
         </div>
       )}
-      <small>
-        只记录勾选类别，默认仅 AI 消息。保存后立即生效，已有日志保留。
-      </small>
+      <small>只采集勾选类别，保存后生效。</small>
       {capture?.categories.length === 0 && (
         <small role="status">保存后将暂停全部日志采集。</small>
       )}
@@ -182,8 +180,7 @@ export default function ActivitySettings({
         rows={9}
       />
       <small>
-        每行一条，支持路径、操作名、类型:事件和 *。只影响显示，不减少存储。
-        警告、错误和 ≥1 秒操作仍显示。
+        每行一条，支持路径、事件和 *。仅隐藏显示，警告、错误和慢操作保留。
       </small>
       {error && <span role="alert">{error}</span>}
       {saveError && <span role="alert">保存失败：{saveError}</span>}
@@ -197,13 +194,13 @@ export default function ActivitySettings({
         >
           恢复默认
         </button>
-        <button onClick={onResetLayout}>重置日志布局</button>
+        <button onClick={onResetLayout}>重置布局</button>
         <button
           className="primary"
           disabled={!!error || !capture || saving}
           onClick={() => void saveSettings()}
         >
-          {saving ? "保存中…" : "保存日志设置"}
+          {saving ? "保存中…" : "保存"}
         </button>
       </div>
       {saved && <small role="status">日志设置已保存</small>}

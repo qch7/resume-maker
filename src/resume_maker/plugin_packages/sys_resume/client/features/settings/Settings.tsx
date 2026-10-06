@@ -1,5 +1,12 @@
-import { X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import {
+  DatabaseBackup,
+  FolderOpen,
+  ScrollText,
+  ShieldCheck,
+  SlidersHorizontal,
+  X,
+} from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import PathInput from "@resume-maker/plugin-sdk/shared/components/PathInput";
 import { api, download } from "@resume-maker/plugin-sdk/shared/lib/api";
 import ActivitySettings from "./ActivitySettings";
@@ -18,41 +25,108 @@ interface Props {
   run: (work: () => Promise<void>) => void;
 }
 
-/** 分页管理项目导入、模型连接、隐私保护、收藏夹和系统日志 */
+/** 固定设置窗口大小，按分类保留表单并在内容区滚动 */
 export default function Settings(props: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
-  const initial =
-    pluginSettingsPages().find(
-      (page) =>
-        page.id === props.initial || page.openFor?.includes(props.initial),
-    )?.id ?? props.initial;
-  const [tab, setTab] = useState<string>(initial);
-  const [activityVisited, setActivityVisited] = useState(
-    props.initial === "activity",
+  const content = useRef<HTMLElement>(null);
+  const pages = pluginSettingsPages();
+  const initialPage = pages.find(
+    (page) =>
+      page.id === props.initial || page.openFor?.includes(props.initial),
   );
-  const [visited, setVisited] = useState<Set<string>>(() => new Set([initial]));
+  const initial = initialPage?.group ?? initialPage?.id ?? props.initial;
+  const [tab, setTab] = useState(initial);
+  const [visited, setVisited] = useState(() => new Set([initial]));
+  const [closing, setClosing] = useState(false);
+  const [closeError, setCloseError] = useState("");
+  const closingRequest = useRef(false);
+  const closeGuards = useRef(new Set<() => Promise<void>>());
   const {
     preferences,
     setPreferences,
     error: activityError,
   } = props.activityPreferences;
-  const [manualName, setManualName] = useState(""),
-    [manualRoots, setManualRoots] = useState("");
-  const [dataDir, setDataDir] = useState(""),
-    [notice, setNotice] = useState(""),
-    [busy, setBusy] = useState(false);
+  const [manualName, setManualName] = useState("");
+  const [manualRoots, setManualRoots] = useState("");
+  const [dataDir, setDataDir] = useState("");
+  const [notice, setNotice] = useState("");
+  const [busy, setBusy] = useState(false);
+  const sections = [
+    { id: "projects", title: "项目", order: 10, icon: FolderOpen },
+    { id: "privacy", title: "隐私", order: 40, icon: ShieldCheck },
+    { id: "settings", title: "备份", order: 50, icon: DatabaseBackup },
+    { id: "activity", title: "日志", order: 60, icon: ScrollText },
+    ...pages
+      .filter((page) => !page.group)
+      .map((page) => ({
+        ...page,
+        icon: page.icon ?? SlidersHorizontal,
+      })),
+  ].sort(
+    (left, right) =>
+      left.order - right.order || left.id.localeCompare(right.id),
+  );
+  const currentSection =
+    sections.find((section) => section.id === tab) ?? sections[0];
+
   useEffect(() => {
-    dialog.current?.showModal();
-    return () => dialog.current?.close();
+    setTab(initial);
+    setVisited((current) => new Set([...current, initial]));
+  }, [initial]);
+  useEffect(() => {
+    if (content.current) content.current.scrollTop = 0;
+  }, [tab]);
+  useEffect(() => {
+    const element = dialog.current;
+    element?.showModal();
+    return () => element?.close();
   }, []);
   useEffect(() => {
-    void api<{ data_dir: string }>("/settings")
+    const controller = new AbortController();
+    void api<{ data_dir: string }>(
+      "/settings",
+      "GET",
+      undefined,
+      controller.signal,
+    )
       .then((value) => {
-        setDataDir(value.data_dir);
+        if (!controller.signal.aborted) setDataDir(value.data_dir);
       })
-      .catch(/* 取消后忽略迟到的错误 */ (error) => setNotice(error.message));
+      .catch((error: Error) => {
+        if (!controller.signal.aborted) setNotice(error.message);
+      });
+    return () => controller.abort();
   }, []);
-  /** 等待草稿保存后执行操作并显示异常提示 */
+  /** 设置贡献可在关闭前撤销尚未提交的操作 */
+  const registerBeforeClose = useCallback((guard: () => Promise<void>) => {
+    closeGuards.current.add(guard);
+    return () => {
+      closeGuards.current.delete(guard);
+    };
+  }, []);
+  /** 等待各页完成收尾，失败时保留窗口供重试 */
+  async function close() {
+    if (closingRequest.current || busy) return;
+    closingRequest.current = true;
+    setClosing(true);
+    setCloseError("");
+    try {
+      for (const guard of closeGuards.current) await guard();
+      props.onClose();
+    } catch (failure) {
+      setCloseError((failure as Error).message);
+    } finally {
+      closingRequest.current = false;
+      setClosing(false);
+    }
+  }
+  /** 切换分类时保留已经访问的表单和草稿 */
+  function selectSection(id: string) {
+    setTab(id);
+    setVisited((current) => new Set([...current, id]));
+    setCloseError("");
+  }
+  /** 等待草稿保存后执行操作并显示结果 */
   function run(work: () => Promise<void>) {
     props.run(async () => {
       setBusy(true);
@@ -65,159 +139,183 @@ export default function Settings(props: Props) {
     });
   }
   return (
-    <dialog ref={dialog} className="settings-dialog" onCancel={props.onClose}>
-      <div className="dialog-title">
-        <h2>工作台设置</h2>
+    <dialog
+      ref={dialog}
+      className="settings-dialog workspace-settings"
+      aria-labelledby="workspace-settings-title"
+      onCancel={(event) => {
+        event.preventDefault();
+        void close();
+      }}
+    >
+      <header className="settings-window-header">
+        <h2 id="workspace-settings-title">设置</h2>
         <button
           className="icon-button"
           aria-label="关闭设置"
-          onClick={props.onClose}
+          disabled={closing || busy}
+          onClick={() => void close()}
         >
           <X size={20} />
         </button>
-      </div>
-      <nav className="tabs">
-        <button
-          className={tab === "projects" ? "active" : ""}
-          onClick={() => setTab("projects")}
-        >
-          新建项目
-        </button>
-        <button
-          className={tab === "settings" ? "active" : ""}
-          onClick={() => setTab("settings")}
-        >
-          数据和备份
-        </button>
-        <button
-          className={tab === "privacy" ? "active" : ""}
-          onClick={() => setTab("privacy")}
-        >
-          隐私保护
-        </button>
-        <button
-          className={tab === "activity" ? "active" : ""}
-          onClick={() => {
-            setTab("activity");
-            setActivityVisited(true);
-          }}
-        >
-          系统日志
-        </button>
-        {pluginSettingsPages().map((page) => (
-          <button
-            key={page.id}
-            className={tab === page.id ? "active" : ""}
-            onClick={() => {
-              setTab(page.id);
-              setVisited((current) => new Set([...current, page.id]));
-            }}
-          >
-            {page.title}
-          </button>
-        ))}
-      </nav>
-      {tab === "projects" && (
-        <div className="settings-body">
-          <details
-            className="manual-import"
-            open={!hasPlugin("ext.source-code")}
-          >
-            <summary>手动添加一个项目</summary>
-            <label>
-              项目名称
-              <input
-                value={manualName}
-                onChange={(e) => setManualName(e.target.value)}
-              />
-            </label>
-            {hasPlugin("ext.source-code") && (
-              <PathInput
-                label="来源目录（选填，每行一个）"
-                kind="folder"
-                multiline
-                value={manualRoots}
-                onChange={setManualRoots}
-                disabled={busy}
-              />
-            )}
+      </header>
+      <div className="settings-window-layout" inert={closing}>
+        <nav className="settings-navigation" aria-label="设置分类">
+          {sections.map((section) => (
             <button
-              disabled={busy || !manualName.trim()}
-              onClick={() =>
-                run(async () => {
-                  await api("/projects", "POST", {
-                    name: manualName,
-                    roots: manualRoots
-                      .split("\n")
-                      .map((v) => v.trim())
-                      .filter(Boolean),
-                  });
-                  await props.onChanged();
-                  setManualName("");
-                  setManualRoots("");
-                  setNotice("项目已添加。");
-                })
+              key={section.id}
+              className={currentSection.id === section.id ? "active" : ""}
+              aria-current={
+                currentSection.id === section.id ? "page" : undefined
               }
+              onClick={() => selectSection(section.id)}
             >
-              添加项目
+              <section.icon size={19} />
+              <span>{section.title}</span>
             </button>
-          </details>
-        </div>
-      )}
-      {tab === "settings" && (
-        <div className="settings-body">
-          <h3 className="spaced-heading">数据和备份</h3>
-          <code className="path">{dataDir}</code>
-          <button
-            disabled={busy}
-            onClick={() =>
-              run(async () => {
-                await download("/backups", "resume-maker-backup.zip", "POST");
-                setNotice("备份已下载。");
-              })
-            }
-          >
-            导出完整备份
-          </button>
-        </div>
-      )}
-      <div className="settings-body" hidden={tab !== "privacy"}>
-        <Privacy />
+          ))}
+        </nav>
+        <main className="settings-content" ref={content}>
+          <h2 className="settings-page-title">{currentSection.title}</h2>
+          <section hidden={tab !== "projects"} aria-label="项目设置">
+            <div className="settings-section">
+              <h3>新建项目</h3>
+              <label>
+                名称
+                <input
+                  value={manualName}
+                  disabled={busy}
+                  onChange={(event) => setManualName(event.target.value)}
+                />
+              </label>
+              {hasPlugin("ext.source-code") && (
+                <PathInput
+                  label="来源目录（选填，每行一个）"
+                  kind="folder"
+                  multiline
+                  value={manualRoots}
+                  onChange={setManualRoots}
+                  disabled={busy}
+                />
+              )}
+              <button
+                className="primary"
+                disabled={busy || !manualName.trim()}
+                onClick={() =>
+                  run(async () => {
+                    await api("/projects", "POST", {
+                      name: manualName,
+                      roots: manualRoots
+                        .split("\n")
+                        .map((value) => value.trim())
+                        .filter(Boolean),
+                    });
+                    await props.onChanged();
+                    setManualName("");
+                    setManualRoots("");
+                    setNotice("项目已创建。");
+                  })
+                }
+              >
+                {busy ? "创建中…" : "创建项目"}
+              </button>
+            </div>
+            {pages
+              .filter(
+                (page) => page.group === "projects" && visited.has("projects"),
+              )
+              .map((page) => (
+                <section className="settings-section" key={page.id}>
+                  <h3>{page.title}</h3>
+                  <page.component
+                    active={tab === "projects"}
+                    run={props.run}
+                    onChanged={props.onChanged}
+                    registerBeforeClose={registerBeforeClose}
+                  />
+                </section>
+              ))}
+            {notice && (
+              <p className="settings-feedback" role="status">
+                {notice}
+              </p>
+            )}
+          </section>
+          <section hidden={tab !== "settings"} aria-label="备份设置">
+            <h3>资料目录</h3>
+            <code className="path">{dataDir || "读取中…"}</code>
+            <div className="settings-section">
+              <h3>导出备份</h3>
+              <p className="subtle">保存简历、模板和设置。</p>
+              <button
+                className="primary"
+                disabled={busy}
+                onClick={() =>
+                  run(async () => {
+                    await download(
+                      "/backups",
+                      "resume-maker-backup.zip",
+                      "POST",
+                    );
+                    setNotice("备份已下载。");
+                  })
+                }
+              >
+                下载备份
+              </button>
+            </div>
+            {notice && (
+              <p className="settings-feedback" role="status">
+                {notice}
+              </p>
+            )}
+          </section>
+          {visited.has("privacy") && (
+            <section hidden={tab !== "privacy"}>
+              <Privacy />
+            </section>
+          )}
+          {pages
+            .filter((page) => !page.group && visited.has(page.id))
+            .map((page) => (
+              <section
+                key={page.id}
+                hidden={tab !== page.id}
+                aria-label={`${page.title}设置`}
+              >
+                <page.component
+                  active={tab === page.id}
+                  run={props.run}
+                  onChanged={props.onChanged}
+                  registerBeforeClose={registerBeforeClose}
+                />
+              </section>
+            ))}
+          {visited.has("activity") && (
+            <section hidden={tab !== "activity"}>
+              <ActivitySettings
+                rules={preferences.hiddenRules}
+                onDeleted={props.onActivityDeleted}
+                onSave={(hiddenRules) =>
+                  setPreferences((current) => ({ ...current, hiddenRules }))
+                }
+                onResetLayout={() =>
+                  setPreferences((current) => ({
+                    ...current,
+                    overviewHeight: DEFAULT_ACTIVITY_PREFERENCES.overviewHeight,
+                    detailWidth: DEFAULT_ACTIVITY_PREFERENCES.detailWidth,
+                    detailHeight: DEFAULT_ACTIVITY_PREFERENCES.detailHeight,
+                  }))
+                }
+              />
+              {activityError && <p role="alert">{activityError}</p>}
+            </section>
+          )}
+        </main>
       </div>
-      {pluginSettingsPages()
-        .filter((page) => visited.has(page.id))
-        .map((page) => (
-          <div className="settings-body" key={page.id} hidden={tab !== page.id}>
-            <page.component
-              active={tab === page.id}
-              run={props.run}
-              onChanged={props.onChanged}
-            />
-          </div>
-        ))}
-      {activityVisited && (
-        <div className="settings-body" hidden={tab !== "activity"}>
-          <ActivitySettings
-            rules={preferences.hiddenRules}
-            onDeleted={props.onActivityDeleted}
-            onSave={(hiddenRules) =>
-              setPreferences((current) => ({ ...current, hiddenRules }))
-            }
-            onResetLayout={() =>
-              setPreferences((current) => ({
-                ...current,
-                overviewHeight: DEFAULT_ACTIVITY_PREFERENCES.overviewHeight,
-                detailWidth: DEFAULT_ACTIVITY_PREFERENCES.detailWidth,
-                detailHeight: DEFAULT_ACTIVITY_PREFERENCES.detailHeight,
-              }))
-            }
-          />
-          {activityError && <p role="alert">{activityError}</p>}
-        </div>
-      )}
-      {notice && ["projects", "settings"].includes(tab) && (
-        <p className="dialog-notice" role="status">
-          {notice}
+      {closeError && (
+        <p className="settings-close-error" role="alert">
+          {closeError}
         </p>
       )}
     </dialog>

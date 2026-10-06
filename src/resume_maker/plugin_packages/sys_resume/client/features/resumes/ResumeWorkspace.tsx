@@ -201,6 +201,15 @@ export default function ResumeWorkspace() {
   const [folded, setFolded] = useState<Record<string, boolean>>({});
   const [guideTarget, setGuideTarget] = useState<GuideTarget | null>(null);
   const [modal, setModal] = useState<string | null>(null);
+  useEffect(() => {
+    /** 插件命令复用工作台设置入口，维护期间仍可进入管理页 */
+    function openPlugins() {
+      setModal("plugins");
+    }
+    window.addEventListener("resume-plugin-manager", openPlugins);
+    return () =>
+      window.removeEventListener("resume-plugin-manager", openPlugins);
+  }, []);
   const [refresh, setRefresh] = useState(0),
     [toast, setToast] = useState<{ text: string; error?: boolean } | null>(
       null,

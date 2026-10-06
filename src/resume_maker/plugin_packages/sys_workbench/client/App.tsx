@@ -10,21 +10,19 @@ import {
   subscribeWindow,
   windowNotice,
 } from "@resume-maker/plugin-sdk/plugins/window";
-import PluginManager from "./features/plugins/PluginManager";
 import CommandMenu from "@resume-maker/plugin-sdk/plugins/CommandMenu";
 import PluginBoundary from "@resume-maker/plugin-sdk/plugins/PluginBoundary";
 
 /** 壳只负责页面贡献、插件管理和窗口冻结，简历状态由系统业务插件持有 */
 export default function App() {
   const Workspace = pluginComponent("workspace");
-  const [manager, setManager] = useState(false);
   const [page, setPage] = useState("");
   const notice = useSyncExternalStore(subscribeWindow, windowNotice);
   useEffect(() => {
     const dispose = startWindow();
     /** 系统命令通过工作台事件打开管理页，组件状态留在壳中 */
     function openManager() {
-      setManager(true);
+      setPage("");
     }
     window.addEventListener("resume-plugin-manager", openManager);
     return () => {
@@ -34,9 +32,11 @@ export default function App() {
   }, []);
   return (
     <>
-      <nav className="plugin-toolbar" aria-label="插件和扩展页面">
-        <button onClick={() => setManager(true)}>插件管理</button>
-        <CommandMenu disabled={!!notice} />
+      <nav
+        className="plugin-toolbar"
+        aria-label="扩展页面"
+        hidden={!pluginPages().length}
+      >
         {pluginPages().length > 0 && (
           <button onClick={() => setPage("")}>简历工作台</button>
         )}
@@ -46,9 +46,17 @@ export default function App() {
           </button>
         ))}
       </nav>
+      <CommandMenu disabled={!!notice} hidden />
       {notice && (
         <div role="alert" className="plugin-notice">
           {notice}{" "}
+          <button
+            onClick={() =>
+              window.dispatchEvent(new Event("resume-plugin-manager"))
+            }
+          >
+            打开设置
+          </button>{" "}
           <button onClick={() => void reloadWindow().catch(() => undefined)}>
             重新协商并加载
           </button>
@@ -71,7 +79,6 @@ export default function App() {
             </PluginBoundary>
           ))}
       </div>
-      {manager && <PluginManager onClose={() => setManager(false)} />}
     </>
   );
 }

@@ -26,9 +26,7 @@ export default function SourceSettings(props: SettingsPanelProps) {
   }
   return (
     <>
-      <p className="subtle">
-        扫描项目集合后确认归组。关联多个代码目录的项目会同时建立可独立勾选和对话的子项目。
-      </p>
+      <p className="subtle">选择项目集合目录，扫描后批量导入。</p>
       <PathInput
         label="项目集合目录"
         kind="folder"
@@ -94,7 +92,7 @@ export default function SourceSettings(props: SettingsPanelProps) {
                     roots: p.roots,
                   });
                 await props.onChanged();
-                setNotice("选中的项目已导入，已有项目会保留原记录。");
+                setNotice("已导入选中项目。");
                 setCandidates([]);
               })
             }
