@@ -6,13 +6,20 @@ import {
 } from "@resume-maker/plugin-sdk/shared/lib/storage";
 import {
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
   useSyncExternalStore,
   type CSSProperties,
 } from "react";
-import { FileScan, LoaderCircle, Sparkles } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  FileScan,
+  LoaderCircle,
+  Sparkles,
+} from "lucide-react";
 import PathInput from "@resume-maker/plugin-sdk/shared/components/PathInput";
 import ImporterSelect from "@resume-maker/plugin-sdk/shared/components/ImporterSelect";
 import { useDocumentImporters } from "@resume-maker/plugin-sdk/shared/hooks/useDocumentImporters";
@@ -94,6 +101,8 @@ export default function TemplateAdapter({
   const [tasks, setTasks] = useState<
     { id: string; file_name: string; status: string }[]
   >([]);
+  const sourcePanelId = useId();
+  const [sourceExpanded, setSourceExpanded] = useState<boolean | null>(null);
   useEffect(() => {
     if (active)
       void api<typeof tasks>("/templates/analyses")
@@ -157,6 +166,12 @@ export default function TemplateAdapter({
   const saved = templates.find(
     /* 定位模板库中当前选项 */ (item) => item.id === savedId,
   );
+  const showSource =
+    sourceExpanded ?? (!savedId && !taskId && templates.length === 0);
+  const sourceName =
+    saved?.name ||
+    analysis?.file_name ||
+    (savedId ? "当前模板" : taskId ? "当前导入" : "内置 · 完整简历");
   const currentSnapshot = JSON.stringify([name.trim(), plan]);
   const mappingSaved =
     !!saved && openedId === savedId && savedSnapshot === currentSnapshot;
@@ -459,6 +474,7 @@ export default function TemplateAdapter({
   }
   /** 内置版式直接展示，导入模板读取映射，快速切换时拒绝迟到结果 */
   async function loadSaved(id: string) {
+    setSourceExpanded(false);
     libraryRequest.current?.abort();
     const controller = new AbortController();
     libraryRequest.current = controller;
@@ -495,6 +511,7 @@ export default function TemplateAdapter({
   }
   /** 接入新分析或已保存模板快照，清除上一份模板的选区和试填 */
   function openTask(value: TemplateAnalysis, templateId = "") {
+    setSourceExpanded(false);
     autoPreview.current = true;
     setImportError(null);
     setOpenedId(templateId);
@@ -590,6 +607,27 @@ export default function TemplateAdapter({
     onSelected(builtin ? null : savedId);
     setNotice("已用于当前简历。");
   }
+  const sourceControls = (
+    <div className="template-source-controls">
+      <span className="template-source-name" title={sourceName}>
+        <FileScan size={16} />
+        <span>{sourceName}</span>
+      </span>
+      <button
+        className="template-source-toggle"
+        aria-expanded={showSource}
+        aria-controls={sourcePanelId}
+        title="导入、切换模板或继续已保留的模板工作"
+        onClick={
+          /* 收起时保留文件路径、处理方式及选择器状态 */ () =>
+            setSourceExpanded(!showSource)
+        }
+      >
+        {showSource ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        模板操作
+      </button>
+    </div>
+  );
   return (
     <section
       ref={workspace}
@@ -603,7 +641,56 @@ export default function TemplateAdapter({
       }
     >
       <div className="template-adaptive-workspace">
-        <div className="template-source-bar" role="group" aria-label="模板操作">
+        {analysis ? (
+          <TemplateProgress
+            key={analysis.id}
+            controls={sourceControls}
+            data={analysis}
+            review={review}
+            busy={busy}
+            height={sizes.progress}
+            maxHeight={sizes.progressMax}
+            onResize={
+              /* 记录动态区展开后的高度 */ (value) =>
+                onResize("templateProgress", value)
+            }
+            onReset={
+              /* 恢复动态区的默认高度 */ () =>
+                onResize("templateProgress", DEFAULT_LAYOUT.templateProgress)
+            }
+            onCancel={
+              /* 取消后立即呈现冻结的进度，服务端拒绝迟到结果 */ () =>
+                void perform(
+                  /* 读取取消响应并保留本任务的活动记录 */ async () => {
+                    setAnalysis(
+                      await api<TemplateAnalysis>(
+                        `/templates/analyses/${taskId}/cancel`,
+                        "POST",
+                      ),
+                    );
+                  },
+                )
+            }
+          />
+        ) : (
+          <div className="template-source-summary">
+            {sourceControls}
+            <span role="status">
+              {loading
+                ? "正在加载模板…"
+                : builtin
+                  ? "可直接使用"
+                  : "暂无识别结果"}
+            </span>
+          </div>
+        )}
+        <div
+          id={sourcePanelId}
+          className="template-source-bar"
+          role="group"
+          aria-label="模板操作"
+          hidden={!showSource}
+        >
           <div className="template-import-controls">
             <PathInput
               label="模板文件"
@@ -658,6 +745,7 @@ export default function TemplateAdapter({
                     setLibraryId("");
                     setSavedSnapshot(null);
                     setTaskId(event.target.value);
+                    setSourceExpanded(false);
                     storage.setItem("rm.template.analysis", event.target.value);
                   }}
                 >
@@ -708,37 +796,6 @@ export default function TemplateAdapter({
               </div>
             )}
           </div>
-        )}
-        {analysis && (
-          <TemplateProgress
-            key={analysis.id}
-            data={analysis}
-            review={review}
-            busy={busy}
-            height={sizes.progress}
-            maxHeight={sizes.progressMax}
-            onResize={
-              /* 记录动态区展开后的高度 */ (value) =>
-                onResize("templateProgress", value)
-            }
-            onReset={
-              /* 恢复动态区的默认高度 */ () =>
-                onResize("templateProgress", DEFAULT_LAYOUT.templateProgress)
-            }
-            onCancel={
-              /* 取消后立即呈现冻结的进度，服务端拒绝迟到结果 */ () =>
-                void perform(
-                  /* 读取取消响应并保留本任务的活动记录 */ async () => {
-                    setAnalysis(
-                      await api<TemplateAnalysis>(
-                        `/templates/analyses/${taskId}/cancel`,
-                        "POST",
-                      ),
-                    );
-                  },
-                )
-            }
-          />
         )}
         {analysis && ["failed", "cancelled"].includes(analysis.status) && (
           <button

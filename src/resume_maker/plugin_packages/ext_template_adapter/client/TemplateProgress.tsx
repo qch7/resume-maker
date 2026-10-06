@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   Activity,
   CheckCircle2,
@@ -22,6 +22,7 @@ export function duration(milliseconds: number) {
 
 /** 显示当前识别动态并允许展开历史记录 */
 export default function TemplateProgress({
+  controls,
   data,
   review,
   busy,
@@ -31,6 +32,7 @@ export default function TemplateProgress({
   onReset,
   onCancel,
 }: {
+  controls?: ReactNode;
   data: TemplateProgressData;
   review: MappingReview | null;
   busy: boolean;
@@ -71,6 +73,7 @@ export default function TemplateProgress({
   return (
     <section className="template-live-progress" aria-label="模板识别动态">
       <div className="template-live-heading">
+        {controls}
         {running ? (
           <LoaderCircle size={16} className="template-spinner" />
         ) : data.status === "completed" && review?.ready ? (

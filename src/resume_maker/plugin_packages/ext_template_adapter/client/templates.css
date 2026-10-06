@@ -159,7 +159,51 @@
   min-width: min(100%, 760px);
   max-width: 100%;
 }
-/* 并排放置导入和模板库入口并使用内联标签 */
+/* 模板入口和识别状态常驻一行，展开后才占用导入及切换区域 */
+.template-source-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  min-height: 38px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+.template-source-summary > span {
+  font-size: 12px;
+  color: var(--subtle);
+}
+.template-source-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.template-source-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 220px;
+  font-size: 12px;
+}
+.template-source-name > svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+.template-source-name > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.template-source-controls .template-source-toggle {
+  padding: 4px 8px;
+  font-size: 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
 .template-source-bar {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
@@ -168,6 +212,9 @@
   padding: 8px 12px;
   border-bottom: 1px solid var(--line);
   background: var(--surface);
+}
+.template-source-bar[hidden] {
+  display: none;
 }
 .template-import-controls,
 .template-library-controls {
@@ -770,6 +817,9 @@
   }
 }
 @media (max-width: 760px) {
+  .template-source-name {
+    max-width: 140px;
+  }
   .template-source-bar {
     padding: 8px 12px;
   }
