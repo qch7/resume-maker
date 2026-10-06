@@ -7,6 +7,7 @@ import type {
 } from "@resume-maker/plugin-sdk/shared/types/index";
 import DocumentPreview from "@resume-maker/plugin-sdk/plugins/DocumentPreview";
 import { templatePreviewInput } from "@resume-maker/plugin-sdk/shared/resume/templatePreviewInput";
+import ContentPreview from "./ContentPreview";
 
 interface Props {
   previewFocused: boolean;
@@ -65,23 +66,26 @@ export default function Composer(props: Props) {
           </button>
         </div>
         <div className="composition-scroll">
-          {templateUnavailable ? (
+          {templateUnavailable && draft.document && (
             <p className="warning" role="status">
-              当前完整模板不可用，请重新选择模板或在“管理模板”中导入 Word 进行
-              AI 识别。
+              当前模板暂不可用，已切换为内容预览。需要按模板排版时，请重新启用模板插件或选择可用模板。
             </p>
-          ) : !draft.document ? (
+          )}
+          {!draft.document ? (
             <p className="subtle">填写个人资料后，即可查看简历排版。</p>
-          ) : null}
-          <DocumentPreview
-            format="resume/v1"
-            preferred={["ext.word/pages", "sys.resume/content"]}
-            input={templateUnavailable ? null : previewInput}
-            templateId={draft.template_id}
-            zoom={zoom}
-            hidden={templateUnavailable || !draft.document}
-            run={props.run}
-          />
+          ) : templateUnavailable ? (
+            <ContentPreview input={previewInput} />
+          ) : (
+            <DocumentPreview
+              format="resume/v1"
+              preferred={["ext.word/pages", "sys.resume/content"]}
+              input={previewInput}
+              templateId={draft.template_id}
+              zoom={zoom}
+              hidden={false}
+              run={props.run}
+            />
+          )}
         </div>
       </section>
     </aside>
