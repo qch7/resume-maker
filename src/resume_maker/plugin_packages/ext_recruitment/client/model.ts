@@ -11,6 +11,13 @@ export interface DisplayPreferences {
   sort: BookmarkSort;
 }
 
+/** 恢复招聘侧栏宽度，损坏的偏好使用默认尺寸 */
+export function restoreSidebarWidth(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.min(520, Math.max(160, value))
+    : 210;
+}
+
 /** 恢复视图和排序偏好，损坏或过期的值回退到卡片及原始顺序 */
 export function restoreDisplayPreferences(value: unknown): DisplayPreferences {
   const saved =

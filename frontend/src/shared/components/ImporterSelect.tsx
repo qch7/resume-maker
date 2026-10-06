@@ -4,12 +4,14 @@ import type { useDocumentImporters } from "../hooks/useDocumentImporters";
 export default function ImporterSelect({
   value,
   disabled = false,
+  compact = false,
 }: {
   value: ReturnType<typeof useDocumentImporters>;
   disabled?: boolean;
+  compact?: boolean;
 }) {
   return (
-    <label className="importer-select">
+    <label className={`importer-select ${compact ? "compact" : ""}`}>
       文件处理方式
       <select
         value={value.selected}
@@ -26,16 +28,22 @@ export default function ImporterSelect({
           </option>
         ))}
       </select>
-      <small role="status">
-        {value.loading
-          ? "正在读取可用格式…"
-          : value.error ||
-            (value.missing
-              ? "请重新选择处理器，或启用原插件。"
-              : value.extensions.length
-                ? `支持：${value.extensions.join("、")}`
-                : "尚未启用文件导入插件，可以继续手动填写。")}
-      </small>
+      {(!compact ||
+        value.loading ||
+        value.error ||
+        value.missing ||
+        !value.extensions.length) && (
+        <small role="status">
+          {value.loading
+            ? "正在读取可用格式…"
+            : value.error ||
+              (value.missing
+                ? "请重新选择处理器，或启用原插件。"
+                : value.extensions.length
+                  ? `支持：${value.extensions.join("、")}`
+                  : "尚未启用文件导入插件，可以继续手动填写。")}
+        </small>
+      )}
     </label>
   );
 }

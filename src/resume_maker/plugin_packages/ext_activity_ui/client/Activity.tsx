@@ -169,39 +169,17 @@ export default function Activity({
 
   return (
     <section className="activity-workspace" aria-label="系统日志">
-      <header className="activity-heading">
-        <div className="activity-heading-copy">
-          <div className="row">
-            <ActivityIcon size={20} />
-            <h1>系统日志</h1>
-            <span className={`activity-live ${live ? "is-live" : ""}`}>
-              {live ? "实时" : "已暂停"}
-            </span>
-          </div>
-        </div>
-        <div className="row activity-actions">
-          <button
-            onClick={() => {
-              if (!live) feed.refresh();
-              setLive(!live);
-            }}
-          >
-            {live ? <Pause size={15} /> : <Play size={15} />}
-            {live ? "暂停" : "继续"}
-          </button>
-          <button onClick={feed.refresh} aria-label="刷新日志">
-            <RefreshCw size={15} />
-          </button>
-          <button onClick={() => void exportLogs()} disabled={exporting}>
-            <Download size={15} />
-            {exporting ? "导出中…" : "导出"}
-          </button>
-          <button aria-label="日志设置" onClick={onOpenSettings}>
-            <Settings2 size={15} />
-          </button>
-        </div>
-      </header>
-      <div className="activity-filters">
+      <div
+        className="activity-filters"
+        role="toolbar"
+        aria-label="日志筛选与操作"
+      >
+        <span
+          className={`activity-live ${live ? "is-live" : ""}`}
+          role="status"
+        >
+          {live ? "实时" : "已暂停"}
+        </span>
         <div className="activity-search">
           <Search size={16} />
           <input
@@ -251,6 +229,27 @@ export default function Activity({
             关联请求 {trace.slice(0, 8)} <X size={13} />
           </button>
         )}
+        <div className="row activity-actions">
+          <button
+            onClick={() => {
+              if (!live) feed.refresh();
+              setLive(!live);
+            }}
+          >
+            {live ? <Pause size={15} /> : <Play size={15} />}
+            {live ? "暂停" : "继续"}
+          </button>
+          <button onClick={feed.refresh} aria-label="刷新日志">
+            <RefreshCw size={15} />
+          </button>
+          <button onClick={() => void exportLogs()} disabled={exporting}>
+            <Download size={15} />
+            {exporting ? "导出中…" : "导出"}
+          </button>
+          <button aria-label="日志设置" onClick={onOpenSettings}>
+            <Settings2 size={15} />
+          </button>
+        </div>
       </div>
       <div className="activity-panels" ref={panels}>
         <div

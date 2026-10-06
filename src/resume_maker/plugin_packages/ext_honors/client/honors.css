@@ -69,9 +69,10 @@
   min-width: 0;
 }
 .honor-upload {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 420px) auto;
   align-items: center;
-  gap: 12px;
+  gap: 6px 12px;
   padding: 10px 14px;
   border: 1px dashed var(--accent);
   border-radius: 4px;
@@ -81,13 +82,28 @@
   outline: 3px solid var(--accent);
   background: var(--selected);
 }
-.honor-upload > svg {
+.honor-upload-heading > svg {
   color: var(--accent);
   flex-shrink: 0;
 }
-.honor-upload > div {
-  flex: 1;
+.honor-upload-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
+}
+.honor-upload-details {
+  grid-column: 1 / -1;
+  color: var(--subtle);
+  font-size: 11px;
+}
+.honor-upload-details > summary {
+  cursor: pointer;
+  padding: 0;
+  width: fit-content;
+}
+.honor-upload-details[open] > summary {
+  margin-bottom: 6px;
 }
 .honor-upload h2 {
   font-size: 13px;
@@ -103,6 +119,19 @@
 .honor-upload > button {
   flex-shrink: 0;
   padding: 5px 10px;
+}
+@media (max-width: 1000px) {
+  .honor-upload {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .honor-upload > .importer-select {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .honor-upload > button {
+    grid-column: 2;
+    grid-row: 1;
+  }
 }
 .honor-toolbar {
   display: flex;
@@ -533,7 +562,7 @@
     padding: 8px 10px;
     gap: 8px;
   }
-  .honor-upload > svg {
+  .honor-upload-heading > svg {
     display: none;
   }
   .honor-search {

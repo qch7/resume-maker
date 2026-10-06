@@ -35,59 +35,65 @@ export default function Composer(props: Props) {
     props.previewSources,
   );
   return (
-    <aside className="composition-pane">
-      <section className="preview-pane" aria-label="简历预览">
-        <div className="preview-toolbar">
-          <strong>简历预览</strong>
-          <select
-            aria-label="预览缩放"
-            value={zoom}
-            onChange={(event) => setZoom(Number(event.target.value))}
-          >
-            <option value={0}>适应宽度</option>
-            <option value={0.75}>75%</option>
-            <option value={1}>100%</option>
-            <option value={1.25}>125%</option>
-            <option value={1.5}>150%</option>
-            <option value={2}>200%</option>
-          </select>
-          <button
-            className="icon-button preview-focus"
-            aria-label={props.previewFocused ? "退出放大预览" : "放大预览"}
-            title={props.previewFocused ? "退出放大预览（Esc）" : "放大预览"}
-            aria-pressed={props.previewFocused}
-            onClick={props.onFocusPreview}
-          >
-            {props.previewFocused ? (
-              <Minimize2 size={16} />
-            ) : (
-              <Maximize2 size={16} />
-            )}
-          </button>
-        </div>
-        <div className="composition-scroll">
-          {templateUnavailable && draft.document && (
-            <p className="warning" role="status">
-              当前模板暂不可用，已切换为内容预览。需要按模板排版时，请重新启用模板插件或选择可用模板。
-            </p>
-          )}
-          {!draft.document ? (
-            <p className="subtle">填写个人资料后，即可查看简历排版。</p>
-          ) : templateUnavailable ? (
-            <ContentPreview input={previewInput} />
-          ) : (
-            <DocumentPreview
-              format="resume/v1"
-              preferred={["ext.word/pages", "sys.resume/content"]}
-              input={previewInput}
-              templateId={draft.template_id}
-              zoom={zoom}
-              hidden={false}
-              run={props.run}
-            />
-          )}
-        </div>
-      </section>
-    </aside>
+    <DocumentPreview
+      format="resume/v1"
+      preferred={["ext.word/pages", "sys.resume/content"]}
+      input={previewInput}
+      templateId={draft.template_id}
+      zoom={zoom}
+      hidden={false}
+      run={props.run}
+      renderLayout={(selector, preview) => (
+        <aside className="composition-pane">
+          <section className="preview-pane" aria-label="简历预览">
+            <div className="preview-toolbar">
+              <strong>简历预览</strong>
+              {!templateUnavailable && draft.document && selector}
+              <select
+                aria-label="预览缩放"
+                value={zoom}
+                onChange={(event) => setZoom(Number(event.target.value))}
+              >
+                <option value={0}>适应宽度</option>
+                <option value={0.75}>75%</option>
+                <option value={1}>100%</option>
+                <option value={1.25}>125%</option>
+                <option value={1.5}>150%</option>
+                <option value={2}>200%</option>
+              </select>
+              <button
+                className="icon-button preview-focus"
+                aria-label={props.previewFocused ? "退出放大预览" : "放大预览"}
+                title={
+                  props.previewFocused ? "退出放大预览（Esc）" : "放大预览"
+                }
+                aria-pressed={props.previewFocused}
+                onClick={props.onFocusPreview}
+              >
+                {props.previewFocused ? (
+                  <Minimize2 size={16} />
+                ) : (
+                  <Maximize2 size={16} />
+                )}
+              </button>
+            </div>
+            <div className="composition-scroll">
+              {templateUnavailable && draft.document && (
+                <p className="warning" role="status">
+                  当前模板暂不可用，已切换为内容预览。需要按模板排版时，请重新启用模板插件或选择可用模板。
+                </p>
+              )}
+              {!draft.document ? (
+                <p className="subtle">填写个人资料后，即可查看简历排版。</p>
+              ) : templateUnavailable ? (
+                <ContentPreview input={previewInput} />
+              ) : (
+                preview
+              )}
+            </div>
+          </section>
+        </aside>
+      )}
+    />
   );
 }

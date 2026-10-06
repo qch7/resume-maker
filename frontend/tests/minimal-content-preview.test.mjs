@@ -194,6 +194,54 @@ test("极简模式的新简历通过系统预览器独立展示内容", async ()
   }
 });
 
+test("预览方式放入工具栏，排版内容及插件参数保持独立", async () => {
+  const module = await composerPreview();
+  const disposers = [
+    module.clientExtensions.contribute(
+      {
+        id: "sys.resume",
+        contributes: { "documents.previewers": ["sys.resume/content"] },
+      },
+      "documents.previewers",
+      "sys.resume/content",
+      {
+        title: "内容预览",
+        formats: ["resume/v1"],
+        component: module.ContentPreview,
+      },
+    ),
+    module.clientExtensions.contribute(
+      {
+        id: "ext.word",
+        contributes: { "documents.previewers": ["ext.word/pages"] },
+      },
+      "documents.previewers",
+      "ext.word/pages",
+      {
+        title: "Word 精确分页",
+        formats: ["resume/v1"],
+        component(props) {
+          assert.equal("renderLayout" in props, false);
+          assert.equal("preferred" in props, false);
+          return "Word 分页内容";
+        },
+      },
+    ),
+  ];
+  try {
+    const props = fixture();
+    props.draft.template_id = null;
+    const html = module.render(props);
+    const boundary = html.indexOf('<div class="composition-scroll">');
+    assert.ok(boundary > 0);
+    assert.ok(html.slice(0, boundary).includes('aria-label="预览方式"'));
+    assert.ok(!html.slice(boundary).includes('aria-label="预览方式"'));
+    assert.ok(html.slice(boundary).includes("Word 分页内容"));
+  } finally {
+    for (const dispose of disposers) await dispose();
+  }
+});
+
 test("缺失固定版本时等待加载，尚未填写资料时显示填写指引", async () => {
   const module = await composerPreview();
   const props = fixture();

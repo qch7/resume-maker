@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   Bookmark as BookmarkIcon,
   Download,
@@ -13,6 +13,9 @@ import {
   Upload,
 } from "lucide-react";
 import { api, download } from "@resume-maker/plugin-sdk/shared/lib/api";
+import ResizeHandle from "@resume-maker/plugin-sdk/shared/components/ResizeHandle";
+import { useElementSize } from "@resume-maker/plugin-sdk/shared/hooks/useElementSize";
+import { clamp } from "@resume-maker/plugin-sdk/shared/lib/layout";
 import {
   loadLocal,
   storage,
@@ -28,6 +31,7 @@ import {
   scopeCategories,
   sortBookmarks,
   restoreDisplayPreferences,
+  restoreSidebarWidth,
   type BookmarkSort,
   type Bookmark,
   type BookmarkFile,
@@ -36,6 +40,19 @@ import {
 
 /** 按用户创建或导入的领域和分类组织招聘网址 */
 export default function RecruitmentPage({ active }: { active: boolean }) {
+  const body = useRef<HTMLDivElement>(null);
+  const size = useElementSize(body);
+  const [sidebarWidth, setSidebarWidth] = useState(() =>
+    restoreSidebarWidth(loadLocal("rm.recruitment.sidebar-width", 210)),
+  );
+  const sidebarMax = Math.max(160, Math.min(520, size.width - 368));
+  const sidebar = clamp(sidebarWidth, 160, sidebarMax);
+  useEffect(() => {
+    storage.setItem(
+      "rm.recruitment.sidebar-width",
+      JSON.stringify(sidebarWidth),
+    );
+  }, [sidebarWidth]);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [domain, setDomain] = useState("");
   const [category, setCategory] = useState("");
@@ -180,31 +197,13 @@ export default function RecruitmentPage({ active }: { active: boolean }) {
       hidden={!active}
       aria-label="招聘收藏夹"
     >
-      <header className="recruitment-heading">
-        <h1>招聘收藏夹</h1>
-        <div className="actions">
-          <button disabled={!data || busy} onClick={() => setImporting(true)}>
-            <Upload size={16} />
-            导入
-          </button>
-          <button
-            disabled={!data || busy}
-            onClick={() =>
-              void perform(() =>
-                download("/recruitment/export", "recruitment.bookmarks.json"),
-              )
-            }
-          >
-            <Download size={16} />
-            导出全部
-          </button>
-          <button className="primary" disabled={!data || busy} onClick={add}>
-            <Plus size={17} />
-            添加收藏
-          </button>
-        </div>
-      </header>
-      <div className="recruitment-body">
+      <div
+        className="recruitment-body"
+        ref={body}
+        style={
+          { "--recruitment-sidebar-width": `${sidebar}px` } as CSSProperties
+        }
+      >
         <aside className="recruitment-sidebar" aria-label="收藏夹领域">
           <button
             className={!favorites && !domain ? "selected" : ""}
@@ -253,8 +252,22 @@ export default function RecruitmentPage({ active }: { active: boolean }) {
             </button>
           ))}
         </aside>
+        <ResizeHandle
+          className="recruitment-resize"
+          label="调整招聘侧栏宽度"
+          axis="x"
+          value={sidebar}
+          min={160}
+          max={sidebarMax}
+          onChange={setSidebarWidth}
+          onReset={() => setSidebarWidth(210)}
+        />
         <main className="recruitment-content">
-          <div className="recruitment-search-row">
+          <div
+            className="recruitment-search-row"
+            role="toolbar"
+            aria-label="收藏夹工具栏"
+          >
             <label className="recruitment-search">
               <Search size={17} />
               <input
@@ -299,6 +312,37 @@ export default function RecruitmentPage({ active }: { active: boolean }) {
               >
                 <List size={15} />
                 列表
+              </button>
+            </div>
+            <div className="actions recruitment-actions">
+              <button
+                disabled={!data || busy}
+                onClick={() => setImporting(true)}
+              >
+                <Upload size={16} />
+                导入
+              </button>
+              <button
+                disabled={!data || busy}
+                onClick={() =>
+                  void perform(() =>
+                    download(
+                      "/recruitment/export",
+                      "recruitment.bookmarks.json",
+                    ),
+                  )
+                }
+              >
+                <Download size={16} />
+                导出全部
+              </button>
+              <button
+                className="primary"
+                disabled={!data || busy}
+                onClick={add}
+              >
+                <Plus size={17} />
+                添加收藏
               </button>
             </div>
             <button

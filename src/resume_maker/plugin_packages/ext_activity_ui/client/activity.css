@@ -14,20 +14,10 @@
   --activity-system: var(--subtle);
   --activity-client: light-dark(#a24b74, #d08faa);
 }
-.activity-heading {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  flex-shrink: 0;
-}
-.activity-heading h1 {
-  font-size: 16px;
-}
 .activity-actions {
   position: relative;
   gap: 4px;
+  flex-shrink: 0;
 }
 .activity-workspace .activity-actions button,
 .activity-workspace .activity-filters button {
@@ -40,6 +30,7 @@
   border-radius: 20px;
   padding: 2px 9px;
   color: var(--subtle);
+  white-space: nowrap;
 }
 .activity-live.is-live {
   color: var(--success);
@@ -49,7 +40,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 0 12px 6px;
+  padding: 6px 12px;
   flex-wrap: wrap;
   flex-shrink: 0;
   position: relative;
@@ -534,11 +525,6 @@
   }
 }
 @media (max-width: 700px) {
-  .activity-heading {
-    padding: 6px 12px;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
   .activity-filters,
   .activity-overview {
     padding-inline: 12px;
