@@ -11,6 +11,16 @@ import {
 import PackageDownloads from "./PackageDownloads";
 import { recoverActivePlan } from "./planRecovery";
 import WaitingWindows, { type WindowDetail } from "./WaitingWindows";
+import PluginConfigEditor from "./PluginConfigEditor";
+import {
+  configDraftError,
+  configFields,
+  configRequest,
+  draftConfigValue,
+  emptyConfigDraft,
+  type ConfigDraft,
+  type ConfigSchema,
+} from "./configurationForm";
 
 const PLAN_POLL_MS = 1000;
 
@@ -35,7 +45,7 @@ interface Plugin {
   environment_lock?: string | null;
   config?: Record<string, unknown>;
   config_provenance?: Record<string, string>;
-  config_schema?: { properties?: Record<string, unknown> };
+  config_schema?: ConfigSchema;
   reason?: string;
 }
 interface InstanceSpec {
@@ -68,7 +78,7 @@ interface Plan {
   mode: string;
   configuration?: {
     configs: Record<string, unknown>;
-    provenance: Record<string, unknown>;
+    provenance: Record<string, Record<string, string>>;
     digest: string;
   };
   waiting_windows?: string[];
@@ -109,10 +119,9 @@ export default function PluginManager(props: SettingsPanelProps) {
   const [plan, setPlan] = useState<Plan | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [configs, setConfigs] = useState<Record<string, string>>({});
-  const [configEdits, setConfigEdits] = useState<
-    { instance: string; operation: "reset"; path: string[] }[]
-  >([]);
+  const [configDrafts, setConfigDrafts] = useState<Record<string, ConfigDraft>>(
+    {},
+  );
   const [packagePath, setPackagePath] = useState("");
   const [inspection, setInspection] = useState<Inspection | null>(null);
   const [trusted, setTrusted] = useState(false);
@@ -153,7 +162,7 @@ export default function PluginManager(props: SettingsPanelProps) {
       (a, b) => (b.expires_at ?? 0) - (a.expires_at ?? 0),
     )[0];
     if (!latest && recent?.message) setStatus(recent.message);
-    setConfigEdits([]);
+    setConfigDrafts({});
     setInstances(value.instances ?? []);
     if (value.task_persistence_errors.length)
       setError(
@@ -163,14 +172,6 @@ export default function PluginManager(props: SettingsPanelProps) {
     setSelected(
       value.plugins.filter((item) => item.enabled).map((item) => item.id),
     );
-    setConfigs(
-      Object.fromEntries(
-        value.plugins.map((item) => [
-          item.id,
-          JSON.stringify(item.config ?? {}, null, 2),
-        ]),
-      ),
-    );
   }
   useEffect(() => {
     void reload()
@@ -179,6 +180,10 @@ export default function PluginManager(props: SettingsPanelProps) {
   }, []);
   /** 任何依赖冲突都保留当前选择，供用户继续调整 */
   async function preview() {
+    if (configurationError) {
+      setError(configurationError);
+      return;
+    }
     setMigrationAccepted(false);
     setBusy(true);
     setError("");
@@ -188,17 +193,7 @@ export default function PluginManager(props: SettingsPanelProps) {
           selected,
           instances,
           generation: capabilities().generation,
-          configs: Object.fromEntries(
-            plugins
-              .filter(
-                (item) =>
-                  item.config !== undefined &&
-                  (item.state === "待应用" ||
-                    configs[item.id] !== JSON.stringify(item.config, null, 2)),
-              )
-              .map((item) => [item.id, JSON.parse(configs[item.id] || "{}")]),
-          ),
-          config_edits: configEdits,
+          ...configRequest(plugins, configDrafts),
         }),
       );
     } catch (failure) {
@@ -384,6 +379,10 @@ export default function PluginManager(props: SettingsPanelProps) {
       ...items,
       {
         ...source,
+        config: draftConfigValue(
+          source.config ?? {},
+          configDrafts[source.id] ?? emptyConfigDraft(),
+        ),
         id,
         plugin: source.plugin ?? source.id,
         enabled: false,
@@ -395,7 +394,6 @@ export default function PluginManager(props: SettingsPanelProps) {
       ...items,
       { id, plugin: source.plugin ?? source.id, bindings: {} },
     ]);
-    setConfigs((items) => ({ ...items, [id]: configs[source.id] ?? "{}" }));
     setSelected((items) => [...items, id]);
     setInstanceName("");
   }
@@ -404,7 +402,9 @@ export default function PluginManager(props: SettingsPanelProps) {
     setSelected((items) => items.filter((item) => item !== id));
     setPlugins((items) => items.filter((item) => item.id !== id));
     setInstances((items) => items.filter((item) => item.id !== id));
-    setConfigEdits((items) => items.filter((item) => item.instance !== id));
+    setConfigDrafts((items) =>
+      Object.fromEntries(Object.entries(items).filter(([key]) => key !== id)),
+    );
   }
   /** 每个消费实例分别选择提供方，清空选择恢复清单约束 */
   function bindProvider(
@@ -581,6 +581,12 @@ export default function PluginManager(props: SettingsPanelProps) {
       items: matching.filter((item) => essential.has(item.id)),
     },
   ];
+  const invalidConfiguration = plugins.find((item) =>
+    configDraftError(configDrafts[item.id] ?? emptyConfigDraft()),
+  );
+  const configurationError = invalidConfiguration
+    ? `${invalidConfiguration.title}：${configDraftError(configDrafts[invalidConfiguration.id])}`
+    : "";
   return (
     <div className="plugin-manager-panel">
       <div className="plugin-mode-row">
@@ -607,13 +613,18 @@ export default function PluginManager(props: SettingsPanelProps) {
         {!plan && (
           <button
             className="primary"
-            disabled={busy || !plugins.length}
+            disabled={busy || !plugins.length || !!configurationError}
             onClick={() => void preview()}
           >
             查看变更
           </button>
         )}
       </div>
+      {configurationError && (
+        <p className="plugin-config-error" role="alert">
+          {configurationError}
+        </p>
+      )}
       <p className="plugin-mode-description" hidden={loading}>
         {mode === "minimal"
           ? "手工编辑、DOCX 导出和备份。"
@@ -960,95 +971,39 @@ export default function PluginManager(props: SettingsPanelProps) {
                             </button>
                           )}
                         {(Object.keys(item.config ?? {}).length > 0 ||
-                          Object.keys(item.config_schema?.properties ?? {})
-                            .length > 0) && (
-                          <details>
+                          configFields(item.config_schema ?? {}).length >
+                            0) && (
+                          <details className="plugin-card-configuration">
                             <summary>{item.title} 配置</summary>
-                            <textarea
-                              aria-label={`${item.title} 配置`}
+                            <PluginConfigEditor
+                              title={item.title}
+                              schema={item.config_schema ?? {}}
+                              value={item.config ?? {}}
+                              provenance={item.config_provenance ?? {}}
+                              draft={
+                                configDrafts[item.id] ?? emptyConfigDraft()
+                              }
                               disabled={busy || !!plan}
-                              value={configs[item.id] ?? "{}"}
-                              onChange={(event) => {
-                                setConfigEdits((values) =>
-                                  values.filter(
-                                    (edit) => edit.instance !== item.id,
-                                  ),
-                                );
-                                setConfigs((values) => ({
-                                  ...values,
-                                  [item.id]: event.target.value,
-                                }));
-                              }}
+                              preview={
+                                plan?.configuration?.configs[item.id]
+                                  ? {
+                                      value: plan.configuration.configs[
+                                        item.id
+                                      ] as Record<string, unknown>,
+                                      provenance:
+                                        plan.configuration.provenance[
+                                          item.id
+                                        ] ?? {},
+                                    }
+                                  : undefined
+                              }
+                              onChange={(draft) =>
+                                setConfigDrafts((items) => ({
+                                  ...items,
+                                  [item.id]: draft,
+                                }))
+                              }
                             />
-                            <p className="subtle">
-                              JSON 会替换实例配置；null 表示空值。
-                            </p>
-                            <button
-                              disabled={busy || !!plan}
-                              onClick={() => {
-                                setConfigs((values) => ({
-                                  ...values,
-                                  [item.id]: JSON.stringify(
-                                    item.config ?? {},
-                                    null,
-                                    2,
-                                  ),
-                                }));
-                                setConfigEdits((values) => [
-                                  ...values.filter(
-                                    (edit) => edit.instance !== item.id,
-                                  ),
-                                  {
-                                    instance: item.id,
-                                    operation: "reset",
-                                    path: [],
-                                  },
-                                ]);
-                              }}
-                            >
-                              恢复继承
-                            </button>
-                            {Object.entries(item.config_provenance ?? {}).map(
-                              ([path, source]) => (
-                                <div key={path} className="row">
-                                  <span>
-                                    {path} · 来源：{source}
-                                  </span>
-                                  {path !== "/" && (
-                                    <button
-                                      disabled={busy || !!plan}
-                                      onClick={() => {
-                                        const fields = path
-                                          .slice(1)
-                                          .split("/")
-                                          .map((key) =>
-                                            key
-                                              .replaceAll("~1", "/")
-                                              .replaceAll("~0", "~"),
-                                          );
-                                        setConfigEdits((values) => [
-                                          ...values,
-                                          {
-                                            instance: item.id,
-                                            operation: "reset",
-                                            path: fields,
-                                          },
-                                        ]);
-                                      }}
-                                    >
-                                      恢复继承
-                                    </button>
-                                  )}
-                                </div>
-                              ),
-                            )}
-                            {configEdits.some(
-                              (edit) => edit.instance === item.id,
-                            ) && (
-                              <p role="status">
-                                已加入恢复操作，查看变更计划后生效。
-                              </p>
-                            )}
                           </details>
                         )}
                       </div>
