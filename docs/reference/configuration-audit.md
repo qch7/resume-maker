@@ -302,12 +302,14 @@
 
 ### B03 · 宿主启动、健康观察和关闭等待
 
-已实现：启动就绪、候选观察和健康间隔进入宿主配置；正常服务使用明确的无限期执行
+已实现：启动就绪、候选观察和健康间隔进入宿主配置；正常服务使用明确的无限期执行。Windows 配置记录的原子替换对短暂共享读取冲突使用固定、有上限的重试策略
 
 - [scripts/start.ps1](../../scripts/start.ps1)
 - [scripts/stop.ps1](../../scripts/stop.ps1)
 - [src/resume_maker/cli.py](../../src/resume_maker/cli.py)
 - [src/resume_maker/host_supervisor.py](../../src/resume_maker/host_supervisor.py)
+- [src/resume_maker/infrastructure/filesystem.py](../../src/resume_maker/infrastructure/filesystem.py)
+- [src/resume_maker/runtime/state.py](../../src/resume_maker/runtime/state.py)
 
 ### B04 · 任务并发、排队和排空策略
 
