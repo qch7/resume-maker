@@ -8,6 +8,8 @@ import sys
 from contextlib import contextmanager
 from pathlib import Path
 
+from resume_maker.core.environment import PROVIDER_KEY
+from resume_maker.core.process_environment import EnvironmentPolicy, process_environment
 from resume_maker.infrastructure.observability import protect_secrets, record
 from resume_maker.integrations.providers.credentials import isolated_credentials
 from resume_maker.integrations.providers.material_server import SOURCE_TOOLS, TOOLS
@@ -37,6 +39,7 @@ def inspect_cli(settings):
             timeout=15,
             encoding="utf-8",
             errors="replace",
+            env=process_environment(EnvironmentPolicy.MODEL),
             creationflags=0x08000000 if os.name == "nt" else 0,
         )
         version = result.stdout.strip()
@@ -165,7 +168,7 @@ def run_cli(
 ):
     """在临时 CLI home 中开启受限工具会话，只向只读服务提供脱敏副本"""
     selected, env = connection(settings, environment)
-    protect_secrets(env.get("RESUME_MAKER_PROVIDER_KEY"), env.get("OPENAI_API_KEY"))
+    protect_secrets(env.get(PROVIDER_KEY), env.get("OPENAI_API_KEY"))
     with (
         sandbox.session() if sandbox else workspace() as root,
         credential_session(credentials, root, env, cancelled) as env,

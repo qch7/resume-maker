@@ -1,0 +1,113 @@
+"""验证启动配置冻结和不同子进程职责的环境继承边界"""
+
+import argparse
+
+import pytest
+
+from resume_maker.cli import add_launch_arguments, configured_launch
+from resume_maker.core.environment import resolve_launch
+from resume_maker.core.process_environment import EnvironmentPolicy, process_environment
+from resume_maker.host_supervisor import host_command
+
+
+@pytest.mark.parametrize(
+    "policy",
+    [
+        EnvironmentPolicy.CANDIDATE,
+        EnvironmentPolicy.WORKER,
+        EnvironmentPolicy.DESKTOP,
+        EnvironmentPolicy.MODEL,
+    ],
+)
+def test_restricted_processes_do_not_inherit_credentials(policy):
+    """候选、worker、Word 和连接的基础环境均排除应用配置及任意供应商凭据"""
+    source = {
+        "Path": "/synthetic/bin",
+        "SystemRoot": "/synthetic/windows",
+        "SYNTHETIC_PROVIDER_KEY": "secret-value",
+        "OPENAI_API_KEY": "secret-value",
+        "CODEX_HOME": "/personal/home",
+        "RESUME_MAKER_PORT": "8000",
+        "PYTHONPATH": "/personal/python",
+        "TEMP": "/system/temp",
+        "HTTP_PROXY": "http://proxy",
+    }
+    actual = process_environment(policy, source)
+    assert actual["Path"] == source["Path"] and actual["SystemRoot"] == source["SystemRoot"]
+    assert not set(actual) & {
+        "SYNTHETIC_PROVIDER_KEY",
+        "OPENAI_API_KEY",
+        "CODEX_HOME",
+        "RESUME_MAKER_PORT",
+        "PYTHONPATH",
+    }
+    assert ("HTTP_PROXY" in actual) == (policy == EnvironmentPolicy.MODEL)
+    assert ("TEMP" in actual) == (policy != EnvironmentPolicy.WORKER)
+    assert source["OPENAI_API_KEY"] == "secret-value"
+
+
+def test_host_preserves_arbitrary_provider_inputs_but_clears_launch_values():
+    """正式宿主可以按配置借用任意命名的供应商密钥，启动字段统一由参数传递"""
+    actual = process_environment(
+        EnvironmentPolicy.HOST,
+        {
+            "SYNTHETIC_PROVIDER_KEY": "secret-value",
+            "CODEX_HOME": "/personal/home",
+            "resume_maker_profile": "minimal",
+            "RESUME_MAKER_PROVIDER_KEY": "stale-secret",
+        },
+    )
+    assert actual == {"SYNTHETIC_PROVIDER_KEY": "secret-value", "CODEX_HOME": "/personal/home"}
+
+
+def test_supervised_children_freeze_launch_values_and_keep_persisted_selection(
+    tmp_path, monkeypatch
+):
+    """文件和环境变更不影响子宿主，重启只恢复已保存组合，前端覆盖继续生效"""
+    path = tmp_path / ".env"
+    path.write_text(
+        "RESUME_MAKER_PORT=8011\nRESUME_MAKER_PROFILE=minimal\n"
+        "RESUME_MAKER_DATA_DIR=./data\nRESUME_MAKER_FRONTEND_DIR=./web\n"
+        "RESUME_MAKER_PLUGIN_CONFIG=./plugins.json\nRESUME_MAKER_OPEN_BROWSER=false\n",
+        encoding="utf-8",
+    )
+    parser = argparse.ArgumentParser()
+    add_launch_arguments(parser)
+    args = parser.parse_args(["--env-file", str(path)])
+    config, _ = configured_launch(args)
+    path.write_text("RESUME_MAKER_PORT=8012\nRESUME_MAKER_PROFILE=standard\n", encoding="utf-8")
+    monkeypatch.setenv("RESUME_MAKER_PORT", "8013")
+    for first, candidate in [(True, False), (False, False), (True, True)]:
+        command = host_command("python", config.data_dir, args, first=first, candidate=candidate)
+        parsed = parser.parse_args(command[7:])
+        assert parsed.no_env_file
+        overrides = {
+            key: getattr(parsed, key)
+            for key in (
+                "port",
+                "data_dir",
+                "frontend_dir",
+                "profile",
+                "plugin_config",
+                "open_browser",
+            )
+            if getattr(parsed, key) is not None
+        }
+        settings = resolve_launch(
+            environment=process_environment(EnvironmentPolicy.HOST), overrides=overrides
+        ).settings
+        assert settings.port == 8011 and settings.data_dir == tmp_path / "data"
+        assert settings.frontend_dir == tmp_path / "web" and not settings.open_browser
+        assert (settings.profile == "minimal") == (first and not candidate)
+        assert (settings.plugin_config == tmp_path / "plugins.json") == (first and not candidate)
+
+
+def test_upgrade_uses_new_wheel_frontend_when_no_override(tmp_path):
+    """未显式覆盖资源目录时，新解释器自行选取其安装包资源"""
+    parser = argparse.ArgumentParser()
+    add_launch_arguments(parser)
+    args = parser.parse_args(["--no-env-file"])
+    config, _ = configured_launch(args)
+    command = host_command("new-python", tmp_path, args, first=False, candidate=True)
+    assert "--frontend-dir" not in command
+    assert config.frontend is not None

@@ -407,6 +407,7 @@ def activate(context):
                 "--port",
                 str(port),
                 "--no-browser",
+                "--no-env-file",
             ],
             stdout=log,
             stderr=log,

@@ -2,7 +2,6 @@
 
 import hashlib
 import json
-import os
 import sqlite3
 import sys
 import threading
@@ -11,6 +10,7 @@ from contextlib import closing
 from pathlib import Path
 
 from resume_maker.core.errors import Problem
+from resume_maker.core.process_environment import EnvironmentPolicy, process_environment
 from resume_maker.infrastructure.data_maintenance import apply_intents
 from resume_maker.infrastructure.database import Database
 from resume_maker.infrastructure.execution import Execution, Sandbox
@@ -68,8 +68,35 @@ def save_runtime(directory, python):
 
 
 def host_environment():
-    """正式宿主继承原应用配置和按需借用的凭据，候选仍使用精简环境"""
-    return dict(os.environ)
+    """正式宿主保留供应商连接输入，启动字段由监督器参数固定"""
+    return process_environment(EnvironmentPolicy.HOST)
+
+
+def host_command(python, directory, args, *, first, candidate):
+    """固定本次目录和端口，重启沿用已保存的插件选择并禁用文件重读"""
+    command = [
+        str(python),
+        "-I",
+        "-X",
+        "utf8",
+        "-m",
+        "resume_maker",
+        "--host-child",
+        "--no-env-file",
+        "--data-dir",
+        str(directory),
+        "--port",
+        str(args.port),
+        "--no-browser" if args.no_browser or not first else "--browser",
+    ]
+    if frontend := getattr(args, "frontend_dir", None):
+        command.extend(["--frontend-dir", str(frontend)])
+    if first and not candidate:
+        if args.profile:
+            command.extend(["--profile", args.profile])
+        if args.plugin_config:
+            command.extend(["--plugin-config", str(args.plugin_config.resolve())])
+    return command
 
 
 def apply_transition(directory, transition):
@@ -217,26 +244,7 @@ def supervise(config, args):
                         )
                         continue
                 python = candidate["after"]["python"]
-            command = [
-                str(python),
-                "-I",
-                "-X",
-                "utf8",
-                "-m",
-                "resume_maker",
-                "--host-child",
-                "--data-dir",
-                str(directory),
-                "--port",
-                str(args.port),
-            ]
-            if args.no_browser or not first:
-                command.append("--no-browser")
-            if first and not candidate:
-                if args.profile:
-                    command.extend(["--profile", args.profile])
-                if args.plugin_config:
-                    command.extend(["--plugin-config", str(args.plugin_config.resolve())])
+            command = host_command(python, directory, args, first=first, candidate=candidate)
             first = False
             cancelled, completed = threading.Event(), threading.Event()
             state = {"started": time.monotonic(), "health_since": None, "committed": False}

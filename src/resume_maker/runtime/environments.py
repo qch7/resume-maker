@@ -13,6 +13,7 @@ from uuid import uuid4
 from packaging.utils import canonicalize_name, parse_wheel_filename
 from packaging.version import Version
 
+from resume_maker.core.process_environment import EnvironmentPolicy, process_environment
 from resume_maker.runtime.graph import PluginError
 from resume_maker.runtime.packages import check_dependencies, safe_member
 from resume_maker.runtime.state import StateStore, fingerprint
@@ -100,21 +101,7 @@ class EnvironmentStore:
                 raise PluginError("候选环境位置无效")
             target.mkdir(parents=True)
             cancelled = cancelled or threading.Event()
-            environment = {
-                key: value
-                for key, value in os.environ.items()
-                if key.upper()
-                in {
-                    "SYSTEMROOT",
-                    "WINDIR",
-                    "PATH",
-                    "TEMP",
-                    "TMP",
-                    "USERPROFILE",
-                    "HOME",
-                    "LOCALAPPDATA",
-                }
-            }
+            environment = process_environment(EnvironmentPolicy.CANDIDATE)
             operation = {
                 "id": identifier,
                 "state": "preparing",

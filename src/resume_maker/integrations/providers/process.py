@@ -10,6 +10,7 @@ import time
 
 import psutil
 
+from resume_maker.core.environment import PROVIDER_KEY
 from resume_maker.infrastructure.activity import mask_secrets, safe_text
 from resume_maker.infrastructure.observability import operation, record
 from resume_maker.sdk.model import Cancelled, ProviderError
@@ -90,7 +91,7 @@ def process_title(arguments):
 
 def diagnostic(message, env):
     """先遮盖已知鉴权及常见凭据格式，再保留有界的失败原因"""
-    secrets = {env[key] for key in ("RESUME_MAKER_PROVIDER_KEY", "OPENAI_API_KEY") if env.get(key)}
+    secrets = {env[key] for key in (PROVIDER_KEY, "OPENAI_API_KEY") if env.get(key)}
     return safe_text(mask_secrets(message, sorted(secrets, key=len, reverse=True))).strip()[-2000:]
 
 

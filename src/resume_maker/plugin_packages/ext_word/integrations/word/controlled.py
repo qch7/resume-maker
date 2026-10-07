@@ -1,9 +1,9 @@
 """Word 插件通过系统执行和 sandbox 取得每轮受管进程"""
 
-import os
 import threading
 
 from resume_maker.core.errors import Problem
+from resume_maker.core.process_environment import EnvironmentPolicy, process_environment
 from resume_maker.plugin_packages.ext_word.integrations.word.rendering import (
     render_word,
     word_process,
@@ -29,7 +29,7 @@ class ControlledWord:
             self.active.add(flag)
         grant = None
         try:
-            environment = dict(os.environ)
+            environment = process_environment(EnvironmentPolicy.DESKTOP)
             grant = self.sandbox.authorize(
                 "ext.word",
                 "document.local-render",

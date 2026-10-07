@@ -1,6 +1,5 @@
 """联合候选升级协调，活动包索引在独立 Host 通过验证前保持不变"""
 
-import os
 import sqlite3
 import sys
 import threading
@@ -9,6 +8,8 @@ from copy import deepcopy
 from pathlib import Path
 
 from resume_maker.core.errors import Problem
+from resume_maker.core.process_environment import EnvironmentPolicy
+from resume_maker.core.process_environment import process_environment as inherited_environment
 from resume_maker.infrastructure.data_maintenance import (
     DataMaintenance,
     apply_intents,
@@ -21,21 +22,7 @@ from resume_maker.runtime.state import StateStore, fingerprint
 
 def process_environment():
     """候选进程只继承基础运行路径，不复制模型凭据"""
-    return {
-        key: value
-        for key, value in os.environ.items()
-        if key.upper()
-        in {
-            "SYSTEMROOT",
-            "WINDIR",
-            "PATH",
-            "TEMP",
-            "TMP",
-            "USERPROFILE",
-            "HOME",
-            "LOCALAPPDATA",
-        }
-    }
+    return inherited_environment(EnvironmentPolicy.CANDIDATE)
 
 
 class Upgrades:
