@@ -42,6 +42,8 @@ jobs:
           npm --prefix frontend ci
       - name: Check Python architecture and comments
         run: uv run --locked python scripts/check_quality.py
+      - name: Check generated plugin configuration
+        run: uv run --locked python scripts/sync_plugin_settings.py --check
       - name: Lint Python
         run: uv run --locked ruff check src tests scripts
       - name: Check Python formatting
