@@ -12,6 +12,8 @@ import PackageDownloads from "./PackageDownloads";
 import { recoverActivePlan } from "./planRecovery";
 import WaitingWindows, { type WindowDetail } from "./WaitingWindows";
 
+const PLAN_POLL_MS = 1000;
+
 interface Plugin {
   id: string;
   plugin?: string;
@@ -305,7 +307,7 @@ export default function PluginManager(props: SettingsPanelProps) {
         running = false;
       }
     }
-    const timer = setInterval(() => void poll(), 1000);
+    const timer = setInterval(() => void poll(), PLAN_POLL_MS);
     return () => {
       live = false;
       clearInterval(timer);

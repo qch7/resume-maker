@@ -34,6 +34,9 @@ import {
   type Honor,
 } from "@resume-maker/plugin-sdk/shared/resume/honors/model";
 
+const ACTIVE_POLL_MS = 2000;
+const IDLE_POLL_MS = 10000;
+
 /** 提供跨简历复用的荣誉库、批量上传、识别核对和筛选管理 */
 export default function HonorLibrary({
   active,
@@ -64,7 +67,7 @@ export default function HonorLibrary({
   const input = useRef<HTMLInputElement>(null);
   const uploadLock = useRef(false);
   const fetchSerial = useRef(0);
-  const pollDelay = useRef(10000);
+  const pollDelay = useRef(IDLE_POLL_MS);
   const [refresh, setRefresh] = useState(0);
 
   /** 请求序号阻止旧轮询覆盖上传或保存后的列表 */
@@ -77,7 +80,9 @@ export default function HonorLibrary({
         setItems(result);
         setLoaded(true);
         setLoadError("");
-        pollDelay.current = result.some(isRecognizing) ? 2000 : 10000;
+        pollDelay.current = result.some(isRecognizing)
+          ? ACTIVE_POLL_MS
+          : IDLE_POLL_MS;
       } catch (reason) {
         if (serial === fetchSerial.current)
           setLoadError(
@@ -131,8 +136,10 @@ export default function HonorLibrary({
     for (const [index, file] of files.entries()) {
       setUploading(`正在上传 ${index + 1} / ${files.length}：${file.name}`);
       try {
-        if (file.size > 20 * 1024 * 1024)
-          throw new Error("超过 20 MB，请压缩后上传。");
+        if (importers.limits && file.size > importers.limits.max_bytes)
+          throw new Error(
+            `超过 ${importers.limits.max_bytes / (1024 * 1024)} MiB，请压缩后上传。`,
+          );
         const response = await request(
           `/honors/upload?filename=${encodeURIComponent(file.name)}${importers.selected ? `&importer_id=${encodeURIComponent(importers.selected)}` : ""}`,
           {
@@ -350,7 +357,9 @@ export default function HonorLibrary({
             <details className="honor-upload-details">
               <summary>批量上传 · 格式与限制</summary>
               <p>
-                单文件 ≤20 MB · 每份证书 ≤12 页
+                {importers.limits
+                  ? `单文件 ≤${importers.limits.max_bytes / (1024 * 1024)} MiB · 每份证书 ≤${importers.limits.max_pages} 页`
+                  : "正在读取上传限制"}
                 {importers.extensions.length > 0 &&
                   ` · 支持：${importers.extensions.join("、")}`}
               </p>

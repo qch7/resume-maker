@@ -8,11 +8,13 @@ import type { LibraryState, LibraryTemplate } from "./library";
 export default function DeleteTemplateDialog({
   template,
   permanent,
+  retentionDays,
   onClose,
   onDeleted,
 }: {
   template: LibraryTemplate;
   permanent: boolean;
+  retentionDays: number | undefined;
   onClose: () => void;
   onDeleted: (state: LibraryState) => void;
 }) {
@@ -75,7 +77,7 @@ export default function DeleteTemplateDialog({
       <p id={descriptionId}>
         {permanent
           ? `确定永久删除“${template.name}”吗？模板文件、保存的识别结果和专属缓存将被清理，此操作无法撤销。`
-          : `确定将“${template.name}”移入项目回收站吗？30 天内可以恢复，之后将自动永久删除。被简历引用的模板不能删除。`}
+          : `确定将“${template.name}”移入项目回收站吗？${retentionDays === undefined ? "保留期内" : `${retentionDays} 天内`}可以恢复，之后将自动永久删除。被简历引用的模板不能删除。`}
       </p>
       {error && (
         <p className="error" role="alert">

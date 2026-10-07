@@ -495,7 +495,7 @@ export default function LibraryDialog({
                   {query
                     ? "试试其他名称，或清除搜索。"
                     : folder === "trash"
-                      ? "删除的模板将在这里保留 30 天。"
+                      ? `删除的模板将在这里${library.trash_retention_days === undefined ? "按保留策略暂存" : `保留 ${library.trash_retention_days} 天`}。`
                       : folder === "liked"
                         ? "点击模板旁的爱心，就能在这里快速找到它。"
                         : "在全部模板中选中模板，再修改右侧的所属分类。"}
@@ -559,7 +559,11 @@ export default function LibraryDialog({
               )}
               {selected.deleted_at && (
                 <p className="library-expiry">
-                  自动永久删除时间：{templateExpiry(selected.deleted_at)}
+                  自动永久删除时间：
+                  {templateExpiry(
+                    selected.deleted_at,
+                    library.trash_retention_days,
+                  )}
                 </p>
               )}
               <label>
@@ -659,6 +663,7 @@ export default function LibraryDialog({
         <DeleteTemplateDialog
           template={deleting}
           permanent={folder === "trash"}
+          retentionDays={library.trash_retention_days}
           onClose={/* 取消只关闭确认框，保留当前选择 */ () => setDeleting(null)}
           onDeleted={
             /* 成功后同步所有分类计数，保留现有简历的模板引用 */ (state) => {
@@ -667,7 +672,7 @@ export default function LibraryDialog({
               setNotice(
                 folder === "trash"
                   ? `已永久删除“${deleting.name}”。`
-                  : `已将“${deleting.name}”移入回收站，30 天内可恢复。`,
+                  : `已将“${deleting.name}”移入回收站，${state.trash_retention_days === undefined ? "保留期内" : `${state.trash_retention_days} 天内`}可恢复。`,
               );
               setDeleting(null);
             }

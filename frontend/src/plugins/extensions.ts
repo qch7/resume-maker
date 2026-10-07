@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import { CLIENT_DEACTIVATE_TIMEOUT_MS } from "../shared/lib/timing.ts";
 import type { ClientDescriptor } from "../shared/lib/capabilities";
 import type { WorkflowInput } from "./slots";
 import type { DocumentPreviewer, PreviewInput } from "./documents";
@@ -105,7 +106,9 @@ export function normalizeShortcut(value: string): string {
 }
 
 /** 每个窗口持有独立扩展表，贡献撤销后旧引用不能再执行命令 */
-export function createClientExtensions(deactivateTimeoutMs = 5000) {
+export function createClientExtensions(
+  deactivateTimeoutMs = CLIENT_DEACTIVATE_TIMEOUT_MS,
+) {
   const entries = new Map<string, Extension<keyof ClientExtensionPoints>>();
   const runs = new Map<
     string,

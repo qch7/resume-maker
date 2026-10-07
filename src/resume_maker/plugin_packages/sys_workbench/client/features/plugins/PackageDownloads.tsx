@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { api } from "@resume-maker/plugin-sdk/shared/lib/api";
 
+const DOWNLOAD_POLL_MS = 1000;
+
 interface Download {
   id: string;
   url: string;
@@ -52,7 +54,7 @@ export default function PackageDownloads({
       }
     }
     void refresh();
-    const timer = setInterval(() => void refresh(), 1000);
+    const timer = setInterval(() => void refresh(), DOWNLOAD_POLL_MS);
     return () => {
       live = false;
       clearInterval(timer);

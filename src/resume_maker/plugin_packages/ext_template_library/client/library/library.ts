@@ -7,6 +7,7 @@ export interface LibraryState {
     { category_id: string; liked: boolean; deleted_at?: string }
   >;
   templates?: (Template & { usage_count: number })[];
+  trash_retention_days?: number;
 }
 export interface LibraryTemplate extends Template {
   category_id: string;
@@ -73,10 +74,14 @@ export function filterTemplates(
     );
 }
 
-/** 按三十天时长和服务端 UTC 时间计算回收站截止日期 */
-export function templateExpiry(deletedAt: string) {
+/** 按有效保留天数和服务端 UTC 时间计算回收站截止日期 */
+export function templateExpiry(
+  deletedAt: string,
+  retentionDays: number | undefined,
+) {
+  if (retentionDays === undefined) return "正在读取保留策略";
   return new Date(
-    Date.parse(deletedAt) + 30 * 24 * 60 * 60 * 1000,
+    Date.parse(deletedAt) + retentionDays * 24 * 60 * 60 * 1000,
   ).toLocaleString("zh-CN");
 }
 

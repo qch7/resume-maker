@@ -1,4 +1,5 @@
 import { api, request } from "../shared/lib/api";
+import { WINDOW_HEARTBEAT_MS } from "../shared/lib/timing";
 import { capabilities, type Capabilities } from "../shared/lib/capabilities";
 import { flushDrafts } from "../shared/lib/draftRegistry";
 import { storage } from "../shared/lib/storage";
@@ -186,7 +187,7 @@ export function startWindow() {
     }).catch(() => undefined);
   }
   window.addEventListener("pagehide", leaving);
-  const timer = setInterval(() => void connectWindow(), 1500);
+  const timer = setInterval(() => void connectWindow(), WINDOW_HEARTBEAT_MS);
   void connectWindow();
   return async () => {
     stopped = true;
