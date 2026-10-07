@@ -38,10 +38,13 @@ function Invoke-FrozenLaunch {
     param($Configuration)
     $previous = @{}
     # 删除已解析的启动变量，让空的可选覆盖也保持固定，供应商输入继续保留
-    foreach ($field in $Configuration.sources.PSObject.Properties.Name) {
-        $name = 'RESUME_MAKER_' + $field.ToUpperInvariant()
-        $previous[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
-        [Environment]::SetEnvironmentVariable($name, $null, 'Process')
+    $launchNames = @($Configuration.sources.PSObject.Properties.Name | ForEach-Object { 'RESUME_MAKER_' + $_.ToUpperInvariant() })
+    $environment = [Environment]::GetEnvironmentVariables('Process')
+    foreach ($name in $environment.Keys) {
+        if ($launchNames -contains $name.ToUpperInvariant()) {
+            $previous[$name] = $environment[$name]
+            [Environment]::SetEnvironmentVariable($name, $null, 'Process')
+        }
     }
     try {
         $arguments = @('run', '--no-sync', 'python', '-m', 'resume_maker.cli') + @(Get-FrozenLaunchArguments $Configuration)

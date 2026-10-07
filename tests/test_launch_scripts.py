@@ -62,6 +62,7 @@ def test_windows_helper_keeps_explicit_values_and_restores_environment(
     """参数路径按调用位置解析，启动清除旧变量并在结束后恢复父环境"""
     root = pytestconfig.rootpath
     monkeypatch.setenv("RESUME_MAKER_DATA_DIR", "environment-data")
+    monkeypatch.setenv("resume_maker_profile", "minimal")
     script = tmp_path / "check.ps1"
     script.write_text(
         f"""
@@ -72,12 +73,14 @@ $configuration = Get-LaunchConfiguration -Parameters $parameters -RepoPath '{roo
 $arguments = @(Get-FrozenLaunchArguments $configuration)
 function uv {{
     if ($env:RESUME_MAKER_DATA_DIR) {{ throw 'Startup variable was inherited.' }}
+    if ($env:resume_maker_profile) {{ throw 'Mixed-case startup variable was inherited.' }}
     Write-Output 'synthetic process output'
     $global:LASTEXITCODE = 7
 }}
 $code = Invoke-FrozenLaunch $configuration
 $result = @{{configuration=$configuration; arguments=$arguments; code=$code}}
 $result.restored = $env:RESUME_MAKER_DATA_DIR
+$result.profile = $env:resume_maker_profile
 $result | ConvertTo-Json -Depth 5
 """,
         encoding="utf-8",
@@ -91,6 +94,7 @@ $result | ConvertTo-Json -Depth 5
     assert "--no-env-file" in value["arguments"]
     assert "--frontend-dir" not in value["arguments"]
     assert value["code"] == 7 and value["restored"] == "environment-data"
+    assert value["profile"] == "minimal"
 
 
 def test_windows_helper_rejects_conflicting_switches(tmp_path, pytestconfig):
