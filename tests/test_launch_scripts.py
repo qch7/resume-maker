@@ -10,6 +10,12 @@ POWERSHELL = shutil.which("powershell") or shutil.which("pwsh")
 pytestmark = pytest.mark.skipif(POWERSHELL is None, reason="需要 PowerShell")
 
 
+@pytest.fixture(autouse=True)
+def offline_launcher_dependencies(monkeypatch):
+    """验收复用已安装的锁定依赖，排除网络请求对脚本结果和耗时的影响"""
+    monkeypatch.setenv("UV_OFFLINE", "true")
+
+
 def run_powershell(script, cwd):
     """使用非交互会话运行脚本，失败时保留脱敏的合成诊断"""
     return subprocess.run(
@@ -27,7 +33,7 @@ def run_powershell(script, cwd):
         text=True,
         encoding="utf-8",
         errors="replace",
-        timeout=40,
+        timeout=120,
     )
 
 
