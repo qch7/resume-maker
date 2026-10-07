@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from resume_maker.core.environment import DEFAULT_PORT, LaunchSettings, environment_path
+from resume_maker.core.supervisor_policy import SupervisorPolicy
 
 
 def source_project_directory() -> Path | None:
@@ -68,6 +69,7 @@ class Config:
     package_root: Path | None = None
     package_records: dict | None = None
     environment_records: dict | None = None
+    supervisor: SupervisorPolicy = field(default_factory=SupervisorPolicy)
 
     def __post_init__(self):
         """程序式应用构造同样验证端口，不接受无效监听范围"""

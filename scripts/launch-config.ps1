@@ -31,6 +31,11 @@ function Get-FrozenLaunchArguments {
     }
     if ($Configuration.profile) { $arguments += @('--profile', $Configuration.profile) }
     if ($Configuration.plugin_config) { $arguments += @('--plugin-config', $Configuration.plugin_config) }
+    foreach ($name in @('startup_timeout_seconds', 'health_observation_seconds', 'health_poll_seconds')) {
+        $option = '--' + $name.Replace('_', '-')
+        $value = [string]::Format([Globalization.CultureInfo]::InvariantCulture, '{0}', $Configuration.$name)
+        $arguments += @($option, $value)
+    }
     return $arguments
 }
 

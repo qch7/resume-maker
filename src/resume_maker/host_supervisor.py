@@ -11,6 +11,7 @@ from pathlib import Path
 
 from resume_maker.core.errors import Problem
 from resume_maker.core.process_environment import EnvironmentPolicy, process_environment
+from resume_maker.core.supervisor_policy import SupervisorPolicy
 from resume_maker.infrastructure.data_maintenance import apply_intents
 from resume_maker.infrastructure.database import Database
 from resume_maker.infrastructure.execution import Execution, Sandbox
@@ -91,6 +92,8 @@ def host_command(python, directory, args, *, first, candidate):
     ]
     if frontend := getattr(args, "frontend_dir", None):
         command.extend(["--frontend-dir", str(frontend)])
+    for name, default in SupervisorPolicy.model_fields.items():
+        command.extend(["--" + name.replace("_", "-"), str(getattr(args, name, default.default))])
     if first and not candidate:
         if args.profile:
             command.extend(["--profile", args.profile])
@@ -262,7 +265,8 @@ def supervise(config, args):
                 if (
                     candidate
                     and not state["committed"]
-                    and time.monotonic() - state["health_since"] >= 3
+                    and time.monotonic() - state["health_since"]
+                    >= config.supervisor.health_observation_seconds
                 ):
                     save_runtime(directory, python)
                     save_transition(
@@ -273,7 +277,11 @@ def supervise(config, args):
             def deadline(state=state, completed=completed, cancelled=cancelled):
                 """启动没有就绪消息时取消本次进程，正常运行不设置服务寿命上限"""
                 while not completed.wait(0.2):
-                    if state["health_since"] is None and time.monotonic() - state["started"] > 120:
+                    if (
+                        state["health_since"] is None
+                        and time.monotonic() - state["started"]
+                        > config.supervisor.startup_timeout_seconds
+                    ):
                         cancelled.set()
                         return
 
@@ -295,7 +303,7 @@ def supervise(config, args):
                     command,
                     cwd=directory,
                     env=environment,
-                    timeout=10**10,
+                    timeout=None,
                     cancelled=cancelled,
                     event=event,
                 )
@@ -356,7 +364,7 @@ def watch_host(app, config, server):
             except Exception:
                 server.should_exit = True
                 return
-            stopped.wait(0.5)
+            stopped.wait(config.supervisor.health_poll_seconds)
 
     def ready():
         """宿主启动成功后才创建观察线程，启动异常不能发送就绪消息"""

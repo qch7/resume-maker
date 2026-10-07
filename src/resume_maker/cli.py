@@ -20,6 +20,7 @@ from resume_maker.core.config import (
 )
 from resume_maker.core.environment import LaunchProfile, LaunchSettings, resolve_launch
 from resume_maker.core.errors import Problem
+from resume_maker.core.supervisor_policy import SupervisorPolicy
 from resume_maker.infrastructure.storage import instance_lock, restore_backup
 from resume_maker.runtime.graph import PluginError
 
@@ -30,6 +31,8 @@ def add_launch_arguments(parser):
     """所有官方启动器复用相同参数、配置文件开关和布尔覆盖语义"""
     parser.add_argument("--data-dir", type=Path)
     parser.add_argument("--port")
+    for name in SupervisorPolicy.model_fields:
+        parser.add_argument("--" + name.replace("_", "-"), help="覆盖宿主监督器等待秒数")
     parser.add_argument("--frontend-dir", type=Path, help="覆盖前端静态资源目录")
     browser = parser.add_mutually_exclusive_group()
     browser.add_argument("--no-browser", dest="open_browser", action="store_false")
@@ -59,6 +62,9 @@ def configured_launch(args):
         frontend=settings.frontend_dir or default_frontend_directory(),
         profile=settings.profile,
         plugin_config=settings.plugin_config,
+        supervisor=SupervisorPolicy.model_validate(
+            settings.model_dump(include=set(SupervisorPolicy.model_fields))
+        ),
     )
     args.port = config.port
     args.data_dir = config.data_dir
@@ -66,6 +72,8 @@ def configured_launch(args):
     args.profile = settings.profile
     args.plugin_config = settings.plugin_config
     args.frontend_dir = settings.frontend_dir
+    for name in SupervisorPolicy.model_fields:
+        setattr(args, name, getattr(settings, name))
     return config, resolved
 
 

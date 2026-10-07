@@ -1,6 +1,8 @@
 """验证启动配置冻结和不同子进程职责的环境继承边界"""
 
 import argparse
+import sys
+import threading
 from types import SimpleNamespace
 
 import pytest
@@ -10,7 +12,33 @@ from resume_maker.core.environment import resolve_launch
 from resume_maker.core.process_environment import EnvironmentPolicy, process_environment
 from resume_maker.host_supervisor import host_command
 from resume_maker.integrations import desktop, sources
+from resume_maker.integrations.providers.process import execute
 from resume_maker.plugin_packages.ext_word.integrations.word.controlled import ControlledWord
+from resume_maker.sdk.model import Cancelled
+
+
+def test_unbounded_process_execution_still_observes_cancellation(tmp_path):
+    """无限期服务执行依然检查取消并回收本轮进程"""
+    flag = threading.Event()
+
+    def event(value):
+        """子进程确认启动后才请求取消，避免只测试执行前检查"""
+        if value.get("ready"):
+            flag.set()
+
+    with pytest.raises(Cancelled):
+        execute(
+            [
+                sys.executable,
+                "-c",
+                "import time; print('{\"ready\":true}', flush=True); time.sleep(30)",
+            ],
+            cwd=tmp_path,
+            env=process_environment(EnvironmentPolicy.CANDIDATE),
+            timeout=None,
+            cancelled=flag,
+            event=event,
+        )
 
 
 @pytest.mark.parametrize(
@@ -71,7 +99,9 @@ def test_supervised_children_freeze_launch_values_and_keep_persisted_selection(
     path.write_text(
         "RESUME_MAKER_PORT=8011\nRESUME_MAKER_PROFILE=minimal\n"
         "RESUME_MAKER_DATA_DIR=./data\nRESUME_MAKER_FRONTEND_DIR=./web\n"
-        "RESUME_MAKER_PLUGIN_CONFIG=./plugins.json\nRESUME_MAKER_OPEN_BROWSER=false\n",
+        "RESUME_MAKER_PLUGIN_CONFIG=./plugins.json\nRESUME_MAKER_OPEN_BROWSER=false\n"
+        "RESUME_MAKER_STARTUP_TIMEOUT_SECONDS=180\n"
+        "RESUME_MAKER_HEALTH_OBSERVATION_SECONDS=5\nRESUME_MAKER_HEALTH_POLL_SECONDS=1.5\n",
         encoding="utf-8",
     )
     parser = argparse.ArgumentParser()
@@ -93,6 +123,9 @@ def test_supervised_children_freeze_launch_values_and_keep_persisted_selection(
                 "profile",
                 "plugin_config",
                 "open_browser",
+                "startup_timeout_seconds",
+                "health_observation_seconds",
+                "health_poll_seconds",
             )
             if getattr(parsed, key) is not None
         }
@@ -101,6 +134,8 @@ def test_supervised_children_freeze_launch_values_and_keep_persisted_selection(
         ).settings
         assert settings.port == 8011 and settings.data_dir == tmp_path / "data"
         assert settings.frontend_dir == tmp_path / "web" and not settings.open_browser
+        assert settings.startup_timeout_seconds == config.supervisor.startup_timeout_seconds == 180
+        assert settings.health_observation_seconds == 5 and settings.health_poll_seconds == 1.5
         assert (settings.profile == "minimal") == (first and not candidate)
         assert (settings.plugin_config == tmp_path / "plugins.json") == (first and not candidate)
 

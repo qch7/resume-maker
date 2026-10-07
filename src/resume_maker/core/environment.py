@@ -9,7 +9,9 @@ from pathlib import Path
 from typing import Literal
 
 from dotenv.parser import parse_stream
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import ConfigDict, Field, ValidationError, field_validator
+
+from resume_maker.core.supervisor_policy import SupervisorPolicy
 
 PREFIX = "RESUME_MAKER_"
 DEFAULT_PORT = 8765
@@ -32,7 +34,7 @@ class LaunchConfigurationError(ValueError):
     """配置诊断只显示字段和来源，不包含未经确认的输入值"""
 
 
-class LaunchSettings(BaseModel):
+class LaunchSettings(SupervisorPolicy):
     """宿主启动参数独立于业务设置、插件配置和每次生成的实例身份"""
 
     model_config = ConfigDict(extra="forbid", frozen=True, hide_input_in_errors=True)

@@ -14,6 +14,13 @@ from resume_maker.core.environment import (
 )
 
 
+@pytest.mark.parametrize("value", ["", "NaN", "inf", "0", "6", True])
+def test_supervisor_duration_rejects_invalid_or_unbounded_values(value):
+    """监督器运维时间只接受有界秒数，不隐式接收布尔开关"""
+    with pytest.raises(LaunchConfigurationError):
+        resolve_launch(environment={}, overrides={"health_poll_seconds": value})
+
+
 def test_precedence_paths_and_empty_overrides(tmp_path):
     """各字段独立覆盖，文件路径相对文件位置，环境和参数相对启动位置"""
     directory = tmp_path / "configuration"

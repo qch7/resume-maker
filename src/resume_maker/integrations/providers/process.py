@@ -161,7 +161,7 @@ def execute(command, *, cwd, env, timeout, cancelled, stdin="", event=None):
         while len(finished) < 2:
             if cancelled.is_set():
                 raise Cancelled("请求已取消。")
-            if time.monotonic() - started > timeout:
+            if timeout is not None and time.monotonic() - started > timeout:
                 raise ProviderError("CLI 或沙箱检查超时，已停止本次请求。")
             try:
                 channel, raw = lines.get(timeout=0.1)
