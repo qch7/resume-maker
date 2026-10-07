@@ -149,7 +149,11 @@ def test_cli_print_configuration_and_overrides(tmp_path, monkeypatch, capsys):
     assert result["port"] == 8003 and result["open_browser"]
     assert result["data_dir"] == str(data)
     assert result["sources"]["port"] == "cli"
-    assert set(result) == set(LAUNCH_VARIABLES.values()) | {"env_file", "sources"}
+    assert set(result) == set(LAUNCH_VARIABLES.values()) | {
+        "env_file",
+        "sources",
+        "frontend_override",
+    }
     assert "secret-value" not in output
     assert not data.exists()
 

@@ -26,7 +26,7 @@ function Get-FrozenLaunchArguments {
     $arguments = @('--no-env-file', '--port', [string]$Configuration.port, '--data-dir', $Configuration.data_dir)
     if ($Configuration.open_browser) { $arguments += '--browser' } else { $arguments += '--no-browser' }
     # 未覆盖前端时允许升级后的 wheel 使用自己的资源
-    if ($Configuration.sources.frontend_dir -ne 'default' -and $Configuration.frontend_dir) {
+    if ($Configuration.frontend_override) {
         $arguments += @('--frontend-dir', $Configuration.frontend_dir)
     }
     if ($Configuration.profile) { $arguments += @('--profile', $Configuration.profile) }

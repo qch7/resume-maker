@@ -40,7 +40,8 @@ if ($health.status -eq 'ok') {
     }
     throw "Port $Port is used by a different Resume Maker data directory. Stop that instance or choose another -Port."
 }
-$sourceFrontend = $configuration.sources.frontend_dir -eq 'default'
+$defaultFrontend = Join-Path $repoPath 'frontend/dist'
+$sourceFrontend = -not $configuration.frontend_override -and $configuration.frontend_dir -eq $defaultFrontend
 $indexPath = Join-Path $configuration.frontend_dir 'index.html'
 $needsBuild = $sourceFrontend -and ($Rebuild -or -not (Test-Path -LiteralPath $indexPath))
 if (-not $sourceFrontend -and -not (Test-Path -LiteralPath $indexPath)) {

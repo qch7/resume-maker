@@ -101,16 +101,21 @@ def test_file_manager_keeps_paths_as_single_arguments(tmp_path, monkeypatch, pla
     """各平台通过参数数组调用文件管理器，含空格的文件路径不会作为命令解析"""
     path = tmp_path / "源码 文件.py"
     calls = []
+    monkeypatch.setenv("SYNTHETIC_PROVIDER_KEY", "synthetic-credential")
     monkeypatch.setattr(desktop.sys, "platform", platform)
-    monkeypatch.setattr(desktop.subprocess, "Popen", calls.append)
+    monkeypatch.setattr(
+        desktop.subprocess, "Popen", lambda command, *, env: calls.append((command, env))
+    )
     desktop.reveal_file(path)
-    assert calls == [[*command, str(path.parent if platform == "linux" else path)]]
+    assert len(calls) == 1
+    assert calls[0][0] == [*command, str(path.parent if platform == "linux" else path)]
+    assert "SYNTHETIC_PROVIDER_KEY" not in calls[0][1]
 
 
 def test_file_manager_launch_error_is_actionable(tmp_path, monkeypatch):
     """文件管理器不可用时将系统错误转换为可在引用弹窗内显示的提示"""
 
-    def unavailable(command):
+    def unavailable(command, *, env):
         """模拟缺少桌面文件管理器的运行环境"""
         raise FileNotFoundError("missing")
 

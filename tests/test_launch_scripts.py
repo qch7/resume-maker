@@ -112,3 +112,37 @@ Get-LaunchConfiguration -Parameters $parameters -RepoPath '{pytestconfig.rootpat
     result = run_powershell(script, tmp_path)
     assert result.returncode != 0
     assert "Choose either -Browser or -NoBrowser" in result.stderr
+
+
+def test_empty_frontend_override_keeps_default_build_and_wheel_resources(tmp_path, pytestconfig):
+    """示例中的空前端字段仍使用源码构建，不把旧默认资源固定给升级后的 wheel"""
+    root = pytestconfig.rootpath
+    script = tmp_path / "check.ps1"
+    calls = tmp_path / "npm-calls.txt"
+    launch = tmp_path / "launch.json"
+    script.write_text(
+        f"""
+$ErrorActionPreference = 'Stop'
+$uvExecutable = (Get-Command uv).Source
+function uv {{
+    if ($args -contains '--print-config') {{ & $uvExecutable @args }}
+    elseif ($args -contains 'run') {{
+        $args | ConvertTo-Json | Set-Content -Encoding UTF8 -LiteralPath '{launch}'
+        $global:LASTEXITCODE = 0
+    }} else {{ $global:LASTEXITCODE = 0 }}
+}}
+function npm {{
+    Add-Content -LiteralPath '{calls}' -Value ($args -join ' ')
+    $global:LASTEXITCODE = 0
+}}
+function Invoke-RestMethod {{ throw 'synthetic stopped instance' }}
+& '{root}/scripts/start.ps1' -EnvFile '{root}/.env.example' -Rebuild -DataDir './data'
+""",
+        encoding="utf-8",
+    )
+    result = run_powershell(script, tmp_path)
+    assert result.returncode == 0, result.stderr
+    assert "--prefix frontend ci" in calls.read_text()
+    assert "--prefix frontend run build" in calls.read_text()
+    assert "--frontend-dir" not in json.loads(launch.read_text(encoding="utf-8-sig"))
+    assert not (tmp_path / "data").exists()

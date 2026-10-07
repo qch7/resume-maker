@@ -156,6 +156,7 @@ class ResolvedLaunch:
             **self.settings.model_dump(mode="json"),
             "data_dir": str(data_dir),
             "frontend_dir": str(frontend),
+            "frontend_override": self.settings.frontend_dir is not None,
             "env_file": str(self.env_file) if self.env_file is not None else None,
             "sources": self.sources,
         }
