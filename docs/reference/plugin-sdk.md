@@ -52,7 +52,7 @@ Python 公共入口在 `resume_maker.sdk`，定义见 `sdk/manifest.py`、`conte
 - `optional` 是当前 Host 可选依赖；存在时验证版本并加入激活依赖。
 - `enhances` 声明插件给其他服务附接的行为，用于计算重建和排空范围。必须同时声明目标依赖。此影响图允许双向关系，不能拿来做激活拓扑排序。
 - `plugins` 约束其他插件的版本；`dependencies` 约束 Python 分发依赖。依赖不满足时不能激活。
-- `config_schema` 校验配置；当前管理界面提供 JSON 编辑。计划锁定配置和包摘要，变化后旧计划失效。
+- `config_schema` 校验配置；管理界面按字段类型生成独立控件，复杂结构保留 JSON 编辑。计划锁定配置和包摘要，变化后旧计划失效。
 
 服务、贡献和实例代次相互独立。`InstanceSpec {id, plugin, bindings}` 为插件定义创建稳定实例，非默认实例要求 `instances.multiple=true`。提供唯一服务的插件仍不能靠多实例绕过服务基数；集合提供方须明确绑定。插件管理支持创建独立实例、分别编辑配置和选择 Host/Client/remote 提供方，停止或移除实例保留资料。
 
@@ -70,7 +70,9 @@ Python 公共入口在 `resume_maker.sdk`，定义见 `sdk/manifest.py`、`conte
 
 替换后缺失的可选顶层属性可以采用其 schema 中声明的默认值，来源标记为 `default`。必填属性仍需明确提供；不递归填充嵌套对象，也不把 JSON Schema 的默认值当作任意深度合并规则。
 
-插件管理的 JSON 编辑是工作区整份替换，字段及整份重置使用独立按钮，计划内可查看最终结果。`POST /api/plugins/plans` 还接受 `config_edits`，例如 `{instance: "community.example", operation: "set", path: ["options", "count"], value: 2}`。`reset` 使用相同路径且省略 value；空路径表示重置整份配置。
+插件管理的字段表单按 `config_schema` 生成数值、开关、文本和枚举控件，标签优先使用 `description`，其次为 `title` 和字段名。非空嵌套对象展开属性，数组和复杂联合保留单项 JSON，本地 `$ref` 和可空字段得到相应控件；未声明属性的配置仍可通过“高级 JSON”编辑。浏览器检查明确的类型及边界，服务端继续负责完整 schema 校验。
+
+普通字段编辑只发送明确的 `set` 和 `reset`，未编辑字段不转为工作区覆盖。“高级 JSON”是工作区整份替换，字段及整份重置使用独立按钮，计划内显示服务端返回的有效值及来源。`POST /api/plugins/plans` 接受 `config_edits`，例如 `{instance: "community.example", operation: "set", path: ["options", "count"], value: 2}`。`reset` 使用相同路径且省略 value；空路径表示重置整份配置。
 
 `--plugin-config <JSON文件>` 接受 `{bundles: [{name, edits}], startup: [操作...]}`。bundle 按顺序应用并持久保留；startup 只在当前启动生效，普通重启不会把临时值当成永久配置。发行组合也可通过 `profiles.json` 的 `profile_bundles` 及 `bundles` 声明默认配置。文件不执行代码，不包含密钥原文，凭据继续使用独立引用。
 
