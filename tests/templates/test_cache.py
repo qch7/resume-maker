@@ -164,7 +164,7 @@ def test_progress_is_incremental_bounded_and_freezes_on_cancel(tmp_path, monkeyp
     with TestClient(app) as client, provider:
         service = app.state.services.templates
         task = service.analyze(source, simple_document())
-        assert provider.started.wait(2)
+        provider.wait_started()
         emit = provider.calls[0]["emit"]
         for index in range(100):
             emit("activity", {"text": f"活动 {index} api_key=secret-value"})
