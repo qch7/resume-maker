@@ -9,6 +9,7 @@ from tempfile import TemporaryDirectory
 from resume_maker.core.config import sandbox_directory
 from resume_maker.core.content import digest as digest
 from resume_maker.core.content import redact as redact
+from resume_maker.core.process_environment import EnvironmentPolicy, process_environment
 from resume_maker.sdk.model import Cancelled
 from resume_maker.sdk.records import dump, uid
 
@@ -48,6 +49,7 @@ def git(root: Path, *args: str) -> str:
         encoding="utf-8",
         errors="replace",
         creationflags=0x08000000 if os.name == "nt" else 0,
+        env=process_environment(EnvironmentPolicy.CANDIDATE),
     )
     return result.stdout.strip() if result.returncode == 0 else ""
 

@@ -2,7 +2,6 @@
 
 import argparse
 import json
-import os
 import subprocess
 import sys
 import threading
@@ -12,6 +11,7 @@ from pathlib import Path
 import psutil
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
+from resume_maker.core.process_environment import EnvironmentPolicy, process_environment
 from resume_maker.plugin_packages.provider_rapidocr import local_ocr
 
 FIELDS = [
@@ -105,7 +105,7 @@ def main():
         for mode in ("fast", "balanced", "high"):
             run = subprocess.run(
                 [sys.executable, __file__, "--font", args.font, "--mode", mode],
-                env={**os.environ, "PYTHONUTF8": "1"},
+                env={**process_environment(EnvironmentPolicy.CANDIDATE), "PYTHONUTF8": "1"},
                 capture_output=True,
                 text=True,
                 encoding="utf-8",

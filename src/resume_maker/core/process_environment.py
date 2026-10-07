@@ -34,6 +34,17 @@ MODEL_SYSTEM = DESKTOP_SYSTEM | {
     "SSL_CERT_FILE",
     "SSL_CERT_DIR",
 }
+DESKTOP_SESSION = frozenset(
+    {
+        "DISPLAY",
+        "WAYLAND_DISPLAY",
+        "XAUTHORITY",
+        "XDG_RUNTIME_DIR",
+        "DBUS_SESSION_BUS_ADDRESS",
+        "LANG",
+        "LC_ALL",
+    }
+)
 
 
 class EnvironmentPolicy(StrEnum):
@@ -50,7 +61,7 @@ ALLOWLISTS = {
     EnvironmentPolicy.CANDIDATE: CANDIDATE_SYSTEM,
     EnvironmentPolicy.WORKER: BASE_SYSTEM,
     EnvironmentPolicy.MODEL: MODEL_SYSTEM,
-    EnvironmentPolicy.DESKTOP: DESKTOP_SYSTEM,
+    EnvironmentPolicy.DESKTOP: DESKTOP_SYSTEM | DESKTOP_SESSION,
 }
 
 

@@ -29,13 +29,13 @@ from .api import create_app
 def add_launch_arguments(parser):
     """所有官方启动器复用相同参数、配置文件开关和布尔覆盖语义"""
     parser.add_argument("--data-dir", type=Path)
-    parser.add_argument("--port", type=int)
+    parser.add_argument("--port")
     parser.add_argument("--frontend-dir", type=Path, help="覆盖前端静态资源目录")
     browser = parser.add_mutually_exclusive_group()
     browser.add_argument("--no-browser", dest="open_browser", action="store_false")
     browser.add_argument("--browser", dest="open_browser", action="store_true")
     parser.set_defaults(open_browser=None)
-    parser.add_argument("--profile", choices=get_args(LaunchProfile))
+    parser.add_argument("--profile", metavar="{" + ",".join(get_args(LaunchProfile)) + "}")
     parser.add_argument("--plugin-config", type=Path, help="插件默认组合及本次启动覆盖 JSON")
     file = parser.add_mutually_exclusive_group()
     file.add_argument("--env-file", type=Path, help="读取指定的 UTF-8 启动配置文件")

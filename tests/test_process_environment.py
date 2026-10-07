@@ -1,6 +1,7 @@
 """验证启动配置冻结和不同子进程职责的环境继承边界"""
 
 import argparse
+from types import SimpleNamespace
 
 import pytest
 
@@ -8,6 +9,8 @@ from resume_maker.cli import add_launch_arguments, configured_launch
 from resume_maker.core.environment import resolve_launch
 from resume_maker.core.process_environment import EnvironmentPolicy, process_environment
 from resume_maker.host_supervisor import host_command
+from resume_maker.integrations import desktop, sources
+from resume_maker.plugin_packages.ext_word.integrations.word.controlled import ControlledWord
 
 
 @pytest.mark.parametrize(
@@ -111,3 +114,29 @@ def test_upgrade_uses_new_wheel_frontend_when_no_override(tmp_path):
     command = host_command("new-python", tmp_path, args, first=False, candidate=True)
     assert "--frontend-dir" not in command
     assert config.frontend is not None
+
+
+def test_actual_process_callers_use_role_environment(tmp_path, monkeypatch):
+    """Git、桌面定位和受管 Word 的真实调用入口均使用职责环境，不传供应商密钥"""
+    monkeypatch.setenv("SYNTHETIC_PROVIDER_KEY", "secret-value")
+    monkeypatch.setenv("DISPLAY", ":synthetic")
+    captured = []
+
+    def run(*args, **kwargs):
+        """记录真实调用参数，返回合成进程结果"""
+        captured.append(kwargs["env"])
+        return SimpleNamespace(stdout="synthetic", returncode=0)
+
+    monkeypatch.setattr(sources.subprocess, "run", run)
+    monkeypatch.setattr(desktop.subprocess, "Popen", run)
+    assert sources.git(tmp_path, "status", "--short") == "synthetic"
+    desktop.reveal_file(tmp_path / "source.py")
+    execution = SimpleNamespace(execute=run, revoke=lambda *_: None)
+    sandbox = SimpleNamespace(authorize=lambda *_, **__: "synthetic-grant")
+    word = ControlledWord(execution, sandbox, 1)
+    word.execute(["synthetic-word"], cwd=tmp_path, timeout=1)
+    word.close()
+    assert len(captured) == 3
+    assert all("SYNTHETIC_PROVIDER_KEY" not in value for value in captured)
+    assert "DISPLAY" not in captured[0]
+    assert all(value["DISPLAY"] == ":synthetic" for value in captured[1:])

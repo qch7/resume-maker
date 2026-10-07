@@ -1,8 +1,8 @@
 ﻿param(
-    [int]$Port,
+    [string]$Port,
     [string]$DataDir = '',
     [string]$FrontendDir,
-    [ValidateSet('minimal', 'standard')][string]$Profile,
+    [string]$Profile,
     [string]$PluginConfig,
     [string]$EnvFile,
     [switch]$NoEnvFile,

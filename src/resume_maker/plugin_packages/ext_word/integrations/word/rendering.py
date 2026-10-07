@@ -9,6 +9,7 @@ from pathlib import Path
 
 import psutil
 
+from resume_maker.core.process_environment import EnvironmentPolicy, process_environment
 from resume_maker.infrastructure.observability import operation, record
 from resume_maker.sdk.model import ProviderError
 
@@ -44,6 +45,8 @@ def word_process(source: Path, output: Path, mode="render", *, executor=None) ->
                 executor(
                     [
                         sys.executable,
+                        "-X",
+                        "utf8",
                         "-m",
                         "resume_maker.plugin_packages.ext_word.integrations.word.worker",
                         str(source),
@@ -58,6 +61,8 @@ def word_process(source: Path, output: Path, mode="render", *, executor=None) ->
             result = subprocess.run(
                 [
                     sys.executable,
+                    "-X",
+                    "utf8",
                     "-m",
                     "resume_maker.plugin_packages.ext_word.integrations.word.worker",
                     str(source),
@@ -71,6 +76,7 @@ def word_process(source: Path, output: Path, mode="render", *, executor=None) ->
                 errors="replace",
                 timeout=90,
                 creationflags=0x08000000,
+                env=process_environment(EnvironmentPolicy.DESKTOP),
             )
             if result.returncode or not output.exists():
                 record(
