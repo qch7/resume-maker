@@ -14,6 +14,11 @@
 | `RESUME_MAKER_PROFILE` | `--profile` | 留空沿用已保存的选择；允许 `minimal`、`standard` |
 | `RESUME_MAKER_PLUGIN_CONFIG` | `--plugin-config` | 无；可指定插件组合及启动覆盖的 JSON 文件 |
 | `RESUME_MAKER_OPEN_BROWSER` | `--browser` / `--no-browser` | `true`；环境和文件接受 `true/false`、`1/0`、`yes/no`、`on/off`，大小写无关 |
+| `RESUME_MAKER_STARTUP_TIMEOUT_SECONDS` | `--startup-timeout-seconds` | `120`；就绪等待，`10..600` 秒 |
+| `RESUME_MAKER_HEALTH_OBSERVATION_SECONDS` | `--health-observation-seconds` | `3`；候选持续健康观察，`1..60` 秒 |
+| `RESUME_MAKER_HEALTH_POLL_SECONDS` | `--health-poll-seconds` | `0.5`；候选健康检查间隔，`0.1..5` 秒 |
+
+OCR、Word、任务并发、日志保留、数据库锁等待、下载及模板策略见 [插件运行配置](plugin-settings.md)。完整可运行的 JSON 示例在 `examples/plugin-config.json`；通过 `RESUME_MAKER_PLUGIN_CONFIG` 指定它。前端上传限制和回收站保留提示读取后端有效值。全项目分类结论见 [配置审查清单](configuration-audit.md)。
 
 可选目录、组合及配置路径的空值会清除低优先级覆盖，继续使用产品默认或已保存选择。端口和浏览器开关不接受空值。进程中的应用变量按大小写无关方式匹配；配置文件须使用表中的完整大写名称。未知 `RESUME_MAKER_*` 会拒绝启动，避免错拼后静默使用默认值。
 

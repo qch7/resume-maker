@@ -64,7 +64,11 @@ Python 公共入口在 `resume_maker.sdk`，定义见 `sdk/manifest.py`、`conte
 
 ### 配置覆盖
 
+内置运行策略的字段及完整示例见 [插件运行配置](plugin-settings.md)。所属 `configuration.py` 的 `Settings(PluginSettings)` 声明类型、默认及边界，入口通过 `Settings.model_validate(context.config)` 冻结实例快照。生成的清单使用 `x-resume-maker-strict` 让候选阶段拒绝布尔冒充数字、浮点冒充整数和非有限数；外部未声明该扩展的 schema 保持 JSON Schema 原有类型规则。
+
 配置顺序为清单默认值、有序 bundle、工作区覆盖、本次启动覆盖。`ConfigurationEdit` 使用 `replace` 替换整份对象，`set` 按属性路径设置，`reset` 恢复该层开始前的继承值；数组整体替换，重置操作不能携带 `value`。管理计划返回有效配置、逐字段来源和摘要，全部通过 schema 校验后才可应用。
+
+替换后缺失的可选顶层属性可以采用其 schema 中声明的默认值，来源标记为 `default`。必填属性仍需明确提供；不递归填充嵌套对象，也不把 JSON Schema 的默认值当作任意深度合并规则。
 
 插件管理的 JSON 编辑是工作区整份替换，字段及整份重置使用独立按钮，计划内可查看最终结果。`POST /api/plugins/plans` 还接受 `config_edits`，例如 `{instance: "community.example", operation: "set", path: ["options", "count"], value: 2}`。`reset` 使用相同路径且省略 value；空路径表示重置整份配置。
 

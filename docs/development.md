@@ -27,7 +27,9 @@ uv run resume-maker --no-browser
 | `--restore ZIP` | 持有同一实例锁，离线恢复备份后退出 |
 | `--frontend-dir` / `RESUME_MAKER_FRONTEND_DIR` | 静态资源目录；否则使用安装包内资源或仓库 `frontend/dist` |
 
-优先级为 CLI > 进程环境 > 所选 `.env` > 默认值。源码自动读取源码根目录 `.env`，安装包使用 `--env-file` 显式指定，均不搜索任意当前目录。可从 [`.env.example`](../.env.example) 复制；文件仅接受上述六个启动变量。文件路径相对文件位置，环境和参数路径相对调用位置。完整语法、Windows 参数和重启规则见 [启动配置](reference/configuration.md)。运行令牌及实例标识每次随机创建。
+优先级为 CLI > 进程环境 > 所选 `.env` > 默认值。源码自动读取源码根目录 `.env`，安装包使用 `--env-file` 显式指定，均不搜索任意当前目录。可从 [`.env.example`](../.env.example) 复制；文件仅接受声明的宿主启动字段和监督器等待参数。文件路径相对文件位置，环境和参数路径相对调用位置。完整语法、Windows 参数和重启规则见 [启动配置](reference/configuration.md)。运行令牌及实例标识每次随机创建。
+
+插件运行策略、全部字段和配置层顺序见 [插件运行配置](reference/plugin-settings.md)。新增参数修改所属纯 `configuration.py`，接入实际消费者后执行 `uv run python scripts/sync_plugin_settings.py`，同步清单、字段表和 `examples/plugin-config.json`；完整检查验证这些产物。全项目候选及处理结论见 [配置审查](reference/configuration-audit.md)。
 
 Windows 启动脚本在依赖检查后提示正在准备本机数据，宿主健康检查通过后打印工作台地址。启动只接受当前 v9 数据库；旧开发资料须先保留完整备份、离线转换并验证恢复，启动过程不再迁移旧附件。
 

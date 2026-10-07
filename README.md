@@ -216,7 +216,9 @@ uv run resume-maker
 uv run resume-maker --port 8768 --data-dir ./my-resume-data --no-browser
 ```
 
-也可以复制 [`.env.example`](.env.example) 为源码根目录 `.env`，配置端口、资料目录及浏览器开关等六个启动字段。优先级为命令行 > 进程环境 > 配置文件 > 默认值。独立安装包用 `--env-file` 指定文件；`--print-config` 可查看有效值及来源。Windows 启停脚本支持同样的配置文件和覆盖规则，详见[启动配置](docs/reference/configuration.md)。
+也可以复制 [`.env.example`](.env.example) 为源码根目录 `.env`，配置宿主路径、端口、浏览器及监督器等待。优先级为命令行 > 进程环境 > 配置文件 > 默认值。独立安装包用 `--env-file` 指定文件；`--print-config` 可查看有效值及来源。Windows 启停脚本支持同样的配置文件和覆盖规则，详见[启动配置](docs/reference/configuration.md)。
+
+OCR 线程与识别尺寸、Word 超时、任务并发、SQLite 等待、日志保留、插件下载和模板处理的运行参数由各插件声明。[完整 JSON 示例](examples/plugin-config.json) 可通过 `RESUME_MAKER_PLUGIN_CONFIG` 指定，也可在“设置 → 插件”修改。字段及生效规则见 [插件运行配置](docs/reference/plugin-settings.md)，全项目分类和后续契约整理建议见 [审查清单](docs/reference/configuration-audit.md)。
 
 </details>
 
