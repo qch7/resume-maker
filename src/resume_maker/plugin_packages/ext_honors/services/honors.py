@@ -34,9 +34,14 @@ ACTIVE = {"queued", "running"}
 class Honors:
     """集中保存荣誉资料并校验版本，简历按来源标识读取同一份已核对内容"""
 
-    def __init__(self, db, data_dir, provider, *, assets, preserve_sources=None, registry=None):
+    def __init__(
+        self, db, data_dir, provider, *, assets, preserve_sources=None, registry=None, settings=None
+    ):
         """绑定实例资源，构造阶段不启动后台线程"""
         self.db, self.root, self.provider = db, data_dir / "honors", provider
+        from resume_maker.plugin_packages.ext_honors.configuration import Settings
+
+        self.settings = settings or Settings()
         self.workspaces = data_dir / "workspaces"
         self.lock = threading.RLock()
         self.pending = queue.Queue()
@@ -95,7 +100,7 @@ class Honors:
         if self.execution_queue:
             self.execution_queue.close()
         if self.worker:
-            self.worker.join(timeout=10)
+            self.worker.join(timeout=self.settings.close_timeout_seconds)
             if self.worker.is_alive():
                 raise Problem("证书任务尚未结束，保留资源等待取消完成。", 409)
         with self.lock:

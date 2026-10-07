@@ -17,6 +17,9 @@ def activate(context):
     )
 
     sandbox = dependency(context, "sandbox")
+    from resume_maker.plugin_packages.ext_provider_codex.configuration import Settings
+
+    policy = Settings.model_validate(context.config)
     execution = dependency(context, "execution")
     credentials = dependency(context, "credentials")
 
@@ -29,8 +32,14 @@ def activate(context):
             execution=execution,
             credentials=credentials,
             generation=context.generation,
+            policy=policy,
         )
 
     publish(context, "model.transport", transport, observed=False)
-    publish(context, "model.inspection", inspect_cli, observed=False)
+    publish(
+        context,
+        "model.inspection",
+        lambda settings: inspect_cli(settings, policy=policy),
+        observed=False,
+    )
     routes(context, "resume_maker.plugin_packages.ext_provider_codex.routes.settings")

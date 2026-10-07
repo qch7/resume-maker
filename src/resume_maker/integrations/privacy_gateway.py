@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 from resume_maker.domain.models import AIResult, Model
 from resume_maker.infrastructure.observability import operation, record
+from resume_maker.integrations.privacy_policy import OCR_REVIEW_CONFIDENCE
 from resume_maker.integrations.privacy_store import PrivacyStore
 from resume_maker.integrations.source_access import SourceAccess
 from resume_maker.sdk.model import (
@@ -131,7 +132,7 @@ class PrivacyGateway:
                 row["text"]
                 for page in document["pages"]
                 for row in page["blocks"]
-                if row["confidence"] < 0.85
+                if row["confidence"] < OCR_REVIEW_CONFIDENCE
             }
         )
 
@@ -178,7 +179,7 @@ class PrivacyGateway:
             redactor.learn(document["text"])
             for page in document["pages"]:
                 for block in page["blocks"]:
-                    if block["confidence"] < 0.85:
+                    if block["confidence"] < OCR_REVIEW_CONFIDENCE:
                         redactor.values.add(block["text"])
             documents.append(document)
         safe_images, image_records = [], []

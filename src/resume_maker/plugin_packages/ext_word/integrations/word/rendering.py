@@ -11,30 +11,35 @@ import psutil
 
 from resume_maker.core.process_environment import EnvironmentPolicy, process_environment
 from resume_maker.infrastructure.observability import operation, record
+from resume_maker.plugin_packages.ext_word.configuration import Settings
 from resume_maker.sdk.model import ProviderError
 
 # Word COM 排版串行运行以免并发导出争用桌面实例
 RENDER_LOCK = threading.Lock()
 
 
-def render_pages(pdf: Path) -> int:
+def render_pages(pdf: Path, *, settings=None) -> int:
     """从同一 Word PDF 生成分页图，文字转矢量轮廓以免放大模糊或缺少字体"""
     import pymupdf
 
+    settings = settings or Settings()
     with pymupdf.open(pdf) as document:
         for index, page in enumerate(document):
             (pdf.parent / f"page-{index + 1}.svg").write_text(
                 page.get_svg_image(text_as_path=True), encoding="utf-8"
             )
-            page.get_pixmap(matrix=pymupdf.Matrix(1.3, 1.3)).save(
-                pdf.parent / f"page-{index + 1}.png"
-            )
+            page.get_pixmap(
+                matrix=pymupdf.Matrix(settings.preview_scale, settings.preview_scale)
+            ).save(pdf.parent / f"page-{index + 1}.png")
         return len(document)
 
 
 @operation("word.process", "system")
-def word_process(source: Path, output: Path, mode="render", *, executor=None) -> str | None:
+def word_process(
+    source: Path, output: Path, mode="render", *, executor=None, settings=None
+) -> str | None:
     """隔离执行 Word 的转换或排版且只回收本次启动的进程，失败返回具体原因"""
+    settings = settings or Settings()
     if os.name != "nt":
         record("system", "unavailable", "Word 自动转换不可用", level="warning", source="word")
         return "此自动转换需要 Windows 上的 Microsoft Word。"
@@ -55,7 +60,7 @@ def word_process(source: Path, output: Path, mode="render", *, executor=None) ->
                         mode,
                     ],
                     cwd=source.parent,
-                    timeout=90,
+                    timeout=settings.render_timeout_seconds,
                 )
                 return None if output.exists() else "Word 没有生成输出文件。"
             result = subprocess.run(
@@ -74,7 +79,7 @@ def word_process(source: Path, output: Path, mode="render", *, executor=None) ->
                 text=True,
                 encoding="utf-8",
                 errors="replace",
-                timeout=90,
+                timeout=settings.render_timeout_seconds,
                 creationflags=0x08000000,
                 env=process_environment(EnvironmentPolicy.DESKTOP),
             )
@@ -115,10 +120,18 @@ def word_process(source: Path, output: Path, mode="render", *, executor=None) ->
                 owner_file.unlink(missing_ok=True)
 
 
-def render_word(docx: Path, pdf: Path, *, executor=None) -> tuple[int | None, str | None]:
+def render_word(
+    docx: Path, pdf: Path, *, executor=None, settings=None
+) -> tuple[int | None, str | None]:
     """串行生成 PDF 和分页图片，失败仍保留已生成的 DOCX"""
-    error = word_process(docx, pdf, executor=executor) if executor else word_process(docx, pdf)
-    return (None, error) if error else (render_pages(pdf), None)
+    options = {"settings": settings} if settings is not None else {}
+    if executor is not None:
+        options["executor"] = executor
+    error = word_process(docx, pdf, **options)
+    if error:
+        return None, error
+    pages = render_pages(pdf) if settings is None else render_pages(pdf, settings=settings)
+    return pages, None
 
 
 def convert_word(source: Path, output: Path) -> str | None:

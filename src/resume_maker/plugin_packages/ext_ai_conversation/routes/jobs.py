@@ -24,6 +24,7 @@ def cancel(dep_jobs: Annotated[Jobs, Depends(service("jobs"))], job_id: str):
 @router.get("/jobs/{job_id}/events")
 async def events(
     dep_db: Annotated[Database, Depends(service("db"))],
+    dep_jobs: Annotated[Jobs, Depends(service("jobs"))],
     job_id: str,
     request: Request,
     after: int = 0,
@@ -46,7 +47,7 @@ async def events(
                 yield f"event: done\ndata: {dump(job)}\n\n"
                 break
             yield ": heartbeat\n\n"
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(dep_jobs.event_poll_seconds)
 
     return StreamingResponse(stream(), media_type="text/event-stream")
 

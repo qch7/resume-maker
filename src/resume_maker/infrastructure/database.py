@@ -6,6 +6,7 @@ from pathlib import Path
 
 from resume_maker.core.errors import Problem
 from resume_maker.infrastructure.data_catalog import CATALOG_SCHEMA, initialize_catalog
+from resume_maker.infrastructure.database_policy import DatabasePolicy
 from resume_maker.infrastructure.schema_resources import (
     definitions,
     execute_script,
@@ -50,9 +51,10 @@ class Connection(sqlite3.Connection):
 class Database:
     """短连接 SQLite 访问和事务边界，统一 JSON 编解码和配置存储"""
 
-    def __init__(self, path: Path, *, plugins=None):
+    def __init__(self, path: Path, *, plugins=None, policy=None):
         """校验资料版本后建立所选插件的表，拒绝未迁移的旧库"""
         self.path = path
+        self.policy = policy or DatabasePolicy()
         self.activity = None
         path.parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as conn:
@@ -132,7 +134,9 @@ class Database:
     @contextmanager
     def connect(self):
         """创建启用外键约束的短连接并确保异常退出后也释放文件句柄"""
-        conn = sqlite3.connect(self.path, timeout=10, factory=Connection)
+        conn = sqlite3.connect(
+            self.path, timeout=self.policy.lock_timeout_seconds, factory=Connection
+        )
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys=ON")
         try:

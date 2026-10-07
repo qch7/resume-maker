@@ -10,10 +10,15 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 from uuid import UUID
 
 from resume_maker.core.errors import Problem
+from resume_maker.runtime.policy import (
+    DOWNLOAD_CHUNK_BYTES,
+    PACKAGE_DOWNLOAD_MAX_BYTES,
+    PluginPolicy,
+)
 from resume_maker.runtime.state import StateStore, fingerprint
 
 TERMINAL = {"ready", "failed", "cancelled", "interrupted"}
-MAX_BYTES = 512 * 1024 * 1024
+MAX_BYTES = PACKAGE_DOWNLOAD_MAX_BYTES
 
 
 def validate_source(url):
@@ -39,23 +44,27 @@ class Redirects(HTTPRedirectHandler):
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
-def open_source(url):
+def open_source(url, *, timeout=None):
     """使用系统 TLS 信任和有界网络等待，不携带应用凭据"""
     return build_opener(Redirects()).open(
         Request(
             url, headers={"User-Agent": "ResumeMaker-Plugins/1", "Accept-Encoding": "identity"}
         ),
-        timeout=5,
+        timeout=PluginPolicy().download_timeout_seconds if timeout is None else timeout,
     )
 
 
 class Downloads:
     """取消信号和实际下载结束分开，只有摘要通过后才发布可检查文件"""
 
-    def __init__(self, directory, *, opener=open_source):
+    def __init__(self, directory, *, opener=None, policy=None):
         """重启仅标记未完成下载，不自动重发网络请求"""
         self.root = Path(directory) / "plugin-downloads"
-        self.writer, self.opener = StateStore(directory), opener
+        self.policy = policy or PluginPolicy()
+        self.writer = StateStore(directory)
+        self.opener = opener or (
+            lambda url: open_source(url, timeout=self.policy.download_timeout_seconds)
+        )
         self.lock, self.active = threading.RLock(), {}
         self.closed = False
         for path in self.root.glob("*/operation.json"):
@@ -142,7 +151,7 @@ class Downloads:
                     self._save(value)
                 digest = hashlib.sha256()
                 while not cancel.is_set():
-                    chunk = response.read1(128 * 1024)
+                    chunk = response.read1(DOWNLOAD_CHUNK_BYTES)
                     if not chunk:
                         break
                     if value["received"] + len(chunk) > MAX_BYTES:
@@ -198,6 +207,6 @@ class Downloads:
             for cancelled, _ in active:
                 cancelled.set()
         for _, worker in active:
-            worker.join(10)
+            worker.join(self.policy.download_close_timeout_seconds)
             if worker.is_alive():
                 raise Problem("插件下载尚未结束，请稍后重试关闭。", 409)

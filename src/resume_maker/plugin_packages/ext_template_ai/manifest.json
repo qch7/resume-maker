@@ -33,5 +33,25 @@
   ],
   "enhances": [
     "templates"
-  ]
+  ],
+  "config": {
+    "max_analysis_rounds": 3
+  },
+  "config_schema": {
+    "additionalProperties": false,
+    "description": "每轮修正仍经过覆盖和边界校验，失败保留最佳建议",
+    "properties": {
+      "max_analysis_rounds": {
+        "default": 3,
+        "description": "最多模型分析和修正轮数",
+        "maximum": 8,
+        "minimum": 1,
+        "title": "Max Analysis Rounds",
+        "type": "integer"
+      }
+    },
+    "title": "Settings",
+    "type": "object",
+    "x-resume-maker-strict": true
+  }
 }

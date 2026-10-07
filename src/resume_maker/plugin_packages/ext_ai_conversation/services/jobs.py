@@ -79,16 +79,25 @@ class Jobs:
         conversations=None,
         execution_queue=None,
         source_service=None,
+        settings=None,
     ):
         """保存任务依赖，创建取消信号和工作线程状态，此时不启动队列"""
         self.db, self.catalog, self.data_dir = db, catalog, data_dir
         self.provider = provider
+        from resume_maker.plugin_packages.ext_ai_conversation.configuration import Settings
+
+        self.settings = settings or Settings()
         self.conversations = conversations or Conversations(catalog, storage=db)
         self.stopped, self.wakeup = threading.Event(), threading.Event()
         self.cancel_flags: dict[str, threading.Event] = {}
         self.worker: threading.Thread | None = None
         self.execution_queue = execution_queue
         self.sources = source_service
+
+    @property
+    def event_poll_seconds(self):
+        """向进度路由公开当前实例的检查间隔"""
+        return self.settings.event_poll_seconds
 
     def event(self, job_id, kind, data):
         """任务所有者持久化进度，项目删除后忽略迟到事件"""
@@ -133,7 +142,7 @@ class Jobs:
         if self.execution_queue:
             self.execution_queue.close()
         if self.worker:
-            self.worker.join(timeout=8)
+            self.worker.join(timeout=self.settings.close_timeout_seconds)
             if self.worker.is_alive():
                 raise Problem("经历任务尚未结束，保留资源等待取消完成。", 409)
 
@@ -279,7 +288,7 @@ class Jobs:
             if job:
                 self._run(job)
             else:
-                self.wakeup.wait(0.5)
+                self.wakeup.wait(self.settings.queue_poll_seconds)
                 self.wakeup.clear()
 
     def _check_evidence(self, snapshot, evidence):

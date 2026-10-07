@@ -10,9 +10,13 @@ def activate(context):
     )
 
     service = dependency(context, "templates")
+    from resume_maker.plugin_packages.ext_template_ai.configuration import Settings
+
     context.scope.barriers.append(
         service.attach_analysis(
-            dependency(context, "provider"), task_queue(context), TemplateAnalysis()
+            dependency(context, "provider"),
+            task_queue(context),
+            TemplateAnalysis(Settings.model_validate(context.config)),
         )
     )
     context.effect(

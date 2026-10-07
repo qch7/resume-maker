@@ -5,6 +5,7 @@ from resume_maker.plugins.support import dependency, publish, routes
 
 def activate(context):
     """荣誉资料库可独立手工维护，识别任务由另一个插件附接"""
+    from resume_maker.plugin_packages.ext_honors.configuration import Settings
     from resume_maker.plugin_packages.ext_honors.query import honors as query
     from resume_maker.plugin_packages.ext_honors.services.honor_links import resume_source
     from resume_maker.plugin_packages.ext_honors.services.honors import Honors
@@ -37,6 +38,7 @@ def activate(context):
             preserve_sources=dependency(context, "resume").preserve_sources,
             assets=dependency(context, "assets"),
             registry=dependency(context, "document.registry"),
+            settings=Settings.model_validate(context.config),
         ),
     )
     context.scope.barriers.append(service.stop)

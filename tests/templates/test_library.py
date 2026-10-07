@@ -42,6 +42,7 @@ def test_library_persists_and_category_deletion_keeps_likes(tmp_path):
             "categories": [],
             "items": {},
             "templates": [],
+            "trash_retention_days": 30,
         }
         register_template(client.app.state.services.catalog, config.data_dir)
         result = client.post(

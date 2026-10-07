@@ -2,7 +2,9 @@
 
 import re
 
-MAX_IMAGES = 24
+from resume_maker.integrations.privacy_policy import MAX_TEMPLATE_IMAGES
+
+MAX_IMAGES = MAX_TEMPLATE_IMAGES
 
 SECTION_HEADING = re.compile(
     r"^(?:个人简介|自我评价|专业技能|职业技能|技能特长|工作经[历验]|实习经[历验]|"

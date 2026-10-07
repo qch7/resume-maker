@@ -118,3 +118,28 @@ def test_startup_override_is_not_written_as_workspace_setting(tmp_path):
     assert restored["configs"]["community.example"]["nullable"] == "bundle"
     assert restored["provenance"]["community.example"]["/nullable"] == "bundle:test"
     assert startup_configuration({}) == [replacement_layer("workspace", {})]
+
+
+def test_schema_defaults_preserve_required_fields_and_boolean_schemas():
+    """可选顶层默认补全不会绕过必填规则，也不改变布尔 schema"""
+    definitions = manifests()
+    original = definitions["community.example"]
+    schema = {
+        "type": "object",
+        "properties": {
+            "required": {"type": "integer", "default": 1},
+            "optional": {"type": "integer", "default": 2},
+            "open": True,
+        },
+        "required": ["required"],
+    }
+    definitions[original.id] = original.model_copy(
+        update={"config_schema": schema, "config": {"required": 3}}
+    )
+    result = compose_configuration(
+        definitions, [replacement_layer("workspace", {original.id: {"required": 4}})]
+    )
+    assert result["configs"][original.id] == {"required": 4, "optional": 2}
+    assert result["provenance"][original.id] == {"/required": "workspace", "/optional": "default"}
+    with pytest.raises(PluginError):
+        compose_configuration(definitions, [replacement_layer("workspace", {original.id: {}})])

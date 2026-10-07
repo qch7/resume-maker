@@ -10,6 +10,7 @@ from resume_maker.core.config import sandbox_directory
 from resume_maker.core.content import digest as digest
 from resume_maker.core.content import redact as redact
 from resume_maker.core.process_environment import EnvironmentPolicy, process_environment
+from resume_maker.integrations.source_policy import SourcePolicy
 from resume_maker.sdk.model import Cancelled
 from resume_maker.sdk.records import dump, uid
 
@@ -40,12 +41,12 @@ EXCLUDED = {
 SECRET_FILE = re.compile(r"(^\.env($|\.)|credentials|^auth\.json$|private.?key|id_rsa)", re.I)
 
 
-def git(root: Path, *args: str) -> str:
+def git(root: Path, *args: str, policy=None) -> str:
     """在指定目录运行只读 Git 查询，非零退出码按无结果处理"""
     result = subprocess.run(
         ["git", "-C", str(root), *args],
         capture_output=True,
-        timeout=20,
+        timeout=(policy or SourcePolicy()).git_timeout_seconds,
         encoding="utf-8",
         errors="replace",
         creationflags=0x08000000 if os.name == "nt" else 0,
@@ -90,7 +91,7 @@ def scan_collection(path: Path) -> list[dict]:
     return [{"name": p.name, "roots": [str(r) for r in source_roots(p)]} for p in candidates]
 
 
-def project_sources(project: dict) -> list[dict]:
+def project_sources(project: dict, *, policy=None) -> list[dict]:
     """解析关联目录和版本信息供模型按需读取源码"""
     sources = []
     for index, root_name in enumerate(project["roots"]):
@@ -98,14 +99,18 @@ def project_sources(project: dict) -> list[dict]:
         if not root.is_dir():
             raise ValueError("项目来源必须是文件夹。")
         has_git = (root / ".git").exists()
-        status = git(root, "status", "--porcelain", "--untracked-files=normal") if has_git else ""
+        status = (
+            git(root, "status", "--porcelain", "--untracked-files=normal", policy=policy)
+            if has_git
+            else ""
+        )
         sources.append(
             {
                 "id": f"source-{index}",
                 "path": str(root),
                 "name": root.name,
-                "commit": git(root, "rev-parse", "HEAD") if has_git else "",
-                "branch": git(root, "branch", "--show-current") if has_git else "",
+                "commit": git(root, "rev-parse", "HEAD", policy=policy) if has_git else "",
+                "branch": git(root, "branch", "--show-current", policy=policy) if has_git else "",
                 "dirty": bool(status),
                 "status": status,
             }

@@ -72,5 +72,25 @@
   "consumes": [
     "documents.importers",
     "documents.renderers"
-  ]
+  ],
+  "config": {
+    "close_timeout_seconds": 8.0
+  },
+  "config_schema": {
+    "additionalProperties": false,
+    "description": "关闭等待超时继续保留任务依赖和原件",
+    "properties": {
+      "close_timeout_seconds": {
+        "default": 8,
+        "description": "模板任务关闭等待秒数",
+        "maximum": 300,
+        "minimum": 1,
+        "title": "Close Timeout Seconds",
+        "type": "number"
+      }
+    },
+    "title": "Settings",
+    "type": "object",
+    "x-resume-maker-strict": true
+  }
 }

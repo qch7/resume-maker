@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from resume_maker.core.errors import Problem
+from resume_maker.integrations.document_limits import SAFE_IMAGE_MAX_PIXELS
 from resume_maker.integrations.privacy_layout import MAX_IMAGES
 from resume_maker.sdk.model import MosaicImage
 
@@ -29,12 +30,12 @@ def image_sheets(package, directory: Path) -> tuple[list[Path], list[str]]:
 
     images, shown = [], []
     for row in package.inventory()["nodes"]:
-        if row["kind"] != "image" or len(images) >= 24:
+        if row["kind"] != "image" or len(images) >= MAX_IMAGES:
             continue
         try:
             raw = package.image(row["id"])
             pixmap = pymupdf.Pixmap(raw)
-            if pixmap.width * pixmap.height > 20_000_000:
+            if pixmap.width * pixmap.height > SAFE_IMAGE_MAX_PIXELS:
                 continue
             images.append((row["id"], raw))
             shown.append(row["id"])

@@ -11,6 +11,7 @@ from resume_maker.core.errors import Problem
 from resume_maker.domain.templates import TEMPLATE_LIBRARY_KEY as KEY
 from resume_maker.integrations.word.capabilities import render_word
 from resume_maker.integrations.word.full_resume import write_full_resume
+from resume_maker.plugin_packages.ext_template_library.configuration import Settings
 from resume_maker.plugin_packages.ext_template_library.services.templates.cleanup import (
     cleanup_template,
 )
@@ -32,9 +33,11 @@ class TemplateLibrary:
         records,
         registry=None,
         assets,
+        settings=None,
     ):
         """绑定当前应用的数据目录，隔离缩略图生成锁"""
         self.catalog, self.db, self.data_dir = catalog, storage, data_dir
+        self.settings = settings or Settings()
         self.preview_lock = threading.RLock()
         self.templates, self.previews = templates, previews
         self.stop_flag = threading.Event()
@@ -53,6 +56,7 @@ class TemplateLibrary:
     def _state(self, conn):
         """同一数据库快照返回组织信息、实时列表和全部简历引用数"""
         state = self._read(conn)
+        state["trash_retention_days"] = self.settings.trash_retention_days
         state["templates"] = [
             {
                 "id": row["id"],
@@ -144,8 +148,8 @@ class TemplateLibrary:
             return self._state(conn)
 
     def purge_expired(self, at=None):
-        """逐项清理满三十天的模板，单项占用或文件错误留待下次重试"""
-        cutoff = (at or datetime.now(UTC)) - timedelta(days=30)
+        """逐项清理超过保留期的模板，单项占用或文件错误留待下次重试"""
+        cutoff = (at or datetime.now(UTC)) - timedelta(days=self.settings.trash_retention_days)
         for identifier, item in self.state()["items"].items():
             try:
                 if item.get("deleted_at") and datetime.fromisoformat(item["deleted_at"]) <= cutoff:
@@ -154,7 +158,7 @@ class TemplateLibrary:
                 logging.getLogger(__name__).exception("回收站模板清理失败：%s", identifier)
 
     def start(self):
-        """启动时先补做过期清理，随后每分钟检查，不依赖打开模板库"""
+        """启动时先补做过期清理，随后按有效间隔检查"""
         self.purge_expired()
         self.stop_flag.clear()
         self.worker = threading.Thread(target=self._maintain, daemon=True, name="template-trash")
@@ -162,7 +166,7 @@ class TemplateLibrary:
 
     def _maintain(self):
         """可中断等待避免关闭时滞留后台清理线程"""
-        while not self.stop_flag.wait(60):
+        while not self.stop_flag.wait(self.settings.trash_sweep_seconds):
             self.purge_expired()
 
     def stop(self):

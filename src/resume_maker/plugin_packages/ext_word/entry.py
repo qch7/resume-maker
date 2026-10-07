@@ -6,11 +6,15 @@ from resume_maker.plugins.support import dependency, publish
 def activate(context):
     """将精确排版器附接到文档流程，DOCX 生成保持独立"""
     from resume_maker.integrations.document_importers import importer
+    from resume_maker.plugin_packages.ext_word.configuration import Settings
     from resume_maker.plugin_packages.ext_word.integrations.word.controlled import ControlledWord
     from resume_maker.sdk.documents import DocumentRenderer
 
     engine = ControlledWord(
-        dependency(context, "execution"), dependency(context, "sandbox"), context.generation
+        dependency(context, "execution"),
+        dependency(context, "sandbox"),
+        context.generation,
+        settings=Settings.model_validate(context.config),
     )
     context.scope.barriers.append(engine.close)
     context.contribute(

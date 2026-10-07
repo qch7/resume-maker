@@ -123,8 +123,13 @@ def analyze_plan(
     emit,
     initial=None,
     feedback="",
+    *,
+    max_rounds=None,
 ):
-    """最多分析三轮，把具体校验反馈交回 AI，失败或退步时保留已有最佳建议"""
+    """按有效轮数反馈校验结果，失败或退步时保留已有最佳建议"""
+    from resume_maker.plugin_packages.ext_template_ai.configuration import Settings
+
+    rounds = Settings().max_analysis_rounds if max_rounds is None else max_rounds
     source = workspace / "original.docx"
     if initial is not None and not feedback:
         package, initial, notices = complete_template(
@@ -199,7 +204,7 @@ def analyze_plan(
             }
         emit(kind, data)
 
-    for attempt in range(1, 4):
+    for attempt in range(1, rounds + 1):
         if flag.is_set():
             raise Cancelled("模板分析已取消。")
         if source.read_bytes() != evidence_source:
@@ -329,7 +334,7 @@ def analyze_plan(
                 "activity",
                 {"type": "validation", "text": "输出格式未通过校验，已反馈具体字段路径。"},
             )
-            if attempt == 3:
+            if attempt == rounds:
                 if best is None:
                     raise
                 break

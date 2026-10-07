@@ -47,5 +47,43 @@
   "dependencies": [
     "pymupdf>=1.25,<2"
   ],
-  "enhances": []
+  "enhances": [],
+  "config": {
+    "render_timeout_seconds": 90.0,
+    "close_timeout_seconds": 30.0,
+    "preview_scale": 1.3
+  },
+  "config_schema": {
+    "additionalProperties": false,
+    "description": "渲染和旧文档转换采用相同等待策略，配置切换保留进程排空屏障",
+    "properties": {
+      "render_timeout_seconds": {
+        "default": 90,
+        "description": "Word 执行秒数",
+        "maximum": 600,
+        "minimum": 5,
+        "title": "Render Timeout Seconds",
+        "type": "number"
+      },
+      "close_timeout_seconds": {
+        "default": 30,
+        "description": "Word 关闭等待秒数",
+        "maximum": 300,
+        "minimum": 1,
+        "title": "Close Timeout Seconds",
+        "type": "number"
+      },
+      "preview_scale": {
+        "default": 1.3,
+        "description": "PNG 分页预览栅格倍率",
+        "maximum": 3,
+        "minimum": 0.5,
+        "title": "Preview Scale",
+        "type": "number"
+      }
+    },
+    "title": "Settings",
+    "type": "object",
+    "x-resume-maker-strict": true
+  }
 }

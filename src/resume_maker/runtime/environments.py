@@ -16,15 +16,17 @@ from packaging.version import Version
 from resume_maker.core.process_environment import EnvironmentPolicy, process_environment
 from resume_maker.runtime.graph import PluginError
 from resume_maker.runtime.packages import check_dependencies, safe_member
+from resume_maker.runtime.policy import PluginPolicy
 from resume_maker.runtime.state import StateStore, fingerprint
 
 
 class EnvironmentStore:
     """仅安装二进制 wheel，不下载最新版本、不执行源码构建、不修改现有 venv"""
 
-    def __init__(self, directory, *, records=None):
+    def __init__(self, directory, *, records=None, policy=None):
         """解释器环境独立于资料备份，索引只引用已完成健康检查的环境"""
         self.root = directory / "plugin-environments"
+        self.policy = policy or PluginPolicy()
         self.index = directory / "plugin-environments.json"
         self.writer = StateStore(directory)
         self.lock = threading.RLock()
@@ -123,7 +125,12 @@ class EnvironmentStore:
                     env=environment,
                 )
                 return execution.execute(
-                    grant, command, cwd=target, env=environment, timeout=300, cancelled=cancelled
+                    grant,
+                    command,
+                    cwd=target,
+                    env=environment,
+                    timeout=self.policy.install_timeout_seconds,
+                    cancelled=cancelled,
                 )
 
             try:

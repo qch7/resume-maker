@@ -55,5 +55,34 @@
   "consumes": [
     "documents.importers",
     "documents.renderers"
-  ]
+  ],
+  "config": {
+    "trash_retention_days": 30,
+    "trash_sweep_seconds": 60.0
+  },
+  "config_schema": {
+    "additionalProperties": false,
+    "description": "有效保留天数同步展示到界面，清理仍需校验模板引用",
+    "properties": {
+      "trash_retention_days": {
+        "default": 30,
+        "description": "回收站保留天数",
+        "maximum": 3650,
+        "minimum": 1,
+        "title": "Trash Retention Days",
+        "type": "integer"
+      },
+      "trash_sweep_seconds": {
+        "default": 60,
+        "description": "清理检查间隔秒数",
+        "maximum": 86400,
+        "minimum": 10,
+        "title": "Trash Sweep Seconds",
+        "type": "number"
+      }
+    },
+    "title": "Settings",
+    "type": "object",
+    "x-resume-maker-strict": true
+  }
 }

@@ -1,13 +1,27 @@
 """插件配置在执行代码前按清单校验，运行实例只收到独立快照"""
 
 from copy import deepcopy
+from math import isfinite
 
 from jsonschema import Draft202012Validator
+from jsonschema.validators import extend
 
 from resume_maker.runtime.graph import PluginError
 from resume_maker.runtime.state import fingerprint
 from resume_maker.runtime.worker import validate_schema
 from resume_maker.sdk.configuration import ConfigurationEdit, ConfigurationLayer
+
+STRICT_CONFIG_VALIDATOR = extend(
+    Draft202012Validator,
+    type_checker=Draft202012Validator.TYPE_CHECKER.redefine_many(
+        {
+            "integer": lambda _checker, value: type(value) is int,
+            "number": lambda _checker, value: (
+                type(value) is int or (type(value) is float and isfinite(value))
+            ),
+        }
+    ),
+)
 
 
 def configurations(manifests, overrides):
@@ -20,7 +34,21 @@ def configurations(manifests, overrides):
         validate_schema(manifest.config_schema)
         Draft202012Validator.check_schema(manifest.config_schema)
         value = deepcopy(overrides.get(identifier, manifest.config))
-        errors = list(Draft202012Validator(manifest.config_schema).iter_errors(value))
+        if isinstance(value, dict):
+            for key, declaration in manifest.config_schema.get("properties", {}).items():
+                if (
+                    key not in value
+                    and key not in manifest.config_schema.get("required", ())
+                    and isinstance(declaration, dict)
+                    and "default" in declaration
+                ):
+                    value[key] = deepcopy(declaration["default"])
+        validator = (
+            STRICT_CONFIG_VALIDATOR
+            if manifest.config_schema.get("x-resume-maker-strict")
+            else Draft202012Validator
+        )
+        errors = list(validator(manifest.config_schema).iter_errors(value))
         if errors:
             paths = [".".join(map(str, error.absolute_path)) or "$" for error in errors[:10]]
             raise PluginError(f"{identifier} 的配置不符合 schema，字段：{', '.join(paths)}")
@@ -89,7 +117,9 @@ def compose_configuration(manifests, layers, *, missing_ok=False):
     provenance = {
         key: {
             "/" + "/".join(part.replace("~", "~0").replace("/", "~1") for part in path): owner
-            for path, owner in sorted(paths.items())
+            for path, owner in sorted(
+                (path, paths.get(path, "default")) for path in field_origins(values[key], "default")
+            )
         }
         for key, paths in origins.items()
     }

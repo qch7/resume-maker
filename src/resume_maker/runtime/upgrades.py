@@ -189,7 +189,12 @@ class Upgrades:
                 materials=[spec_path],
             )
             host.services["execution"].execute(
-                grant, command, cwd=trial, env=environment, timeout=120, cancelled=self.cancelled
+                grant,
+                command,
+                cwd=trial,
+                env=environment,
+                timeout=manager.policy.candidate_timeout_seconds,
+                cancelled=self.cancelled,
             )
             self._stage(plan, "restart", "候选健康检查通过，等待监督器切换宿主")
             with manager.lock:
