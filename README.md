@@ -216,7 +216,7 @@ uv run resume-maker
 uv run resume-maker --port 8768 --data-dir ./my-resume-data --no-browser
 ```
 
-也可以通过 `RESUME_MAKER_DATA_DIR` 设置数据目录；命令行参数优先。更多选项见[开发指南](docs/development.md)。
+也可以复制 [`.env.example`](.env.example) 为源码根目录 `.env`，配置端口、资料目录及浏览器开关等六个启动字段。优先级为命令行 > 进程环境 > 配置文件 > 默认值。独立安装包用 `--env-file` 指定文件；`--print-config` 可查看有效值及来源。Windows 启停脚本支持同样的配置文件和覆盖规则，详见[启动配置](docs/reference/configuration.md)。
 
 </details>
 

@@ -183,3 +183,28 @@ def test_high_priority_value_replaces_invalid_lower_value(tmp_path):
         resolve_launch(env_file=path, environment={}, overrides={"port": 8000}).settings.port
         == 8000
     )
+
+
+def test_example_and_documentation_cover_the_declared_variables(pytestconfig):
+    """示例和公开文档覆盖全部声明字段，默认示例可以直接解析"""
+    root = pytestconfig.rootpath
+    example = root / ".env.example"
+    declared = {
+        line.split("=", 1)[0]
+        for line in example.read_text(encoding="utf-8").splitlines()
+        if line and not line.startswith("#")
+    }
+    assert declared == set(LAUNCH_VARIABLES)
+    settings = resolve_launch(env_file=example, environment={}).settings
+    assert settings.port == 8765 and settings.profile is None
+    documentation = (root / "docs/reference/configuration.md").read_text(encoding="utf-8")
+    assert all(f"`{name}`" in documentation for name in declared)
+
+
+@pytest.mark.parametrize("option", ["--port", "--profile"])
+def test_cli_invalid_value_is_validated_without_echo(option, capsys):
+    """命令行同样使用统一校验，不由参数解析器回显可能误填的凭据"""
+    with pytest.raises(SystemExit) as caught:
+        cli.main(["--no-env-file", "--print-config", option, "secret-value"])
+    assert caught.value.code == 2
+    assert "secret-value" not in capsys.readouterr().err

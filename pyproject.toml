@@ -67,6 +67,7 @@ include = [
   "/README.md",
   "/AGENTS.md",
   "/.editorconfig",
+  "/.env.example",
   "/.gitattributes",
   "/LICENSE",
   "/.github/CONTRIBUTING.md",

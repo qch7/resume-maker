@@ -6,6 +6,7 @@
 | --- | --- |
 | [使用指南](user-guide.md) | 安装、制作简历、模板、荣誉和插件管理 |
 | [开发指南](development.md) | 环境、检查、打包及本机目录 |
+| [启动配置](reference/configuration.md) | 环境变量、dotenv、优先级和子进程继承 |
 | [架构说明](architecture.md) | 模块职责、依赖、数据流及生命周期 |
 | [开发规范](conventions.md) | 注释、业务边界、隐私及插件实现规则 |
 | [插件协议](reference/plugin-sdk.md) | SDK、包格式、扩展点和升级接口 |
