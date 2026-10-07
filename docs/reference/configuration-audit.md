@@ -566,7 +566,7 @@ OOXML 单位、命名空间及 COM 编号属于固定格式标准；另行按文
 
 ### C07 · 构建版本、包依赖范围和生成校验
 
-依赖、协议和产品版本保持清单及锁文件；运行配置生成校验已接入完整检查
+依赖、协议和产品版本保持清单及锁文件；运行配置生成校验已接入本地完整检查和 CI
 
 - [.github/workflows/ci.yml](../../.github/workflows/ci.yml)
 - [.node-version](../../.node-version)
