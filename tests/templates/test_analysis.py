@@ -122,7 +122,7 @@ def test_cancel_and_stop_discard_late_analysis(catalog, tmp_path):
             assets=Assets(catalog.db, tmp_path / "data"),
         )
         task = service.analyze(source, simple_document())
-        assert provider.started.wait(2)
+        provider.wait_started()
         assert service.cancel(task["id"])["status"] == "cancelled"
         with pytest.raises(Problem, match="已有模板"):
             service.analyze(source, simple_document())
