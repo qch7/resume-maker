@@ -164,6 +164,7 @@ export interface ResumeItem {
 }
 export interface Resume {
   id: string;
+  draft_id?: string;
   name: string;
   template_id: string | null;
   items: ResumeItem[];

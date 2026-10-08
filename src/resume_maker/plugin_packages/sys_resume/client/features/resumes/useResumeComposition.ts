@@ -32,6 +32,7 @@ import {
   orderedHighlightIds,
   toggleHighlightSelection,
   acceptSavedComposition,
+  identifyUnsavedResume,
 } from "@resume-maker/plugin-sdk/shared/resume/composition";
 
 export const NEW_RESUME: Resume = {
@@ -46,16 +47,18 @@ export const NEW_RESUME: Resume = {
 /** 当前选择只保存标识，正文草稿按方案独立保存以免窗口间互相覆盖 */
 export function loadCurrentResume(fallback: Resume) {
   const key = storage.getItem("rm.resume.current");
-  return key
-    ? loadLocal<Resume>(`rm.resume.v2.${key}`, fallback)
-    : loadLocal<Resume>("rm.resume.v2.last", fallback);
+  return identifyUnsavedResume(
+    key
+      ? loadLocal<Resume>(`rm.resume.v2.${key}`, fallback)
+      : loadLocal<Resume>("rm.resume.v2.last", fallback),
+  );
 }
 
 /** 替换失效引用前保存原稿，简历库提供明确恢复入口 */
 export function restoreResume(draft: Resume, state: State) {
   const recovered = recoverResume(draft, state);
   if (recovered.changed) preserveResumeCopy(draft);
-  return recovered;
+  return { ...recovered, draft: identifyUnsavedResume(recovered.draft) };
 }
 
 /** 显式替换整份输入前保留可从简历库恢复的副本 */
@@ -452,7 +455,12 @@ export function useResumeComposition({
       );
       const next = remaining
         ? loadLocal(`rm.resume.v2.${remaining.id}`, remaining)
-        : { ...NEW_RESUME, document: newDocument(state.resume_defaults) };
+        : identifyUnsavedResume(
+            loadLocal("rm.resume.v2.new", {
+              ...NEW_RESUME,
+              document: newDocument(state.resume_defaults),
+            }),
+          );
       setDraft(
         /* 删除期间若已经切换方案，保留用户当前选择 */ (current) =>
           current.id === resume.id ? next : current,
@@ -469,7 +477,11 @@ export function useResumeComposition({
   }
   /** 首份草稿保存成正式方案后移除旧入口，切换期间保留原稿 */
   function retireUnsavedDraft(submitted: Resume) {
-    if (!submitted.id && !currentDraft.current.id)
+    if (
+      !submitted.id &&
+      !currentDraft.current.id &&
+      submitted.draft_id === currentDraft.current.draft_id
+    )
       storage.removeItem("rm.resume.v2.new");
   }
   /** 先保存组合再导出文档，始终在完成或失败后清除导出中状态 */

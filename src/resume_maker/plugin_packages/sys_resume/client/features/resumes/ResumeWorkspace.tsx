@@ -1400,13 +1400,15 @@ export default function ResumeWorkspace() {
           unsavedDraft={loadLocal<Resume | null>("rm.resume.v2.new", null)}
           recoveryDrafts={loadLocal<Resume[]>("rm.resume.recoveries", [])}
           onRecover={(copy) => {
+            const unsaved = loadLocal<Resume | null>("rm.resume.v2.new", null);
+            if (unsaved) preserveResumeCopy(unsaved);
             if (!draft.id) preserveResumeCopy(draft);
             storage.setItem(
               `rm.resume.v2.${draft.id || "new"}`,
               JSON.stringify(draft),
             );
             const restored = restoreResume(
-              { ...copy, id: "", version: 0 },
+              { ...copy, id: "", draft_id: crypto.randomUUID(), version: 0 },
               state,
             );
             setDraft(restored.draft);

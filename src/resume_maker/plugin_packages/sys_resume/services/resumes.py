@@ -168,7 +168,10 @@ class Resumes:
                     dump(resolved_document) if resolved_document is not None else None,
                 ),
             )
-        return self.db.one("SELECT * FROM resumes WHERE id=?", (resume_id,))
+            saved = unpack(
+                conn.execute("SELECT * FROM resumes WHERE id=?", (resume_id,)).fetchone()
+            )
+        return saved
 
     def delete_resume(self, resume_id: str, version: int) -> None:
         """按版本删除方案，保留项目、模板及历史导出，拒绝覆盖其他窗口的修改"""

@@ -15,6 +15,7 @@ import {
   sameComposition,
   isCurrentExport,
   acceptSavedComposition,
+  identifyUnsavedResume,
 } from "../src/shared/resume/composition.ts";
 
 test("saving preserves newer typing and never switches away from another resume", /* 验证保存请求期间继续输入和切换方案不会被迟到的服务器响应覆盖 */ () => {
@@ -37,6 +38,23 @@ test("saving preserves newer typing and never switches away from another resume"
   assert.equal(acceptSavedComposition(submitted, submitted, saved), saved);
   const other = { ...submitted, id: "other" };
   assert.equal(acceptSavedComposition(other, submitted, saved), other);
+});
+
+test("late first save cannot claim another unsaved recovery copy", () => {
+  const empty = {
+    id: "",
+    name: "首稿",
+    template_id: null,
+    items: [],
+    version: 0,
+    document: newDocument(),
+  };
+  const submitted = identifyUnsavedResume(empty);
+  assert.equal(identifyUnsavedResume(submitted), submitted);
+  const restored = identifyUnsavedResume({ ...empty, name: "恢复稿" });
+  assert.notEqual(submitted.draft_id, restored.draft_id);
+  const saved = { ...submitted, id: "saved", version: 1 };
+  assert.equal(acceptSavedComposition(restored, submitted, saved), restored);
 });
 
 test("custom information filters empty and hidden items without modifying stored values", /* 验证自定义信息按顺序参与排版，空项和隐藏项保留在草稿中 */ () => {

@@ -54,3 +54,35 @@ def test_export_rejects_changed_version_without_publishing(catalog, tmp_path):
         resumes.freeze_export(tmp_path / "data", first["id"], second["version"]).values()[0]["name"]
         == "窗口乙"
     )
+
+
+def test_resume_confirmation_does_not_borrow_another_windows_version(
+    catalog, tmp_path, monkeypatch
+):
+    """另一窗口在提交后抢先保存时确认仍属于本次事务"""
+    resumes = Resumes(catalog, storage=catalog.db, assets=catalog.assets)
+    content = resume_content()
+    first = resumes.save_resume("初稿", None, [], document=content)
+    transaction = catalog.db.transaction
+    interleave = True
+
+    @contextmanager
+    def write_then_interleave():
+        """第一窗口提交后先执行第二窗口保存"""
+        nonlocal interleave
+        with transaction() as conn:
+            yield conn
+        if interleave:
+            interleave = False
+            resumes.save_resume("窗口乙", None, [], first["id"], first["version"] + 1, content)
+
+    monkeypatch.setattr(catalog.db, "transaction", write_then_interleave)
+    confirmed = resumes.save_resume("窗口甲", None, [], first["id"], first["version"], content)
+    assert confirmed["name"] == "窗口甲"
+    assert confirmed["version"] == first["version"] + 1
+    with pytest.raises(Problem) as failure:
+        resumes.freeze_export(tmp_path, first["id"], confirmed["version"])
+    assert failure.value.status == 409
+    with pytest.raises(Problem) as failure:
+        resumes.save_resume("甲后续输入", None, [], first["id"], confirmed["version"], content)
+    assert failure.value.status == 409
