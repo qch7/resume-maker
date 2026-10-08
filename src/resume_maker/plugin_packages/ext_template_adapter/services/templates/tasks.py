@@ -2,6 +2,7 @@
 
 import threading
 import time
+from contextlib import contextmanager
 from copy import deepcopy
 from io import BytesIO
 from pathlib import Path
@@ -24,6 +25,7 @@ from resume_maker.sdk.documents import DEFAULT_RENDERER, generate_docx
 from resume_maker.sdk.imports import ImportContext, ImportSource
 from resume_maker.sdk.model import Cancelled, Provider
 from resume_maker.sdk.observation import internal
+from resume_maker.sdk.previews import PreviewCache
 from resume_maker.sdk.records import dump, now, uid, unpack
 from resume_maker.sdk.services import Resumes
 
@@ -69,6 +71,7 @@ class Templates:
         self.import_registry = registry
         self.assets = assets
         self.analysis = analysis
+        self.previews = PreviewCache(data_dir / "workspaces", prefix="template-previews-")
         self.renderer = DEFAULT_RENDERER
         self.converter = DEFAULT_RENDERER
         self.execution_queue = None
@@ -118,9 +121,11 @@ class Templates:
         return detach
 
     @internal
+    @contextmanager
     def maintenance(self):
         """公开维护屏障，调用方持有期间禁止开始分析或保存新产物"""
-        return self.lock
+        with self.lock, self.previews.lock:
+            yield
 
     def cleanup_paths(self, template_id, shared):
         """返回关联任务的可清理路径，仍有执行线程时拒绝永久删除"""
@@ -130,6 +135,7 @@ class Templates:
         for identifier, origin in self.origins.items():
             relative = f"workspaces/template-{identifier}"
             if origin == template_id and relative not in shared:
+                result.update(self.previews.artifacts(identifier))
                 result.add(self.data_dir / relative)
                 durable = f"template-drafts/{identifier}"
                 if durable not in shared:
@@ -145,6 +151,7 @@ class Templates:
         def forget():
             """持久清理成功后才撤销当前进程的任务缓存"""
             for key in removed:
+                self.previews.discard(key)
                 for mapping in (
                     self.tasks,
                     self.started,
@@ -789,12 +796,8 @@ class Templates:
         """试填和永久清理串行以防删除后迟到的预览重新创建产物"""
         source = self.source(identifier)
         projects = self.projects(items)
-        # 预览文件使用独立标识，迟到响应或新预览不会覆盖正在查看的文件
-        preview_id = uid()
-        directory = source.parent / preview_id
-        directory.mkdir()
-        output = directory / "resume.docx"
-        try:
+        with self.previews.allocate() as (preview_id, directory):
+            output = directory / "resume.docx"
             generate_docx(
                 output,
                 document.model_dump(),
@@ -804,15 +807,24 @@ class Templates:
                 plan=plan,
                 template_engine=fill_template,
             )
-        except Exception:
-            if not any(directory.iterdir()):
-                directory.rmdir()
-            raise
-        renderer = render_word if self.renderer is DEFAULT_RENDERER else self.renderer
-        pages, error = (
-            renderer(output, directory / "resume.pdf") if renderer else (None, "Word 插件未启用。")
-        )
-        return {"id": preview_id, "pages": pages, "render_error": error}
+            renderer = render_word if self.renderer is DEFAULT_RENDERER else self.renderer
+            pages, error = (
+                renderer(output, directory / "resume.pdf")
+                if renderer
+                else (None, "Word 插件未启用。")
+            )
+            files = {"resume.docx"}
+            if pages:
+                files.add("resume.pdf")
+                files.update(
+                    f"page-{i}.{ext}" for i in range(1, pages + 1) for ext in ("png", "svg")
+                )
+            self.previews.publish(preview_id, directory, files, owner=identifier)
+            return {"id": preview_id, "pages": pages, "render_error": error}
+
+    def preview_lease(self, identifier, preview_id, filename):
+        """核验分析归属并在传输期间保留试填产物"""
+        return self.previews.lease(preview_id, filename, owner=identifier)
 
     def projects(self, items: list[ResumeItem]) -> list[dict]:
         """校验固定项目和亮点引用，保存和试填使用同一份资料覆盖规则"""
@@ -839,6 +851,7 @@ class Templates:
             thread.join(timeout=self.settings.close_timeout_seconds)
             if thread.is_alive():
                 raise Problem("模板任务尚未结束，保留资源等待取消完成。", 409)
+        self.previews.stop()
 
 
 def new_progress():

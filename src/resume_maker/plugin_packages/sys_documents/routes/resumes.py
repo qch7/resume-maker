@@ -3,10 +3,10 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import Response
 
 from resume_maker.api.dependencies import service
-from resume_maker.api.resources import AssetResponse
+from resume_maker.api.resources import AssetResponse, LeasedFileResponse
 from resume_maker.api.schemas import ResumePreviewInput
 from resume_maker.core.errors import Problem, need
 from resume_maker.infrastructure.assets import Assets
@@ -41,7 +41,7 @@ def preview_file(
     file_name: str,
 ):
     """鉴权后返回本实例已生成的 Word 预览"""
-    return FileResponse(dep_resume_previews.file(preview_id, file_name), filename=file_name)
+    return LeasedFileResponse(lambda: dep_resume_previews.lease(preview_id, file_name), file_name)
 
 
 @router.post("/resumes/{resume_id}/exports")

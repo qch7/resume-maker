@@ -239,8 +239,12 @@ def test_library_review_save_and_reopen_share_completion(tmp_path, monkeypatch):
         assert reviewed["ready"] and reviewed["missing"] == [] and reviewed["notices"]
         preview = client.post(prefix + "/preview", json=body, headers=headers)
         assert preview.status_code == 200
-        output = task_source.parent / preview.json()["id"] / "resume.docx"
-        assert "电话：123456789" in visible_text(output) and "New subtitle" in visible_text(output)
+        with app.state.services.templates.preview_lease(
+            opened["id"], preview.json()["id"], "resume.docx"
+        ) as output:
+            assert "电话：123456789" in visible_text(output) and "New subtitle" in visible_text(
+                output
+            )
         saved = client.post(prefix + "/save", json={**body, "name": "新版"}, headers=headers)
         assert saved.status_code == 200
         reopened = client.post(

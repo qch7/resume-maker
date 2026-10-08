@@ -1,13 +1,12 @@
 """本机 Word 模板检查和登记的 HTTP 入口"""
 
-import re
 from typing import Annotated
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import Response
 
 from resume_maker.api.dependencies import service
+from resume_maker.api.resources import LeasedFileResponse
 from resume_maker.api.schemas import (
     AdaptiveTemplateInput,
     TemplateEditInput,
@@ -142,13 +141,6 @@ def preview_file(
     file_name: str,
 ):
     """仅提供当前分析目录中的 Word、PDF 和分页图"""
-    try:
-        UUID(preview_id)
-    except ValueError as exc:
-        raise Problem("预览标识无效。", 404) from exc
-    if not re.fullmatch(r"resume\.(docx|pdf)|page-[1-9][0-9]*\.(png|svg)", file_name):
-        raise Problem("预览文件不存在。", 404)
-    path = dep_templates.source(analysis_id).parent / preview_id / file_name
-    if not path.is_file():
-        raise Problem("预览文件不存在。", 404)
-    return FileResponse(path, filename=file_name)
+    return LeasedFileResponse(
+        lambda: dep_templates.preview_lease(analysis_id, preview_id, file_name), file_name
+    )

@@ -335,6 +335,10 @@ class ResumePreviews(Protocol):
         """只提供当前实例已生成的预览文件，模板源文件和任意路径均不可下载"""
         ...
 
+    def lease(self, identifier, filename):
+        """返回覆盖完整文件传输的临时预览租约"""
+        ...
+
 
 class Settings(Protocol):
     """Settings 的公开业务操作，插件消费者不依赖具体实现"""
@@ -563,6 +567,10 @@ class Templates(Protocol):
 
     def projects(self, items: list[ResumeItem]) -> list[dict]:
         """校验固定项目和亮点引用，保存和试填使用同一份资料覆盖规则"""
+        ...
+
+    def preview_lease(self, identifier, preview_id, filename):
+        """返回核对分析归属的试填文件租约"""
         ...
 
 

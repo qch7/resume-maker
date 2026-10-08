@@ -57,11 +57,10 @@ def test_analysis_snapshot_save_restart_and_export(tmp_path, monkeypatch):
         assert client.get(preview_prefix + "/resume.docx", headers=headers).status_code == 200
         assert client.get(preview_prefix + "/original.docx", headers=headers).status_code == 404
         assert client.get(preview_prefix + "/resume.docx").status_code == 401
-        vector = (
-            app.state.services.templates.source(task["id"]).parent
-            / preview.json()["id"]
-            / "page-1.svg"
-        )
+        with app.state.services.templates.preview_lease(
+            task["id"], preview.json()["id"], "resume.docx"
+        ) as output:
+            vector = output.parent / "page-1.svg"
         vector.write_text('<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0L10 10"/></svg>')
         response = client.get(preview_prefix + "/page-1.svg", headers=headers)
         assert response.status_code == 200 and response.headers["content-type"].startswith(

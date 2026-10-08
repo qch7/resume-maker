@@ -268,3 +268,18 @@ def test_preview_routes_enforce_auth_instance_and_file_scope(tmp_path, monkeypat
             right.get(base + "/resume.docx", headers={"x-resume-token": "right"}).status_code == 404
         )
         assert app.state.services.db.all("SELECT * FROM exports") == []
+
+
+def test_resume_results_and_cache_are_bounded(preview):
+    """连续不同输入超过上限后索引和目录均回收，旧输入能重新生成"""
+    service, calls = preview
+    first = None
+    for index in range(30):
+        document = resume_content().model_dump()
+        document["personal"]["name"] = f"测试用户{index}"
+        result = service.render(None, document, [])
+        first = first or result
+    assert len(service.results) == len(service.cache) == 24
+    with pytest.raises(Problem, match="失效"):
+        service.file(first["id"], "resume.docx")
+    assert len(calls) == 30
