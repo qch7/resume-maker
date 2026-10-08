@@ -1,4 +1,8 @@
 import ImportDetails from "@resume-maker/plugin-sdk/shared/components/ImportDetails";
+import { FIELD_SAVE_DEBOUNCE_MS } from "@resume-maker/plugin-sdk/shared/lib/timing";
+
+const TASK_PROGRESS_POLL_MS = 800;
+const TASK_LIST_POLL_MS = 2000;
 import type { TemplateAdapterProps } from "@resume-maker/plugin-sdk/plugins/slots";
 import {
   loadLocal,
@@ -279,7 +283,7 @@ export default function TemplateAdapter({
                   : previous,
             );
             if (progress.status === "running") {
-              timer = setTimeout(poll, 800);
+              timer = setTimeout(poll, TASK_PROGRESS_POLL_MS);
               return;
             }
           }
@@ -297,7 +301,8 @@ export default function TemplateAdapter({
           )
             return;
           setAnalysis(value);
-          if (value.status === "running") timer = setTimeout(poll, 800);
+          if (value.status === "running")
+            timer = setTimeout(poll, TASK_PROGRESS_POLL_MS);
           else {
             const draft = loadLocal<{
               plan: TemplatePlan;
@@ -345,7 +350,7 @@ export default function TemplateAdapter({
               }
             } else {
               setNotice("实时动态连接中断，正在重新连接…");
-              timer = setTimeout(poll, 2000);
+              timer = setTimeout(poll, TASK_LIST_POLL_MS);
             }
           }
         }
@@ -377,7 +382,7 @@ export default function TemplateAdapter({
               setNotice((error as Error).message);
           }
         },
-        450,
+        FIELD_SAVE_DEBOUNCE_MS,
       );
       return /* 切换任务或继续输入时撤销旧校验 */ () => {
         clearTimeout(timer);

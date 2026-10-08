@@ -183,6 +183,105 @@
   color: var(--warning);
   overflow-wrap: anywhere;
 }
+.plugin-card:has(.plugin-card-configuration[open]) {
+  grid-column: 1 / -1;
+}
+.plugin-config-editor {
+  container-type: inline-size;
+  margin-top: 14px;
+}
+.plugin-config-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px 24px;
+}
+.plugin-config-field {
+  min-width: 0;
+}
+.plugin-config-field-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.plugin-config-field-heading label {
+  margin: 0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.plugin-config-field-heading button {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 2px 6px;
+  border: 0;
+  background: transparent;
+  color: var(--subtle);
+}
+.plugin-config-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+}
+.plugin-config-control input:not([type="checkbox"]),
+.plugin-config-control select,
+.plugin-config-control textarea {
+  margin: 0;
+  min-width: 0;
+  width: 100%;
+}
+.plugin-config-control input[type="checkbox"] {
+  margin: 0;
+  width: 17px;
+  height: 17px;
+}
+.plugin-config-null {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.plugin-config-meta {
+  display: flex;
+  gap: 10px;
+  margin-top: 5px;
+  color: var(--subtle);
+  font-size: 11px;
+}
+.plugin-config-error {
+  display: block;
+  margin-top: 5px;
+  color: var(--danger);
+  font-size: 12px;
+}
+.plugin-config-field.is-invalid input,
+.plugin-config-field.is-invalid select,
+.plugin-config-field.is-invalid textarea {
+  border-color: var(--danger);
+}
+.plugin-config-pending {
+  color: var(--subtle);
+  font-size: 13px;
+}
+.plugin-config-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+.plugin-config-json > summary {
+  color: var(--subtle);
+  font-size: 12px;
+}
+.plugin-config-json textarea {
+  margin-top: 10px;
+}
+@container (max-width: 520px) {
+  .plugin-config-fields {
+    grid-template-columns: 1fr;
+  }
+}
 .plugin-manager-panel > details:not(.plugin-group) {
   border-top: 1px solid var(--line);
   padding: 16px 0;

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { FIELD_SAVE_DEBOUNCE_MS } from "@resume-maker/plugin-sdk/shared/lib/timing";
 import { api, ApiError } from "@resume-maker/plugin-sdk/shared/lib/api";
 import {
   loadLocal,
@@ -109,7 +110,7 @@ export function useField<T>(
     const timer = setTimeout(
       /* 延迟执行保存或提示清理，减少频繁更新 */ () =>
         void flush().catch(/* 上次错误已显示，恢复后续写入 */ () => {}),
-      450,
+      FIELD_SAVE_DEBOUNCE_MS,
     );
     return () => clearTimeout(timer);
   }, [value]);

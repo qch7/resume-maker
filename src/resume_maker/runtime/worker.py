@@ -1,7 +1,6 @@
 """有界 JSON RPC 工作进程，故障隔离不冒充 OS 权限隔离"""
 
 import json
-import os
 import sys
 import threading
 import time
@@ -9,6 +8,7 @@ from uuid import uuid4
 
 from jsonschema import Draft202012Validator
 
+from resume_maker.core.process_environment import EnvironmentPolicy, process_environment
 from resume_maker.runtime.graph import PluginError
 from resume_maker.sdk.context import ServiceKey
 
@@ -76,11 +76,7 @@ class Worker:
             path = (self.directory / self.entry.entry).resolve()
             if not path.is_relative_to(self.directory):
                 raise PluginError("worker 入口越界")
-            environment = {
-                key: value
-                for key, value in os.environ.items()
-                if key.upper() in {"SYSTEMROOT", "WINDIR", "PATH"}
-            }
+            environment = process_environment(EnvironmentPolicy.WORKER)
             interpreter = (
                 self.context.host.bootstrap.get("worker_environments", {})
                 .get(self.context.plugin_id, {})

@@ -1,4 +1,5 @@
 import type { ConversationProps } from "@resume-maker/plugin-sdk/plugins/slots";
+import { FIELD_SAVE_DEBOUNCE_MS } from "@resume-maker/plugin-sdk/shared/lib/timing";
 import { ArrowUp, RotateCcw, Square } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
@@ -73,7 +74,7 @@ export default function Chat(props: ConversationProps) {
         void flush().catch(
           /* 取消后忽略迟到的错误 */ (error) => setDraftStatus(error.message),
         ),
-      450,
+      FIELD_SAVE_DEBOUNCE_MS,
     );
     return () => clearTimeout(timer);
   }, [input]);

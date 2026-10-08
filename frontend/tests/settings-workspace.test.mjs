@@ -14,6 +14,7 @@ async function application() {
         return [values[key], next => values[key] = typeof next === "function" ? next(values[key]) : next];
       }
       export function useRef(initial) { const key = index++; return values[key] ??= {current: initial}; }
+      export function useId() { const key = index++; return values[key] ??= "synthetic-" + key; }
       export function useCallback(value) { return value; }
       export function useEffect(effect, dependencies) {
         const key = index++, previous = values[key];

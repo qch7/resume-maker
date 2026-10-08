@@ -10,6 +10,13 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from resume_maker.domain.activity import ActivityCaptureSettings
+from resume_maker.infrastructure.activity_policy import (
+    HISTORY_BATCH_SIZE,
+    MAX_DETAIL_CHARS,
+    MAX_DETAIL_DEPTH,
+    MAX_DETAIL_ITEMS,
+    ActivityPolicy,
+)
 from resume_maker.infrastructure.database import dump, now
 
 SECRET_KEY = re.compile(
@@ -25,7 +32,7 @@ SECRET_TEXT = re.compile(
     r"\bsk-[a-zA-Z0-9_-]{8,}|"
     r"-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?-----END [^-]*PRIVATE KEY-----"
 )
-MAX_DETAIL = 262_144
+MAX_DETAIL = MAX_DETAIL_CHARS
 DEFAULT_POLLING_PATHS = "/api/state\n/api/honors\n/api/templates/analyses/*/progress"
 SUMMARY_COLUMNS = (
     "id,created_at,category,level,source,event,title,trace_id,span_id,parent_span_id,"
@@ -62,7 +69,7 @@ def safe_text(value):
 
 def safe_value(value, depth=0):
     """将领域对象变成有界 JSON，二进制只记录大小且未知对象不展开内部属性"""
-    if depth > 16:
+    if depth > MAX_DETAIL_DEPTH:
         return "[嵌套过深，已截断]"
     if isinstance(value, str):
         text = safe_text(value)
@@ -80,16 +87,16 @@ def safe_value(value, depth=0):
             safe_text(str(key)): "[已遮盖]"
             if SECRET_KEY.search(str(key))
             else safe_value(item, depth + 1)
-            for key, item in list(value.items())[:1000]
+            for key, item in list(value.items())[:MAX_DETAIL_ITEMS]
         }
-        if len(value) > 1000:
-            result["_truncated_items"] = len(value) - 1000
+        if len(value) > MAX_DETAIL_ITEMS:
+            result["_truncated_items"] = len(value) - MAX_DETAIL_ITEMS
         return result
     if isinstance(value, (list, tuple, set)):
         items = list(value)
-        result = [safe_value(item, depth + 1) for item in items[:1000]]
-        if len(items) > 1000:
-            result.append({"_truncated_items": len(items) - 1000})
+        result = [safe_value(item, depth + 1) for item in items[:MAX_DETAIL_ITEMS]]
+        if len(items) > MAX_DETAIL_ITEMS:
+            result.append({"_truncated_items": len(items) - MAX_DETAIL_ITEMS})
         return result
     return f"<{type(value).__name__}>"
 
@@ -120,10 +127,16 @@ def mask_secrets(value, secrets):
 class ActivityLog:
     """每个应用实例独立持有日志库和保留策略"""
 
-    def __init__(self, path: Path, *, max_records=50_000, retention_days=30, secrets=()):
+    def __init__(
+        self, path: Path, *, max_records=None, retention_days=None, secrets=(), policy=None
+    ):
         """建立独立日志库以保留现有业务数据库结构和用户数据"""
         self.path = path
-        self.max_records, self.retention_days = max_records, retention_days
+        self.policy = policy or ActivityPolicy()
+        self.max_records = self.policy.max_records if max_records is None else max_records
+        self.retention_days = (
+            self.policy.retention_days if retention_days is None else retention_days
+        )
         self.lock = threading.Lock()
         self.task_contexts = OrderedDict()
         self.secrets = {value for value in secrets if value}
@@ -145,7 +158,9 @@ class ActivityLog:
 
     def connect(self, *, check_same_thread=True):
         """创建短连接，日志锁和业务事务互不共享"""
-        conn = sqlite3.connect(self.path, timeout=2, check_same_thread=check_same_thread)
+        conn = sqlite3.connect(
+            self.path, timeout=self.policy.lock_timeout_seconds, check_same_thread=check_same_thread
+        )
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys=ON")
         return conn
@@ -459,8 +474,8 @@ class ActivityLog:
             while True:
                 rows = conn.execute(
                     cte + f"SELECT * FROM activity WHERE {where} AND id>? AND id<=? "
-                    "ORDER BY id LIMIT 200",
-                    (*polling_args, *args, after, snapshot),
+                    "ORDER BY id LIMIT ?",
+                    (*polling_args, *args, after, snapshot, HISTORY_BATCH_SIZE),
                 ).fetchall()
                 if not rows:
                     return

@@ -1,6 +1,7 @@
 """源码插件公开服务，扫描、只读材料和证据核对统一随插件启停"""
 
 from resume_maker.integrations.source_context import source_context
+from resume_maker.integrations.source_policy import SourcePolicy
 from resume_maker.integrations.sources import (
     capture_evidence,
     check_evidence,
@@ -12,9 +13,10 @@ from resume_maker.integrations.sources import (
 class SourceService:
     """只持有公开经历接口和资源服务，不读取其他业务对象内部状态"""
 
-    def __init__(self, catalog, directory, *, assets):
+    def __init__(self, catalog, directory, *, assets, policy=None):
         """经历服务负责发布证据，资源服务负责读取不可变原件"""
         self.catalog, self.directory, self.assets = catalog, directory, assets
+        self.policy = policy or SourcePolicy()
 
     def scan(self, path):
         """扫描用户明确选择的目录"""
@@ -22,7 +24,7 @@ class SourceService:
 
     def describe(self, project):
         """只解析当前项目绑定的来源"""
-        return project_sources(project)
+        return project_sources(project, policy=self.policy)
 
     def context(self, sources, cancelled):
         """生成有界只读材料工具的上下文"""

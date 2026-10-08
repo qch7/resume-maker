@@ -8,6 +8,8 @@ import sys
 from contextlib import contextmanager
 from pathlib import Path
 
+from resume_maker.core.environment import PROVIDER_KEY
+from resume_maker.core.process_environment import EnvironmentPolicy, process_environment
 from resume_maker.infrastructure.observability import protect_secrets, record
 from resume_maker.integrations.providers.credentials import isolated_credentials
 from resume_maker.integrations.providers.material_server import SOURCE_TOOLS, TOOLS
@@ -19,6 +21,7 @@ from resume_maker.integrations.providers.sandbox import (
     workspace,
 )
 from resume_maker.integrations.providers.source_broker import source_broker
+from resume_maker.plugin_packages.ext_provider_codex.configuration import Settings
 from resume_maker.plugin_packages.ext_provider_codex.integrations.providers.connection import (
     connection,
 )
@@ -28,15 +31,17 @@ from resume_maker.plugin_packages.ext_provider_codex.integrations.providers.mode
 from resume_maker.sdk.model import ProviderError
 
 
-def inspect_cli(settings):
+def inspect_cli(settings, *, policy=None):
     """检查本机 CLI 版本，不连接模型或读取用户文档"""
     try:
+        policy = policy or Settings()
         result = subprocess.run(
             [native_executable(settings.executable), "--version"],
             capture_output=True,
-            timeout=15,
+            timeout=policy.inspection_timeout_seconds,
             encoding="utf-8",
             errors="replace",
+            env=process_environment(EnvironmentPolicy.MODEL),
             creationflags=0x08000000 if os.name == "nt" else 0,
         )
         version = result.stdout.strip()
@@ -162,10 +167,12 @@ def run_cli(
     execution=None,
     credentials=None,
     generation=1,
+    policy=None,
 ):
     """在临时 CLI home 中开启受限工具会话，只向只读服务提供脱敏副本"""
+    policy = policy or Settings()
     selected, env = connection(settings, environment)
-    protect_secrets(env.get("RESUME_MAKER_PROVIDER_KEY"), env.get("OPENAI_API_KEY"))
+    protect_secrets(env.get(PROVIDER_KEY), env.get("OPENAI_API_KEY"))
     with (
         sandbox.session() if sandbox else workspace() as root,
         credential_session(credentials, root, env, cancelled) as env,
@@ -191,7 +198,11 @@ def run_cli(
         temporary.mkdir()
         env.update(dict.fromkeys(("TEMP", "TMP", "TMPDIR"), str(temporary)))
         version = execute(
-            [executable, "--version"], cwd=root, env=env, timeout=15, cancelled=cancelled
+            [executable, "--version"],
+            cwd=root,
+            env=env,
+            timeout=policy.inspection_timeout_seconds,
+            cancelled=cancelled,
         )
         if not version.strip().startswith("codex-cli "):
             raise ProviderError("无法识别 Codex CLI，请检查可执行文件路径及版本输出。")

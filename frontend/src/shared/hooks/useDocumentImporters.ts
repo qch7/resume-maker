@@ -60,5 +60,6 @@ export function useDocumentImporters(
     available,
     missing,
     extensions,
+    limits: items.find((item) => !selected || item.id === selected)?.limits,
   };
 }

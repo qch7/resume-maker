@@ -5,10 +5,11 @@ from io import BytesIO
 
 from resume_maker.core.errors import Problem
 from resume_maker.domain.resume import ResumeDocument
+from resume_maker.integrations.document_limits import SOURCE_IMAGE_MAX_PIXELS
+from resume_maker.integrations.media_formats import IMAGE_EXTENSIONS as IMAGE_EXTENSIONS
+from resume_maker.integrations.media_formats import IMAGE_FORMATS
 from resume_maker.integrations.word.templates.mapping import TemplatePackage
 from resume_maker.sdk.imports import DocumentImporter, ImportProbe, ImportResult
-
-IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff")
 
 
 def docx_probe(source, *, scanned=False):
@@ -43,11 +44,11 @@ def image_probe(source):
 
     try:
         with Image.open(BytesIO(source.data)) as image:
-            if image.format not in {"PNG", "JPEG", "WEBP", "BMP", "TIFF"}:
+            if image.format not in IMAGE_FORMATS:
                 return None
             if getattr(image, "n_frames", 1) != 1:
                 raise Problem("请将多页或动态图片转为 PDF，或拆分为单张图片。")
-            if image.width * image.height > 40_000_000:
+            if image.width * image.height > SOURCE_IMAGE_MAX_PIXELS:
                 raise Problem("图片超过 4000 万像素，请缩小后上传。")
             format_name = image.format.lower()
             image.verify()

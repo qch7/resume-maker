@@ -15,16 +15,21 @@ uv run resume-maker --no-browser
 
 | 配置 | 含义 |
 | --- | --- |
-| `--data-dir` / `RESUME_MAKER_DATA_DIR` | 数据目录；命令行优先。源码运行默认使用项目 `data/`，独立安装包使用用户目录 `.resume-maker` |
-| `--port` | 本机监听端口，默认 8765 |
-| `--no-browser` | 启动时不自动打开浏览器 |
-| `--profile minimal/standard` | 显式指定启动组合；不指定时读取已持久化选择，日常通过插件管理变更 |
+| `--data-dir` / `RESUME_MAKER_DATA_DIR` | 资料目录；源码默认项目 `data/`，安装包使用用户目录 `.resume-maker` |
+| `--port` / `RESUME_MAKER_PORT` | 本机监听端口，默认 8765，范围 1..65535 |
+| `--browser`、`--no-browser` / `RESUME_MAKER_OPEN_BROWSER` | 是否自动打开浏览器，默认 true |
+| `--profile minimal/standard` / `RESUME_MAKER_PROFILE` | 显式启动组合；不指定时读取已持久化选择 |
+| `--plugin-config` / `RESUME_MAKER_PLUGIN_CONFIG` | 插件组合及启动覆盖 JSON 路径 |
+| `--env-file`、`--no-env-file` | 指定启动配置文件，或关闭文件读取 |
+| `--print-config` | 输出有效启动值及来源后退出，不启动服务和读写资料 |
 | `--plugin-data-plan ID` | 停止应用后生成已安装外部插件的数据维护计划 |
 | `--plugin-data-apply PLAN --confirm-digest SHA` | 应用精确计划；全量备份、候选库迁移、验证后替换 |
 | `--restore ZIP` | 持有同一实例锁，离线恢复备份后退出 |
-| `RESUME_MAKER_FRONTEND_DIR` | 覆盖静态资源目录；否则使用安装包内资源或仓库 `frontend/dist` |
+| `--frontend-dir` / `RESUME_MAKER_FRONTEND_DIR` | 静态资源目录；否则使用安装包内资源或仓库 `frontend/dist` |
 
-应用直接读取环境变量，不自动解析 `.env`。运行令牌及实例标识每次创建，不能作为固定配置提交。
+优先级为 CLI > 进程环境 > 所选 `.env` > 默认值。源码自动读取源码根目录 `.env`，安装包使用 `--env-file` 显式指定，均不搜索任意当前目录。可从 [`.env.example`](../.env.example) 复制；文件仅接受声明的宿主启动字段和监督器等待参数。文件路径相对文件位置，环境和参数路径相对调用位置。完整语法、Windows 参数和重启规则见 [启动配置](reference/configuration.md)。运行令牌及实例标识每次随机创建。
+
+插件运行策略、全部字段和配置层顺序见 [插件运行配置](reference/plugin-settings.md)。新增参数修改所属纯 `configuration.py`，接入实际消费者后执行 `uv run python scripts/sync_plugin_settings.py`，同步清单、字段表和 `examples/plugin-config.json`；完整检查验证这些产物。全项目候选及处理结论见 [配置审查](reference/configuration-audit.md)。
 
 Windows 启动脚本在依赖检查后提示正在准备本机数据，宿主健康检查通过后打印工作台地址。启动只接受当前 v9 数据库；旧开发资料须先保留完整备份、离线转换并验证恢复，启动过程不再迁移旧附件。
 

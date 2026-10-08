@@ -6,6 +6,8 @@ import tomllib
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from resume_maker.core.environment import PROVIDER_KEY
+from resume_maker.core.process_environment import EnvironmentPolicy, process_environment
 from resume_maker.domain.models import AISettings
 from resume_maker.sdk.model import ProviderError
 
@@ -42,29 +44,7 @@ def connection(settings, environment):
                 },
             }
         # 父进程保留鉴权所需的系统环境，工具子进程使用独立的空环境白名单
-        allowed = {
-            "systemroot",
-            "windir",
-            "systemdrive",
-            "comspec",
-            "home",
-            "userprofile",
-            "appdata",
-            "localappdata",
-            "programdata",
-            "programfiles",
-            "programfiles(x86)",
-            "temp",
-            "tmp",
-            "path",
-            "http_proxy",
-            "https_proxy",
-            "all_proxy",
-            "no_proxy",
-            "ssl_cert_file",
-            "ssl_cert_dir",
-        }
-        env = {k: v for k, v in original.items() if k.lower() in allowed}
+        env = process_environment(EnvironmentPolicy.MODEL, original)
         env["CODEX_HOME"] = str(home.resolve())
         values = {}
         model = settings.model or config.get("model", "")
@@ -110,8 +90,8 @@ def connection(settings, environment):
                 "experimental_bearer_token", ""
             )
             if key:
-                env["RESUME_MAKER_PROVIDER_KEY"] = key
-                selected["env_key"] = "RESUME_MAKER_PROVIDER_KEY"
+                env[PROVIDER_KEY] = key
+                selected["env_key"] = PROVIDER_KEY
             elif provider.get("env_key"):
                 raise ProviderError("供应商配置指定的 API 环境变量为空。")
             values.update(

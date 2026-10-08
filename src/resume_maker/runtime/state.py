@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 
+from resume_maker.infrastructure.filesystem import replace_file
 from resume_maker.runtime.graph import PluginError
 
 
@@ -100,7 +101,7 @@ class StateStore:
             json.dump(value, output, ensure_ascii=False, indent=2)
             output.flush()
             os.fsync(output.fileno())
-        temporary.replace(path)
+        replace_file(temporary, path)
 
     def begin(self, plan):
         """切换前留下恢复判据，启动从已提交配置重新装配"""

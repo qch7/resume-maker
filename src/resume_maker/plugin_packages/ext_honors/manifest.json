@@ -59,5 +59,25 @@
   },
   "enhances": [
     "resume"
-  ]
+  ],
+  "config": {
+    "close_timeout_seconds": 10.0
+  },
+  "config_schema": {
+    "additionalProperties": false,
+    "description": "等待证书识别和取消真正结束后释放资源",
+    "properties": {
+      "close_timeout_seconds": {
+        "default": 10,
+        "description": "荣誉任务关闭等待秒数",
+        "maximum": 300,
+        "minimum": 1,
+        "title": "Close Timeout Seconds",
+        "type": "number"
+      }
+    },
+    "title": "Settings",
+    "type": "object",
+    "x-resume-maker-strict": true
+  }
 }

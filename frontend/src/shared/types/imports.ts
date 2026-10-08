@@ -4,6 +4,11 @@ export interface DocumentImporter {
   version: string;
   title: string;
   extensions: string[];
+  limits?: {
+    max_bytes: number;
+    max_pages: number | null;
+    max_image_pixels: number;
+  };
 }
 
 export interface ImportTrace {

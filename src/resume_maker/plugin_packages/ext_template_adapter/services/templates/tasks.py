@@ -12,12 +12,14 @@ from resume_maker.domain.models import ProviderSettings, ResumeItem
 from resume_maker.domain.resume import ResumeDocument
 from resume_maker.domain.templates import TemplatePlan
 from resume_maker.infrastructure.observability import record, record_event, remember_task
+from resume_maker.integrations.document_limits import TEMPLATE_MAX_BYTES
 from resume_maker.integrations.word.capabilities import render_word
 from resume_maker.integrations.word.templates.completion import complete_template
 from resume_maker.integrations.word.templates.fill import fill_template
 from resume_maker.integrations.word.templates.mapping import TemplatePackage
 from resume_maker.integrations.word.templates.review import assess_plan, check_trial
 from resume_maker.integrations.word.templates.values import missing_targets
+from resume_maker.plugin_packages.ext_template_adapter.configuration import Settings
 from resume_maker.sdk.documents import DEFAULT_RENDERER, generate_docx
 from resume_maker.sdk.imports import ImportContext, ImportSource
 from resume_maker.sdk.model import Cancelled, Provider
@@ -46,6 +48,7 @@ class Templates:
         registry=None,
         assets,
         analysis=None,
+        settings=None,
     ):
         """初始化实例依赖和受锁保护的任务状态"""
         self.catalog, self.db, self.data_dir, self.provider = (
@@ -55,6 +58,7 @@ class Templates:
             provider,
         )
         self.tasks, self.flags, self.threads = {}, {}, []
+        self.settings = settings or Settings()
         self.started = {}
         self.artifacts = {}
         self.origins = {}
@@ -262,7 +266,7 @@ class Templates:
         """先复制源文档为受控快照，再异步分析，源文件后续变化不影响确认结果"""
         path = path.expanduser().resolve(strict=True)
         with path.open("rb") as handle:
-            raw = handle.read(100_000_001)
+            raw = handle.read(TEMPLATE_MAX_BYTES + 1)
         return self._start(None, path.name, document, items or [], raw=raw, importer_id=importer_id)
 
     def repair(self, identifier, plan, document, items, feedback=""):
@@ -832,7 +836,7 @@ class Templates:
             for flag in self.flags.values():
                 flag.set()
         for thread in self.threads:
-            thread.join(timeout=8)
+            thread.join(timeout=self.settings.close_timeout_seconds)
             if thread.is_alive():
                 raise Problem("模板任务尚未结束，保留资源等待取消完成。", 409)
 

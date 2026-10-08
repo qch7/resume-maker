@@ -14,15 +14,17 @@ from resume_maker.runtime.configuration import (
 )
 from resume_maker.runtime.graph import PluginError, resolve
 from resume_maker.runtime.instances import definition_id, expand_instances
+from resume_maker.runtime.policy import WINDOW_LEASE_SECONDS, PluginPolicy
 from resume_maker.runtime.state import fingerprint
 
 
 class PluginManager:
     """协调配置、依赖、在途请求和浏览器草稿，不让超时代替确认"""
 
-    def __init__(self, host, store, profiles=None):
+    def __init__(self, host, store, profiles=None, *, policy=None):
         """每个宿主持有独立计划、窗口和请求租约"""
         self.host, self.store = host, store
+        self.policy = policy or PluginPolicy()
         self.profiles = deepcopy(profiles or {})
         self.lock = threading.RLock()
         self.plans, self.windows, self.requests = store.recover_plans(), {}, {}
@@ -203,7 +205,7 @@ class PluginManager:
                 "added": sorted(selected - self.host.selected),
                 "removed": sorted(self.host.selected - selected),
                 "mode": mode,
-                "expires_at": time.time() + 600,
+                "expires_at": time.time() + self.policy.plan_lifetime_seconds,
                 "lock": self.package_lock(),
                 "windows": sorted(self.windows),
                 "new_permissions": {
@@ -403,7 +405,7 @@ class PluginManager:
             window = self.windows.get(identifier)
             if not window or window["pending_plan"] != plan_id:
                 raise Problem("窗口没有对应的计划。", 409)
-            if window.get("connected") and time.time() - window["last_seen"] < 10:
+            if window.get("connected") and time.time() - window["last_seen"] < WINDOW_LEASE_SECONDS:
                 raise Problem("该窗口仍在线，请在窗口中完成草稿保存。", 409)
             window["acknowledged"] = True
             window["recovery_retained"] = True

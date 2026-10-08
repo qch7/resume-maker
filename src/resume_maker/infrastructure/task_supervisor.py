@@ -7,6 +7,7 @@ from copy import deepcopy
 
 from resume_maker.core.errors import Problem
 from resume_maker.infrastructure.database import dump, now, uid, unpack
+from resume_maker.infrastructure.task_policy import TaskPolicy
 from resume_maker.sdk.tasks import task_metadata
 
 
@@ -21,9 +22,10 @@ def task_owners(record):
 class TaskSupervisor:
     """任务持有配置快照，重启不自动重放外部操作"""
 
-    def __init__(self, db, scope_factory=None, prepare_scope=None):
+    def __init__(self, db, scope_factory=None, prepare_scope=None, *, policy=None):
         """创建实例独立的处理器和执行租约表"""
         self.db = db
+        self.policy = policy or TaskPolicy()
         self.scope_factory = scope_factory or (lambda _record: nullcontext())
         self.prepare_scope = prepare_scope or (lambda metadata, _owner: metadata)
         self.handlers, self.running = {}, {}
@@ -179,7 +181,7 @@ class TaskSupervisor:
                 self.owned.pop(record["id"], None)
                 self.condition.notify_all()
 
-    def wait_owned(self, owner, timeout=30):
+    def wait_owned(self, owner, timeout=None):
         """取消归属队列并等待实际执行结束，超时保留服务和句柄"""
         with self.condition:
             for record, flag in self.owned.values():
@@ -187,7 +189,7 @@ class TaskSupervisor:
                     flag.set()
             if not self.condition.wait_for(
                 lambda: not any(record["owner"] == owner for record, _ in self.owned.values()),
-                timeout,
+                self.policy.owner_close_timeout_seconds if timeout is None else timeout,
             ):
                 raise Problem("插件任务尚未实际结束，保留执行租约。", 409)
 
@@ -240,7 +242,9 @@ class TaskSupervisor:
                             "UPDATE settings SET value_json=? WHERE key=?",
                             (dump(record), row["key"]),
                         )
-            self.executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="plugin-task")
+            self.executor = ThreadPoolExecutor(
+                max_workers=self.policy.max_workers, thread_name_prefix="plugin-task"
+            )
             self.stopping = False
 
     def submit(
@@ -344,7 +348,7 @@ class TaskSupervisor:
                 record["state"] = "cancelling"
                 self.db.set_setting(f"task:{identifier}", record)
 
-    def stop(self, timeout=30):
+    def stop(self, timeout=None):
         """拒绝新任务并等待已取消执行真正结束，超时保留执行器供重试"""
         with self.condition:
             self.stopping = True
@@ -353,7 +357,10 @@ class TaskSupervisor:
                 event.set()
             for _, event in self.owned.values():
                 event.set()
-            if not self.condition.wait_for(lambda: not self.running and not self.owned, timeout):
+            if not self.condition.wait_for(
+                lambda: not self.running and not self.owned,
+                self.policy.close_timeout_seconds if timeout is None else timeout,
+            ):
                 raise Problem("系统任务仍持有执行租约，关闭尚未完成。", 409)
             self.executor = None
         if executor:

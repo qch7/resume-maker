@@ -1,11 +1,22 @@
+import os
 from pathlib import Path
 
 import httpx
 import pytest
 
+from resume_maker.core.environment import PREFIX
 from resume_maker.infrastructure.database import Database
 from resume_maker.plugin_packages.ext_ai_conversation.services.conversations import Conversations
 from tests.support.data import experience, make_catalog
+
+
+@pytest.fixture(autouse=True)
+def isolate_launch_configuration(monkeypatch):
+    """测试显式声明启动输入，不读取开发者环境和源码根目录配置文件"""
+    for key in tuple(os.environ):
+        if key.upper().startswith(PREFIX) and key.upper() != PREFIX + "TEST_NATIVE_CLI":
+            monkeypatch.delenv(key)
+    monkeypatch.setattr("resume_maker.cli.default_env_file", lambda: None)
 
 
 @pytest.fixture(scope="session")

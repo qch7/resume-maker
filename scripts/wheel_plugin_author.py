@@ -1,7 +1,6 @@
 """在仓库外通过官方启动器验收仅依赖公开 SDK 的独立插件"""
 
 import json
-import os
 import re
 import socket
 import subprocess
@@ -13,6 +12,8 @@ from urllib.error import HTTPError, URLError
 from urllib.request import ProxyHandler, Request, build_opener
 
 import psutil
+
+from resume_maker.core.process_environment import EnvironmentPolicy, process_environment
 
 
 class Client:
@@ -85,8 +86,7 @@ def server(directory, *, initial=False):
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]
     client = Client(port)
-    environment = dict(os.environ)
-    environment.pop("RESUME_MAKER_FRONTEND_DIR", None)
+    environment = process_environment(EnvironmentPolicy.CANDIDATE)
     command = [
         sys.executable,
         "-I",
@@ -99,6 +99,7 @@ def server(directory, *, initial=False):
         "--port",
         str(port),
         "--no-browser",
+        "--no-env-file",
     ]
     if initial:
         command.extend(["--profile", "minimal"])

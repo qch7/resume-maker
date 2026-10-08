@@ -101,6 +101,8 @@ import type {
 } from "@resume-maker/plugin-sdk/shared/types/index";
 import { useWorkspaceLayout } from "./useWorkspaceLayout";
 
+const PREVIEW_PROGRESS_POLL_MS = 1600;
+
 const EMPTY: State = {
   honors: [],
   branches: [],
@@ -424,7 +426,7 @@ export default function ResumeWorkspace() {
       } catch (e) {
         if (!stopped) setToast({ text: (e as Error).message, error: true });
       }
-      if (!stopped) timer = setTimeout(poll, 1600);
+      if (!stopped) timer = setTimeout(poll, PREVIEW_PROGRESS_POLL_MS);
     }
     void poll();
     return () => {

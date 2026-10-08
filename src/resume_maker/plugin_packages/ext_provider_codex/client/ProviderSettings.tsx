@@ -11,18 +11,11 @@ import CodexModels from "./CodexModels";
 
 /** 模型连接插件持有自己的设置草稿，未启用时不会读取登录或供应商 */
 export default function ProviderSettingsPanel(props: SettingsPanelProps) {
-  const [provider, setProvider] = useState<ProviderSettings>({
-    executable: "codex",
-    model: "",
-    reasoning_effort: "",
-    profile: "",
-    timeout_seconds: 1200,
-    functions: {},
-  });
+  const [provider, setProvider] = useState<ProviderSettings | null>(null);
   const [loaded, setLoaded] = useState(false);
   const baseline = useRef("");
   useEffect(() => {
-    if (!loaded) return;
+    if (!loaded || !provider) return;
     if (JSON.stringify(provider) === baseline.current)
       storage.removeItem("rm.settings.provider");
     else storage.setItem("rm.settings.provider", JSON.stringify(provider));
@@ -50,6 +43,12 @@ export default function ProviderSettingsPanel(props: SettingsPanelProps) {
       }
     });
   }
+  if (!provider)
+    return (
+      <p className={notice ? "error" : "muted"}>
+        {notice || "正在读取模型连接设置"}
+      </p>
+    );
   return (
     <>
       <>

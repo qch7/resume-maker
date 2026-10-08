@@ -1,4 +1,5 @@
 import { createRoot } from "react-dom/client";
+import { HOST_RECONNECT_MS } from "./shared/lib/timing";
 import { initializePlugins, pluginComponent } from "./plugins/runtime";
 import { ApiError, reportClientError } from "./shared/lib/api";
 import { initializeStorage, storage } from "./shared/lib/storage";
@@ -65,7 +66,7 @@ async function start() {
         <button onClick={() => void start()}>重新加载</button>
       </main>,
     );
-    if (reconnect) retry = setTimeout(() => void start(), 1500);
+    if (reconnect) retry = setTimeout(() => void start(), HOST_RECONNECT_MS);
   } finally {
     starting = false;
   }

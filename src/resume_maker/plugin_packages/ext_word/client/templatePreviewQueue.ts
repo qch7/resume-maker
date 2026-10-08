@@ -1,3 +1,5 @@
+const PREVIEW_DEBOUNCE_MS = 1000;
+
 export interface PreviewState<T> {
   key: string | null;
   status: "idle" | "waiting" | "rendering" | "ready" | "error";
@@ -9,7 +11,7 @@ export interface PreviewState<T> {
 export function createPreviewQueue<T>(
   execute: (key: string, signal: AbortSignal) => Promise<T>,
   emit: (state: PreviewState<T>) => void,
-  delay = 1000,
+  delay = PREVIEW_DEBOUNCE_MS,
 ) {
   let state: PreviewState<T> = { key: null, status: "idle" };
   let generation = 0;

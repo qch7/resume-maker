@@ -232,6 +232,11 @@ class Conversations(Protocol):
 class Jobs(Protocol):
     """Jobs 的公开业务操作，插件消费者不依赖具体实现"""
 
+    @property
+    def event_poll_seconds(self) -> float:
+        """进度流消费任务所有者发布的有效检查间隔"""
+        ...
+
     def submit(
         self,
         conversation_id: str,

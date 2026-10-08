@@ -41,5 +41,25 @@
   },
   "permissions": [
     "workspace.trusted"
-  ]
+  ],
+  "config": {
+    "inspection_timeout_seconds": 15.0
+  },
+  "config_schema": {
+    "additionalProperties": false,
+    "description": "版本检查超时独立于实际模型请求超时",
+    "properties": {
+      "inspection_timeout_seconds": {
+        "default": 15,
+        "description": "CLI 版本探测秒数",
+        "maximum": 120,
+        "minimum": 1,
+        "title": "Inspection Timeout Seconds",
+        "type": "number"
+      }
+    },
+    "title": "Settings",
+    "type": "object",
+    "x-resume-maker-strict": true
+  }
 }

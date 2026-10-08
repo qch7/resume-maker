@@ -7,6 +7,8 @@ import tempfile
 from pathlib import Path
 from zipfile import ZipFile
 
+from resume_maker.core.process_environment import EnvironmentPolicy, process_environment
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -23,6 +25,11 @@ def main() -> None:
     with tempfile.TemporaryDirectory(prefix="resume-maker-wheel-") as temporary:
         target = Path(temporary)
         with ZipFile(wheels[-1]) as archive:
+            assert not any(
+                part == ".env" or part.startswith(".env.")
+                for name in archive.namelist()
+                for part in Path(name).parts
+            ), "wheel 不应包含本机环境配置"
             archive.extractall(target / "package")
         # 仅把已解包安装包放到导入路径首位，保留当前虚拟环境提供第三方运行依赖
         script = """
@@ -84,7 +91,13 @@ for name in ["internet", "technology"]:
 print("Wheel 验证通过：应用、静态资源、数据库、只读材料服务和本地 OCR 模型完整。")
 """
         # 隔离模式忽略 PYTHONUTF8，因此通过解释器参数启用 UTF-8
-        subprocess.run([sys.executable, "-I", "-X", "utf8", "-c", script], cwd=target, check=True)
+        isolated = process_environment(EnvironmentPolicy.CANDIDATE)
+        subprocess.run(
+            [sys.executable, "-I", "-X", "utf8", "-c", script],
+            cwd=target,
+            check=True,
+            env=isolated,
+        )
         uv = shutil.which("uv")
         if not uv:
             raise SystemExit("物理最小安装验收需要 uv。")
@@ -100,6 +113,7 @@ print("Wheel 验证通过：应用、静态资源、数据库、只读材料服�
             [str(python), "-I", "-X", "utf8", str(ROOT / "scripts/wheel_minimal.py")],
             cwd=target,
             check=True,
+            env=isolated,
         )
         source = target / "independent-notes-plugin"
         shutil.copytree(ROOT / "docs/examples/notes-plugin", source)
@@ -109,6 +123,7 @@ print("Wheel 验证通过：应用、静态资源、数据库、只读材料服�
             [str(python), "-I", "-X", "utf8", str(script), str(source)],
             cwd=target,
             check=True,
+            env=isolated,
         )
 
 

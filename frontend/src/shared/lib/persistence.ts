@@ -1,3 +1,5 @@
+import { PERSISTENCE_DEBOUNCE_MS } from "./timing.ts";
+
 export interface StoredValue {
   value: string | null;
   version: number;
@@ -185,7 +187,10 @@ export function createPersistence(options: Options) {
   /** 连续输入合并后提交，导航和备份可以直接等待 flush */
   function schedule() {
     clearTimeout(timer);
-    timer = setTimeout(() => void flush().catch(() => undefined), 300);
+    timer = setTimeout(
+      () => void flush().catch(() => undefined),
+      PERSISTENCE_DEBOUNCE_MS,
+    );
   }
   /** 立即保存本地副本，删除保留版本以防过期窗口恢复旧值 */
   function setItem(key: string, value: string | null) {

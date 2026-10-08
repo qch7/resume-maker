@@ -68,5 +68,43 @@
   ],
   "optional": {
     "sources": ">=1.0.0 <2.0.0"
+  },
+  "config": {
+    "close_timeout_seconds": 8.0,
+    "queue_poll_seconds": 0.5,
+    "event_poll_seconds": 0.5
+  },
+  "config_schema": {
+    "additionalProperties": false,
+    "description": "独立调用和宿主调度均使用同一份队列策略",
+    "properties": {
+      "close_timeout_seconds": {
+        "default": 8,
+        "description": "经历任务关闭等待秒数",
+        "maximum": 300,
+        "minimum": 1,
+        "title": "Close Timeout Seconds",
+        "type": "number"
+      },
+      "queue_poll_seconds": {
+        "default": 0.5,
+        "description": "独立队列检查间隔秒数",
+        "maximum": 10,
+        "minimum": 0.1,
+        "title": "Queue Poll Seconds",
+        "type": "number"
+      },
+      "event_poll_seconds": {
+        "default": 0.5,
+        "description": "进度流检查间隔秒数",
+        "maximum": 10,
+        "minimum": 0.1,
+        "title": "Event Poll Seconds",
+        "type": "number"
+      }
+    },
+    "title": "Settings",
+    "type": "object",
+    "x-resume-maker-strict": true
   }
 }

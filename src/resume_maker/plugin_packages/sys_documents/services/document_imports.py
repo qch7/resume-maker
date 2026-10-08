@@ -6,6 +6,13 @@ from io import BytesIO
 from docx.image.image import Image
 
 from resume_maker.core.errors import Problem
+from resume_maker.integrations.document_limits import (
+    CERTIFICATE_MAX_PAGES,
+    SAFE_PAGE_MAX_BYTES,
+    SOURCE_IMAGE_MAX_PIXELS,
+    TEMPLATE_MAX_BYTES,
+    import_limits,
+)
 from resume_maker.integrations.word.templates.mapping import TemplatePackage
 from resume_maker.sdk.imports import DocumentImporter, ImportProbe, ImportResult, ImportSource
 from resume_maker.sdk.model import Cancelled
@@ -35,6 +42,7 @@ class ImporterRegistry:
                 "version": item.value.version,
                 "title": item.value.title,
                 "extensions": list(item.value.extensions),
+                "limits": import_limits(purpose),
             }
             for item in self.entries("documents.importers", DocumentImporter).values()
             if purpose in item.value.purposes
@@ -44,7 +52,7 @@ class ImporterRegistry:
         """唯一匹配时自动选择，多项匹配或历史绑定失效时保留输入并要求明确处理"""
         if source.purpose not in {"template", "certificate"}:
             raise Problem("导入用途无效。", 422)
-        limit = 20 * 1024 * 1024 if source.purpose == "certificate" else 100_000_000
+        limit = import_limits(source.purpose)["max_bytes"]
         if not source.data or len(source.data) > limit:
             raise Problem(f"文件不能为空且不得超过 {limit // 1_000_000} MB。", 413)
         entries = self.entries("documents.importers", DocumentImporter)
@@ -77,8 +85,8 @@ class ImporterRegistry:
                 or (source.purpose == "certificate" and not probe.pages)
             ):
                 raise Problem(f"导入器探测结果无效：{item.identifier}", 409)
-            if source.purpose == "certificate" and probe.pages > 12:
-                raise Problem("每份证书支持 1–12 页，请将不同证书分别上传。")
+            if source.purpose == "certificate" and probe.pages > CERTIFICATE_MAX_PAGES:
+                raise Problem(f"每份证书支持 1–{CERTIFICATE_MAX_PAGES} 页，请将不同证书分别上传。")
             trace = {
                 "id": item.identifier,
                 "owner": item.owner,
@@ -136,7 +144,7 @@ class ImporterRegistry:
         if selected.source.purpose == "template":
             if type(result.template) is not bytes or not result.template or result.pages:
                 raise Problem("模板导入器必须返回完整 DOCX。", 409)
-            if len(result.template) > 100_000_000:
+            if len(result.template) > TEMPLATE_MAX_BYTES:
                 raise Problem("导入后的模板超过 100 MB。", 413)
             TemplatePackage(BytesIO(result.template))
         else:
@@ -157,13 +165,13 @@ def validate_page(page):
     """限制 PNG 页面大小并用基础安装已有的图片解析器检查结构和像素"""
     if (
         type(page) is not bytes
-        or len(page) > 20_000_000
+        or len(page) > SAFE_PAGE_MAX_BYTES
         or not page.startswith(b"\x89PNG\r\n\x1a\n")
     ):
         raise Problem("证书导入器未返回有效 PNG 页面。", 409)
     try:
         image = Image.from_blob(page)
-        if not 0 < image.px_width * image.px_height <= 40_000_000:
+        if not 0 < image.px_width * image.px_height <= SOURCE_IMAGE_MAX_PIXELS:
             raise ValueError("页面像素超出范围")
     except Exception as exc:
         raise Problem("证书页面损坏或像素超限，未保存任何资料。", 409) from exc

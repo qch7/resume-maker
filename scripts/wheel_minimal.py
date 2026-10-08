@@ -3,13 +3,15 @@
 import importlib.util
 import json
 import sys
-from io import BytesIO
+from contextlib import redirect_stdout
+from io import BytesIO, StringIO
 from pathlib import Path
 from threading import Event
 from zipfile import ZipFile
 
 from resume_maker.api import create_app
-from resume_maker.core.config import Config
+from resume_maker.cli import main as launch
+from resume_maker.core.config import Config, default_env_file
 from resume_maker.domain.models import ResumeItem
 from resume_maker.domain.resume import ResumeDocument
 from resume_maker.infrastructure.storage import create_backup, restore_backup
@@ -19,6 +21,20 @@ from resume_maker.sdk.imports import ImportContext, ImportSource
 
 def main():
     """无图片、PDF、OCR 和测试依赖时使用安装包的真实系统插件"""
+    configuration = Path.cwd() / ".env"
+    configuration.write_text("RESUME_MAKER_PORT=invalid\n", encoding="utf-8")
+    assert default_env_file() is None
+    output = StringIO()
+    with redirect_stdout(output):
+        launch(["--print-config"])
+    default = json.loads(output.getvalue())
+    assert default["port"] == 8765 and default["env_file"] is None
+    assert default["data_dir"] == str(Path.home() / ".resume-maker")
+    configuration.write_text("RESUME_MAKER_PORT=8111\n", encoding="utf-8")
+    output = StringIO()
+    with redirect_stdout(output):
+        launch(["--print-config", "--env-file", str(configuration)])
+    assert json.loads(output.getvalue())["port"] == 8111
     for name in ("PIL", "pymupdf", "pdf2docx", "rapidocr_onnxruntime", "httpx", "pytest"):
         assert importlib.util.find_spec(name) is None, name
     directory = Path.cwd() / "minimal-data"

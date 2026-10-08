@@ -5,6 +5,7 @@ from resume_maker.plugins.support import dependency, publish, routes, task_queue
 
 def activate(context):
     """注册 AI 会话和经历分析任务，停用后保留已存历史及草稿"""
+    from resume_maker.plugin_packages.ext_ai_conversation.configuration import Settings
     from resume_maker.plugin_packages.ext_ai_conversation.query import conversations as query
     from resume_maker.plugin_packages.ext_ai_conversation.services.conversations import (
         Conversations,
@@ -28,6 +29,7 @@ def activate(context):
             dependency(context, "provider"),
             conversations=conversations,
             execution_queue=task_queue(context),
+            settings=Settings.model_validate(context.config),
             source_service=dependency(context, "sources")
             if "sources" in context.host.services
             else None,

@@ -7,27 +7,81 @@ import socket
 import threading
 import webbrowser
 from pathlib import Path
+from typing import get_args
 
 import uvicorn
 from pydantic import ValidationError
 
-from resume_maker.core.config import Config
+from resume_maker.core.config import (
+    Config,
+    default_data_directory,
+    default_env_file,
+    default_frontend_directory,
+)
+from resume_maker.core.environment import LaunchProfile, LaunchSettings, resolve_launch
 from resume_maker.core.errors import Problem
+from resume_maker.core.supervisor_policy import SupervisorPolicy
 from resume_maker.infrastructure.storage import instance_lock, restore_backup
 from resume_maker.runtime.graph import PluginError
 
 from .api import create_app
 
 
-def main():
+def add_launch_arguments(parser):
+    """所有官方启动器复用相同参数、配置文件开关和布尔覆盖语义"""
+    parser.add_argument("--data-dir", type=Path)
+    parser.add_argument("--port")
+    for name in SupervisorPolicy.model_fields:
+        parser.add_argument("--" + name.replace("_", "-"), help="覆盖宿主监督器等待秒数")
+    parser.add_argument("--frontend-dir", type=Path, help="覆盖前端静态资源目录")
+    browser = parser.add_mutually_exclusive_group()
+    browser.add_argument("--no-browser", dest="open_browser", action="store_false")
+    browser.add_argument("--browser", dest="open_browser", action="store_true")
+    parser.set_defaults(open_browser=None)
+    parser.add_argument("--profile", metavar="{" + ",".join(get_args(LaunchProfile)) + "}")
+    parser.add_argument("--plugin-config", type=Path, help="插件默认组合及本次启动覆盖 JSON")
+    file = parser.add_mutually_exclusive_group()
+    file.add_argument("--env-file", type=Path, help="读取指定的 UTF-8 启动配置文件")
+    file.add_argument("--no-env-file", action="store_true", help="关闭源码根目录 .env 自动读取")
+    parser.add_argument("--print-config", action="store_true", help="输出有效启动配置及来源后退出")
+
+
+def configured_launch(args):
+    """在任何资料读写前解析配置，同时为监督器固定当前有效覆盖"""
+    overrides = {
+        name: getattr(args, name)
+        for name in LaunchSettings.model_fields
+        if getattr(args, name) is not None
+    }
+    env_file = None if args.no_env_file else args.env_file or default_env_file()
+    resolved = resolve_launch(env_file=env_file, overrides=overrides)
+    settings = resolved.settings
+    config = Config(
+        port=settings.port,
+        data_dir=settings.data_dir or default_data_directory(),
+        frontend=settings.frontend_dir or default_frontend_directory(),
+        profile=settings.profile,
+        plugin_config=settings.plugin_config,
+        supervisor=SupervisorPolicy.model_validate(
+            settings.model_dump(include=set(SupervisorPolicy.model_fields))
+        ),
+    )
+    args.port = config.port
+    args.data_dir = config.data_dir
+    args.no_browser = not settings.open_browser
+    args.profile = settings.profile
+    args.plugin_config = settings.plugin_config
+    args.frontend_dir = settings.frontend_dir
+    for name in SupervisorPolicy.model_fields:
+        setattr(args, name, getattr(settings, name))
+    return config, resolved
+
+
+def main(argv=None):
     """解析命令行，持有实例锁后启动本机服务，或执行离线备份恢复"""
     parser = argparse.ArgumentParser(description="Resume Maker 本地工作台")
-    parser.add_argument("--data-dir", type=Path)
-    parser.add_argument("--port", type=int, default=8765)
-    parser.add_argument("--no-browser", action="store_true")
+    add_launch_arguments(parser)
     parser.add_argument("--host-child", action="store_true", help=argparse.SUPPRESS)
-    parser.add_argument("--profile", choices=("minimal", "standard"))
-    parser.add_argument("--plugin-config", type=Path, help="插件默认组合及本次启动覆盖 JSON")
     parser.add_argument("--restore", type=Path, metavar="BACKUP_ZIP", help="离线恢复备份后退出")
     maintenance = parser.add_mutually_exclusive_group()
     maintenance.add_argument(
@@ -43,11 +97,16 @@ def main():
         "--asset-gc-apply", type=Path, metavar="PLAN_JSON", help="停机应用已审查的资源回收计划"
     )
     parser.add_argument("--confirm-digest", help="确认迁移计划的完整摘要")
-    args = parser.parse_args()
-    config = Config(port=args.port, profile=args.profile, plugin_config=args.plugin_config)
-    if args.data_dir:
-        config.data_dir = args.data_dir.resolve()
+    args = parser.parse_args(argv)
     try:
+        config, resolved = configured_launch(args)
+        if args.print_config:
+            print(
+                json.dumps(
+                    resolved.public_values(data_dir=config.data_dir, frontend=config.frontend)
+                )
+            )
+            return
         if args.asset_gc_plan or args.asset_gc_apply:
             with instance_lock(config.data_dir):
                 maintain_assets(config, args)
@@ -94,7 +153,7 @@ def main():
                 server.run()
             finally:
                 stopped.set()
-    except (Problem, PluginError, OSError, ValidationError) as exc:
+    except (Problem, PluginError, OSError, ValueError, ValidationError) as exc:
         parser.error(str(exc))
 
 

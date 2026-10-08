@@ -7,6 +7,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+from resume_maker.core.process_environment import EnvironmentPolicy, process_environment
+
 ROOT = Path(__file__).resolve().parents[1]
 SEED = """
 import sys
@@ -67,7 +69,13 @@ def run_source(script, target, data, missing=()):
     command = [sys.executable, "-I", "-X", "utf8", "-c", script, str(target / "src"), str(data)]
     if missing:
         command.append(",".join(missing))
-    subprocess.run(command, cwd=target, check=True, stdout=subprocess.DEVNULL)
+    subprocess.run(
+        command,
+        cwd=target,
+        check=True,
+        stdout=subprocess.DEVNULL,
+        env=process_environment(EnvironmentPolicy.CANDIDATE),
+    )
 
 
 def frontend_ignore(directory, names):

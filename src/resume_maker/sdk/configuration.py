@@ -2,9 +2,17 @@
 
 from typing import Literal
 
-from pydantic import Field, JsonValue, model_validator
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
 
 from resume_maker.sdk.manifest import IDENTIFIER, Contract
+
+
+class PluginSettings(BaseModel):
+    """插件运行策略使用独立不可变快照，拒绝未知字段和隐式类型转换"""
+
+    model_config = ConfigDict(
+        extra="forbid", frozen=True, strict=True, hide_input_in_errors=True, allow_inf_nan=False
+    )
 
 
 class ConfigurationEdit(Contract):

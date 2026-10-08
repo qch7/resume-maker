@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "@resume-maker/plugin-sdk/shared/lib/api";
 import { mergeEvents, type ActivityEvent, type ActivityPage } from "./model";
 
+const LIVE_POLL_MS = 1500;
+const CATCH_UP_POLL_MS = 30;
+
 /** 用串行增量请求跟随日志，筛选变化或离开页面时取消旧请求 */
 export function useActivity(query: string, live: boolean, refreshVersion = 0) {
   const [events, setEvents] = useState<ActivityEvent[]>([]);
@@ -30,7 +33,7 @@ export function useActivity(query: string, live: boolean, refreshVersion = 0) {
     setPage(null);
     /** 请求下一批事件，积压时连续分页，暂停时保留已读游标 */
     async function poll() {
-      let delay = 1500;
+      let delay = LIVE_POLL_MS;
       if (!initialized || liveRef.current) {
         try {
           const result = await api<ActivityPage>(
@@ -49,7 +52,7 @@ export function useActivity(query: string, live: boolean, refreshVersion = 0) {
           setPage(result);
           setError("");
           if (!initialized) setHasOlder(result.has_more);
-          else if (result.has_more) delay = 30;
+          else if (result.has_more) delay = CATCH_UP_POLL_MS;
           cursor = result.cursor;
           initialized = true;
         } catch (failure) {
