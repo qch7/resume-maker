@@ -78,6 +78,12 @@ Python 公共入口在 `resume_maker.sdk`，定义见 `sdk/manifest.py`、`conte
 
 ## Host 服务、路由及资源
 
+普通编辑的共享写入也需要并发基线。`PUT /api/settings/provider` 使用 `ProviderSettings.version`，成功响应返回本次写入的新版本；旧资料未存版本时从 0 开始，无需数据库迁移。修改 `PATCH /api/conversations/{id}` 的 `input_draft` 时必须同时携带原始 `expected_input_draft`，缺少基线返回 422，基线变化返回 409。仅修改标题、讨论范围或归档状态不需要输入基线。
+
+`POST /api/resumes/{id}/exports?version=<刚保存的版本>` 必须传入方案版本。冻结输入的事务内核对该版本，变化时返回 409 且不发布成品。SDK 的 `Documents.export` 和 `Resumes.freeze_export` 接受 `expected_version`；由用户保存动作触发的调用应传入该值。
+
+临时预览使用 `sdk.previews.PreviewCache`，简历预览和模板试填各保留最多 24 份、总计 128 MiB，按最近使用顺序回收。单份超过预算时拒绝发布，渲染失败的部分产物立即回收。HTTP 下载通过 `LeasedFileResponse` 持有租约直到完整传输结束或断开，所有容量被活动租约占用时等待用户重试。只清理当前实例创建的临时目录，正式导出、模板原件和分析草稿继续按各自资料规则保留。
+
 ```python
 from fastapi import APIRouter
 from resume_maker.sdk.context import ServiceKey
