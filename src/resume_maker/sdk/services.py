@@ -60,7 +60,7 @@ class Catalog(Protocol):
         """原子发布固定证据和不可变资源引用"""
         ...
 
-    def project(self, project_id: str) -> dict:
+    def project(self, project_id: str, conn=None) -> dict:
         """读取项目并在记录缺失时抛出业务异常"""
         ...
 
@@ -116,12 +116,21 @@ class Projects(Protocol):
         """列出各版本存在实际修改的工作副本供历史树展示"""
         ...
 
-    def save_profile(self, project_id: str, profile: ProjectProfile):
-        """保存用户确认的角色、日期和贡献信息并更新项目活动时间"""
+    def save_profile(
+        self, project_id: str, profile: ProjectProfile, expected_profile: ProjectProfile
+    ):
+        """在事务内核对本人贡献原稿后保存"""
         ...
 
-    def update_sources(self, project_id: str, name: str, sources: list[str]):
-        """校验并重新绑定项目来源目录，保留已经生成的经历和历史"""
+    def update_sources(
+        self,
+        project_id: str,
+        name: str,
+        sources: list[str],
+        expected_name: str,
+        expected_roots: list[str],
+    ):
+        """在事务内核对来源基线后重新绑定目录"""
         ...
 
     def source_path(self, project_id: str, snapshot_id: str, source: str, path: str) -> Path:

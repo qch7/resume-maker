@@ -7,11 +7,11 @@ import type {
   ResumeDefaults,
   ResumeDocument,
 } from "@resume-maker/plugin-sdk/shared/types/index";
-import { api } from "@resume-maker/plugin-sdk/shared/lib/api";
-import {
-  loadLocal,
-  storage,
-} from "@resume-maker/plugin-sdk/shared/lib/storage";
+import { api, ApiError } from "@resume-maker/plugin-sdk/shared/lib/api";
+import { storage } from "@resume-maker/plugin-sdk/shared/lib/storage";
+import { useFormDraft } from "@resume-maker/plugin-sdk/shared/hooks/useFormDraft";
+import FormDraftRecovery from "@resume-maker/plugin-sdk/shared/components/FormDraftRecovery";
+import { equal } from "@resume-maker/plugin-sdk/shared/lib/mergeDraft";
 import {
   builtinDefaults,
   builtinFields,
@@ -41,11 +41,13 @@ export default function DefaultsDialog({
   const dialog = useRef<HTMLDialogElement>(null);
   const content = useRef<HTMLElement>(null);
   const navigation = useRef<HTMLElement>(null);
-  const baseline = useRef("");
-  const [value, setValue] = useState<ResumeDefaults>(
-    /* 创建可取消的独立副本 */ () =>
-      structuredClone(initial ?? builtinDefaults()),
+  const form = useFormDraft(
+    "rm.settings.defaults",
+    initial ?? builtinDefaults(),
+    (draft, latest) => ({ ...draft, version: latest.version }),
   );
+  const value = form.value;
+  const setValue = form.update;
   const [deletion, setDeletion] = useState<{
     label: string;
     confirm: () => void;
@@ -69,8 +71,7 @@ export default function DefaultsDialog({
               ...current,
               sections: orderDefaultSections(current.sections, document),
             };
-            baseline.current = JSON.stringify(ordered);
-            setValue(loadLocal("rm.settings.defaults", ordered));
+            form.initialize(ordered);
             setLoading(false);
           }
         },
@@ -111,13 +112,6 @@ export default function DefaultsDialog({
     [selected, target, query],
   );
   const orderedSections = orderDefaultSections(value.sections);
-  useEffect(() => {
-    if (!loading) {
-      if (JSON.stringify(value) === baseline.current)
-        storage.removeItem("rm.settings.defaults");
-      else storage.setItem("rm.settings.defaults", JSON.stringify(value));
-    }
-  }, [value, loading]);
   const results = searchDefaultFields(value, query);
   const searching = !!query.trim();
   const section = value.sections.find(
@@ -196,6 +190,7 @@ export default function DefaultsDialog({
   }
   /** 保存失败时保留编辑副本，便于修正或重试 */
   async function save() {
+    if (busy || loading || form.conflict) return;
     setBusy(true);
     setError("");
     try {
@@ -204,6 +199,16 @@ export default function DefaultsDialog({
       onClose();
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : String(failure));
+      if (failure instanceof ApiError && failure.status === 409) {
+        try {
+          form.observe(
+            (await api<ResumeDefaults | null>("/settings/resume-defaults")) ??
+              builtinDefaults(),
+          );
+        } catch (reason) {
+          setError((reason as Error).message);
+        }
+      }
     } finally {
       setBusy(false);
     }
@@ -213,7 +218,7 @@ export default function DefaultsDialog({
     if (busy) return;
     if (
       !loading &&
-      JSON.stringify(value) !== baseline.current &&
+      !equal(value, form.baseline) &&
       !window.confirm("有尚未保存的栏目设置，确定放弃修改吗？")
     )
       return;
@@ -565,6 +570,35 @@ export default function DefaultsDialog({
             </div>
           </section>
         </div>
+        <FormDraftRecovery
+          form={form}
+          disabled={locked}
+          renderValue={(draft) => (
+            <div>
+              <p>
+                个人信息：
+                {draft.personal_fields
+                  .map(
+                    (field) =>
+                      `${field.label}${field.visible ? "" : "（隐藏）"}`,
+                  )
+                  .join("、")}
+              </p>
+              {draft.sections.map((item) => (
+                <p key={item.id}>
+                  {item.title}
+                  {item.visible ? "" : "（隐藏）"}：
+                  {item.fields
+                    .map(
+                      (field) =>
+                        `${field.label}${field.visible ? "" : "（隐藏）"}`,
+                    )
+                    .join("、")}
+                </p>
+              ))}
+            </div>
+          )}
+        />
         <footer className="defaults-footer">
           {error ? (
             <p className="warning" role="alert">
@@ -585,6 +619,7 @@ export default function DefaultsDialog({
               className="primary"
               disabled={
                 locked ||
+                form.conflict ||
                 !value.sections.every(
                   /* 禁止保存空白栏目名 */ (item) => item.title.trim(),
                 ) ||

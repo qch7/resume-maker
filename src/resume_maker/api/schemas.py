@@ -4,7 +4,7 @@ from typing import Any, Literal
 
 from pydantic import Field
 
-from resume_maker.domain.models import Experience, Model, ResumeItem
+from resume_maker.domain.models import Experience, Model, ProjectProfile, ResumeItem
 from resume_maker.domain.resume import ResumeDocument
 from resume_maker.domain.templates import TemplatePlan
 
@@ -14,6 +14,20 @@ class ProjectInput(Model):
 
     name: str = Field(min_length=1, max_length=200)
     roots: list[str] = Field(default_factory=list, max_length=30)
+
+
+class ProjectSourcesInput(ProjectInput):
+    """来源更新携带读取时的名称和目录基线"""
+
+    expected_name: str
+    expected_roots: list[str] = Field(max_length=30)
+
+
+class ProjectProfileInput(Model):
+    """本人贡献更新携带原表单以拒绝旧窗口覆盖"""
+
+    profile: ProjectProfile
+    expected_profile: ProjectProfile
 
 
 class DraftInput(Model):

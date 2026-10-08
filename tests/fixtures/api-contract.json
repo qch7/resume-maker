@@ -891,7 +891,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ProjectProfile"
+                "$ref": "#/components/schemas/ProjectProfileInput"
               }
             }
           }
@@ -936,7 +936,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ProjectInput"
+                "$ref": "#/components/schemas/ProjectSourcesInput"
               }
             }
           }
@@ -7162,6 +7162,63 @@
       ],
       "title": "SourceReference",
       "description": "简历固定保存来源身份和最后采用版本，缺包时原文字段仍可展示"
+    },
+    "ProjectProfileInput": {
+      "properties": {
+        "profile": {
+          "$ref": "#/components/schemas/ProjectProfile"
+        },
+        "expected_profile": {
+          "$ref": "#/components/schemas/ProjectProfile"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "profile",
+        "expected_profile"
+      ],
+      "title": "ProjectProfileInput",
+      "description": "本人贡献更新携带原表单以拒绝旧窗口覆盖"
+    },
+    "ProjectSourcesInput": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Name"
+        },
+        "roots": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 30,
+          "title": "Roots"
+        },
+        "expected_name": {
+          "type": "string",
+          "title": "Expected Name"
+        },
+        "expected_roots": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 30,
+          "title": "Expected Roots"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "expected_name",
+        "expected_roots"
+      ],
+      "title": "ProjectSourcesInput",
+      "description": "来源更新携带读取时的名称和目录基线"
     }
   }
 }

@@ -73,7 +73,7 @@ class Settings:
             )
             version = row["value"]["version"] if row else 0
             if defaults.version != version:
-                raise Problem("默认栏目已在其他窗口修改，请重新打开设置后再试。", 409)
+                raise Problem("默认栏目已在其他窗口修改，请载入最新资料后合并。", 409)
             saved = defaults.model_copy(update={"version": version + 1})
             conn.execute(
                 "INSERT OR REPLACE INTO settings VALUES (?,?)",

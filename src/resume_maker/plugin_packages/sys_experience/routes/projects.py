@@ -10,9 +10,9 @@ from resume_maker.api.schemas import (
     DiscardDraftsInput,
     DraftInput,
     ProjectInput,
+    ProjectProfileInput,
     SaveInput,
 )
-from resume_maker.domain.models import ProjectProfile
 from resume_maker.sdk.services import Catalog, Projects
 
 router = APIRouter(prefix="/api", tags=["projects"])
@@ -64,10 +64,10 @@ def get_revision(dep_catalog: Annotated[Catalog, Depends(service("catalog"))], r
 def save_profile(
     dep_projects: Annotated[Projects, Depends(service("projects"))],
     project_id: str,
-    body: ProjectProfile,
+    body: ProjectProfileInput,
 ):
     """保存用户确认的角色、日期和贡献信息并更新项目活动时间"""
-    return dep_projects.save_profile(project_id, body)
+    return dep_projects.save_profile(project_id, body.profile, body.expected_profile)
 
 
 @router.put("/projects/{project_id}/draft")

@@ -2,7 +2,17 @@ import ImportDetails from "@resume-maker/plugin-sdk/shared/components/ImportDeta
 import type { HonorEditorProps } from "@resume-maker/plugin-sdk/plugins/slots";
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Download, Save, X } from "lucide-react";
-import { api, download } from "@resume-maker/plugin-sdk/shared/lib/api";
+import {
+  api,
+  download,
+  ApiError,
+} from "@resume-maker/plugin-sdk/shared/lib/api";
+import { useFormDraft } from "@resume-maker/plugin-sdk/shared/hooks/useFormDraft";
+import FormDraftRecovery from "@resume-maker/plugin-sdk/shared/components/FormDraftRecovery";
+import {
+  restoreDraft,
+  type DraftEnvelope,
+} from "@resume-maker/plugin-sdk/shared/lib/mergeDraft";
 import {
   loadLocal,
   storage,
@@ -61,11 +71,22 @@ export default function HonorEditor({
       sourceSaved: boolean;
     } | null>(draftKey, null),
   ).current;
-  const [fields, setFields] = useState(cached?.fields ?? initialFields);
-  const [baseline, setBaseline] = useState(cached?.baseline ?? initialFields);
-  const [version, setVersion] = useState(
-    cached?.version ?? honor?.version ?? 0,
+  const form = useFormDraft(
+    `${draftKey}.fields`,
+    { fields: initialFields, version: honor?.version ?? 0 },
+    (value, latest) => ({ ...value, version: latest.version }),
+    (stored, latest) =>
+      stored
+        ? restoreDraft(stored as DraftEnvelope<typeof latest>, latest)
+        : cached
+          ? {
+              value: { fields: cached.fields, version: cached.version },
+              baseline: { fields: cached.baseline, version: cached.version },
+            }
+          : restoreDraft(null, latest),
   );
+  const { fields, version } = form.value;
+  const baseline = form.baseline?.fields ?? initialFields;
   const [page, setPage] = useState(1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -79,6 +100,11 @@ export default function HonorEditor({
   const dirty =
     contentDirty || JSON.stringify(entry) !== JSON.stringify(resumeEntry);
   const recognizing = honor ? isRecognizing(honor) : false;
+  const saving = useRef(false);
+  /** 更新荣誉正文时保留其读取版本和来源基线 */
+  function setFields(value: HonorFields) {
+    form.update({ ...form.value, fields: value });
+  }
   useEffect(() => {
     if (dirty)
       storage.setItem(
@@ -97,13 +123,13 @@ export default function HonorEditor({
   );
   useEffect(
     /* 未编辑时跟随识别完成状态，有草稿时保留原版本以检查冲突 */ () => {
-      if (honor && !dirty) {
-        setFields(honor.fields);
-        setBaseline(honor.fields);
-        setVersion(honor.version);
+      if (honor) {
+        const latest = { fields: honor.fields, version: honor.version };
+        form.observe(latest);
+        if (!dirty && !form.conflict) form.accept(form.value, latest);
       }
     },
-    [honor, dirty],
+    [honor],
   );
   /** 关闭前保护尚未保存的人工核对内容 */
   function close() {
@@ -112,6 +138,7 @@ export default function HonorEditor({
       (!dirty || window.confirm("有尚未保存的荣誉信息，确定放弃修改吗？"))
     ) {
       storage.removeItem(draftKey);
+      storage.removeItem(`${draftKey}.fields`);
       onClose();
     }
   }
@@ -122,7 +149,9 @@ export default function HonorEditor({
   }
   /** 保存当前表单，服务端成功前保留用户输入 */
   async function save() {
-    if (busy || recognizing || !fields.name.trim()) return;
+    if (saving.current || recognizing || form.conflict || !fields.name.trim())
+      return;
+    saving.current = true;
     setBusy(true);
     setError("");
     let savedSource = sourceSaved;
@@ -134,9 +163,13 @@ export default function HonorEditor({
           honor ? "PUT" : "POST",
           { fields, version },
         );
-        setFields(saved.fields);
-        setBaseline(saved.fields);
-        setVersion(saved.version);
+        if (
+          !form.accept(form.value, {
+            fields: saved.fields,
+            version: saved.version,
+          })
+        )
+          return;
         setSourceSaved(true);
         savedSource = true;
         onSaved(saved);
@@ -144,12 +177,28 @@ export default function HonorEditor({
       if (entry && onSaveEntry)
         await onSaveEntry(entryWithHonorFields(entry, fields));
       storage.removeItem(draftKey);
+      storage.removeItem(`${draftKey}.fields`);
       onClose();
     } catch (reason) {
       setError(
         `${savedSource && resumeEntry ? "荣誉内容已同步；当前简历尚未保存，请重试。" : ""}${(reason as Error).message}`,
       );
+      if (reason instanceof ApiError && reason.status === 409 && honor) {
+        try {
+          const latest = (await api<Honor[]>("/honors")).find(
+            (item) => item.id === honor.id,
+          );
+          if (!latest)
+            setError(
+              "该荣誉已在其他窗口删除，请先复制本页内容，关闭后可新建荣誉。",
+            );
+          else form.observe({ fields: latest.fields, version: latest.version });
+        } catch (failure) {
+          setError((failure as Error).message);
+        }
+      }
     } finally {
+      saving.current = false;
       setBusy(false);
     }
   }
@@ -158,7 +207,7 @@ export default function HonorEditor({
       form="honor-form"
       type="submit"
       className="primary"
-      disabled={busy || recognizing || !fields.name.trim()}
+      disabled={busy || recognizing || form.conflict || !fields.name.trim()}
     >
       <Save size={16} />
       {busy ? "保存中…" : "确认并保存"}
@@ -264,6 +313,19 @@ export default function HonorEditor({
             }
           }
         >
+          <FormDraftRecovery
+            form={form}
+            disabled={busy || recognizing}
+            renderValue={(value) => (
+              <div>
+                {HONOR_FIELDS.map((field) => (
+                  <p key={field.key}>
+                    {field.label}：{value.fields[field.key] || "未填写"}
+                  </p>
+                ))}
+              </div>
+            )}
+          />
           {honor?.error && <p className="honor-notice">{honor.error}</p>}
           {!resumeEntry &&
             honor?.status === "review" &&

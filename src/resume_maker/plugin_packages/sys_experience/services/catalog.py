@@ -71,15 +71,17 @@ class Catalog:
 
         return detach
 
-    def project(self, project_id: str) -> dict:
-        """读取项目并在记录缺失时抛出业务异常"""
+    def project(self, project_id: str, conn=None) -> dict:
+        """按需在调用方事务读取项目和分支头"""
+        query = (
+            "SELECT p.*, h.parent_id, b.head_revision FROM projects p "
+            "JOIN experience_branches b ON b.project_id=p.id AND b.is_default=1 "
+            "LEFT JOIN project_hierarchy h ON h.project_id=p.id WHERE p.id=?"
+        )
         return need(
-            self.db.one(
-                "SELECT p.*, h.parent_id, b.head_revision FROM projects p "
-                "JOIN experience_branches b ON b.project_id=p.id AND b.is_default=1 "
-                "LEFT JOIN project_hierarchy h ON h.project_id=p.id WHERE p.id=?",
-                (project_id,),
-            )
+            self.db.one(query, (project_id,))
+            if conn is None
+            else unpack(conn.execute(query, (project_id,)).fetchone())
         )
 
     def revision(self, revision_id: str, project_id: str | None = None, conn=None) -> dict:

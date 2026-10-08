@@ -387,6 +387,8 @@ AI 会话、荣誉识别、模板分析的执行意图与领域输入写入同�
 
 `prepare_delete(namespace, ids, conn)` 让持久引用规则在业务删除同一事务中核验阻断原因及执行清理。规则归属资料拥有者，停用后仍在数据库内保护历史资料。简历读取模板通过稳定记录引用，项目删除不直接修改 AI 或简历的私有表。公开业务接口位于 `sdk/services.py`，模板资料和分析接口位于 `sdk/templates.py`；导出/预览只接收明确注入的引擎或注册表。
 
+项目配置写入必须提交读取基线：`Projects.save_profile(project_id, profile, expected_profile)`；`Projects.update_sources(project_id, name, sources, expected_name, expected_roots)`。HTTP `PUT /api/projects/{id}/profile` 接收 `{profile, expected_profile}`，`PUT /api/projects/{id}/sources` 接收 `{name, roots, expected_name, expected_roots}`。基线取自读取到的正式项目资料，不能在提交旧表单前替换为最新值；缺少基线返回 422，基线已变化返回 409。用户核对或合并后使用最新基线重新提交，资料库结构仍为 v9。
+
 内置清单 `data.schemas` 和 `data.relations` 声明 SQL 资源，SQLite 按所选模块执行，建表、引用规则和目录册处于同一事务。只执行随发行包安装的内置资源，外部 `data.schemas` 不能绕过命名空间维护权限。外部资料仍使用上面的 JSON 迁移协议。
 
 联合升级计划的 `data_intents` 固定资料版本、包摘要和转换步骤；窗口/任务排空后固定真正的数据库快照。先在 trial 副本执行全部转换，正式停机后再于独立数据库执行整组转换，全部成功且 integrity/FK 校验通过才替换。备份地址和阶段保存在 `plugin-migrations/<计划ID>/operation.json` 及 `host-transition.json`。有资料变化时 `automatic_code_rollback` 为 false；代码回退不恢复数据库。显式恢复命令为：
