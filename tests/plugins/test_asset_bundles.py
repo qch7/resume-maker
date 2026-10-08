@@ -74,7 +74,9 @@ def test_export_uses_only_assets_and_restored_download_matches(tmp_path):
                 },
             },
         ).json()
-        response = client.post(f"/api/resumes/{resume['id']}/exports")
+        response = client.post(
+            f"/api/resumes/{resume['id']}/exports", params={"version": resume["version"]}
+        )
         assert response.status_code == 200, response.text
         result = response.json()
         url = f"/api/exports/{result['id']}"

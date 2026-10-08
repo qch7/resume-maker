@@ -36,15 +36,21 @@ class Conversations:
 
     def patch_conversation(self, conversation_id: str, values: dict):
         """更新允许编辑的会话字段且仅在值变化时刷新活动时间"""
-        self.conversation(conversation_id)
         values = dict(values)
+        before = values.pop("expected_input_draft", None)
         if set(values) - {"title", "input_draft", "scope", "archived"}:
             raise Problem("不支持的会话字段。")
+        if "input_draft" in values and before is None:
+            raise Problem("保存输入草稿需要原内容基线。", 422)
         if values:
             with self.db.transaction() as conn:
-                current = conn.execute(
-                    "SELECT * FROM conversations WHERE id=?", (conversation_id,)
-                ).fetchone()
+                current = need(
+                    conn.execute(
+                        "SELECT * FROM conversations WHERE id=?", (conversation_id,)
+                    ).fetchone()
+                )
+                if "input_draft" in values and current["input_draft"] != before:
+                    raise Problem("会话输入已在其他窗口修改，请合并或载入最新输入。", 409)
                 if any(current[key] != value for key, value in values.items()):
                     values["updated_at"] = now()
                 conn.execute(
@@ -52,6 +58,11 @@ class Conversations:
                     + ",".join(f"{k}=?" for k in values)
                     + " WHERE id=?",
                     (*values.values(), conversation_id),
+                )
+                return unpack(
+                    conn.execute(
+                        "SELECT * FROM conversations WHERE id=?", (conversation_id,)
+                    ).fetchone()
                 )
         return self.conversation(conversation_id)
 

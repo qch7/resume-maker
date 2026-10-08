@@ -22,6 +22,7 @@ import type {
 } from "@resume-maker/plugin-sdk/shared/types/index";
 import { buildLivePreview } from "./livePreview";
 import { newDocument } from "@resume-maker/plugin-sdk/shared/resume/document";
+import { recoverResume } from "@resume-maker/plugin-sdk/shared/resume/recovery";
 import { repairDefaultResume } from "@resume-maker/plugin-sdk/shared/resume/defaults/sections";
 import { entryComposition, replaceEntry } from "../profile/entry";
 import { personalComposition } from "../profile/personal";
@@ -48,6 +49,20 @@ export function loadCurrentResume(fallback: Resume) {
   return key
     ? loadLocal<Resume>(`rm.resume.v2.${key}`, fallback)
     : loadLocal<Resume>("rm.resume.v2.last", fallback);
+}
+
+/** 替换失效引用前保存原稿，简历库提供明确恢复入口 */
+export function restoreResume(draft: Resume, state: State) {
+  const recovered = recoverResume(draft, state);
+  if (recovered.changed) preserveResumeCopy(draft);
+  return recovered;
+}
+
+/** 显式替换整份输入前保留可从简历库恢复的副本 */
+export function preserveResumeCopy(draft: Resume) {
+  const copies = loadLocal<Resume[]>("rm.resume.recoveries", []);
+  if (!copies.some((copy) => JSON.stringify(copy) === JSON.stringify(draft)))
+    storage.setItem("rm.resume.recoveries", JSON.stringify([...copies, draft]));
 }
 
 interface Options {
@@ -329,6 +344,7 @@ export function useResumeComposition({
         draft.id ? "PUT" : "POST",
         body,
       );
+      retireUnsavedDraft(draft);
       setDraft(
         /* 保存期间的新输入继续留在草稿，切换方案后不抢回焦点 */ (current) =>
           acceptSavedComposition(current, draft, saved),
@@ -364,6 +380,7 @@ export function useResumeComposition({
           document: submitted.document,
         },
       );
+      retireUnsavedDraft(submitted);
       setDraft(
         /* 基本信息独立采用保存结果，保留其他栏目和请求后的新输入 */ (
           current,
@@ -404,6 +421,7 @@ export function useResumeComposition({
           document: submitted.document,
         },
       );
+      retireUnsavedDraft(submitted);
       setDraft(
         /* 模态表单保存成功才应用本条，其他资料和后续输入继续保留 */ (
           current,
@@ -449,12 +467,20 @@ export function useResumeComposition({
       setDeleting(false);
     }
   }
+  /** 首份草稿保存成正式方案后移除旧入口，切换期间保留原稿 */
+  function retireUnsavedDraft(submitted: Resume) {
+    if (!submitted.id && !currentDraft.current.id)
+      storage.removeItem("rm.resume.v2.new");
+  }
   /** 先保存组合再导出文档，始终在完成或失败后清除导出中状态 */
   async function exportResume() {
     setExporting(true);
     try {
       const saved = await saveComposition();
-      const result = await api<Export>(`/resumes/${saved.id}/exports`, "POST");
+      const result = await api<Export>(
+        `/resumes/${saved.id}/exports?version=${saved.version}`,
+        "POST",
+      );
       if (currentDraft.current.id === saved.id) setExported(result);
       notify({
         text: result.pages

@@ -46,18 +46,26 @@ class Documents:
         """读取统一导入目录，证书和模板页面使用相同格式描述"""
         return self.registry.importers(purpose) if self.registry else []
 
-    def export(self, resume_id: str, *, engine_id=None, renderer_id=None) -> dict:
+    def export(
+        self, resume_id: str, *, expected_version=None, engine_id=None, renderer_id=None
+    ) -> dict:
         """使用临时工作目录生成成品，发布后只保留统一资源里的文件"""
         root = self.data_dir / "workspaces"
         root.mkdir(parents=True, exist_ok=True)
         with TemporaryDirectory(prefix="export-", dir=root) as directory:
             return self._export(
-                resume_id, engine_id=engine_id, renderer_id=renderer_id, directory=Path(directory)
+                resume_id,
+                expected_version=expected_version,
+                engine_id=engine_id,
+                renderer_id=renderer_id,
+                directory=Path(directory),
             )
 
-    def _export(self, resume_id, *, directory, engine_id=None, renderer_id=None):
+    def _export(
+        self, resume_id, *, directory, expected_version=None, engine_id=None, renderer_id=None
+    ):
         """读取固定资料及项目引用，按所选完整模板或内置版式生成文件和清单"""
-        inputs = self.catalog.freeze_export(self.data_dir, resume_id)
+        inputs = self.catalog.freeze_export(self.data_dir, resume_id, expected_version)
         resume, manifest_items, template = inputs.values()
         renderer = self.renderer
         engine, template_engine = self.engine, self.template_engine

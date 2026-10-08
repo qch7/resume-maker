@@ -80,7 +80,9 @@ def test_delete_resume_preserves_projects_exports_and_other_plans(tmp_path):
             client.get(f"/api/exports/{export_id}/resume.docx", headers=headers).content
             == b"retained document"
         )
-        assert client.post(url + "/exports", headers=headers).status_code == 404
+        assert (
+            client.post(url + "/exports", params={"version": 0}, headers=headers).status_code == 404
+        )
         assert (
             client.put(
                 url,

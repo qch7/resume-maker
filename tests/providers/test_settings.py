@@ -198,6 +198,7 @@ def test_connection_check_uses_its_override_and_inherits_after_reset(tmp_path, m
                 "/api/settings/provider",
                 json={
                     **settings,
+                    "version": client.get("/api/settings").json()["provider"]["version"],
                     "functions": {"connection_check": override},
                 },
             ).raise_for_status()

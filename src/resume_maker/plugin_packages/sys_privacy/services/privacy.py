@@ -51,7 +51,7 @@ class Privacy:
             ).fetchone()
             version = int(row[0]) if row else 0
             if version != expected_version:
-                raise Problem("敏感词已在其他窗口修改，请重新打开设置后再保存。", 409)
+                raise Problem("敏感词已在其他窗口修改，请合并或载入最新词表后再保存。", 409)
             conn.executemany(
                 "INSERT OR REPLACE INTO settings VALUES (?,?)",
                 [("privacy_terms", dump(terms)), ("privacy_terms_version", dump(version + 1))],

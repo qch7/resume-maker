@@ -25,6 +25,7 @@ def test_custom_efforts_persist_and_inherit_per_function(tmp_path):
             response = client.put(
                 "/api/settings/provider",
                 json={
+                    "version": client.get("/api/settings").json()["provider"]["version"],
                     "reasoning_effort": " high ",
                     "functions": {
                         "conversation": {"reasoning_effort": f" {effort} "},

@@ -62,6 +62,7 @@ class ConversationInput(Model):
 
     title: str | None = Field(default=None, max_length=200)
     input_draft: str | None = Field(default=None, max_length=30000)
+    expected_input_draft: str | None = Field(default=None, max_length=30000)
     scope: str | None = None
     archived: bool | None = None
 

@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import FileResponse, Response
 
 from resume_maker.api.dependencies import service
@@ -48,11 +48,14 @@ def preview_file(
 def export(
     dep_documents: Annotated[Documents, Depends(service("documents"))],
     resume_id: str,
+    version: Annotated[int, Query(ge=0)],
     engine_id: str | None = None,
     renderer_id: str | None = None,
 ):
     """读取固定版本组合，生成完整简历 Word、预览和追溯清单"""
-    return dep_documents.export(resume_id, engine_id=engine_id, renderer_id=renderer_id)
+    return dep_documents.export(
+        resume_id, expected_version=version, engine_id=engine_id, renderer_id=renderer_id
+    )
 
 
 @router.get("/document-engines")

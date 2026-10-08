@@ -1837,6 +1837,16 @@
             }
           },
           {
+            "name": "version",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "title": "Version"
+            }
+          },
+          {
             "name": "engine_id",
             "in": "query",
             "required": false,
@@ -4827,6 +4837,18 @@
             }
           ],
           "title": "Archived"
+        },
+        "expected_input_draft": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 30000
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Expected Input Draft"
         }
       },
       "additionalProperties": false,
@@ -5730,6 +5752,12 @@
           },
           "type": "object",
           "title": "Functions"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 0.0,
+          "title": "Version",
+          "default": 0
         }
       },
       "additionalProperties": false,

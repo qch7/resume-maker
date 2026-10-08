@@ -304,7 +304,12 @@ def activate(context):
         manager.prepare(plan["id"], plan["digest"])
         manager.apply(plan["id"], plan["digest"])
         assert client.get("/api/resume-sources", headers=HEADERS).json() == []
-        exported = client.post(f"/api/resumes/{resume_id}/exports", headers=HEADERS)
+        state = client.get("/api/state", headers=HEADERS).json()
+        exported = client.post(
+            f"/api/resumes/{resume_id}/exports",
+            params={"version": state["resumes"][0]["version"]},
+            headers=HEADERS,
+        )
         assert exported.status_code == 200, exported.text
         snapshot = exported.json()["manifest"]["resume"]["document"]
         assert snapshot["sections"][1]["entries"][0]["title"] == "最后确认内容"
@@ -368,7 +373,10 @@ def activate(context):
                 },
             },
         ).json()
-        path = f"/api/resumes/{resume['id']}/exports?engine_id=community.example/docx"
+        path = (
+            f"/api/resumes/{resume['id']}/exports?engine_id=community.example/docx"
+            f"&version={resume['version']}"
+        )
         response = client.post(path, headers=HEADERS)
         assert response.status_code == 200, response.text
         record = response.json()

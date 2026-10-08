@@ -66,6 +66,8 @@ import { newDocument } from "@resume-maker/plugin-sdk/shared/resume/document";
 import {
   NEW_RESUME,
   loadCurrentResume,
+  restoreResume,
+  preserveResumeCopy,
   useResumeComposition,
 } from "./useResumeComposition";
 import Settings from "../settings/Settings";
@@ -299,19 +301,12 @@ export default function ResumeWorkspace() {
         ...NEW_RESUME,
         document: newDocument(value.resume_defaults),
       });
-      const valid =
-        cached.items.every((item) =>
-          value.projects.some((p) => p.id === item.project_id),
-        ) &&
-        (!cached.id || value.resumes.some((r) => r.id === cached.id));
-      const initial =
-        valid && (cached.id || cached.items.length || cached.document)
-          ? cached
-          : (value.resumes[0] ?? {
-              ...NEW_RESUME,
-              document: newDocument(value.resume_defaults),
-            });
-      setDraft(initial);
+      const recovered = restoreResume(cached, value);
+      setDraft(recovered.draft);
+      if (recovered.changed)
+        setToast({
+          text: "已保留个人资料和栏目，隔离失效引用。原稿可在简历库的恢复副本中查看。",
+        });
     }
   }, []);
 
@@ -1397,6 +1392,21 @@ export default function ResumeWorkspace() {
           state={state}
           draft={draft}
           previewChanged={previewChanged}
+          unsavedDraft={loadLocal<Resume | null>("rm.resume.v2.new", null)}
+          recoveryDrafts={loadLocal<Resume[]>("rm.resume.recoveries", [])}
+          onRecover={(copy) => {
+            if (!draft.id) preserveResumeCopy(draft);
+            storage.setItem(
+              `rm.resume.v2.${draft.id || "new"}`,
+              JSON.stringify(draft),
+            );
+            const restored = restoreResume(
+              { ...copy, id: "", version: 0 },
+              state,
+            );
+            setDraft(restored.draft);
+            setExported(null);
+          }}
           result={exported}
           exporting={exporting}
           deleting={deleting}
@@ -1409,8 +1419,21 @@ export default function ResumeWorkspace() {
             /* 处理 onChoose 回调，将变化同步到工作台状态 */ (id) =>
               run(async () => {
                 const resume = state.resumes.find((r) => r.id === id);
-                if (resume) {
-                  setDraft(loadLocal(`rm.resume.v2.${id}`, resume));
+                const selected =
+                  resume ??
+                  (!id
+                    ? loadLocal<Resume | null>("rm.resume.v2.new", null)
+                    : null);
+                if (selected) {
+                  const recovered = restoreResume(
+                    loadLocal(`rm.resume.v2.${id || "new"}`, selected),
+                    state,
+                  );
+                  setDraft(recovered.draft);
+                  if (recovered.changed)
+                    setToast({
+                      text: "失效引用已隔离，原稿保存在恢复副本中。",
+                    });
                   setExported(null);
                 }
               })

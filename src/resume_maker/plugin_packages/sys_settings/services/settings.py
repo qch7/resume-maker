@@ -35,9 +35,20 @@ class Settings:
         return ProviderSettings.model_validate(self.db.setting("provider", {}))
 
     def save_provider(self, settings: ProviderSettings):
-        """保存已校验的模型参数，后续任务读取新的配置"""
-        self.db.set_setting("provider", settings.model_dump())
-        return settings
+        """事务内核对配置版本，拒绝旧窗口覆盖其他窗口的模型选择"""
+        with self.db.transaction() as conn:
+            row = unpack(
+                conn.execute("SELECT value_json FROM settings WHERE key='provider'").fetchone()
+            )
+            current = ProviderSettings.model_validate(row["value"] if row else {})
+            if settings.version != current.version:
+                raise Problem("模型配置已在其他窗口修改，请载入服务器配置后合并。", 409)
+            saved = settings.model_copy(update={"version": current.version + 1})
+            conn.execute(
+                "INSERT OR REPLACE INTO settings VALUES (?,?)",
+                ("provider", dump(saved.model_dump())),
+            )
+        return saved
 
     def recruitment(self):
         """读取收藏夹导入偏好，首次使用时保留本机重复项"""

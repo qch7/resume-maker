@@ -152,6 +152,7 @@ class ProviderSettings(AISettings):
     """CLI 连接、全局默认值和各 AI 功能的可保存配置"""
 
     executable: str = "codex"
+    version: int = Field(default=0, ge=0)
     profile: str = ""
     timeout_seconds: int = Field(default=1200, ge=30, le=7200)
     functions: dict[AIFunction, AISettings] = Field(default_factory=dict)

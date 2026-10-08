@@ -140,7 +140,7 @@ class Resumes(Protocol):
         """读取不可变模板原件，不向消费者暴露持久文件位置"""
         ...
 
-    def freeze_export(self, directory, identifier):
+    def freeze_export(self, directory, identifier, expected_version=None):
         """固定同一事务快照中的简历、修订和模板输入"""
         ...
 
@@ -305,7 +305,9 @@ class Documents(Protocol):
         """列出当前可选的文件处理器和支持格式"""
         ...
 
-    def export(self, resume_id: str, *, engine_id=None, renderer_id=None) -> dict:
+    def export(
+        self, resume_id: str, *, expected_version=None, engine_id=None, renderer_id=None
+    ) -> dict:
         """读取固定资料及项目引用，按所选完整模板或内置版式生成文件和清单"""
         ...
 

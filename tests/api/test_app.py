@@ -49,7 +49,14 @@ def test_sidebar_activity_tracks_drafts_and_conversation_edits(tmp_path, monkeyp
         path = f"/api/conversations/{conversation['id']}"
         for field, value, day in [("title", "修改名称", "03"), ("input_draft", "输入草稿", "04")]:
             stamp = f"2026-01-{day}T00:00:00Z"
-            response = client.patch(path, headers=headers, json={field: value})
+            response = client.patch(
+                path,
+                headers=headers,
+                json={
+                    field: value,
+                    **({"expected_input_draft": ""} if field == "input_draft" else {}),
+                },
+            )
             assert response.status_code == 200, response.text
             assert response.json()["updated_at"] == stamp
             assert state()["projects"][0]["activity_at"] == stamp
@@ -57,7 +64,15 @@ def test_sidebar_activity_tracks_drafts_and_conversation_edits(tmp_path, monkeyp
         previous = stamp
         stamp = "2026-01-05T00:00:00Z"
         client.get(path, headers=headers)
-        client.patch(path, headers=headers, json={"title": "修改名称", "input_draft": "输入草稿"})
+        client.patch(
+            path,
+            headers=headers,
+            json={
+                "title": "修改名称",
+                "input_draft": "输入草稿",
+                "expected_input_draft": "输入草稿",
+            },
+        )
         assert state()["projects"][0]["activity_at"] == previous
 
 
@@ -101,7 +116,7 @@ def test_project_and_conversation_persist_after_app_restart(tmp_path):
         saved = client.patch(
             f"/api/conversations/{conversation['id']}",
             headers=headers,
-            json={"input_draft": "未发送草稿", "title": "后端岗位版"},
+            json={"input_draft": "未发送草稿", "expected_input_draft": "", "title": "后端岗位版"},
         )
         assert saved.status_code == 200
     with TestClient(create_app(config)) as client:

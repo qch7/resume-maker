@@ -287,6 +287,7 @@ export interface AISettings {
   reasoning_effort: ReasoningEffort;
 }
 export interface ProviderSettings extends AISettings {
+  version: number;
   executable: string;
   profile: string;
   timeout_seconds: number;
