@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import PathInput from "@resume-maker/plugin-sdk/shared/components/PathInput";
 import { api } from "@resume-maker/plugin-sdk/shared/lib/api";
+import { recoveryCopies } from "@resume-maker/plugin-sdk/shared/lib/recoveryCopies";
 import {
   loadLocal,
   storage,
@@ -13,6 +14,15 @@ import CodexModels from "./CodexModels";
 export default function ProviderSettingsPanel(props: SettingsPanelProps) {
   const [provider, setProvider] = useState<ProviderSettings | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [conflict, setConflict] = useState(false);
+  const [recovery, setRecovery] = useState(() =>
+    recoveryCopies(
+      loadLocal<ProviderSettings | ProviderSettings[] | null>(
+        "rm.settings.provider.recovery",
+        null,
+      ),
+    ),
+  );
   const baseline = useRef("");
   useEffect(() => {
     if (!loaded || !provider) return;
@@ -26,7 +36,9 @@ export default function ProviderSettingsPanel(props: SettingsPanelProps) {
     void api<{ provider: ProviderSettings }>("/settings")
       .then((value) => {
         baseline.current = JSON.stringify(value.provider);
-        setProvider(loadLocal("rm.settings.provider", value.provider));
+        const draft = loadLocal("rm.settings.provider", value.provider);
+        setProvider({ ...draft, version: draft.version ?? 0 });
+        setConflict((draft.version ?? 0) !== value.provider.version);
         setLoaded(true);
       })
       .catch((error) => setNotice(error.message));
@@ -38,10 +50,27 @@ export default function ProviderSettingsPanel(props: SettingsPanelProps) {
       setNotice("");
       try {
         await work();
+      } catch (error) {
+        if (error instanceof Error && "status" in error && error.status === 409)
+          setConflict(true);
+        setNotice(error instanceof Error ? error.message : "设置保存失败");
+        throw error;
       } finally {
         setBusy(false);
       }
     });
+  }
+  /** 载入最新配置前保存本页副本，版本变化不会自动覆盖其他窗口 */
+  async function loadLatest() {
+    const latest = (await api<{ provider: ProviderSettings }>("/settings"))
+      .provider;
+    const copies = recoveryCopies(recovery, provider ?? undefined);
+    storage.setItem("rm.settings.provider.recovery", JSON.stringify(copies));
+    setRecovery(copies);
+    baseline.current = JSON.stringify(latest);
+    setProvider(latest);
+    setConflict(false);
+    setNotice("已载入最新配置，本页原稿保留在下方副本中。");
   }
   if (!provider)
     return (
@@ -98,7 +127,7 @@ export default function ProviderSettingsPanel(props: SettingsPanelProps) {
         />
         <div className="actions">
           <button
-            disabled={busy || !loaded}
+            disabled={busy || !loaded || conflict}
             onClick={() =>
               run(async () => {
                 const saved = await api<ProviderSettings>(
@@ -116,7 +145,7 @@ export default function ProviderSettingsPanel(props: SettingsPanelProps) {
             保存
           </button>
           <button
-            disabled={busy || !loaded}
+            disabled={busy || !loaded || conflict}
             onClick={() =>
               run(async () => {
                 const saved = await api<ProviderSettings>(
@@ -137,7 +166,29 @@ export default function ProviderSettingsPanel(props: SettingsPanelProps) {
           >
             {busy ? "测试中…" : "测试连接"}
           </button>
+          <button disabled={busy || !loaded} onClick={() => run(loadLatest)}>
+            保留副本并载入最新配置
+          </button>
         </div>
+        {conflict && (
+          <p role="alert">
+            模型配置已在其他窗口修改，请先载入最新配置，再核对并重新应用本页修改。
+          </p>
+        )}
+        {!!recovery.length && (
+          <details>
+            <summary>载入前的模型配置副本</summary>
+            {recovery.map((copy, index) => (
+              <section key={index}>
+                <p>
+                  CLI：{copy.executable} · Profile：{copy.profile || "默认"} ·
+                  超时：{copy.timeout_seconds} 秒
+                </p>
+                <CodexModels value={copy} disabled onChange={() => {}} />
+              </section>
+            ))}
+          </details>
+        )}
       </>
       {notice && <p role="status">{notice}</p>}
     </>

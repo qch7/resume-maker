@@ -2,11 +2,11 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
-from fastapi.responses import FileResponse, Response
+from fastapi import APIRouter, Depends, Query
+from fastapi.responses import Response
 
 from resume_maker.api.dependencies import service
-from resume_maker.api.resources import AssetResponse
+from resume_maker.api.resources import AssetResponse, LeasedFileResponse
 from resume_maker.api.schemas import ResumePreviewInput
 from resume_maker.core.errors import Problem, need
 from resume_maker.infrastructure.assets import Assets
@@ -41,18 +41,21 @@ def preview_file(
     file_name: str,
 ):
     """鉴权后返回本实例已生成的 Word 预览"""
-    return FileResponse(dep_resume_previews.file(preview_id, file_name), filename=file_name)
+    return LeasedFileResponse(lambda: dep_resume_previews.lease(preview_id, file_name), file_name)
 
 
 @router.post("/resumes/{resume_id}/exports")
 def export(
     dep_documents: Annotated[Documents, Depends(service("documents"))],
     resume_id: str,
+    version: Annotated[int, Query(ge=0)],
     engine_id: str | None = None,
     renderer_id: str | None = None,
 ):
     """读取固定版本组合，生成完整简历 Word、预览和追溯清单"""
-    return dep_documents.export(resume_id, engine_id=engine_id, renderer_id=renderer_id)
+    return dep_documents.export(
+        resume_id, expected_version=version, engine_id=engine_id, renderer_id=renderer_id
+    )
 
 
 @router.get("/document-engines")

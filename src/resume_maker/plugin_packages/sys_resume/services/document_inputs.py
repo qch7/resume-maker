@@ -6,7 +6,7 @@ from resume_maker.sdk.documents import DocumentInput
 from resume_maker.sdk.records import dump, unpack
 
 
-def freeze_export(catalog, directory, identifier):
+def freeze_export(catalog, directory, identifier, expected_version=None):
     """固定简历版本、来源内容、映射和原件，写锁只覆盖短暂的本地读取"""
     with catalog.db.transaction() as conn:
         resume = need(
@@ -19,6 +19,8 @@ def freeze_export(catalog, directory, identifier):
             ),
             "该简历方案不存在或已删除。",
         )
+        if expected_version is not None and resume["version"] != expected_version:
+            raise Problem("简历已在其他窗口修改，请核对最新方案后重新导出。", 409)
         if not resume["document"]:
             raise Problem("请先填写个人资料和栏目，再导出完整简历。")
         resume["document"] = catalog.resolve_document(resume["document"], conn)

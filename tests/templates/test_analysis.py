@@ -21,6 +21,7 @@ from resume_maker.plugin_packages.ext_template_ai.services.templates.analysis_dr
     TemplateAnalysis,
 )
 from resume_maker.plugin_packages.sys_resume.services.resumes import Resumes
+from tests.support.document_services import use_renderer
 from tests.support.documents import photo_bytes
 from tests.support.templates import TemplateProvider, completed, simple_document, simple_template
 
@@ -32,11 +33,18 @@ def test_analysis_snapshot_save_restart_and_export(tmp_path, monkeypatch):
     provider = TemplateProvider()
     config = Config(data_dir=tmp_path / "data", token="test")
     app = create_app(config, provider)
-    monkeypatch.setattr(
-        "resume_maker.plugin_packages.ext_template_adapter.services.templates.tasks.render_word",
-        lambda *_: (None, "测试无渲染器"),
-    )
-    monkeypatch.setattr(app.state.services.documents, "renderer", lambda *_: (None, "测试无渲染器"))
+    use_renderer(app, monkeypatch, lambda *_: (None, "测试无渲染器"))
+
+    def render_preview(output, pdf):
+        """发布前生成合成分页，验证下载只接受本次声明的产物"""
+        assert Document(output).paragraphs[0].text == "新的用户资料"
+        pdf.write_bytes(b"synthetic PDF")
+        (pdf.parent / "page-1.svg").write_text(
+            '<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0L10 10"/></svg>',
+            encoding="utf-8",
+        )
+        return 1, None
+
     with TestClient(app) as client:
         headers = {"x-resume-token": "test"}
         payload = {"path": str(source), "document": simple_document().model_dump()}
@@ -57,12 +65,15 @@ def test_analysis_snapshot_save_restart_and_export(tmp_path, monkeypatch):
         assert client.get(preview_prefix + "/resume.docx", headers=headers).status_code == 200
         assert client.get(preview_prefix + "/original.docx", headers=headers).status_code == 404
         assert client.get(preview_prefix + "/resume.docx").status_code == 401
-        vector = (
-            app.state.services.templates.source(task["id"]).parent
-            / preview.json()["id"]
-            / "page-1.svg"
-        )
-        vector.write_text('<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0L10 10"/></svg>')
+        with app.state.services.templates.preview_lease(
+            task["id"], preview.json()["id"], "resume.docx"
+        ) as output:
+            (output.parent / "page-1.svg").write_text("未声明的分页", encoding="utf-8")
+        assert client.get(preview_prefix + "/page-1.svg", headers=headers).status_code == 404
+        use_renderer(app, monkeypatch, render_preview)
+        rendered = client.post(prefix + "/preview", json=body, headers=headers)
+        assert rendered.status_code == 200 and rendered.json()["pages"] == 1
+        preview_prefix = prefix + "/previews/" + rendered.json()["id"]
         response = client.get(preview_prefix + "/page-1.svg", headers=headers)
         assert response.status_code == 200 and response.headers["content-type"].startswith(
             "image/svg+xml"
@@ -89,9 +100,7 @@ def test_analysis_snapshot_save_restart_and_export(tmp_path, monkeypatch):
             document=simple_document(),
         )
     restarted = create_app(config, TemplateProvider())
-    monkeypatch.setattr(
-        restarted.state.services.documents, "renderer", lambda *_: (None, "测试无渲染器")
-    )
+    use_renderer(restarted, monkeypatch, lambda *_: (None, "测试无渲染器"))
     with TestClient(restarted):
         assert restarted.state.services.templates.get(task["id"])["plan"] == task["plan"]
         exported = restarted.state.services.documents.export(resume["id"])

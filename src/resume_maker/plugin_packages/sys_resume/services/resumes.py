@@ -36,11 +36,11 @@ class Resumes:
         """通过统一资源读取已发布的模板原件"""
         return self.assets.read_file(f"templates/{template['id']}", "template.docx")
 
-    def freeze_export(self, directory, identifier):
+    def freeze_export(self, directory, identifier, expected_version=None):
         """在同一快照固定成品所需的简历、修订和模板输入"""
         from resume_maker.plugin_packages.sys_resume.services.document_inputs import freeze_export
 
-        return freeze_export(self, directory, identifier)
+        return freeze_export(self, directory, identifier, expected_version)
 
     def freeze_preview(self, directory, template_id, document, items):
         """在同一快照固定工作副本和可选模板输入"""
@@ -168,7 +168,10 @@ class Resumes:
                     dump(resolved_document) if resolved_document is not None else None,
                 ),
             )
-        return self.db.one("SELECT * FROM resumes WHERE id=?", (resume_id,))
+            saved = unpack(
+                conn.execute("SELECT * FROM resumes WHERE id=?", (resume_id,)).fetchone()
+            )
+        return saved
 
     def delete_resume(self, resume_id: str, version: int) -> None:
         """按版本删除方案，保留项目、模板及历史导出，拒绝覆盖其他窗口的修改"""

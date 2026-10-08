@@ -72,7 +72,11 @@ def test_minimal_manual_revision_docx_and_restore(tmp_path):
             },
         ).json()
         assert "id" in resume, resume
-        exported = client.post(f"/api/resumes/{resume['id']}/exports", headers=HEADERS)
+        exported = client.post(
+            f"/api/resumes/{resume['id']}/exports",
+            params={"version": resume["version"]},
+            headers=HEADERS,
+        )
         assert exported.status_code == 200, exported.text
         assert exported.json()["pages"] is None
         output = client.get(f"/api/exports/{exported.json()['id']}/resume.docx", headers=HEADERS)
@@ -90,7 +94,11 @@ def test_minimal_manual_revision_docx_and_restore(tmp_path):
         state = client.get("/api/state", headers=HEADERS).json()
         assert state["resumes"][0]["items"][0]["revision_id"] == head
         assert state["resumes"][0]["document"]["extensions"] == document["extensions"]
-        response = client.post(f"/api/resumes/{resume['id']}/exports", headers=HEADERS)
+        response = client.post(
+            f"/api/resumes/{resume['id']}/exports",
+            params={"version": resume["version"]},
+            headers=HEADERS,
+        )
         assert response.status_code == 200, response.text
         download = client.get(f"/api/exports/{response.json()['id']}/resume.docx", headers=HEADERS)
         assert download.status_code == 200
@@ -213,7 +221,11 @@ def test_each_optional_disable_has_explicit_dependency_or_working_minimal_core(
                 item.identifier,
                 DocumentRenderer("1.0.0", lambda *_: (None, "synthetic matrix")),
             )
-        exported = client.post(f"/api/resumes/{response.json()['id']}/exports", headers=HEADERS)
+        exported = client.post(
+            f"/api/resumes/{response.json()['id']}/exports",
+            params={"version": response.json()["version"]},
+            headers=HEADERS,
+        )
         assert exported.status_code == 200, exported.text
         assert client.get(
             f"/api/exports/{exported.json()['id']}/resume.docx", headers=HEADERS

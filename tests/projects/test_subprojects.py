@@ -74,13 +74,18 @@ def test_source_changes_keep_subproject_identity_and_existing_history(catalog, t
     before = children(catalog, parent["id"])
     assert before[roots[0]]["id"] == standalone["id"]
     projects = Projects(catalog)
-    projects.update_sources(parent["id"], "TrustGuard", roots[::-1])
+    parent = projects.update_sources(
+        parent["id"], "TrustGuard", roots[::-1], parent["name"], parent["roots"]
+    )
     assert {root: p["id"] for root, p in children(catalog, parent["id"]).items()} == {
         root: p["id"] for root, p in before.items()
     }
     rebound = tmp_path / "agent-moved"
     rebound.mkdir()
-    projects.update_sources(standalone["id"], "agent", [str(rebound)])
+    standalone = catalog.project(standalone["id"])
+    standalone = projects.update_sources(
+        standalone["id"], "agent", [str(rebound)], standalone["name"], standalone["roots"]
+    )
     assert catalog.project(standalone["id"])["parent_id"] == parent["id"]
     assert str(rebound.resolve()) in catalog.project(parent["id"])["roots"]
     assert (
@@ -88,10 +93,15 @@ def test_source_changes_keep_subproject_identity_and_existing_history(catalog, t
         == standalone["id"]
     )
     with pytest.raises(Problem, match="同组"):
-        projects.update_sources(standalone["id"], "agent", [roots[1]])
+        projects.update_sources(
+            standalone["id"], "agent", [roots[1]], standalone["name"], standalone["roots"]
+        )
     with pytest.raises(Problem, match="只能关联一个"):
-        projects.update_sources(standalone["id"], "agent", roots)
-    projects.update_sources(parent["id"], "TrustGuard", [roots[1]])
+        projects.update_sources(
+            standalone["id"], "agent", roots, standalone["name"], standalone["roots"]
+        )
+    parent = catalog.project(parent["id"])
+    projects.update_sources(parent["id"], "TrustGuard", [roots[1]], parent["name"], parent["roots"])
     assert children(catalog, parent["id"]) == {}
     assert catalog.project(standalone["id"])["parent_id"] is None
     assert catalog.revision(standalone["head_revision"])["project_id"] == standalone["id"]

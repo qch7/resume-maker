@@ -221,8 +221,16 @@ class Jobs:
                 else conversation["title"]
             )
             conn.execute(
-                "UPDATE conversations SET input_draft='',title=?,updated_at=? WHERE id=?",
-                (title, stamp, conversation_id),
+                "UPDATE conversations SET input_draft=CASE WHEN input_draft=? THEN '' "
+                "ELSE input_draft END,title=?,updated_at=? WHERE id=?",
+                (
+                    conversation["input_draft"]
+                    if conversation["input_draft"].strip() == text.strip()
+                    else None,
+                    title,
+                    stamp,
+                    conversation_id,
+                ),
             )
             metadata = {
                 "handler": kind,

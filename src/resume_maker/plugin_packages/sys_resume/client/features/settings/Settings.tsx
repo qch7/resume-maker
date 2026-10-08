@@ -180,6 +180,9 @@ export default function Settings(props: Props) {
           <section hidden={tab !== "projects"} aria-label="项目设置">
             <div className="settings-section">
               <h3>新建项目</h3>
+              <p className="subtle">
+                只填名称即可创建手工项目，无需源码目录或模型连接。
+              </p>
               <label>
                 名称
                 <input

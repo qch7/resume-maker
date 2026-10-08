@@ -21,6 +21,10 @@ export default function ResumeSettings(props: ResumeLibraryProps) {
     busy || props.previewChanged || templateUnavailable || !draft.name.trim();
   return (
     <section className="resume-library-settings" aria-label="当前简历设置">
+      <p className="subtle">
+        输入自动保留为草稿；“保存组合”保存整份方案及固定经历版本；“导出
+        Word”先保存方案，再生成可下载的成品。
+      </p>
       <div className="resume-library-controls">
         <div className="resume-library-fields">
           <label>

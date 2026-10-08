@@ -221,7 +221,11 @@ def test_jobs_read_all_current_roots_and_only_archive_cited_files(catalog, tmp_p
         replacement.mkdir()
         (replacement / "README.md").write_text("rebound source", encoding="utf-8")
         Projects(catalog).update_sources(
-            project["id"], project["name"], [str(replacement), *map(str, roots[1:])]
+            project["id"],
+            project["name"],
+            [str(replacement), *map(str, roots[1:])],
+            project["name"],
+            project["roots"],
         )
         second = jobs.submit(conversation["id"], "读取最新文件", "chat", saved["id"], "all", uid())
         completed = wait_job(catalog, second["id"])

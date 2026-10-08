@@ -78,6 +78,12 @@ Python 公共入口在 `resume_maker.sdk`，定义见 `sdk/manifest.py`、`conte
 
 ## Host 服务、路由及资源
 
+普通编辑的共享写入也需要并发基线。`PUT /api/settings/provider` 使用 `ProviderSettings.version`，成功响应返回本次写入的新版本；旧资料未存版本时从 0 开始，无需数据库迁移。修改 `PATCH /api/conversations/{id}` 的 `input_draft` 时必须同时携带原始 `expected_input_draft`，缺少基线返回 422，基线变化返回 409。仅修改标题、讨论范围或归档状态不需要输入基线。
+
+`POST /api/resumes/{id}/exports?version=<刚保存的版本>` 必须传入方案版本。冻结输入的事务内核对该版本，变化时返回 409 且不发布成品。SDK 的 `Documents.export` 和 `Resumes.freeze_export` 接受 `expected_version`；由用户保存动作触发的调用应传入该值。
+
+临时预览使用 `sdk.previews.PreviewCache`，简历预览和模板试填各保留最多 24 份、总计 128 MiB，按最近使用顺序回收。单份超过预算时拒绝发布，渲染失败的部分产物立即回收。HTTP 下载通过 `LeasedFileResponse` 持有租约直到完整传输结束或断开，所有容量被活动租约占用时等待用户重试。只清理当前实例创建的临时目录，正式导出、模板原件和分析草稿继续按各自资料规则保留。
+
 ```python
 from fastapi import APIRouter
 from resume_maker.sdk.context import ServiceKey
@@ -380,6 +386,8 @@ AI 会话、荣誉识别、模板分析的执行意图与领域输入写入同�
 关系存储通过 `sdk.storage.RelationalStore` 和 `Transaction` 消费。业务服务不导入 SQLite 实现；替换后端必须实现参数化查询、JSON 列、写事务、同事务快照、稳定引用和提交后回调的完整语义，不能只更换连接字符串。`Transaction.after_commit` 用于缓存失效，回滚会丢弃回调。外部插件默认使用 `context.data` 的实例命名空间、CAS 版本及多键事务，任务作用域数据只存在于任务内存。
 
 `prepare_delete(namespace, ids, conn)` 让持久引用规则在业务删除同一事务中核验阻断原因及执行清理。规则归属资料拥有者，停用后仍在数据库内保护历史资料。简历读取模板通过稳定记录引用，项目删除不直接修改 AI 或简历的私有表。公开业务接口位于 `sdk/services.py`，模板资料和分析接口位于 `sdk/templates.py`；导出/预览只接收明确注入的引擎或注册表。
+
+项目配置写入必须提交读取基线：`Projects.save_profile(project_id, profile, expected_profile)`；`Projects.update_sources(project_id, name, sources, expected_name, expected_roots)`。HTTP `PUT /api/projects/{id}/profile` 接收 `{profile, expected_profile}`，`PUT /api/projects/{id}/sources` 接收 `{name, roots, expected_name, expected_roots}`。基线取自读取到的正式项目资料，不能在提交旧表单前替换为最新值；缺少基线返回 422，基线已变化返回 409。用户核对或合并后使用最新基线重新提交，资料库结构仍为 v9。
 
 内置清单 `data.schemas` 和 `data.relations` 声明 SQL 资源，SQLite 按所选模块执行，建表、引用规则和目录册处于同一事务。只执行随发行包安装的内置资源，外部 `data.schemas` 不能绕过命名空间维护权限。外部资料仍使用上面的 JSON 迁移协议。
 

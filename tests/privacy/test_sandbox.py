@@ -298,6 +298,9 @@ def test_cancel_reaps_child_even_after_leader_exit(tmp_path):
 @pytest.mark.skipif(os.name != "nt", reason="Windows 进程挂起和 Job Object 边界")
 def test_windows_job_waits_for_delayed_descendant_exit(tmp_path, monkeypatch):
     """主进程已退出且终止请求异步完成时，回收仍等待后代真实结束"""
+    import win32api
+    import win32con
+    import win32event
     import win32job
 
     from resume_maker.integrations.providers import process as module
@@ -316,6 +319,7 @@ def test_windows_job_waits_for_delayed_descendant_exit(tmp_path, monkeypatch):
     requested = threading.Event()
     worker = None
     child = None
+    child_handle = None
     cleanup_started = False
 
     def delayed_termination(handle, code):
@@ -335,20 +339,28 @@ def test_windows_job_waits_for_delayed_descendant_exit(tmp_path, monkeypatch):
         assert parent.wait(timeout=5) == 0
         child = psutil.Process(int(pidfile.read_text()))
         assert child.is_running()
+        child_handle = win32api.OpenProcess(win32con.SYNCHRONIZE, False, child.pid)
         monkeypatch.setattr(win32job, "TerminateJobObject", delayed_termination)
         cleanup_started = True
         module.close_windows_job(job)
         assert requested.is_set()
-        assert not child.is_running()
+        # 持有句柄时 psutil 仍可能识别到已退出进程，内核信号才表示退出完成
+        assert win32event.WaitForSingleObject(child_handle, 0) == win32event.WAIT_OBJECT_0
     finally:
         if worker is not None:
             worker.join(timeout=3)
         if not cleanup_started:
             original(job, 1)
             job.Close()
-        if child is not None and child.is_running():
+        if (
+            child is not None
+            and child_handle is not None
+            and win32event.WaitForSingleObject(child_handle, 0) == win32event.WAIT_TIMEOUT
+        ):
             child.kill()
             child.wait(timeout=3)
+        if child_handle is not None:
+            child_handle.Close()
         if parent.poll() is None:
             parent.kill()
             parent.wait(timeout=3)

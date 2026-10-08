@@ -1,5 +1,7 @@
 """独立领域测试的显式文档装配，生产服务只接受插件注入"""
 
+from dataclasses import replace
+
 from resume_maker.integrations.word.full_resume import write_full_resume
 from resume_maker.integrations.word.templates.fill import fill_template
 from resume_maker.plugin_packages.ext_word.integrations.word.rendering import (
@@ -11,8 +13,18 @@ from resume_maker.plugin_packages.sys_documents.services.documents import (
 from resume_maker.plugin_packages.sys_documents.services.resume_previews import (
     ResumePreviews as PreviewService,
 )
+from resume_maker.sdk.documents import DocumentRenderer
 
 render_word = native_render
+
+
+def use_renderer(app, monkeypatch, render):
+    """替换实际注册的渲染贡献，本机和 CI 均使用同一合成渲染器"""
+    contributions = app.state.runtime.contributions
+    key = ("documents.renderers", "ext.word/default")
+    monkeypatch.setitem(
+        contributions, key, replace(contributions[key], value=DocumentRenderer("1.0.0", render))
+    )
 
 
 def renderer(*args):

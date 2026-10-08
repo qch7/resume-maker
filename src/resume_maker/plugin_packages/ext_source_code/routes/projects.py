@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends
 from resume_maker.api.dependencies import service
 from resume_maker.api.schemas import (
     PathInput,
-    ProjectInput,
+    ProjectSourcesInput,
 )
 from resume_maker.sdk.services import Projects, SourceAccess
 
@@ -25,7 +25,9 @@ def scan(body: PathInput, dep_sources: Annotated[SourceAccess, Depends(service("
 def update_sources(
     dep_projects: Annotated[Projects, Depends(service("projects"))],
     project_id: str,
-    body: ProjectInput,
+    body: ProjectSourcesInput,
 ):
     """校验并重新绑定项目来源目录，保留已经生成的经历和历史"""
-    return dep_projects.update_sources(project_id, body.name, body.roots)
+    return dep_projects.update_sources(
+        project_id, body.name, body.roots, body.expected_name, body.expected_roots
+    )

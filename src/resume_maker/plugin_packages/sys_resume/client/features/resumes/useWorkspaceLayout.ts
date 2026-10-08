@@ -15,9 +15,14 @@ export function useWorkspaceLayout() {
   const [sidebar, setSidebar] = useState(
     () => !matchMedia("(max-width: 600px)").matches,
   );
-  const [layout, setLayout] = useState(() =>
-    restoreLayout(loadLocal<Partial<Layout> | null>("rm.layout", null)),
-  );
+  const [layout, setLayout] = useState(() => {
+    const saved = loadLocal<Partial<Layout> | null>("rm.layout", null);
+    return restoreLayout({
+      ...saved,
+      guideCollapsed:
+        saved?.guideCollapsed ?? matchMedia("(max-width: 600px)").matches,
+    });
+  });
   const [previewFocused, setPreviewFocused] = useState(false);
   const workbench = useRef<HTMLDivElement>(null);
   const workbenchSize = useElementSize(workbench);

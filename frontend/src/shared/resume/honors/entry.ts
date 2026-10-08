@@ -149,7 +149,7 @@ export function nameAndDateOnly(entry: SectionEntry): SectionEntry {
   };
 }
 
-/** 复制完整荣誉资料，默认仅证书名称和获得日期参与简历排版 */
+/** 新竞赛荣誉默认展示奖项和级别，既有条目的显隐由用户继续控制 */
 export function newHonorEntry(
   fields: HonorFields = emptyHonor(),
   id = `honor:manual:${crypto.randomUUID()}`,
@@ -166,5 +166,10 @@ export function newHonorEntry(
   };
   for (const field of HONOR_FIELDS)
     entry = updateHonorField(entry, field.key, { value: fields[field.key] });
-  return nameAndDateOnly(entry);
+  entry = nameAndDateOnly(entry);
+  if (fields.category === "竞赛获奖") {
+    entry = updateHonorField(entry, "award", { hidden: false });
+    entry = updateHonorField(entry, "level", { hidden: false });
+  }
+  return entry;
 }

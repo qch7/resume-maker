@@ -71,15 +71,17 @@ class Catalog:
 
         return detach
 
-    def project(self, project_id: str) -> dict:
-        """读取项目并在记录缺失时抛出业务异常"""
+    def project(self, project_id: str, conn=None) -> dict:
+        """按需在调用方事务读取项目和分支头"""
+        query = (
+            "SELECT p.*, h.parent_id, b.head_revision FROM projects p "
+            "JOIN experience_branches b ON b.project_id=p.id AND b.is_default=1 "
+            "LEFT JOIN project_hierarchy h ON h.project_id=p.id WHERE p.id=?"
+        )
         return need(
-            self.db.one(
-                "SELECT p.*, h.parent_id, b.head_revision FROM projects p "
-                "JOIN experience_branches b ON b.project_id=p.id AND b.is_default=1 "
-                "LEFT JOIN project_hierarchy h ON h.project_id=p.id WHERE p.id=?",
-                (project_id,),
-            )
+            self.db.one(query, (project_id,))
+            if conn is None
+            else unpack(conn.execute(query, (project_id,)).fetchone())
         )
 
     def revision(self, revision_id: str, project_id: str | None = None, conn=None) -> dict:
@@ -252,13 +254,21 @@ class Catalog:
 
     def working(self, project_id: str, revision_id: str) -> dict:
         """按覆盖优先级将草稿叠加在固定版本上，返回可编辑工作副本"""
-        content = self.revision(revision_id, project_id)["content"]
-        drafts = self.db.all(
-            "SELECT * FROM drafts WHERE project_id=? AND base_revision=? "
-            "ORDER BY CASE field WHEN 'experience' THEN 0 WHEN 'order' THEN 2 ELSE 1 END, "
-            "updated_at",
-            (project_id, revision_id),
-        )
+        with self.db.connect() as conn:
+            return self._working(conn, project_id, revision_id)
+
+    def _working(self, conn, project_id, revision_id):
+        """使用调用方快照读取正文和草稿，写入确认不会借用后续提交的版本"""
+        content = self._revision(conn, revision_id, project_id)["content"]
+        drafts = [
+            unpack(row)
+            for row in conn.execute(
+                "SELECT * FROM drafts WHERE project_id=? AND base_revision=? "
+                "ORDER BY CASE field WHEN 'experience' THEN 0 WHEN 'order' THEN 2 ELSE 1 END, "
+                "updated_at",
+                (project_id, revision_id),
+            )
+        ]
         return {"content": self._apply_drafts(content, drafts), "drafts": drafts}
 
     @staticmethod
@@ -275,9 +285,9 @@ class Catalog:
 
     def put_draft(self, project_id: str, revision_id: str, field: str, value, version: int):
         """校验字段并按草稿版本写入，拒绝覆盖其他窗口的新修改"""
-        content = self.working(project_id, revision_id)["content"]
-        replace_field(content, field, value)
         with self.db.transaction() as conn:
+            content = self._working(conn, project_id, revision_id)["content"]
+            replace_field(content, field, value)
             row = conn.execute(
                 "SELECT version FROM drafts WHERE project_id=? AND base_revision=? AND field=?",
                 (project_id, revision_id, field),
@@ -288,7 +298,7 @@ class Catalog:
                 "INSERT OR REPLACE INTO drafts VALUES (?,?,?,?,?,'manual',?)",
                 (project_id, revision_id, field, dump(value), version + 1, now()),
             )
-        return self.working(project_id, revision_id)
+            return self._working(conn, project_id, revision_id)
 
     def discard_draft(self, project_id: str, revision_id: str, field: str, version: int):
         """确认草稿版本仍匹配后删除指定字段的未发布修改"""

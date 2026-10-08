@@ -14,6 +14,9 @@ import { sameComposition } from "@resume-maker/plugin-sdk/shared/resume/composit
 export interface ResumeLibraryProps {
   state: State;
   draft: Resume;
+  unsavedDraft?: Resume | null;
+  recoveryDrafts?: Resume[];
+  onRecover: (resume: Resume) => void;
   previewChanged: boolean;
   result: Export | null;
   exporting: boolean;
@@ -44,10 +47,13 @@ export default function ResumeLibrary(props: ResumeLibraryProps) {
     draft,
   );
   const resumes = draft.id
-    ? state.resumes.map(
-        /* 当前方案展示本机草稿名，保存前也能通过搜索找到 */ (item) =>
-          item.id === draft.id ? draft : item,
-      )
+    ? [
+        ...(props.unsavedDraft ? [props.unsavedDraft] : []),
+        ...state.resumes.map(
+          /* 当前方案展示本机草稿名，保存前也能通过搜索找到 */ (item) =>
+            item.id === draft.id ? draft : item,
+        ),
+      ]
     : [draft, ...state.resumes];
   const visible = resumes.filter(
     /* 方案搜索忽略大小写和首尾空格 */ (item) =>
@@ -179,8 +185,8 @@ export default function ResumeLibrary(props: ResumeLibraryProps) {
                       <span
                         className={`tag ${item.id === draft.id && dirty ? "warning-tag" : "success-tag"}`}
                       >
-                        {item.id === draft.id && dirty
-                          ? "组合未保存"
+                        {!item.id || (item.id === draft.id && dirty)
+                          ? "草稿已保留 · 方案未保存"
                           : "组合已保存"}
                       </span>
                     </span>
@@ -200,6 +206,20 @@ export default function ResumeLibrary(props: ResumeLibraryProps) {
               ),
             )}
             {!visible.length && <p className="subtle">没有匹配的简历方案。</p>}
+            {!!props.recoveryDrafts?.length && (
+              <details>
+                <summary>恢复副本（{props.recoveryDrafts.length}）</summary>
+                {props.recoveryDrafts.map((copy, index) => (
+                  <button
+                    key={index}
+                    disabled={props.deleting || props.exporting}
+                    onClick={() => props.onRecover(copy)}
+                  >
+                    恢复“{copy.name}”为未保存方案
+                  </button>
+                ))}
+              </details>
+            )}
           </div>
         </aside>
         <main className="resume-library-content">

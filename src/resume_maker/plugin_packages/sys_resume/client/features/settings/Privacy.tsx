@@ -1,6 +1,7 @@
 import { ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "@resume-maker/plugin-sdk/shared/lib/api";
+import { recoveryCopies } from "@resume-maker/plugin-sdk/shared/lib/recoveryCopies";
 import {
   loadLocal,
   storage,
@@ -36,6 +37,12 @@ export default function Privacy() {
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [conflict, setConflict] = useState(false);
+  const [recovery, setRecovery] = useState(() =>
+    recoveryCopies(
+      loadLocal<string | string[] | null>("rm.settings.privacy.recovery", null),
+    ),
+  );
   const dirty = terms !== savedTerms;
   useEffect(() => {
     if (!loaded) return;
@@ -58,6 +65,7 @@ export default function Privacy() {
           setTerms(cached?.terms ?? value.terms.join("\n"));
           setSavedTerms(value.terms.join("\n"));
           setVersion(cached?.version ?? value.version);
+          setConflict(!!cached && cached.version !== value.version);
           setRules(value.rules ?? []);
           setLoaded(true);
         }
@@ -77,9 +85,38 @@ export default function Privacy() {
       await work();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "操作失败");
+      if (error instanceof Error && "status" in error && error.status === 409)
+        setConflict(true);
     } finally {
       setBusy(false);
     }
+  }
+  /** 显式合并或载入最新词表，采用版本前保留本页副本 */
+  async function resolveTerms(merge: boolean) {
+    const latest = await api<PrivacyTerms>("/privacy");
+    const copies = recoveryCopies(recovery, terms);
+    storage.setItem("rm.settings.privacy.recovery", JSON.stringify(copies));
+    setRecovery(copies);
+    setSavedTerms(latest.terms.join("\n"));
+    setTerms(
+      merge
+        ? [
+            ...new Set(
+              [...latest.terms, ...terms.split("\n")]
+                .map((term) => term.trim())
+                .filter(Boolean),
+            ),
+          ].join("\n")
+        : latest.terms.join("\n"),
+    );
+    setVersion(latest.version);
+    setConflict(false);
+    setPreview(null);
+    setNotice(
+      merge
+        ? "词表已合并，请核对后保存。"
+        : "已载入最新词表，本页原稿保留在下方副本中。",
+    );
   }
   return (
     <section className="privacy-settings" aria-label="隐私设置">
@@ -122,7 +159,7 @@ export default function Privacy() {
           <div className="actions">
             <button
               className="primary"
-              disabled={!loaded || busy || !dirty}
+              disabled={!loaded || busy || !dirty || conflict}
               onClick={() =>
                 void perform(async () => {
                   const saved = await api<PrivacyTerms>(
@@ -143,7 +180,32 @@ export default function Privacy() {
             >
               保存敏感词
             </button>
+            <button
+              disabled={!loaded || busy}
+              onClick={() => void perform(() => resolveTerms(true))}
+            >
+              合并最新词表
+            </button>
+            <button
+              disabled={!loaded || busy}
+              onClick={() => void perform(() => resolveTerms(false))}
+            >
+              载入最新词表
+            </button>
           </div>
+          {conflict && (
+            <p role="alert">
+              词表版本已变化。本页输入已保留，请先合并或载入最新词表。
+            </p>
+          )}
+          {!!recovery.length && (
+            <details>
+              <summary>载入前的敏感词副本</summary>
+              {recovery.map((copy, index) => (
+                <pre key={index}>{copy || "（空词表）"}</pre>
+              ))}
+            </details>
+          )}
         </section>
         <section className="privacy-card">
           <div className="section-heading">

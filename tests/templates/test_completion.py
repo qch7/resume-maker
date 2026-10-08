@@ -27,6 +27,7 @@ from resume_maker.plugin_packages.ext_template_ai.services.templates.cache impor
     remember_plan,
 )
 from resume_maker.plugin_packages.sys_resume.services.resumes import Resumes
+from tests.support.document_services import use_renderer
 from tests.support.documents import photo_bytes
 from tests.support.layouts import generic_content, generic_template, visible_text
 from tests.support.templates import TemplateProvider, completed
@@ -181,10 +182,7 @@ def test_library_review_save_and_reopen_share_completion(tmp_path, monkeypatch):
     config = Config(data_dir=tmp_path / "data", token="test")
     provider = TemplateProvider(failure=True)
     app = create_app(config, provider)
-    monkeypatch.setattr(
-        "resume_maker.plugin_packages.ext_template_adapter.services.templates.tasks.render_word",
-        lambda *_: (1, None),
-    )
+    use_renderer(app, monkeypatch, lambda *_: (None, "测试无渲染器"))
     with TestClient(app) as client:
         catalog = app.state.services.catalog
         folder = config.data_dir / "templates" / "generic"
@@ -239,8 +237,13 @@ def test_library_review_save_and_reopen_share_completion(tmp_path, monkeypatch):
         assert reviewed["ready"] and reviewed["missing"] == [] and reviewed["notices"]
         preview = client.post(prefix + "/preview", json=body, headers=headers)
         assert preview.status_code == 200
-        output = task_source.parent / preview.json()["id"] / "resume.docx"
-        assert "电话：123456789" in visible_text(output) and "New subtitle" in visible_text(output)
+        assert preview.json()["pages"] is None
+        with app.state.services.templates.preview_lease(
+            opened["id"], preview.json()["id"], "resume.docx"
+        ) as output:
+            assert "电话：123456789" in visible_text(output) and "New subtitle" in visible_text(
+                output
+            )
         saved = client.post(prefix + "/save", json={**body, "name": "新版"}, headers=headers)
         assert saved.status_code == 200
         reopened = client.post(

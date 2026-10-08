@@ -74,6 +74,14 @@ export default function TemplatePreview({
 
   return (
     <div className="template-live-preview" hidden={hidden}>
+      {updated && (
+        <button
+          className="text-button"
+          onClick={() => queue.current?.submit(input, true)}
+        >
+          重新生成预览
+        </button>
+      )}
       {!updated && (
         <div
           className="template-preview-status"

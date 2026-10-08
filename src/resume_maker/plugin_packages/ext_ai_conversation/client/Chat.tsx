@@ -7,6 +7,7 @@ import remarkGfm from "remark-gfm";
 import ResizeHandle from "@resume-maker/plugin-sdk/shared/components/ResizeHandle";
 import { useElementSize } from "@resume-maker/plugin-sdk/shared/hooks/useElementSize";
 import { api } from "@resume-maker/plugin-sdk/shared/lib/api";
+import { recoveryCopies } from "@resume-maker/plugin-sdk/shared/lib/recoveryCopies";
 import { registerDraft } from "@resume-maker/plugin-sdk/shared/lib/draftRegistry";
 import {
   clamp,
@@ -29,14 +30,32 @@ export default function Chat(props: ConversationProps) {
   const inputHeight = clamp(props.inputHeight, inputMin, inputMax);
   const conversation = detail.conversation;
   const key = `rm.chat.${conversation.id}`;
-  const [input, setInput] = useState<string>(() =>
-    loadLocal(key, conversation.input_draft),
+  const [initial] = useState(() =>
+    loadLocal<string | { value: string; before: string }>(key, {
+      value: conversation.input_draft,
+      before: conversation.input_draft,
+    }),
   );
+  const [input, setInput] = useState(
+    typeof initial === "string" ? initial : initial.value,
+  );
+  const [conflict, setConflict] = useState(
+    typeof initial === "string" || initial.before !== conversation.input_draft,
+  );
+  const blocked = useRef(conflict);
+  const [recovery, setRecovery] = useState(() =>
+    recoveryCopies(
+      loadLocal<string | string[] | null>(`${key}.recovery`, null),
+    ),
+  );
+  const [resolving, setResolving] = useState(false);
   const [scope, setScope] = useState(conversation.scope);
   const [title, setTitle] = useState(conversation.title);
   const [draftStatus, setDraftStatus] = useState("");
   const current = useRef(input),
-    saved = useRef(conversation.input_draft),
+    saved = useRef(
+      typeof initial === "string" ? conversation.input_draft : initial.before,
+    ),
     chain = useRef(Promise.resolve());
   const alive = useRef(true);
   const [sending, setSending] = useState(false);
@@ -47,16 +66,69 @@ export default function Chat(props: ConversationProps) {
       .catch(/* 上次错误已显示，恢复后续写入 */ () => {})
       .then(async () => {
         const value = current.current;
+        if (blocked.current)
+          throw new Error("输入草稿存在冲突，请合并或载入最新输入。");
         if (value === saved.current) return;
-        await api(`/conversations/${conversation.id}`, "PATCH", {
-          input_draft: value,
-        });
+        try {
+          await api(`/conversations/${conversation.id}`, "PATCH", {
+            input_draft: value,
+            expected_input_draft: saved.current,
+          });
+        } catch (error) {
+          if (
+            error instanceof Error &&
+            "status" in error &&
+            error.status === 409
+          ) {
+            blocked.current = true;
+            if (alive.current) setConflict(true);
+          }
+          throw error;
+        }
         saved.current = value;
         if (value === current.current) storage.removeItem(key);
+        else
+          storage.setItem(
+            key,
+            JSON.stringify({ value: current.current, before: value }),
+          );
         if (alive.current) setDraftStatus("输入草稿已保存");
       });
     chain.current = promise;
     return promise;
+  }
+  /** 核对共享输入后显式采用新基线，本页原稿仍可查看和复制 */
+  async function resolveInput(merge: boolean) {
+    setResolving(true);
+    try {
+      await chain.current.catch(() => {});
+      const latest = await api<{ conversation: { input_draft: string } }>(
+        `/conversations/${conversation.id}`,
+      );
+      const previous = current.current;
+      const copies = recoveryCopies(recovery, previous);
+      storage.setItem(`${key}.recovery`, JSON.stringify(copies));
+      setRecovery(copies);
+      const server = latest.conversation.input_draft;
+      const value =
+        merge && previous !== server
+          ? [server, previous].filter(Boolean).join("\n")
+          : server;
+      saved.current = server;
+      current.current = value;
+      storage.setItem(key, JSON.stringify({ value, before: server }));
+      blocked.current = false;
+      setConflict(false);
+      setInput(value);
+      if (merge) await flush();
+      setDraftStatus(
+        merge
+          ? "输入已合并，请核对后发送"
+          : "已载入最新输入，本页原稿保留在副本中",
+      );
+    } finally {
+      setResolving(false);
+    }
   }
   useEffect(() => {
     alive.current = true;
@@ -245,7 +317,7 @@ export default function Chat(props: ConversationProps) {
       >
         <textarea
           aria-label="会话消息"
-          disabled={sending}
+          disabled={sending || resolving}
           placeholder="例如：这条再精简一点，突出我负责的部分。"
           rows={3}
           value={input}
@@ -253,7 +325,10 @@ export default function Chat(props: ConversationProps) {
             current.current = e.target.value;
             setInput(e.target.value);
             setDraftStatus("正在保存输入草稿");
-            storage.setItem(key, JSON.stringify(e.target.value));
+            storage.setItem(
+              key,
+              JSON.stringify({ value: e.target.value, before: saved.current }),
+            );
           }}
           onKeyDown={
             /* 处理方向键和边界快捷键，提供无鼠标的尺寸调整 */ (e) => {
@@ -264,6 +339,41 @@ export default function Chat(props: ConversationProps) {
             }
           }
         />
+        {conflict && (
+          <div role="alert" className="actions">
+            <span>其他窗口已修改输入，本页草稿已保留。</span>
+            <button
+              type="button"
+              disabled={resolving}
+              onClick={() =>
+                void resolveInput(true).catch((error) =>
+                  setDraftStatus(error.message),
+                )
+              }
+            >
+              合并最新输入
+            </button>
+            <button
+              type="button"
+              disabled={resolving}
+              onClick={() =>
+                void resolveInput(false).catch((error) =>
+                  setDraftStatus(error.message),
+                )
+              }
+            >
+              载入最新输入
+            </button>
+          </div>
+        )}
+        {!!recovery.length && (
+          <details>
+            <summary>载入前的输入副本</summary>
+            {recovery.map((copy, index) => (
+              <pre key={index}>{copy || "（空输入）"}</pre>
+            ))}
+          </details>
+        )}
         <div className="composer-footer">
           <label className="scope-label">
             <span>本轮讨论范围</span>
@@ -307,7 +417,7 @@ export default function Chat(props: ConversationProps) {
             <button
               className="primary"
               type="submit"
-              disabled={sending || !input.trim()}
+              disabled={sending || resolving || conflict || !input.trim()}
             >
               <ArrowUp size={16} />
               发送

@@ -6,7 +6,7 @@ from resume_maker.core.errors import Problem, need
 from resume_maker.domain.experience import same_experience
 from resume_maker.domain.models import ProjectProfile
 from resume_maker.plugin_packages.sys_experience.services.catalog import Catalog
-from resume_maker.sdk.records import dump, now
+from resume_maker.sdk.records import dump, now, unpack
 
 
 class Projects:
@@ -92,28 +92,46 @@ class Projects:
                 result.append({**row, "content": content})
         return result
 
-    def save_profile(self, project_id: str, profile: ProjectProfile):
-        """保存用户确认的角色、日期和贡献信息并更新项目活动时间"""
-        self.catalog.project(project_id)
+    def save_profile(
+        self, project_id: str, profile: ProjectProfile, expected_profile: ProjectProfile
+    ):
+        """同一事务核对本人贡献基线并返回本次确认"""
         with self.db.transaction() as conn:
+            project = self.catalog.project(project_id, conn)
+            if project["profile"] != expected_profile.model_dump():
+                raise Problem("本人贡献资料已在其他窗口修改，请载入最新资料后合并。", 409)
             conn.execute(
                 "UPDATE projects SET profile_json=?,updated_at=? WHERE id=?",
                 (dump(profile.model_dump()), now(), project_id),
             )
-        return self.catalog.project(project_id)
+            project = self.catalog.project(project_id, conn)
+        return project
 
-    def update_sources(self, project_id: str, name: str, sources: list[str]):
-        """校验并重新绑定项目来源目录，保留已经生成的经历和历史"""
-        project = self.catalog.project(project_id)
+    def update_sources(
+        self,
+        project_id: str,
+        name: str,
+        sources: list[str],
+        expected_name: str,
+        expected_roots: list[str],
+    ):
+        """同事务核对名称和目录基线后同步父子项目"""
         roots = list(dict.fromkeys(str(Path(p).expanduser().resolve(strict=True)) for p in sources))
         if any(not Path(p).is_dir() for p in roots):
             raise Problem("来源必须是目录。")
         with self.db.transaction() as conn:
+            project = self.catalog.project(project_id, conn)
+            if project["name"] != expected_name or project["roots"] != expected_roots:
+                raise Problem("项目来源已在其他窗口修改，请载入最新来源后合并。", 409)
             if project["parent_id"]:
                 if len(roots) != 1:
                     raise Problem("子项目只能关联一个来源目录，多个来源请在整体项目中配置。")
                 parent = need(
-                    self.db.one("SELECT * FROM projects WHERE id=?", (project["parent_id"],))
+                    unpack(
+                        conn.execute(
+                            "SELECT * FROM projects WHERE id=?", (project["parent_id"],)
+                        ).fetchone()
+                    )
                 )
                 original = project["roots"][0]
                 if roots[0] != original and roots[0] in parent["roots"]:
@@ -132,7 +150,8 @@ class Projects:
                 (name, dump(list(dict.fromkeys(roots))), now(), project_id),
             )
             self.catalog._sync_subprojects(conn, project["parent_id"] or project_id)
-        return self.catalog.project(project_id)
+            project = self.catalog.project(project_id, conn)
+        return project
 
     def source_path(self, project_id: str, snapshot_id: str, source: str, path: str) -> Path:
         """按历史快照解析来源，拒绝越界路径和已移走的文件以免打开错误仓库"""

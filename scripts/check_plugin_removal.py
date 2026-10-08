@@ -58,7 +58,9 @@ with TestClient(app, headers={"x-resume-token": config.token}) as client:
     if item := host.contributions.get(key):
         host.contributions[key] = Contribution(item.owner, item.point, item.identifier,
             DocumentRenderer("1.0.0", lambda *_: (None, "synthetic matrix")))
-    export = client.post(f"/api/resumes/{resume['id']}/exports")
+    export = client.post(
+        f"/api/resumes/{resume['id']}/exports", params={"version": resume["version"]}
+    )
     assert export.status_code == 200, export.text
     assert client.get(f"/api/exports/{export.json()['id']}/resume.docx").status_code == 200
 """

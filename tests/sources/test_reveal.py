@@ -21,7 +21,13 @@ def test_reveal_uses_snapshot_root_after_sources_reordered(catalog, project, tmp
     other = tmp_path / "other"
     other.mkdir()
     projects = Projects(catalog)
-    projects.update_sources(project["id"], project["name"], [str(other), *project["roots"]])
+    projects.update_sources(
+        project["id"],
+        project["name"],
+        [str(other), *project["roots"]],
+        project["name"],
+        project["roots"],
+    )
     opened = []
     monkeypatch.setattr("resume_maker.integrations.desktop.reveal_file", opened.append)
     assert (

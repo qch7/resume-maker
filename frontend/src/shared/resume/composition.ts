@@ -80,8 +80,19 @@ export function acceptSavedComposition(
   submitted: Resume,
   saved: Resume,
 ): Resume {
-  if (current.id !== submitted.id) return current;
+  if (
+    current.id !== submitted.id ||
+    (!current.id && current.draft_id !== submitted.draft_id)
+  )
+    return current;
   return sameComposition(current, submitted)
     ? saved
     : { ...current, id: saved.id, version: saved.version };
+}
+
+/** 未保存方案使用独立身份，迟到响应不能认领另一份恢复稿 */
+export function identifyUnsavedResume(draft: Resume): Resume {
+  return draft.id || draft.draft_id
+    ? draft
+    : { ...draft, draft_id: crypto.randomUUID() };
 }

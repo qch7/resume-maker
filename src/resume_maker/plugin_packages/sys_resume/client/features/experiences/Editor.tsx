@@ -1,21 +1,21 @@
 import PathInput from "@resume-maker/plugin-sdk/shared/components/PathInput";
 import { arrayMove } from "@dnd-kit/sortable";
 import { CircleCheck, CircleDashed, Plus, Undo2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MoveButtons from "@resume-maker/plugin-sdk/shared/components/MoveButtons";
 import {
   SortableItem,
   SortableList,
 } from "@resume-maker/plugin-sdk/shared/components/SortableList";
-import { api } from "@resume-maker/plugin-sdk/shared/lib/api";
-import {
-  loadLocal,
-  storage,
-} from "@resume-maker/plugin-sdk/shared/lib/storage";
+import { api, ApiError } from "@resume-maker/plugin-sdk/shared/lib/api";
+import { useFormDraft } from "@resume-maker/plugin-sdk/shared/hooks/useFormDraft";
+import FormDraftRecovery from "@resume-maker/plugin-sdk/shared/components/FormDraftRecovery";
 import type {
   Highlight,
   Meta,
   Profile,
+  Project,
+  ProjectDetail,
   Revision,
 } from "@resume-maker/plugin-sdk/shared/types/index";
 import HighlightEditor from "./HighlightEditor";
@@ -27,6 +27,19 @@ import { useField } from "./useField";
 import { experienceContent } from "@resume-maker/plugin-sdk/shared/resume/visibility";
 import { restoreBodyOrder } from "@resume-maker/plugin-sdk/shared/resume/bodyOrder";
 import { fieldChanged } from "./changes";
+import {
+  sourcePaths,
+  sourcesForm,
+  restoreSources,
+} from "./configurationDrafts";
+
+const PROFILE_LABELS = [
+  ["role", "本人角色"],
+  ["period", "参与日期"],
+  ["contribution", "本人负责的模块"],
+  ["outcomes", "成果与量化依据"],
+  ["notes", "补充说明"],
+] as const;
 
 /** 编辑经历元信息、来源和亮点，内容草稿和简历展示设置独立保存 */
 export default function Editor(props: EditorProps) {
@@ -34,13 +47,16 @@ export default function Editor(props: EditorProps) {
   const current = detail.revisions.find((r) => r.id === revisionId)!;
   const snapshot = detail.revision_snapshot;
   const rootsKey = `rm.sources.${detail.project.id}`;
-  const [roots, setRoots] = useState(() =>
-    loadLocal(rootsKey, detail.project.roots.join("\n")),
+  const sources = useFormDraft(
+    rootsKey,
+    sourcesForm(detail.project),
+    undefined,
+    restoreSources,
   );
-  useEffect(() => {
-    if (roots === detail.project.roots.join("\n")) storage.removeItem(rootsKey);
-    else storage.setItem(rootsKey, JSON.stringify(roots));
-  }, [rootsKey, roots, detail.project.roots]);
+  const [sourcesBusy, setSourcesBusy] = useState(false);
+  const [profileBusy, setProfileBusy] = useState(false);
+  const saving = useRef({ sources: false, profile: false });
+  const [configurationError, setConfigurationError] = useState("");
   const content = detail.working.content;
   const [ordering, setOrdering] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
@@ -119,14 +135,81 @@ export default function Editor(props: EditorProps) {
     [onPreview, revisionId, previewContent],
   );
   const profileKey = `rm.profile.${detail.project.id}`;
-  const [profile, setProfile] = useState<Profile>(() =>
-    loadLocal(profileKey, detail.project.profile),
-  );
+  const profileForm = useFormDraft<Profile>(profileKey, detail.project.profile);
+  const profile = profileForm.value;
   /** 更新本人贡献信息并保存本机恢复副本，等待用户正式保存 */
   function updateProfile(key: keyof Profile, value: string) {
-    const next = { ...profile, [key]: value };
-    setProfile(next);
-    storage.setItem(profileKey, JSON.stringify(next));
+    profileForm.update({ ...profile, [key]: value });
+  }
+  /** 保存目录时校验读取基线，确认后保留请求期间的新输入 */
+  async function saveSources() {
+    if (saving.current.sources || sources.conflict || !sources.baseline) return;
+    saving.current.sources = true;
+    setSourcesBusy(true);
+    setConfigurationError("");
+    const submitted = sources.value;
+    try {
+      const saved = await api<Project>(
+        `/projects/${detail.project.id}/sources`,
+        "PUT",
+        {
+          name: submitted.name,
+          roots: sourcePaths(submitted.paths),
+          expected_name: sources.baseline.name,
+          expected_roots: sourcePaths(sources.baseline.paths),
+        },
+      );
+      if (sources.accept(submitted, sourcesForm(saved))) props.onRefresh();
+    } catch (reason) {
+      setConfigurationError((reason as Error).message);
+      if (reason instanceof ApiError && reason.status === 409) {
+        try {
+          sources.observe(
+            sourcesForm(
+              (await api<ProjectDetail>(`/projects/${detail.project.id}`))
+                .project,
+            ),
+          );
+        } catch (failure) {
+          setConfigurationError((failure as Error).message);
+        }
+      }
+    } finally {
+      saving.current.sources = false;
+      setSourcesBusy(false);
+    }
+  }
+  /** 保存本人贡献时使用读取基线，迟到确认只更新本次提交的基线 */
+  async function saveProfile() {
+    if (saving.current.profile || profileForm.conflict || !profileForm.baseline)
+      return;
+    saving.current.profile = true;
+    setProfileBusy(true);
+    setConfigurationError("");
+    const submitted = profileForm.value;
+    try {
+      const saved = await api<Project>(
+        `/projects/${detail.project.id}/profile`,
+        "PUT",
+        { profile: submitted, expected_profile: profileForm.baseline },
+      );
+      if (profileForm.accept(submitted, saved.profile)) props.onRefresh();
+    } catch (reason) {
+      setConfigurationError((reason as Error).message);
+      if (reason instanceof ApiError && reason.status === 409) {
+        try {
+          profileForm.observe(
+            (await api<ProjectDetail>(`/projects/${detail.project.id}`)).project
+              .profile,
+          );
+        } catch (failure) {
+          setConfigurationError((failure as Error).message);
+        }
+      }
+    } finally {
+      saving.current.profile = false;
+      setProfileBusy(false);
+    }
   }
   /** 将排序缓存并保存为草稿 */
   async function move(from: number, to: number) {
@@ -328,6 +411,11 @@ export default function Editor(props: EditorProps) {
       </SortableList>
       <details className="source-details">
         <summary>项目来源与本人贡献</summary>
+        {configurationError && (
+          <p role="alert" className="warning">
+            {configurationError}
+          </p>
+        )}
         {snapshot ? (
           <div className="snapshot-info">
             <b>
@@ -370,22 +458,22 @@ export default function Editor(props: EditorProps) {
             label="来源路径（每行一个）"
             kind="folder"
             multiline
-            value={roots}
-            onChange={setRoots}
+            value={sources.value.paths}
+            onChange={(paths) => sources.update({ ...sources.value, paths })}
+          />
+          <FormDraftRecovery
+            form={sources}
+            disabled={sourcesBusy || profileBusy}
+            renderValue={(value) => (
+              <div>
+                <p>项目名称：{value.name}</p>
+                <pre>{value.paths || "未绑定目录"}</pre>
+              </div>
+            )}
           />
           <button
-            onClick={() =>
-              run(async () => {
-                await api(`/projects/${detail.project.id}/sources`, "PUT", {
-                  name: detail.project.name,
-                  roots: roots
-                    .split("\n")
-                    .map((v) => v.trim())
-                    .filter(Boolean),
-                });
-                props.onRefresh();
-              })
-            }
+            disabled={sourcesBusy || profileBusy || sources.conflict}
+            onClick={() => run(saveSources)}
           >
             保存来源路径
           </button>
@@ -421,15 +509,20 @@ export default function Editor(props: EditorProps) {
           </div>
         )}
         <p className="subtle">这些信息会随下一轮对话提供给 AI。</p>
-        {(
-          [
-            ["role", "本人角色"],
-            ["period", "参与日期"],
-            ["contribution", "本人负责的模块"],
-            ["outcomes", "成果与量化依据"],
-            ["notes", "补充说明"],
-          ] as const
-        ).map(([key, label]) => (
+        <FormDraftRecovery
+          form={profileForm}
+          disabled={profileBusy || sourcesBusy}
+          renderValue={(value) => (
+            <div>
+              {PROFILE_LABELS.map(([key, label]) => (
+                <p key={key}>
+                  {label}：{value[key] || "未填写"}
+                </p>
+              ))}
+            </div>
+          )}
+        />
+        {PROFILE_LABELS.map(([key, label]) => (
           <label key={key}>
             {label}
             <textarea
@@ -440,17 +533,8 @@ export default function Editor(props: EditorProps) {
           </label>
         ))}
         <button
-          onClick={() =>
-            run(async () => {
-              await api(
-                `/projects/${detail.project.id}/profile`,
-                "PUT",
-                profile,
-              );
-              storage.removeItem(profileKey);
-              props.onRefresh();
-            })
-          }
+          disabled={profileBusy || sourcesBusy || profileForm.conflict}
+          onClick={() => run(saveProfile)}
         >
           保存本人贡献资料
         </button>
