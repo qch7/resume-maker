@@ -51,16 +51,19 @@ export function getProjectWorkflow(input: {
       revisions[i.revision_id] && !hasContent(revisions[i.revision_id].content),
   );
   const compositionReady =
-    draft.items.length > 0 &&
+    !!draft.name.trim() &&
+    (!!draft.template_id || !!draft.document) &&
     draft.items.every((i) => hasContent(revisions[i.revision_id]?.content));
   const compositionSaved =
-    compositionReady && sameComposition(input.saved, draft);
+    compositionReady &&
+    sameComposition(input.saved, draft) &&
+    !(included && (unsaved || included.revision_id !== input.revisionId));
   const exported = isCurrentExport(result, draft);
   const done = [
     input.projectCount > 0,
     prepared,
-    prepared && compositionSaved,
-    prepared && compositionSaved && exported,
+    compositionSaved,
+    compositionSaved && exported,
   ];
 
   /** 构建一个带状态、说明和定位目标的制作指引步骤 */
@@ -73,46 +76,41 @@ export function getProjectWorkflow(input: {
   ) {
     return { done, step, text, action, target, projectId };
   }
-  if (!input.projectCount)
-    return guide(
-      0,
-      "导入项目目录，从源码整理可复用的项目经历。",
-      "导入项目",
-      "projects",
-    );
-  if (!detail || !revision)
-    return guide(1, "正在读取项目经历与版本…", "查看经历", "experience-save");
-  if (unsaved)
-    return guide(
-      1,
-      "当前项目有未提交的改动。确认后点击“提交为新版本”，再用于当前简历。",
-      "去提交修改",
-      "experience-save",
-    );
-  if (!prepared)
-    return guide(
-      1,
-      input.analyzing
-        ? "AI 正在整理项目，可在项目会话中查看进展；完成后采用建议并保存。"
-        : "先分析项目并采用建议，或手工编辑经历，再保存为版本。",
-      "整理项目经历",
-      "analysis",
-    );
-  if (!included)
-    return guide(
-      2,
-      "当前项目经历已保存。点击“用于当前简历”加入组合，再勾选需要的亮点。",
-      "去加入简历",
-      "experience-use",
-    );
-  if (included.revision_id !== input.revisionId) {
-    const pinned = revisions[included.revision_id];
-    return guide(
-      2,
-      `正在编辑 r${revision.number}，简历仍引用${pinned ? ` r${pinned.number}` : "其他版本"}。如需采用当前内容，点击“用于当前简历”；也可保留原版本。`,
-      "查看引用版本",
-      "experience-use",
-    );
+  if (input.projectCount) {
+    if (!detail || !revision)
+      return guide(1, "正在读取项目经历与版本…", "查看经历", "experience-save");
+    if (unsaved)
+      return guide(
+        1,
+        "当前项目有未提交的改动。确认后点击“提交为新版本”，再用于当前简历。",
+        "去提交修改",
+        "experience-save",
+      );
+    if (!prepared)
+      return guide(
+        1,
+        input.analyzing
+          ? "AI 正在整理项目，可在项目会话中查看进展；完成后采用建议并保存。"
+          : "先分析项目并采用建议，或手工编辑经历，再保存为版本。",
+        "整理项目经历",
+        "analysis",
+      );
+    if (!included)
+      return guide(
+        2,
+        "当前项目经历已保存。点击“用于当前简历”加入组合，再勾选需要的亮点。",
+        "去加入简历",
+        "experience-use",
+      );
+    if (included.revision_id !== input.revisionId) {
+      const pinned = revisions[included.revision_id];
+      return guide(
+        2,
+        `正在编辑 r${revision.number}，简历仍引用${pinned ? ` r${pinned.number}` : "其他版本"}。如需采用当前内容，点击“用于当前简历”；也可保留原版本。`,
+        "查看引用版本",
+        "experience-use",
+      );
+    }
   }
   if (incomplete)
     return guide(

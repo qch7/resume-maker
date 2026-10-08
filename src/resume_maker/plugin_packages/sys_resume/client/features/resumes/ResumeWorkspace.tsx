@@ -1172,13 +1172,18 @@ export default function ResumeWorkspace() {
               <p>
                 {hasPlugin("ext.source-code") &&
                 hasPlugin("ext.ai-conversation")
-                  ? "导入源码目录，分析项目事实；编辑每条亮点，再组合成简历。"
+                  ? "可以手工填写经历和亮点，也可以导入源码让 AI 整理。手工填写无需连接模型。"
                   : "新建项目，填写经历和亮点，保存版本后组合成简历。"}
               </p>
               <button className="primary" onClick={() => setModal("projects")}>
                 <FolderPlus size={17} />
-                {hasPlugin("ext.source-code") ? "导入项目集合" : "新建手工项目"}
+                新建手工项目
               </button>
+              {hasPlugin("ext.source-code") && (
+                <button onClick={() => setModal("projects")}>
+                  导入源码项目
+                </button>
+              )}
             </div>
           ) : (
             <>

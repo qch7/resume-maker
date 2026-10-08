@@ -66,6 +66,34 @@ test("new workspace starts at template recognition", /* 从模板开始统计整
   assert.equal(getWorkflow(state).guides[2].target, "projects");
 });
 
+test("a saved and exported resume without projects completes independent steps", /* 合法无项目方案可完成编排和导出，项目步骤明确可选 */ () => {
+  const state = fixture();
+  state.projectCount = 0;
+  state.detail = null;
+  state.revisions = {};
+  state.draft.items = [];
+  state.saved = structuredClone(state.draft);
+  state.result = {
+    manifest: { resume: structuredClone(state.draft) },
+    resume_id: state.draft.id,
+  };
+  assert.deepEqual(getWorkflow(state).done, [
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+  ]);
+});
+
+test("editing an unrelated project preserves saved composition progress", /* 未引用项目的编辑不撤销已经保存的方案状态 */ () => {
+  const state = fixture();
+  state.detail.project.id = "unrelated";
+  state.edited = true;
+  assert.equal(getWorkflow(state).done[4], true);
+});
+
 test("typing and recovered server drafts both require a saved revision", /* 验证本机编辑和恢复的草稿都不能当作正式保存 */ () => {
   const state = fixture();
   state.edited = true;

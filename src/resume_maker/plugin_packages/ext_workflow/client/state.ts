@@ -24,7 +24,8 @@ export function getWorkflow(
   const done = [
     templateReady,
     personalReady,
-    project.done[1] && project.step !== 1,
+    (!input.projectCount && !input.draft.items.length) ||
+      (project.done[1] && project.step !== 1),
     profile.honors,
     project.done[2],
     templateReady && project.done[3],
@@ -63,13 +64,19 @@ export function getWorkflow(
           action: "完善资料",
           target: personalTarget,
         },
-    project.step < 2
-      ? project
-      : {
-          text: "项目经历已整理并保存，可继续选择荣誉，或在组合编排时调整引用版本与亮点。",
-          action: "选择荣誉",
-          target: "honor-select",
-        },
+    !input.projectCount
+      ? {
+          text: "项目经历为可选栏目，可新建手工项目或导入源码；也可继续编排并导出当前资料。",
+          action: "添加项目（可选）",
+          target: "projects",
+        }
+      : project.step < 2
+        ? project
+        : {
+            text: "项目经历已整理并保存，可继续选择荣誉，或在组合编排时调整引用版本与亮点。",
+            action: "选择荣誉",
+            target: "honor-select",
+          },
     profile.honors
       ? {
           text: profile.selectedHonor
