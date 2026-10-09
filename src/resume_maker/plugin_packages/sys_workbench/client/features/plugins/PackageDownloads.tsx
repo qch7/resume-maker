@@ -96,36 +96,44 @@ export default function PackageDownloads({
     }
   }
   return (
-    <details>
+    <details className="plugin-downloads">
       <summary>从明确地址下载插件</summary>
       <p>填写 HTTPS 地址和 SHA-256 摘要，下载后检查权限。</p>
-      <input
-        aria-label="插件下载地址"
-        value={url}
-        onChange={(event) => {
-          setUrl(event.target.value);
-          setRequest(null);
-        }}
-        placeholder="https://…/plugin.rmp"
-      />
-      <input
-        aria-label="插件文件摘要"
-        value={digest}
-        onChange={(event) => {
-          setDigest(event.target.value.trim());
-          setRequest(null);
-        }}
-        placeholder="64 位 SHA-256"
-      />
-      <button
-        disabled={busy || !url || !/^[a-f0-9]{64}$/.test(digest)}
-        onClick={() => void start()}
-      >
-        下载
-      </button>
+      <div className="plugin-download-form">
+        <label>
+          下载地址
+          <input
+            aria-label="插件下载地址"
+            value={url}
+            onChange={(event) => {
+              setUrl(event.target.value);
+              setRequest(null);
+            }}
+            placeholder="https://…/plugin.rmp"
+          />
+        </label>
+        <label>
+          文件摘要
+          <input
+            aria-label="插件文件摘要"
+            value={digest}
+            onChange={(event) => {
+              setDigest(event.target.value.trim());
+              setRequest(null);
+            }}
+            placeholder="64 位 SHA-256"
+          />
+        </label>
+        <button
+          disabled={busy || !url || !/^[a-f0-9]{64}$/.test(digest)}
+          onClick={() => void start()}
+        >
+          下载
+        </button>
+      </div>
       {error && <p role="alert">{error}</p>}
       {downloads.map((row) => (
-        <div key={row.id}>
+        <div className="plugin-download-item" key={row.id}>
           <p>
             {labels[row.state] ?? row.state} · {row.received.toLocaleString()} /{" "}
             {row.total?.toLocaleString() ?? "未知"} 字节

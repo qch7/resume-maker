@@ -125,6 +125,20 @@ print("Wheel 验证通过：应用、静态资源、数据库、只读材料服�
             check=True,
             env=isolated,
         )
+        source = target / "independent-ocr-plugin"
+        shutil.copytree(ROOT / "docs/examples/ocr-plugin", source)
+        package = target / "independent-ocr.rmp"
+        for arguments in (
+            ["validate", str(source)],
+            ["package", str(source), str(package)],
+            ["test", str(package), "--enable", "ext.ocr"],
+        ):
+            subprocess.run(
+                [str(python), "-I", "-X", "utf8", "-m", "resume_maker.plugins.tools", *arguments],
+                cwd=target,
+                check=True,
+                env=isolated,
+            )
 
 
 if __name__ == "__main__":

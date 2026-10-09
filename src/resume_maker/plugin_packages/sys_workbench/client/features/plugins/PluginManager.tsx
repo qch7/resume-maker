@@ -13,6 +13,11 @@ import { recoverActivePlan } from "./planRecovery";
 import WaitingWindows, { type WindowDetail } from "./WaitingWindows";
 import PluginConfigEditor from "./PluginConfigEditor";
 import {
+  providerChoices,
+  replaceProvider,
+  replaceProviders,
+} from "./providerSelection";
+import {
   configDraftError,
   configFields,
   configRequest,
@@ -41,7 +46,8 @@ interface Plugin {
   >;
   builtin: boolean;
   dependencies?: Record<string, Record<string, unknown>>;
-  provided?: Record<string, Record<string, unknown>>;
+  provided?: Record<string, Record<string, { cardinality?: string }>>;
+  credential_fields?: Record<string, { title: string; purpose: string }>;
   environment_lock?: string | null;
   config?: Record<string, unknown>;
   config_provenance?: Record<string, string>;
@@ -61,6 +67,7 @@ interface Candidate {
   title: string;
   version: string;
   enable: boolean;
+  provides?: Plugin["provided"];
 }
 interface Plan {
   data_intents?: { owner: string; from: number; to: number }[];
@@ -95,8 +102,10 @@ interface Inspection {
     title: string;
     version: string;
     permissions: string[];
+    provides?: Plugin["provided"];
   };
   missing_dependencies: string[];
+  dependency_plan?: { stop_host: boolean; command: string[] } | null;
   trust_modes: string[];
 }
 
@@ -138,6 +147,12 @@ export default function PluginManager(props: SettingsPanelProps) {
   const [instances, setInstances] = useState<InstanceSpec[]>([]);
   const [instancePlugin, setInstancePlugin] = useState("");
   const [instanceName, setInstanceName] = useState("");
+  const [credentialPending, setCredentialPending] = useState<
+    Record<string, boolean>
+  >({});
+  const [providerDrafts, setProviderDrafts] = useState<Record<string, string>>(
+    {},
+  );
   /** 刷新安装目录不会自行启用新代码 */
   async function reload() {
     const value = await api<{
@@ -179,7 +194,7 @@ export default function PluginManager(props: SettingsPanelProps) {
       .finally(() => setLoading(false));
   }, []);
   /** 任何依赖冲突都保留当前选择，供用户继续调整 */
-  async function preview() {
+  async function preview(selection = selected, specifications = instances) {
     if (configurationError) {
       setError(configurationError);
       return;
@@ -188,18 +203,58 @@ export default function PluginManager(props: SettingsPanelProps) {
     setBusy(true);
     setError("");
     try {
-      setPlan(
-        await api<Plan>("/plugins/plans", "POST", {
-          selected,
-          instances,
-          generation: capabilities().generation,
-          ...configRequest(plugins, configDrafts),
-        }),
-      );
+      const candidate = await api<Plan>("/plugins/plans", "POST", {
+        selected: selection,
+        instances: specifications,
+        generation: capabilities().generation,
+        ...configRequest(plugins, configDrafts),
+      });
+      setPlan(candidate);
+      return candidate;
     } catch (failure) {
       setError((failure as Error).message);
     } finally {
       setBusy(false);
+    }
+  }
+  /** 替换在单份计划内审查，原组合继续运行直到用户应用 */
+  async function previewReplacement(provider: string) {
+    try {
+      const replacement = replaceProvider(
+        plugins,
+        selected,
+        instances,
+        provider,
+      );
+      if (await preview(replacement.selected, replacement.instances)) {
+        setSelected(replacement.selected);
+        setInstances(replacement.instances);
+      }
+    } catch (failure) {
+      setError((failure as Error).message);
+    }
+  }
+  /** 普通启用也协调唯一能力，避免短暂缺依赖或重复提供 */
+  function togglePlugin(item: Plugin) {
+    if (selected.includes(item.id)) {
+      setSelected((values) => values.filter((id) => id !== item.id));
+      return;
+    }
+    try {
+      const replacement = replaceProvider(
+        plugins,
+        selected,
+        instances,
+        item.id,
+      );
+      setSelected(replacement.selected);
+      setInstances(replacement.instances);
+      if (replacement.removed.length)
+        setStatus(
+          `待替换：${replacement.removed.map((id) => plugins.find((value) => value.id === id)?.title ?? id).join("、")} → ${item.title}。查看变更后应用。`,
+        );
+    } catch (failure) {
+      setError((failure as Error).message);
     }
   }
   /** 先发出冻结通知，再等待当前及其他窗口确认 */
@@ -321,15 +376,34 @@ export default function PluginManager(props: SettingsPanelProps) {
   }
   /** 把审查过的多个包作为一个依赖集合提交，用户继续确认影响范围 */
   async function previewPackages() {
+    if (pendingCredential || configurationError) {
+      setError(configurationError || "请先保存凭据或放弃密码输入。");
+      return;
+    }
     setMigrationAccepted(false);
     setBusy(true);
     setError("");
     try {
-      const enabled = new Set(selected);
-      for (const item of candidates) {
-        if (item.enable) enabled.add(item.id);
-        else enabled.delete(item.id);
-      }
+      const available = [
+        ...plugins.filter(
+          (plugin) =>
+            !candidates.some((candidate) => candidate.id === plugin.id),
+        ),
+        ...candidates.map((item) => ({
+          id: item.id,
+          required: false,
+          provided: item.provides,
+        })),
+      ];
+      const disabled = new Set(
+        candidates.filter((item) => !item.enable).map((item) => item.id),
+      );
+      const replacement = replaceProviders(
+        available,
+        selected.filter((id) => !disabled.has(id)),
+        instances,
+        candidates.filter((item) => item.enable).map((item) => item.id),
+      );
       setPlan(
         await api<Plan>("/plugins/packages/plans", "POST", {
           generation: capabilities().generation,
@@ -338,7 +412,9 @@ export default function PluginManager(props: SettingsPanelProps) {
             digest,
             trusted_modes,
           })),
-          selected: [...enabled],
+          selected: replacement.selected,
+          instances: replacement.instances,
+          ...configRequest(plugins, configDrafts),
         }),
       );
     } catch (failure) {
@@ -375,14 +451,19 @@ export default function PluginManager(props: SettingsPanelProps) {
       setError("请选择支持多实例的插件，填写未占用的英文实例名称。");
       return;
     }
+    const config = {
+      ...draftConfigValue(
+        source.config ?? {},
+        configDrafts[source.id] ?? emptyConfigDraft(),
+      ),
+    };
+    for (const field of Object.keys(source.credential_fields ?? {}))
+      config[field] = "";
     setPlugins((items) => [
       ...items,
       {
         ...source,
-        config: draftConfigValue(
-          source.config ?? {},
-          configDrafts[source.id] ?? emptyConfigDraft(),
-        ),
+        config,
         id,
         plugin: source.plugin ?? source.id,
         enabled: false,
@@ -531,13 +612,16 @@ export default function PluginManager(props: SettingsPanelProps) {
       setError((failure as Error).message);
     }
   }
-  const live = useRef({ plan, busy });
-  live.current = { plan, busy };
+  const pendingCredential = Object.values(credentialPending).some(Boolean);
+  const live = useRef({ plan, busy, pendingCredential });
+  live.current = { plan, busy, pendingCredential };
   useEffect(
     () =>
       props.registerBeforeClose?.(async () => {
         const current = live.current;
         if (current.busy) throw new Error("操作处理中，请稍候。");
+        if (current.pendingCredential)
+          throw new Error("请先保存凭据或放弃密码输入。");
         if (
           !current.plan ||
           ["validating", "restart-required", "booting", "applying"].includes(
@@ -587,12 +671,16 @@ export default function PluginManager(props: SettingsPanelProps) {
   const configurationError = invalidConfiguration
     ? `${invalidConfiguration.title}：${configDraftError(configDrafts[invalidConfiguration.id])}`
     : "";
+  const choices = providerChoices(plugins);
+  const changes =
+    plugins.filter((item) => selected.includes(item.id) !== item.enabled)
+      .length + Object.keys(configDrafts).length;
   return (
     <div className="plugin-manager-panel">
-      <div className="plugin-mode-row">
+      <div className="plugin-mode-row plugin-section">
         <div>
           <h3>插件组合</h3>
-          <p className="subtle">选择模式，确认后生效。</p>
+          <p className="subtle">按需选择能力，查看影响后应用。</p>
         </div>
         <select
           aria-label="插件模式"
@@ -613,7 +701,12 @@ export default function PluginManager(props: SettingsPanelProps) {
         {!plan && (
           <button
             className="primary"
-            disabled={busy || !plugins.length || !!configurationError}
+            disabled={
+              busy ||
+              pendingCredential ||
+              !plugins.length ||
+              !!configurationError
+            }
             onClick={() => void preview()}
           >
             查看变更
@@ -629,7 +722,15 @@ export default function PluginManager(props: SettingsPanelProps) {
         {mode === "minimal"
           ? "手工编辑、DOCX 导出和备份。"
           : "按需启用 AI、模板和其他扩展。"}
+        <span>
+          {selected.length} 项已选择{changes ? ` · ${changes} 项待变更` : ""}
+        </span>
       </p>
+      {pendingCredential && (
+        <p className="plugin-feedback">
+          请先保存凭据或放弃密码输入，再查看变更。
+        </p>
+      )}
       {status && (
         <p className="plugin-feedback" role="status">
           {status}
@@ -764,6 +865,7 @@ export default function PluginManager(props: SettingsPanelProps) {
             </button>
           )}
           <button
+            className="primary"
             disabled={
               busy ||
               !["planned", "preparing"].includes(plan.state ?? "planned")
@@ -783,6 +885,66 @@ export default function PluginManager(props: SettingsPanelProps) {
           </button>
         </section>
       ) : null}
+      {!!choices.length && (
+        <section className="plugin-section plugin-providers">
+          <div className="plugin-section-heading">
+            <h4>能力提供方</h4>
+            <p>一次替换，同时启用新提供方和停用旧提供方。</p>
+          </div>
+          {choices.map((group) => {
+            const key = `${group.domain}/${group.name}`;
+            const current = group.ids.find((id) => selected.includes(id)) ?? "";
+            const active = group.ids.find(
+              (id) => plugins.find((item) => item.id === id)?.enabled,
+            );
+            const candidate = providerDrafts[key] ?? current;
+            return (
+              <div className="plugin-provider-row" key={key}>
+                <div>
+                  <strong>
+                    {group.name === "ocr.backend" ? "文字识别引擎" : group.name}
+                  </strong>
+                  <small>
+                    {active
+                      ? `当前：${plugins.find((item) => item.id === active)?.title}`
+                      : "尚未启用提供方"}
+                  </small>
+                </div>
+                <select
+                  aria-label={`${key} 替换提供方`}
+                  value={candidate}
+                  disabled={busy || !!plan || pendingCredential}
+                  onChange={(event) =>
+                    setProviderDrafts((values) => ({
+                      ...values,
+                      [key]: event.target.value,
+                    }))
+                  }
+                >
+                  {!candidate && <option value="">选择提供方</option>}
+                  {group.ids.map((id) => (
+                    <option key={id} value={id}>
+                      {plugins.find((item) => item.id === id)?.title}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  disabled={
+                    busy ||
+                    !!plan ||
+                    pendingCredential ||
+                    !candidate ||
+                    candidate === current
+                  }
+                  onClick={() => void previewReplacement(candidate)}
+                >
+                  替换并查看计划
+                </button>
+              </div>
+            );
+          })}
+        </section>
+      )}
       <label className="plugin-search">
         <Search size={18} />
         <input
@@ -839,13 +1001,7 @@ export default function PluginManager(props: SettingsPanelProps) {
                           busy ||
                           !!plan
                         }
-                        onClick={() =>
-                          setSelected((values) =>
-                            values.includes(item.id)
-                              ? values.filter((id) => id !== item.id)
-                              : [...values, item.id],
-                          )
-                        }
+                        onClick={() => togglePlugin(item)}
                       >
                         <span />
                       </button>
@@ -872,29 +1028,32 @@ export default function PluginManager(props: SettingsPanelProps) {
                       </summary>
                       <div className="plugin-card-body">
                         <code>{item.id}</code>
-                        {!item.builtin && packages[item.plugin ?? item.id] && (
-                          <button
-                            disabled={busy || !!plan}
-                            onClick={() =>
-                              void togglePin(item.plugin ?? item.id)
-                            }
-                          >
-                            {pins[item.plugin ?? item.id]
-                              ? `解除 ${pins[item.plugin ?? item.id].version} 的版本锁`
-                              : `锁定当前版本 ${item.version}`}
-                          </button>
-                        )}
-                        {item.plugin && item.plugin !== item.id && (
-                          <button
-                            disabled={busy || !!plan}
-                            onClick={() => removeInstance(item.id)}
-                          >
-                            移除实例
-                          </button>
-                        )}
-                        {item.scope === "task" && (
-                          <p>随任务启动，结束后释放。</p>
-                        )}
+                        <div className="plugin-card-actions">
+                          {!item.builtin &&
+                            packages[item.plugin ?? item.id] && (
+                              <button
+                                disabled={busy || !!plan}
+                                onClick={() =>
+                                  void togglePin(item.plugin ?? item.id)
+                                }
+                              >
+                                {pins[item.plugin ?? item.id]
+                                  ? `解除 ${pins[item.plugin ?? item.id].version} 的版本锁`
+                                  : `锁定当前版本 ${item.version}`}
+                              </button>
+                            )}
+                          {item.plugin && item.plugin !== item.id && (
+                            <button
+                              disabled={busy || !!plan}
+                              onClick={() => removeInstance(item.id)}
+                            >
+                              移除实例
+                            </button>
+                          )}
+                          {item.scope === "task" && (
+                            <p>随任务启动，结束后释放。</p>
+                          )}
+                        </div>
                         {selected.includes(item.id) &&
                           Object.keys(
                             item.dependencies ?? { host: item.requires },
@@ -976,6 +1135,32 @@ export default function PluginManager(props: SettingsPanelProps) {
                           <details className="plugin-card-configuration">
                             <summary>{item.title} 配置</summary>
                             <PluginConfigEditor
+                              plugin={item.id}
+                              credentialFields={item.credential_fields}
+                              onSaveCredential={async (field, secret) => {
+                                setBusy(true);
+                                try {
+                                  const result = await api<{
+                                    reference: string;
+                                  }>(
+                                    `/plugins/${encodeURIComponent(item.id)}/credentials/${encodeURIComponent(field)}`,
+                                    "PUT",
+                                    {
+                                      generation: capabilities().generation,
+                                      secret,
+                                    },
+                                  );
+                                  return result.reference;
+                                } finally {
+                                  setBusy(false);
+                                }
+                              }}
+                              onCredentialPending={(field, pending) =>
+                                setCredentialPending((values) => ({
+                                  ...values,
+                                  [`${item.id}/${field}`]: pending,
+                                }))
+                              }
                               title={item.title}
                               schema={item.config_schema ?? {}}
                               value={item.config ?? {}}
@@ -1021,43 +1206,52 @@ export default function PluginManager(props: SettingsPanelProps) {
       ) : (
         !matching.length && <p className="subtle">没有匹配的插件。</p>
       )}
-      <details>
+      <details className="plugin-advanced plugin-section">
         <summary>添加独立实例</summary>
         <p>同一插件可创建多个独立实例。</p>
-        <select
-          aria-label="实例使用的插件"
-          value={instancePlugin}
-          disabled={busy || !!plan}
-          onChange={(event) => setInstancePlugin(event.target.value)}
-        >
-          <option value="">选择插件</option>
-          {plugins
-            .filter(
-              (item) =>
-                item.multiple &&
-                item.id === item.plugin &&
-                item.scope !== "task",
-            )
-            .map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.title}
-              </option>
-            ))}
-        </select>
-        <input
-          aria-label="新实例名称"
-          placeholder="例如 community.my-instance"
-          value={instanceName}
-          disabled={busy || !!plan}
-          onChange={(event) => setInstanceName(event.target.value)}
-        />
-        <button disabled={busy || !!plan} onClick={addInstance}>
-          添加到候选组合
-        </button>
+        <div className="plugin-instance-form">
+          <label>
+            插件
+            <select
+              aria-label="实例使用的插件"
+              value={instancePlugin}
+              disabled={busy || !!plan}
+              onChange={(event) => setInstancePlugin(event.target.value)}
+            >
+              <option value="">选择插件</option>
+              {plugins
+                .filter(
+                  (item) =>
+                    item.multiple &&
+                    item.id === item.plugin &&
+                    item.scope !== "task",
+                )
+                .map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.title}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <label>
+            实例名称
+            <input
+              aria-label="新实例名称"
+              placeholder="例如 community.my-instance"
+              value={instanceName}
+              disabled={busy || !!plan}
+              onChange={(event) => setInstanceName(event.target.value)}
+            />
+          </label>
+          <button disabled={busy || !!plan} onClick={addInstance}>
+            添加到候选组合
+          </button>
+        </div>
       </details>
       {!plan && (
-        <details className="plugin-advanced">
+        <details className="plugin-advanced plugin-section">
           <summary>安装插件</summary>
+          <p className="subtle">从本机文件安装，或展开下载选项获取插件包。</p>
           <PackageDownloads
             onChoose={(path) => {
               setPackagePath(path);
@@ -1065,10 +1259,10 @@ export default function PluginManager(props: SettingsPanelProps) {
             }}
           />
           {!!candidates.length && (
-            <div>
+            <div className="plugin-install-candidates">
               <h4>待安装</h4>
               {candidates.map((item) => (
-                <div key={item.id}>
+                <div className="plugin-candidate-row" key={item.id}>
                   <label>
                     <input
                       type="checkbox"
@@ -1096,28 +1290,34 @@ export default function PluginManager(props: SettingsPanelProps) {
                   </button>
                 </div>
               ))}
-              <button disabled={busy} onClick={() => void previewPackages()}>
+              <button
+                disabled={busy || pendingCredential || !!configurationError}
+                onClick={() => void previewPackages()}
+              >
                 查看安装计划
               </button>
             </div>
           )}
-          <input
-            aria-label="插件包路径"
-            placeholder="本机 .rmp 文件完整路径"
-            value={packagePath}
-            onChange={(event) => {
-              setPackagePath(event.target.value);
-              setInspection(null);
-            }}
-          />
-          <button
-            disabled={busy || !packagePath}
-            onClick={() => void inspectPackage()}
-          >
-            检查插件包
-          </button>
+          <label className="plugin-file-label">本机插件包</label>
+          <div className="plugin-input-action">
+            <input
+              aria-label="插件包路径"
+              placeholder="本机 .rmp 文件完整路径"
+              value={packagePath}
+              onChange={(event) => {
+                setPackagePath(event.target.value);
+                setInspection(null);
+              }}
+            />
+            <button
+              disabled={busy || !packagePath}
+              onClick={() => void inspectPackage()}
+            >
+              检查插件包
+            </button>
+          </div>
           {inspection && (
-            <div>
+            <div className="plugin-inspection">
               <p>
                 {inspection.manifest.title} · {inspection.manifest.version}
               </p>
@@ -1129,11 +1329,33 @@ export default function PluginManager(props: SettingsPanelProps) {
                 摘要：<code>{inspection.digest}</code>
               </p>
               {!!inspection.missing_dependencies.length && (
-                <p>
-                  尚需准备依赖：{inspection.missing_dependencies.join("、")}
-                </p>
+                <div className="plugin-dependency-plan">
+                  <p>
+                    尚需准备依赖：{inspection.missing_dependencies.join("、")}
+                  </p>
+                  {inspection.dependency_plan && (
+                    <>
+                      <p>
+                        {inspection.dependency_plan.stop_host
+                          ? "停止宿主后，在下列目标解释器准备依赖，再重启并检查插件包。"
+                          : "请在插件使用的解释器准备依赖，再重新检查。"}
+                      </p>
+                      <pre>
+                        {JSON.stringify(
+                          inspection.dependency_plan.command,
+                          null,
+                          2,
+                        )}
+                      </pre>
+                      <small>
+                        这是命令参数数组；宿主不会自动安装。离线环境可由发布者通过
+                        plugin-sdk environment-lock 构建完整依赖锁。
+                      </small>
+                    </>
+                  )}
+                </div>
               )}
-              <label>
+              <label className="plugin-trust-confirmation">
                 <input
                   type="checkbox"
                   checked={trusted}

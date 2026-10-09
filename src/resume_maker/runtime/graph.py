@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 
 from resume_maker.sdk.manifest import Dependency, Manifest, compatible
+from resume_maker.sdk.version import CLIENT_API_VERSION, HOST_API_VERSION
 
 
 class PluginError(RuntimeError):
@@ -125,8 +126,9 @@ def resolve(manifests: dict[str, Manifest], selected: set[str], required: set[st
     for identifier in sorted(selected):
         manifest = manifests[identifier]
         for domain, constraint in (("host", manifest.host_api), ("client", manifest.client_api)):
-            if not compatible("1.0.0", constraint):
-                raise PluginError(f"{identifier} 与 {domain} API 1.0.0 不兼容")
+            version = HOST_API_VERSION if domain == "host" else CLIENT_API_VERSION
+            if not compatible(version, constraint):
+                raise PluginError(f"{identifier} 与 {domain} API {version} 不兼容")
             for name, spec in manifest.provides.get(domain, {}).items():
                 owners = indexes[domain].setdefault(name, [])
                 if owners and (

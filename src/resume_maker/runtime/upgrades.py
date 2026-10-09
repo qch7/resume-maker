@@ -34,7 +34,9 @@ class Upgrades:
         self.active = None
         self.cancelled = threading.Event()
 
-    def plan(self, entries, generation, selected=None):
+    def plan(
+        self, entries, generation, selected=None, *, instances=None, configs=None, config_edits=()
+    ):
         """完整暂存所有候选，再联合求解依赖，不逐包改写活动索引"""
         manager, host = self.manager, self.manager.host
         with manager.lock:
@@ -63,6 +65,9 @@ class Upgrades:
             return manager.plan(
                 selected if selected is not None else sorted(host.selected),
                 generation,
+                instances=instances,
+                configs=configs,
+                config_edits=config_edits,
                 package_updates=updates,
                 data_intents=intents,
             )

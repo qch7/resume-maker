@@ -37,6 +37,7 @@ class ActivityMiddleware:
     async def __call__(self, scope, receive, send):
         """透传协议消息并在响应结束后记录状态、正文摘要和总耗时"""
         path = scope.get("path", "")
+        credential_request = "/credentials/" in path and path.startswith("/api/plugins/")
         if (
             scope["type"] != "http"
             or not path.startswith("/api/")
@@ -60,8 +61,9 @@ class ActivityMiddleware:
             if message["type"] == "http.request":
                 body = message.get("body", b"")
                 request_size += len(body)
-                request_digest.update(body)
-                request_body.extend(body[: max(0, BODY_LIMIT - len(request_body))])
+                if not credential_request:
+                    request_digest.update(body)
+                    request_body.extend(body[: max(0, BODY_LIMIT - len(request_body))])
             return message
 
         async def write(message):
@@ -106,11 +108,15 @@ class ActivityMiddleware:
                         "status": status,
                         "request": {
                             **request_info,
-                            **body_detail(
-                                request_body,
-                                request_size,
-                                headers.get(b"content-type", b"").decode(),
-                                request_digest.hexdigest(),
+                            **(
+                                {"bytes": request_size, "body": "[凭据正文不记录]"}
+                                if credential_request
+                                else body_detail(
+                                    request_body,
+                                    request_size,
+                                    headers.get(b"content-type", b"").decode(),
+                                    request_digest.hexdigest(),
+                                )
                             ),
                         },
                         "response": body_detail(

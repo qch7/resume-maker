@@ -111,6 +111,13 @@ class RpcMethod(Contract):
     timeout_seconds: int = Field(default=30, ge=1, le=7200)
 
 
+class CredentialField(Contract):
+    """顶层配置字段只承载引用，密码由宿主独立保存"""
+
+    purpose: str = Field(pattern=IDENTIFIER)
+    title: str = Field(min_length=1, max_length=100)
+
+
 class Manifest(Contract):
     """安装前可读取的版本化插件定义，系统身份由发行策略判定"""
 
@@ -134,6 +141,7 @@ class Manifest(Contract):
     dependencies: list[str] = Field(default_factory=list)
     environment_lock: str | None = None
     config: dict[str, JsonValue] = Field(default_factory=dict)
+    credential_fields: dict[str, CredentialField] = Field(default_factory=dict)
     config_schema: dict[str, JsonValue] = Field(
         default_factory=lambda: {
             "type": "object",
@@ -169,4 +177,23 @@ class Manifest(Contract):
             raise ValueError("依赖执行域仅支持 host、client 和 remote")
         if set(self.provides) - {"host", "client"}:
             raise ValueError("提供能力须声明在 host 或 client 执行域")
+        properties = self.config_schema.get("properties", {})
+        if self.credential_fields and not isinstance(properties, dict):
+            raise ValueError("凭据字段须在 config_schema.properties 中声明")
+        for name in self.credential_fields:
+            schema = properties.get(name, {})
+            if (
+                not re.fullmatch(IDENTIFIER, name)
+                or not isinstance(schema, dict)
+                or schema.get("type") != "string"
+                or schema.get("format") != "credential-ref"
+            ):
+                raise ValueError("凭据字段须声明为顶层 string 和 credential-ref 格式")
+            for default in (schema.get("default", ""), self.config.get(name, "")):
+                if not isinstance(default, str) or (
+                    default and not re.fullmatch(r"cred\.[a-f0-9]{32}", default)
+                ):
+                    raise ValueError("凭据字段的默认值只能为空字符串或不透明引用")
+        if self.credential_fields and "credentials" not in self.requires.get("host", {}):
+            raise ValueError("凭据字段须声明 host/credentials 依赖")
         return self

@@ -17,6 +17,7 @@
   },
   "provides": {
     "host": {
+      "http.client": {"version": "1.0.0", "cardinality": "one"},
       "http": {
         "version": "1.0.0",
         "cardinality": "one"

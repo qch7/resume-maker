@@ -30,7 +30,7 @@ export function setCapabilities(value: Capabilities) {
   if (
     !Number.isSafeInteger(value.generation) ||
     value.generation < 1 ||
-    value.client_api !== "1.0.0" ||
+    !["1.0.0", "1.1.0"].includes(value.client_api) ||
     !Array.isArray(value.plugins) ||
     !Array.isArray(value.services) ||
     !Array.isArray(value.client) ||

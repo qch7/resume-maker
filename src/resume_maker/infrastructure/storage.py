@@ -304,6 +304,7 @@ def restore_backup(archive_path: Path, directory: Path) -> Path | None:
         "plugin-downloads",
         "plugin-trials",
         "plugin-migrations",
+        "credential-vault",
         "host-transition.json",
         "host-runtime.json",
     }
@@ -377,6 +378,15 @@ def restore_backup(archive_path: Path, directory: Path) -> Path | None:
                         "UPDATE jobs SET status='interrupted',error='从备份恢复，请重新发送任务。' "
                         "WHERE status IN ('running','queued')"
                     )
+            vault = directory / "credential-vault"
+            if vault.exists():
+                if (
+                    vault.is_symlink()
+                    or vault.is_junction()
+                    or any(path.is_symlink() or path.is_junction() for path in vault.rglob("*"))
+                ):
+                    raise Problem("凭据目录不能包含符号链接。")
+                shutil.copytree(vault, staging / "credential-vault")
             if directory.exists():
                 previous = directory.with_name(f"{directory.name}-before-restore-{uid()[:8]}")
                 publish_directory(directory, previous)

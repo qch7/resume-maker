@@ -4624,6 +4624,60 @@
           }
         }
       }
+    },
+    "/api/plugins/{plugin_id}/credentials/{field}": {
+      "put": {
+        "parameters": [
+          {
+            "name": "plugin_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Plugin Id"
+            }
+          },
+          {
+            "name": "field",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Field"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CredentialInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "schemas": {
@@ -7101,6 +7155,43 @@
             }
           ],
           "title": "Selected"
+        },
+        "instances": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/components/schemas/InstanceSpec"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Instances"
+        },
+        "configs": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Configs"
+        },
+        "config_edits": {
+          "items": {
+            "$ref": "#/components/schemas/ConfigurationEdit"
+          },
+          "type": "array",
+          "maxItems": 1000,
+          "title": "Config Edits"
         }
       },
       "additionalProperties": false,
@@ -7219,6 +7310,29 @@
       ],
       "title": "ProjectSourcesInput",
       "description": "来源更新携带读取时的名称和目录基线"
+    },
+    "CredentialInput": {
+      "properties": {
+        "generation": {
+          "type": "integer",
+          "minimum": 1.0,
+          "title": "Generation"
+        },
+        "secret": {
+          "type": "string",
+          "maxLength": 16384,
+          "minLength": 1,
+          "title": "Secret"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "generation",
+        "secret"
+      ],
+      "title": "CredentialInput",
+      "description": "密码仅交给凭据后端，不进入配置计划及客户端快照"
     }
   }
 }
