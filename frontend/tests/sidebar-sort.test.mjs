@@ -4,7 +4,7 @@ import {
   restoreSidebarSort,
   sortSidebar,
   expandProjectPath,
-} from "../src/features/projects/sort.ts";
+} from "../../src/resume_maker/plugin_packages/sys_resume/client/features/projects/sort.ts";
 
 const projects = [
   { id: "a", name: "alpha", updated_at: "2026-09-01T00:00:00Z" },

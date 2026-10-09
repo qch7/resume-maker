@@ -1,0 +1,878 @@
+"""模板分析、映射核对、试填和登记，复用现有 Provider 并支持取消"""
+
+import threading
+import time
+from contextlib import contextmanager
+from copy import deepcopy
+from io import BytesIO
+from pathlib import Path
+
+from resume_maker.core.content import digest, redact
+from resume_maker.core.errors import Problem, need
+from resume_maker.domain.models import ProviderSettings, ResumeItem
+from resume_maker.domain.resume import ResumeDocument
+from resume_maker.domain.templates import TemplatePlan
+from resume_maker.infrastructure.observability import record, record_event, remember_task
+from resume_maker.integrations.document_limits import TEMPLATE_MAX_BYTES
+from resume_maker.integrations.word.capabilities import render_word
+from resume_maker.integrations.word.templates.completion import complete_template
+from resume_maker.integrations.word.templates.fill import fill_template
+from resume_maker.integrations.word.templates.mapping import TemplatePackage
+from resume_maker.integrations.word.templates.review import assess_plan, check_trial
+from resume_maker.integrations.word.templates.values import missing_targets
+from resume_maker.plugin_packages.ext_template_adapter.configuration import Settings
+from resume_maker.sdk.documents import DEFAULT_RENDERER, generate_docx
+from resume_maker.sdk.imports import ImportContext, ImportSource
+from resume_maker.sdk.model import Cancelled, Provider
+from resume_maker.sdk.observation import internal
+from resume_maker.sdk.previews import PreviewCache
+from resume_maker.sdk.records import dump, now, uid, unpack
+from resume_maker.sdk.services import Resumes
+
+
+def prepare_template(*args, **kwargs):
+    """仅格式恢复时加载所需的可选文档处理器"""
+    from resume_maker.integrations.word.recovery import prepare_template as prepare
+
+    return prepare(*args, **kwargs)
+
+
+class Templates:
+    """管理独立模板分析，分析结果经核对后才进入已保存模板列表"""
+
+    def __init__(
+        self,
+        catalog: Resumes,
+        data_dir: Path,
+        provider: Provider,
+        *,
+        storage,
+        registry=None,
+        assets,
+        analysis=None,
+        settings=None,
+    ):
+        """初始化实例依赖和受锁保护的任务状态"""
+        self.catalog, self.db, self.data_dir, self.provider = (
+            catalog,
+            storage,
+            data_dir,
+            provider,
+        )
+        self.tasks, self.flags, self.threads = {}, {}, []
+        self.settings = settings or Settings()
+        self.started = {}
+        self.artifacts = {}
+        self.origins = {}
+        self.lock = threading.RLock()
+        self.stopped = False
+        self.inputs = {}
+        self.importers = None
+        self.import_registry = registry
+        self.assets = assets
+        self.analysis = analysis
+        self.previews = PreviewCache(data_dir / "workspaces", prefix="template-previews-")
+        self.renderer = DEFAULT_RENDERER
+        self.converter = DEFAULT_RENDERER
+        self.execution_queue = None
+        for row in self.db.all("SELECT value_json FROM settings WHERE key LIKE 'template-task:%'"):
+            saved = row["value"]
+            task = saved["task"]
+            identifier = task["id"]
+            self.tasks[identifier] = task
+            self.artifacts[identifier] = saved.get("artifacts", [])
+            self.origins[identifier] = saved.get("origin")
+            self.inputs[identifier] = saved.get("input", {})
+            if task["status"] == "running":
+                task.update(
+                    status="failed",
+                    phase="interrupted",
+                    error="上次分析被中断，原件和输入已保留，可以重新分析。",
+                )
+                self._persist(identifier)
+
+    @property
+    def renderer(self):
+        """生产路径按当前注册表解析排版器，独立调用保留显式注入"""
+        if self.import_registry is not None:
+            selected = self.import_registry.renderer()
+            return selected.value.render if selected else None
+        return self._renderer
+
+    @renderer.setter
+    def renderer(self, value):
+        """保存独立调用的排版器配置"""
+        self._renderer = value
+
+    @internal
+    def attach_analysis(self, provider, execution_queue, analysis):
+        """独占附接分析能力并返回等待实际结束的撤销函数"""
+        if self.provider is not None or self.execution_queue is not None:
+            raise Problem("模板分析能力已附接。", 409)
+        self.provider, self.execution_queue, self.analysis = provider, execution_queue, analysis
+
+        def detach():
+            """任务和工作线程全部退出后撤销分析依赖"""
+            execution_queue.close()
+            self.stop()
+            self.provider, self.execution_queue, self.analysis = None, None, None
+            self.stopped = False
+
+        return detach
+
+    @internal
+    @contextmanager
+    def maintenance(self):
+        """公开维护屏障，调用方持有期间禁止开始分析或保存新产物"""
+        with self.lock, self.previews.lock:
+            yield
+
+    def cleanup_paths(self, template_id, shared):
+        """返回关联任务的可清理路径，仍有执行线程时拒绝永久删除"""
+        if any(thread.is_alive() for thread in self.threads):
+            raise Problem("正在识别模板，请等待识别完成后再永久删除。", 409)
+        result = set()
+        for identifier, origin in self.origins.items():
+            relative = f"workspaces/template-{identifier}"
+            if origin == template_id and relative not in shared:
+                result.update(self.previews.artifacts(identifier))
+                result.add(self.data_dir / relative)
+                durable = f"template-drafts/{identifier}"
+                if durable not in shared:
+                    result.add(self.data_dir / durable)
+        return result
+
+    def invalidate_artifacts(self, conn, paths):
+        """清理后在同一事务解除任务原件引用并保留编辑草稿墓碑"""
+        removed = [
+            key for key in self.tasks if self.data_dir / "workspaces" / f"template-{key}" in paths
+        ]
+
+        def forget():
+            """持久清理成功后才撤销当前进程的任务缓存"""
+            for key in removed:
+                self.previews.discard(key)
+                for mapping in (
+                    self.tasks,
+                    self.started,
+                    self.flags,
+                    self.artifacts,
+                    self.origins,
+                    self.inputs,
+                ):
+                    mapping.pop(key, None)
+
+        for key in removed:
+            if conn is not None:
+                self.assets.release_bundle(conn, "ext.template-adapter", f"template-drafts/{key}")
+                conn.execute("DELETE FROM settings WHERE key=?", (f"template-task:{key}",))
+                draft_key = f"workspace-value:rm.template.editor.{key}"
+                previous = unpack(
+                    conn.execute("SELECT * FROM settings WHERE key=?", (draft_key,)).fetchone()
+                )
+                version = previous["value"]["version"] if previous else 0
+                conn.execute(
+                    "INSERT OR REPLACE INTO settings VALUES (?,?)",
+                    (
+                        draft_key,
+                        dump({"value": None, "version": version + 1, "updated_at": now()}),
+                    ),
+                )
+
+        if conn is None:
+            forget()
+        else:
+            conn.after_commit(forget)
+
+    def _persist(self, identifier, source=None, execution=None):
+        """先原子保存可恢复文档再登记状态，CLI 临时材料继续留在工作目录"""
+        folder = self.data_dir / "template-drafts" / identifier
+        folder.mkdir(parents=True, exist_ok=True)
+        task = self.tasks[identifier]
+        task["elapsed_ms"] = self._elapsed(task)
+        staged = (
+            self.assets.stage_bundle("ext.template-adapter", {"original.docx": source.read_bytes()})
+            if source is not None
+            else {}
+        )
+        staged.update(
+            self.assets.stage_bundle(
+                "ext.template-adapter",
+                {path.name: path.read_bytes() for path in folder.glob("uploaded.*")},
+            )
+        )
+        with self.db.transaction() as conn:
+            if staged:
+                self.assets.update_bundle(
+                    conn, "ext.template-adapter", f"template-drafts/{identifier}", staged
+                )
+            conn.execute(
+                "INSERT OR REPLACE INTO settings VALUES (?,?)",
+                (
+                    f"template-task:{identifier}",
+                    dump(
+                        {
+                            "task": task,
+                            "artifacts": self.artifacts.get(identifier, []),
+                            "origin": self.origins.get(identifier),
+                            "input": self.inputs.get(identifier, {}),
+                        }
+                    ),
+                ),
+            )
+            prepared = (
+                self.execution_queue.prepare(conn, identifier, execution)
+                if execution is not None
+                else None
+            )
+        for path in folder.glob("uploaded.*"):
+            path.unlink()
+        return prepared
+
+    def list_tasks(self):
+        """列出可恢复的模板工作，已保存版本仍在独立模板库中"""
+        with self.lock:
+            return [
+                {key: task.get(key) for key in ("id", "file_name", "status", "created_at")}
+                for task in sorted(
+                    self.tasks.values(), key=lambda item: item.get("created_at", ""), reverse=True
+                )
+            ]
+
+    def retry(self, identifier, document, items):
+        """使用留存原件显式重试中断任务，不在启动时自动发送模型请求"""
+        with self.lock:
+            task = self.get(identifier)
+            if task["status"] not in {"failed", "cancelled"}:
+                raise Problem("仅中断或失败的分析可以重试。", 409)
+            folder = self._working_source(identifier)
+            uploaded = next(folder.glob("uploaded.*"), None)
+            saved = self.inputs.get(identifier, {})
+            result = self._start(
+                None if uploaded else TemplatePackage(folder / "original.docx"),
+                task["file_name"],
+                document,
+                items,
+                TemplatePlan.model_validate(saved["initial"]) if saved.get("initial") else None,
+                saved.get("feedback", ""),
+                uploaded.read_bytes() if uploaded else None,
+                expected_importer=saved.get("importer"),
+            )
+            self.origins[result["id"]] = self.origins.get(identifier)
+            self._persist(result["id"])
+            return result
+
+    def analyze(
+        self,
+        path: Path,
+        document: ResumeDocument,
+        items: list[ResumeItem] | None = None,
+        *,
+        importer_id=None,
+    ) -> dict:
+        """先复制源文档为受控快照，再异步分析，源文件后续变化不影响确认结果"""
+        path = path.expanduser().resolve(strict=True)
+        with path.open("rb") as handle:
+            raw = handle.read(TEMPLATE_MAX_BYTES + 1)
+        return self._start(None, path.name, document, items or [], raw=raw, importer_id=importer_id)
+
+    def repair(self, identifier, plan, document, items, feedback=""):
+        """根据当前人工方案新建独立修正任务"""
+        with self.lock:
+            task = self._start(
+                TemplatePackage(self.source(identifier)),
+                self.get(identifier)["file_name"],
+                document,
+                items,
+                plan,
+                feedback,
+                expected_importer=self.get(identifier).get("importer"),
+            )
+            self.origins[task["id"]] = self.origins.get(identifier)
+            self._persist(task["id"])
+            return task
+
+    def _start(
+        self,
+        package,
+        file_name,
+        document,
+        items,
+        initial=None,
+        feedback="",
+        raw=None,
+        *,
+        importer_id=None,
+        expected_importer=None,
+    ):
+        """固定导入器和原件后准备异步任务，校验项目引用后才调用模型"""
+        if self.provider is None or self.analysis is None:
+            raise Problem("模板 AI 插件未启用。", 409)
+        trace = expected_importer
+        if raw is not None and self.import_registry:
+            selected = self.import_registry.select_importer(
+                ImportSource(file_name, raw, "template"), importer_id, expected=expected_importer
+            )
+            trace = selected.trace
+        elif importer_id:
+            raise Problem("当前模板服务未连接导入注册表。", 409)
+        inventory = package.inventory() if package else {"nodes": [], "warnings": [], "notices": []}
+        projects = self.projects(items)
+        with self.lock:
+            if self.stopped:
+                raise Problem("应用正在关闭。", 409)
+            self.threads = [thread for thread in self.threads if thread.is_alive()]
+            if self.threads:
+                raise Problem("已有模板正在分析，请等待完成或取消。", 409)
+            identifier = uid()
+            directory = self.data_dir / "workspaces" / f"template-{identifier}"
+            directory.mkdir(parents=True)
+            # 保存刚解析的同一字节快照以防分析和确认时读到不同文档
+            source = directory / "original.docx"
+            if package is not None:
+                package.write(source)
+            else:
+                suffix = Path(file_name).suffix.lower() or ".bin"
+                (directory / ("uploaded" + suffix)).write_bytes(raw)
+            task = {
+                **new_progress(),
+                "id": identifier,
+                "created_at": now(),
+                "file_name": file_name,
+                "importer": trace,
+                "status": "running",
+                "activity": "正在自动整理模板格式…",
+                "plan": None,
+                "review": None,
+                "inventory": inventory,
+                "error": None,
+            }
+            self.started[identifier] = time.monotonic()
+            self.tasks[identifier] = task
+            self.artifacts[identifier] = [directory.relative_to(self.data_dir).as_posix()]
+            durable = self.data_dir / "template-drafts" / identifier
+            durable.mkdir(parents=True)
+            self.artifacts[identifier].append(durable.relative_to(self.data_dir).as_posix())
+            if raw is not None:
+                (durable / ("uploaded" + suffix)).write_bytes(raw)
+            self.inputs[identifier] = {
+                "initial": initial.model_dump() if initial is not None else None,
+                "feedback": feedback,
+                "importer": trace,
+            }
+            flag = self.flags[identifier] = threading.Event()
+            settings = ProviderSettings.model_validate(
+                self.db.setting("provider", {})
+            ).for_function("template_repair" if initial is not None else "template_analysis")
+            metadata = {
+                "handler": "analyze",
+                "entities": {"template_task_id": identifier},
+                "settings": settings.model_dump(),
+            }
+            prepared = self._persist(
+                identifier,
+                source if package is not None else None,
+                metadata if self.execution_queue else None,
+            )
+            if self.db.activity:
+                remember_task(self.db.activity, identifier)
+            args = (identifier, directory, document, projects, settings, flag, initial, feedback)
+            if self.execution_queue:
+                try:
+                    thread = self.execution_queue.submit(
+                        identifier, flag, lambda: self._analyze(*args), metadata, prepared=prepared
+                    )
+                except Exception:
+                    self.flags.pop(identifier, None)
+                    task.update(
+                        status="failed",
+                        phase="interrupted",
+                        error="任务调度失败，原件和输入已保留，可以重新分析。",
+                    )
+                    self._persist(identifier)
+                    raise
+            else:
+                thread = threading.Thread(
+                    target=self._analyze, args=args, daemon=True, name=f"template-{identifier}"
+                )
+                thread.start()
+            self.threads.append(thread)
+            return deepcopy(task)
+
+    def _analyze(
+        self, identifier, directory, document, projects, settings, flag, initial, feedback
+    ):
+        """执行一次受超时控制的模型分析，取消或失败均不能登记模板"""
+
+        def emit(kind, data):
+            """记录有界的公开活动和计量，取消后不再接受迟到事件"""
+            record_event(kind, data)
+            with self.lock:
+                task = self.tasks[identifier]
+                if task["status"] != "running" or flag.is_set():
+                    return
+                if kind == "activity":
+                    text = redact(str(data.get("text", "分析中")))[:1000]
+                    phase = data.get("type")
+                    if phase in {"prepare", "analysis", "validation", "cache"}:
+                        task["phase"] = phase
+                    if isinstance(data.get("round"), int):
+                        task["round"] = data["round"]
+                    if text != task["activity"]:
+                        task["cursor"] += 1
+                        task["events"] = (
+                            task["events"]
+                            + [
+                                {
+                                    "id": task["cursor"],
+                                    "text": text,
+                                    "elapsed_ms": self._elapsed(task),
+                                }
+                            ]
+                        )[-80:]
+                        task["activity"] = text
+                elif kind == "usage":
+                    for key in ("input_tokens", "cached_input_tokens", "output_tokens"):
+                        value = data.get(key)
+                        if isinstance(value, int) and value >= 0:
+                            task["usage"][key] = task["usage"].get(key, 0) + value
+                elif kind == "metrics":
+                    task["metrics"].append(
+                        {key: data[key] for key in ("round", "prompt_chars", "images", "resumed")}
+                    )
+                self._persist(identifier)
+
+        try:
+            provider = self.provider.with_private_data(document.model_dump())
+            source = directory / "original.docx"
+            if source.exists():
+                package = TemplatePackage(source)
+            else:
+                uploaded = next(directory.glob("uploaded*"))
+                if self.import_registry:
+                    selected = self.import_registry.select_importer(
+                        ImportSource(
+                            self.tasks[identifier]["file_name"], uploaded.read_bytes(), "template"
+                        ),
+                        expected=self.inputs[identifier]["importer"],
+                    )
+                    stage = directory / "import"
+                    stage.mkdir()
+                    result = self.import_registry.run_import(
+                        selected,
+                        ImportContext(
+                            stage,
+                            flag,
+                            provider,
+                            settings,
+                            dump(document.model_dump()),
+                            dump(projects),
+                            emit,
+                            self.renderer if self.renderer is not DEFAULT_RENDERER else None,
+                        ),
+                    )
+                    source.write_bytes(result.template)
+                    package, notices = TemplatePackage(source), list(result.notices)
+                else:
+                    processors = {"importers": self.importers}
+                    if self.renderer is not DEFAULT_RENDERER:
+                        processors["renderer"] = self.renderer
+                    if self.converter is not DEFAULT_RENDERER:
+                        processors["converter"] = self.converter
+                    package, notices = prepare_template(
+                        uploaded,
+                        source,
+                        provider,
+                        settings,
+                        flag,
+                        emit,
+                        document,
+                        projects,
+                        **processors,
+                    )
+                with self.lock:
+                    if flag.is_set():
+                        raise Cancelled("模板分析已取消。")
+                    inventory = package.inventory()
+                    inventory["notices"] = list(dict.fromkeys([*notices, *inventory["notices"]]))
+                    self.tasks[identifier]["inventory"] = inventory
+            cache_source = source.read_bytes()
+            path = self.analysis.cache_path(self.data_dir, package, document, projects, settings)
+            with self.lock:
+                self.artifacts[identifier].append(path.relative_to(self.data_dir).as_posix())
+            hit = (
+                self.analysis.cached_plan(path, package, document, projects)
+                if initial is None and not feedback
+                else None
+            )
+            if hit:
+                plan, review = hit
+                review = check_trial(source, plan, review, document, projects)
+                if not review["ready"]:
+                    # 同字段的新资料仍可能触发排版约束，旧缓存失败时必须进入自动修正
+                    initial, hit = plan, None
+                    emit(
+                        "activity",
+                        {"type": "validation", "text": "已复用映射未通过当前试填，正在自动修正"},
+                    )
+            if hit:
+                emit(
+                    "activity",
+                    {"type": "cache", "text": "已复用相同模板的识别结果，当前资料覆盖检查通过"},
+                )
+                plan, review = hit
+                attempts, repair_error = 0, None
+            else:
+                plan, review, attempts, repair_error = self.analysis.analyze(
+                    package,
+                    provider,
+                    directory,
+                    document,
+                    projects,
+                    settings,
+                    flag,
+                    emit,
+                    initial,
+                    feedback,
+                )
+            review = check_trial(source, plan, review, document, projects)
+            # 自动补位置会重新编号，结果清单必须读取同一份新快照，旧源文件不能复用新编号缓存
+            inventory = TemplatePackage(source).inventory()
+            with self.lock:
+                if flag.is_set():
+                    raise Cancelled("模板分析已取消。")
+                task = self.tasks[identifier]
+                task["elapsed_ms"] = self._elapsed(task)
+                if (
+                    review["ready"]
+                    and initial is None
+                    and not feedback
+                    and source.read_bytes() == cache_source
+                ):
+                    self.analysis.remember_plan(path, plan)
+                inventory["notices"] = list(
+                    dict.fromkeys([*task["inventory"].get("notices", []), *inventory["notices"]])
+                )
+                task.update(
+                    reused=bool(hit),
+                    phase="completed",
+                    status="completed",
+                    plan=plan.model_dump(),
+                    review=review,
+                    inventory=inventory,
+                    activity="已完成自动检查，请查看试填。"
+                    if review["ready"]
+                    else "已自动修正，请核对剩余疑问。",
+                    attempts=attempts,
+                    repair_error=redact(repair_error)[:2000] if repair_error else None,
+                )
+                self._persist(identifier, source)
+            record("task", "completed", "模板分析完成", {"review": review, "attempts": attempts})
+        except Exception as exc:
+            record(
+                "task",
+                "cancelled" if flag.is_set() else "failed",
+                str(exc),
+                {"error": str(exc)},
+                level="warning" if flag.is_set() else "error",
+            )
+            with self.lock:
+                task = self.tasks[identifier]
+                task["elapsed_ms"] = self._elapsed(task)
+                task.update(
+                    phase="cancelled" if flag.is_set() else "failed",
+                    status="cancelled" if flag.is_set() else "failed",
+                    error=redact(str(exc))[:2000],
+                )
+                self._persist(identifier)
+
+    def get(self, identifier: str) -> dict:
+        """读取可跨服务重启恢复的分析结果"""
+        with self.lock:
+            task = need(self.tasks.get(identifier), "模板分析已不存在，请重新分析。")
+            return {**deepcopy(task), "elapsed_ms": self._elapsed(task)}
+
+    def _elapsed(self, task):
+        """运行时使用单调时钟，完成或取消后冻结耗时，调用方持有状态锁"""
+        return (
+            round((time.monotonic() - self.started[task["id"]]) * 1000)
+            if task["status"] == "running"
+            else task["elapsed_ms"]
+        )
+
+    def progress(self, identifier, after=0):
+        """仅返回任务进度和游标之后的活动"""
+        with self.lock:
+            task = need(self.tasks.get(identifier), "模板分析已不存在，请重新分析。")
+            value = {
+                key: deepcopy(task[key])
+                for key in (
+                    "id",
+                    "status",
+                    "activity",
+                    "error",
+                    "phase",
+                    "round",
+                    "cursor",
+                    "usage",
+                    "reused",
+                    "metrics",
+                    "from_library",
+                )
+            }
+            value["elapsed_ms"] = self._elapsed(task)
+            value["events"] = [deepcopy(event) for event in task["events"] if event["id"] > after]
+            return value
+
+    def open(self, template_id: str, document=None, items=None) -> dict:
+        """按当前资料补齐独立编辑快照"""
+        with self.lock:
+            return self._open(template_id, document, items)
+
+    def _open(self, template_id, document, items):
+        """持有产物锁时打开模板以免永久清理和编辑副本创建交错"""
+        template = self.catalog.template(template_id)
+        mapping = template["mapping"]
+        data = self.catalog.template_bytes(template)
+        if digest(data) != template["hash"]:
+            raise Problem("模板文件已在程序外变化，请重新导入。")
+        plan = TemplatePlan.model_validate(mapping["plan"])
+        package = TemplatePackage(BytesIO(data))
+        if document is not None:
+            projects = self.projects(items or [])
+            package, plan, notices = complete_template(package, plan, document, projects)
+            review = assess_plan(package, plan, document, projects)
+            review["notices"].extend(notices)
+            buffer = BytesIO()
+            package.write(buffer)
+            data = buffer.getvalue()
+        else:
+            review = package.review(plan)
+        inventory = package.inventory()
+        with self.lock:
+            if self.stopped:
+                raise Problem("应用正在关闭。", 409)
+            identifier = uid()
+            directory = self.data_dir / "workspaces" / f"template-{identifier}"
+            directory.mkdir(parents=True)
+            # 写回经过哈希核验的字节，之后的人工调整仅作用于这个副本
+            (directory / "original.docx").write_bytes(data)
+            task = {
+                **new_progress(),
+                **analysis_record(mapping.get("analysis", {})),
+                "id": identifier,
+                "created_at": now(),
+                "file_name": template["name"],
+                "importer": mapping.get("importer"),
+                "status": "completed",
+                "activity": "已打开保存的映射，修改后将保存为新版本。",
+                "plan": plan.model_dump(),
+                "review": review,
+                "inventory": inventory,
+                "error": None,
+                "from_library": True,
+            }
+            self.started[identifier] = time.monotonic()
+            self.tasks[identifier] = task
+            self.artifacts[identifier] = list(
+                dict.fromkeys(
+                    [*mapping.get("artifacts", []), directory.relative_to(self.data_dir).as_posix()]
+                )
+            )
+            self.origins[identifier] = template_id
+            self.artifacts[identifier].append(f"template-drafts/{identifier}")
+            self._persist(identifier, directory / "original.docx")
+            return deepcopy(task)
+
+    def cancel(self, identifier: str) -> dict:
+        """取消尚未结束的分析，迟到的模型结果不能重新发布"""
+        with self.lock:
+            task = need(self.tasks.get(identifier), "模板分析不存在。")
+            if task["status"] == "running":
+                self.flags[identifier].set()
+                task["elapsed_ms"] = self._elapsed(task)
+                task.update(status="cancelled", phase="cancelled", activity="已取消")
+                self._persist(identifier)
+        return self.get(identifier)
+
+    def _working_source(self, identifier):
+        """将统一资源解码为可丢弃工作副本，原件仍只存在资源存储中"""
+        bundle = self.assets.bundle(f"template-drafts/{identifier}")
+        if not bundle:
+            raise Problem("模板分析原件不存在。", 404)
+        folder = self.data_dir / "workspaces" / f"template-{identifier}"
+        folder.mkdir(parents=True, exist_ok=True)
+        for name in bundle["files"]:
+            target = folder / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            data = self.assets.read_file(f"template-drafts/{identifier}", name)
+            if not target.is_file() or digest(target.read_bytes()) != digest(data):
+                target.write_bytes(data)
+        return folder
+
+    def source(self, identifier: str) -> Path:
+        """确认任务属于当前实例且分析完成，再取得内部快照路径"""
+        if self.get(identifier)["status"] != "completed":
+            raise Problem("请先完成模板分析。", 409)
+        return self._working_source(identifier) / "original.docx"
+
+    def review(
+        self,
+        identifier: str,
+        plan: TemplatePlan,
+        document: ResumeDocument | None = None,
+        items: list[ResumeItem] | None = None,
+    ) -> dict:
+        """在内存副本中按导出规则补位并校验"""
+        package = TemplatePackage(self.source(identifier))
+        if document is None:
+            return package.review(plan)
+        projects = self.projects(items or [])
+        package, plan, notices = complete_template(package, plan, document, projects)
+        review = assess_plan(package, plan, document, projects)
+        review["notices"].extend(notices)
+        return review
+
+    def save(
+        self,
+        identifier: str,
+        name: str,
+        plan: TemplatePlan,
+        document: ResumeDocument,
+        items: list[ResumeItem],
+    ) -> dict:
+        """登记核对过的完整模板，原文件和映射一并保留供重复导出和备份"""
+        with self.lock:
+            return self._save(identifier, name, plan, document, items)
+
+    def _save(self, identifier, name, plan, document, items):
+        """保存期间持有产物锁并登记识别缓存和工作目录供回收站精确清理"""
+        source = self.source(identifier)
+        projects = self.projects(items)
+        package, plan, _ = complete_template(TemplatePackage(source), plan, document, projects)
+        review = package.review(plan)
+        if not review["ready"]:
+            raise Problem("映射尚未完成，请处理校验问题和未识别内容。")
+        missing = missing_targets(document, plan, projects)
+        if missing:
+            raise Problem("模板未覆盖这些已填写资料，请补充映射或隐藏：" + "、".join(missing))
+        template_id = uid()
+        buffer = BytesIO()
+        package.write(buffer)
+        data = buffer.getvalue()
+        resources = self.assets.stage_bundle("ext.template-adapter", {"template.docx": data})
+        task = self.get(identifier)
+        with self.db.transaction() as conn:
+            self.assets.publish_bundle(
+                conn, "ext.template-adapter", f"templates/{template_id}", resources
+            )
+            conn.execute(
+                "INSERT INTO templates VALUES (?,?,?,?,?)",
+                (
+                    template_id,
+                    name.strip() or task["file_name"],
+                    digest(data),
+                    dump(
+                        {
+                            "plan": plan.model_dump(),
+                            "analysis": analysis_record(task),
+                            "importer": task.get("importer"),
+                            "artifacts": self.artifacts.get(identifier, []),
+                        }
+                    ),
+                    now(),
+                ),
+            )
+        return self.db.one("SELECT * FROM templates WHERE id=?", (template_id,))
+
+    def preview(
+        self, identifier: str, plan: TemplatePlan, document: ResumeDocument, items: list[ResumeItem]
+    ) -> dict:
+        """使用当前资料试填，校验固定引用和选择后生成 Word 和可用的分页预览"""
+        with self.lock:
+            return self._preview(identifier, plan, document, items)
+
+    def _preview(self, identifier, plan, document, items):
+        """试填和永久清理串行以防删除后迟到的预览重新创建产物"""
+        source = self.source(identifier)
+        projects = self.projects(items)
+        with self.previews.allocate() as (preview_id, directory):
+            output = directory / "resume.docx"
+            generate_docx(
+                output,
+                document.model_dump(),
+                projects,
+                engine=None,
+                template_data=source.read_bytes(),
+                plan=plan,
+                template_engine=fill_template,
+            )
+            renderer = render_word if self.renderer is DEFAULT_RENDERER else self.renderer
+            pages, error = (
+                renderer(output, directory / "resume.pdf")
+                if renderer
+                else (None, "Word 插件未启用。")
+            )
+            files = {"resume.docx"}
+            if pages:
+                files.add("resume.pdf")
+                files.update(
+                    f"page-{i}.{ext}" for i in range(1, pages + 1) for ext in ("png", "svg")
+                )
+            self.previews.publish(preview_id, directory, files, owner=identifier)
+            return {"id": preview_id, "pages": pages, "render_error": error}
+
+    def preview_lease(self, identifier, preview_id, filename):
+        """核验分析归属并在传输期间保留试填产物"""
+        return self.previews.lease(preview_id, filename, owner=identifier)
+
+    def projects(self, items: list[ResumeItem]) -> list[dict]:
+        """校验固定项目和亮点引用，保存和试填使用同一份资料覆盖规则"""
+        if len({item.project_id for item in items}) != len(items):
+            raise Problem("项目引用不能重复。")
+        projects = []
+        for item in items:
+            revision = self.catalog.revision(item.revision_id, item.project_id)
+            valid = {point["id"] for point in revision["content"]["highlights"]}
+            if not set(item.highlight_ids) <= valid or len(item.highlight_ids) != len(
+                set(item.highlight_ids)
+            ):
+                raise Problem("请先提交项目草稿并用于当前简历，再试填模板。")
+            projects.append({**item.model_dump(), "content": revision["content"]})
+        return projects
+
+    def stop(self):
+        """关闭应用时取消分析并回收本服务的后台线程"""
+        with self.lock:
+            self.stopped = True
+            for flag in self.flags.values():
+                flag.set()
+        for thread in self.threads:
+            thread.join(timeout=self.settings.close_timeout_seconds)
+            if thread.is_alive():
+                raise Problem("模板任务尚未结束，保留资源等待取消完成。", 409)
+        self.previews.stop()
+
+
+def new_progress():
+    """为每个任务分配独立进度容器以免共享活动列表和统计"""
+    return {
+        "phase": "prepare",
+        "round": 0,
+        "elapsed_ms": 0,
+        "events": [],
+        "cursor": 0,
+        "usage": {},
+        "metrics": [],
+        "reused": False,
+        "from_library": False,
+    }
+
+
+def analysis_record(task):
+    """限量保存公开活动和识别统计"""
+    return {
+        key: deepcopy(task[key])
+        for key in (*new_progress(), "attempts", "repair_error")
+        if key != "from_library" and key in task
+    }

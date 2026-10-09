@@ -1,0 +1,110 @@
+{
+  "manifest_version": 1,
+  "id": "ext.ai-conversation",
+  "title": "AI 会话",
+  "version": "1.0.0",
+  "package": "resume-maker",
+  "entrypoints": {
+    "host": {
+      "mode": "trusted-host",
+      "entry": "resume_maker.plugin_packages.ext_ai_conversation.entry:activate"
+    },
+    "client": {
+      "mode": "trusted-client",
+      "entry": "bundled:plugin.js"
+    }
+  },
+  "requires": {
+    "host": {
+      "db": ">=1.0.0 <2.0.0",
+      "catalog": ">=1.0.0 <2.0.0",
+      "provider": ">=1.0.0 <2.0.0",
+      "config": ">=1.0.0 <2.0.0",
+      "tasks": ">=1.0.0 <2.0.0",
+      "activity": ">=1.0.0 <2.0.0"
+    }
+  },
+  "provides": {
+    "host": {
+      "conversations": {
+        "version": "1.0.0",
+        "cardinality": "one"
+      },
+      "jobs": {
+        "version": "1.0.0",
+        "cardinality": "one"
+      }
+    }
+  },
+  "contributes": {
+    "workspace.queries": [
+      "conversations"
+    ],
+    "http.routes": [
+      "ext.ai-conversation/conversations",
+      "ext.ai-conversation/jobs"
+    ]
+  },
+  "permissions": [
+    "workspace.trusted"
+  ],
+  "data": {
+    "tables": [
+      "conversations",
+      "messages",
+      "proposals",
+      "jobs",
+      "events"
+    ],
+    "schemas": [
+      "plugin_packages/ext_ai_conversation/data/ext.ai-conversation.sql"
+    ],
+    "relations": [
+      "plugin_packages/ext_ai_conversation/data/ext.ai-conversation.references.sql"
+    ]
+  },
+  "enhances": [
+    "catalog"
+  ],
+  "optional": {
+    "sources": ">=1.0.0 <2.0.0"
+  },
+  "config": {
+    "close_timeout_seconds": 8.0,
+    "queue_poll_seconds": 0.5,
+    "event_poll_seconds": 0.5
+  },
+  "config_schema": {
+    "additionalProperties": false,
+    "description": "独立调用和宿主调度均使用同一份队列策略",
+    "properties": {
+      "close_timeout_seconds": {
+        "default": 8,
+        "description": "经历任务关闭等待秒数",
+        "maximum": 300,
+        "minimum": 1,
+        "title": "Close Timeout Seconds",
+        "type": "number"
+      },
+      "queue_poll_seconds": {
+        "default": 0.5,
+        "description": "独立队列检查间隔秒数",
+        "maximum": 10,
+        "minimum": 0.1,
+        "title": "Queue Poll Seconds",
+        "type": "number"
+      },
+      "event_poll_seconds": {
+        "default": 0.5,
+        "description": "进度流检查间隔秒数",
+        "maximum": 10,
+        "minimum": 0.1,
+        "title": "Event Poll Seconds",
+        "type": "number"
+      }
+    },
+    "title": "Settings",
+    "type": "object",
+    "x-resume-maker-strict": true
+  }
+}

@@ -15,7 +15,8 @@ from resume_maker.domain.activity import ACTIVITY_CATEGORIES, ActivityCaptureSet
 from resume_maker.infrastructure.activity import MAX_DETAIL, ActivityLog
 from resume_maker.infrastructure.database import now, uid
 from resume_maker.infrastructure.observability import activity_scope, record
-from resume_maker.services.activity import save_capture_settings
+from resume_maker.plugin_packages.ext_provider_codex.integrations.providers.cli import run_cli
+from resume_maker.plugin_packages.sys_activity.services.activity import save_capture_settings
 from tests.support.jobs import FakeProvider, wait_job
 
 
@@ -34,7 +35,7 @@ def test_http_activity_captures_success_denial_validation_and_exceptions(tmp_pat
     """所有业务 API 状态可定位到请求，读取日志本身不增加新记录"""
     app = create_logged_app(Config(data_dir=tmp_path, token="instance-secret"))
 
-    @app.get("/api/test-crash")
+    @app.state.dispatch.current.get("/api/test-crash")
     def crash():
         """构造未捕获异常以验证服务故障不会遗漏"""
         raise RuntimeError("synthetic failure")
@@ -545,7 +546,7 @@ def test_cli_trace_records_tool_arguments_result_and_agent_message(tmp_path, mon
     from contextlib import contextmanager
 
     from resume_maker.domain.models import ProviderSettings
-    from resume_maker.integrations.providers import cli
+    from resume_maker.plugin_packages.ext_provider_codex.integrations.providers import cli
 
     @contextmanager
     def credentials(root, env, flag):
@@ -604,7 +605,7 @@ def test_cli_trace_records_tool_arguments_result_and_agent_message(tmp_path, mon
     log = ActivityLog(tmp_path / "log.sqlite")
     enable_all_categories(log)
     with activity_scope(log, trace_id="cli-test"):
-        reply = cli.run_cli(
+        reply = run_cli(
             {"input": "synthetic context", "schema": {}},
             ProviderSettings(),
             {},

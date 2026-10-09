@@ -1,6 +1,5 @@
 """项目目录定位、引用文件留存和原文证据核验"""
 
-import hashlib
 import os
 import re
 import subprocess
@@ -8,8 +7,12 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from tempfile import TemporaryDirectory
 
 from resume_maker.core.config import sandbox_directory
-from resume_maker.infrastructure.database import dump, now, uid
-from resume_maker.integrations.providers.base import Cancelled
+from resume_maker.core.content import digest as digest
+from resume_maker.core.content import redact as redact
+from resume_maker.core.process_environment import EnvironmentPolicy, process_environment
+from resume_maker.integrations.source_policy import SourcePolicy
+from resume_maker.sdk.model import Cancelled
+from resume_maker.sdk.records import dump, uid
 
 EXCLUDED = {
     ".git",
@@ -36,26 +39,18 @@ EXCLUDED = {
     ".local",
 }
 SECRET_FILE = re.compile(r"(^\.env($|\.)|credentials|^auth\.json$|private.?key|id_rsa)", re.I)
-SECRET_VALUE = re.compile(
-    r"(?im)([\"']?(?:api[_-]?key|access[_-]?token|secret|password|passwd|authorization)"
-    r"[\"']?\s*[:=]\s*)([^\r\n,]+)"
-)
 
 
-def digest(data: bytes) -> str:
-    """计算 SHA-256 摘要，用于输入指纹、文件完整性及导出追溯"""
-    return hashlib.sha256(data).hexdigest()
-
-
-def git(root: Path, *args: str) -> str:
+def git(root: Path, *args: str, policy=None) -> str:
     """在指定目录运行只读 Git 查询，非零退出码按无结果处理"""
     result = subprocess.run(
         ["git", "-C", str(root), *args],
         capture_output=True,
-        timeout=20,
+        timeout=(policy or SourcePolicy()).git_timeout_seconds,
         encoding="utf-8",
         errors="replace",
         creationflags=0x08000000 if os.name == "nt" else 0,
+        env=process_environment(EnvironmentPolicy.CANDIDATE),
     )
     return result.stdout.strip() if result.returncode == 0 else ""
 
@@ -96,13 +91,7 @@ def scan_collection(path: Path) -> list[dict]:
     return [{"name": p.name, "roots": [str(r) for r in source_roots(p)]} for p in candidates]
 
 
-def redact(text: str) -> str:
-    """遮盖明显的口令和 API 密钥，降低快照和错误日志泄露敏感值的风险"""
-    text = SECRET_VALUE.sub(r"\1<redacted>", text)
-    return re.sub(r"\bsk-[A-Za-z0-9_-]{16,}\b", "<redacted>", text)
-
-
-def project_sources(project: dict) -> list[dict]:
+def project_sources(project: dict, *, policy=None) -> list[dict]:
     """解析关联目录和版本信息供模型按需读取源码"""
     sources = []
     for index, root_name in enumerate(project["roots"]):
@@ -110,14 +99,18 @@ def project_sources(project: dict) -> list[dict]:
         if not root.is_dir():
             raise ValueError("项目来源必须是文件夹。")
         has_git = (root / ".git").exists()
-        status = git(root, "status", "--porcelain", "--untracked-files=normal") if has_git else ""
+        status = (
+            git(root, "status", "--porcelain", "--untracked-files=normal", policy=policy)
+            if has_git
+            else ""
+        )
         sources.append(
             {
                 "id": f"source-{index}",
                 "path": str(root),
                 "name": root.name,
-                "commit": git(root, "rev-parse", "HEAD") if has_git else "",
-                "branch": git(root, "branch", "--show-current") if has_git else "",
+                "commit": git(root, "rev-parse", "HEAD", policy=policy) if has_git else "",
+                "branch": git(root, "branch", "--show-current", policy=policy) if has_git else "",
                 "dirty": bool(status),
                 "status": status,
             }
@@ -158,7 +151,7 @@ def evidence_file(sources, source, path, data_dir):
     return target, relative.as_posix()
 
 
-def capture_evidence(db, data_dir, project, sources, references, cancelled=None):
+def capture_evidence(data_dir, project, sources, references, cancelled=None, *, publish):
     """模型完成后按历史证据格式保存被引用的文件"""
     data_dir = data_dir.resolve()
     snapshots = data_dir / "snapshots"
@@ -221,16 +214,20 @@ def capture_evidence(db, data_dir, project, sources, references, cancelled=None)
         fingerprint = digest(dump(manifest).encode())
         identifier = uid()
         (staging / "manifest.json").write_text(dump(manifest), encoding="utf-8")
-        with db.transaction() as conn:
-            conn.execute(
-                "INSERT INTO snapshots VALUES (?,?,?,?,?)",
-                (identifier, project["id"], fingerprint, dump(manifest), now()),
-            )
-            staging.rename(snapshots / identifier)
-    return db.one("SELECT * FROM snapshots WHERE id=?", (identifier,))
+        return publish(
+            project["id"],
+            identifier,
+            fingerprint,
+            manifest,
+            {
+                path.relative_to(staging).as_posix(): path.read_bytes()
+                for path in staging.rglob("*")
+                if path.is_file()
+            },
+        )
 
 
-def check_evidence(data_dir: Path, snapshot: dict | None, evidence: list[dict]) -> list[dict]:
+def check_evidence(snapshot: dict | None, evidence: list[dict], *, assets) -> list[dict]:
     """将行号和引文和留存原文比对，无记录或无法核实的引用降级为待确认"""
     entries = (
         {(f["source"], f["path"]): f for f in snapshot["manifest"]["files"]} if snapshot else {}
@@ -242,8 +239,8 @@ def check_evidence(data_dir: Path, snapshot: dict | None, evidence: list[dict]) 
         if item["status"] in {"code", "document"}:
             valid = False
             if source and 0 < item["line_start"] <= item["line_end"] <= source["lines"]:
-                text = (data_dir / "snapshots" / snapshot["id"] / source["staged"]).read_text(
-                    encoding="utf-8"
+                text = assets.read_file(f"snapshots/{snapshot['id']}", source["staged"]).decode(
+                    "utf-8"
                 )
                 excerpt = "\n".join(text.splitlines()[item["line_start"] - 1 : item["line_end"]])
                 valid = bool(item["quote"].strip()) and item["quote"].strip() in excerpt

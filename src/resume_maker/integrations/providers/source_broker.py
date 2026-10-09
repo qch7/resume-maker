@@ -6,7 +6,7 @@ import threading
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-from resume_maker.integrations.providers.base import ProviderError
+from resume_maker.sdk.model import ProviderError
 
 
 @contextmanager

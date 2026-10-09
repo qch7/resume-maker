@@ -1,4 +1,4 @@
--- 当前完整结构，仅对空数据库执行，版本由 database.py 统一登记
+-- 完整组合的初始结构，生产按插件 schema 装配，版本由 database.py 统一登记
 CREATE TABLE settings (key TEXT PRIMARY KEY, value_json TEXT NOT NULL);
 CREATE TABLE projects (
  id TEXT PRIMARY KEY, name TEXT NOT NULL, roots_json TEXT NOT NULL,
@@ -54,7 +54,7 @@ CREATE TABLE templates (
  mapping_json TEXT NOT NULL, created_at TEXT NOT NULL
 );
 CREATE TABLE resumes (
- id TEXT PRIMARY KEY, name TEXT NOT NULL, template_id TEXT REFERENCES templates(id),
+ id TEXT PRIMARY KEY, name TEXT NOT NULL, template_id TEXT,
  items_json TEXT NOT NULL, version INTEGER NOT NULL, created_at TEXT NOT NULL,
  updated_at TEXT NOT NULL, document_json TEXT
 );
@@ -89,3 +89,18 @@ CREATE TABLE revision_branches (
  branch_id TEXT NOT NULL REFERENCES experience_branches(id)
 );
 CREATE INDEX ix_revision_branch ON revision_branches(branch_id);
+CREATE TABLE plugin_data_catalog (
+ plugin_id TEXT PRIMARY KEY,
+ schema_version INTEGER NOT NULL CHECK(schema_version > 0),
+ descriptor_json TEXT NOT NULL,
+ package_version TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS record_references (
+ namespace TEXT NOT NULL, identifier TEXT NOT NULL, owner TEXT NOT NULL,
+ value_json TEXT NOT NULL, PRIMARY KEY(namespace, identifier)
+);
+CREATE TABLE IF NOT EXISTS record_operations (
+ id TEXT PRIMARY KEY, namespace TEXT NOT NULL, identifiers_json TEXT NOT NULL,
+ phase TEXT NOT NULL, blockers_json TEXT NOT NULL DEFAULT '[]'
+);

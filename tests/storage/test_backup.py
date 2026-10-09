@@ -7,9 +7,10 @@ import pytest
 
 from resume_maker.core.errors import Problem
 from resume_maker.infrastructure import storage
-from resume_maker.infrastructure.database import Database
+from resume_maker.infrastructure.assets import Assets
+from resume_maker.infrastructure.database import SCHEMA_VERSION, Database
 from resume_maker.infrastructure.storage import create_backup, instance_lock, restore_backup
-from resume_maker.services.catalog import Catalog
+from tests.support.data import make_catalog
 from tests.support.templates import register_template
 
 
@@ -24,7 +25,7 @@ def test_restore_preserves_previous_data_and_drafts(catalog, project, populated,
     (target / "instance.json").write_text("old instance")
     previous = restore_backup(backup, target)
     assert (previous / "instance.json").read_text() == "old instance"
-    restored = Catalog(Database(target / "resume.db"))
+    restored = make_catalog(Database(target / "resume.db"))
     assert restored.working(p, revision)["content"]["highlights"][0]["text"] == "pending text"
     assert len(restored.db.all("SELECT * FROM conversations")) == 1
 
@@ -50,7 +51,23 @@ def test_running_instance_blocks_restore(tmp_path):
         restore_backup(tmp_path / "unused.zip", target)
 
 
-@pytest.mark.parametrize("version", [1, 2, 3, 4, 5, 7])
+@pytest.mark.parametrize("name", ["data", "data.supervisor"])
+def test_repository_lock_survives_data_directory_replacement(tmp_path, name):
+    """源码实例和监督器锁集中在资料目录外，替换资料目录后仍拒绝第二个持有者"""
+    project = tmp_path / "project"
+    target = project / name
+    target.mkdir(parents=True)
+    (project / "pyproject.toml").write_text('[project]\nname = "resume-maker"\n')
+    with instance_lock(target):
+        target.rename(project / "previous")
+        target.mkdir()
+        with pytest.raises(Problem, match="正在使用"), instance_lock(target):
+            pass
+    assert not (project / f".{name}.instance.lock").exists()
+    assert (project / ".local" / "locks" / f".{name}.instance.lock").is_file()
+
+
+@pytest.mark.parametrize("version", [1, 2, 3, 4, 5, 6, 7, 8, SCHEMA_VERSION + 1])
 def test_restore_rejects_unsupported_schema_without_changing_target(catalog, tmp_path, version):
     """备份结构不匹配时保留目标数据并清理暂存目录"""
     with catalog.db.transaction() as conn:
@@ -65,8 +82,8 @@ def test_restore_rejects_unsupported_schema_without_changing_target(catalog, tmp
     assert not list(tmp_path.glob(".restored-restore-*"))
 
 
-def test_backup_blocks_concurrent_attachment_deletion(catalog, tmp_path, monkeypatch):
-    """附件删除等待数据库及文件备份完成，恢复不会遇到悬空模板记录"""
+def test_backup_pins_concurrent_attachment_deletion(catalog, tmp_path, monkeypatch):
+    """附件删除不等待压缩，固定副本确保恢复不会遇到悬空模板记录"""
     root = catalog.db.path.parent
     source = register_template(catalog, root)
     attempted, deleted = threading.Event(), threading.Event()
@@ -89,7 +106,7 @@ def test_backup_blocks_concurrent_attachment_deletion(catalog, tmp_path, monkeyp
             result = super().__enter__()
             worker.start()
             assert attempted.wait(2)
-            assert not deleted.wait(0.1)
+            assert deleted.wait(2)
             return result
 
     with monkeypatch.context() as patch:
@@ -99,7 +116,8 @@ def test_backup_blocks_concurrent_attachment_deletion(catalog, tmp_path, monkeyp
     assert deleted.is_set()
     restored = tmp_path / "restored"
     restore_backup(archive, restored)
-    assert (restored / "templates" / "mapped" / "template.docx").is_file()
+    restored_assets = Assets(Database(restored / "resume.db"), restored)
+    assert restored_assets.read_file("templates/mapped", "template.docx")
 
 
 def test_corrupted_attachment_is_rejected_without_replacing_data(catalog, tmp_path):
@@ -109,9 +127,7 @@ def test_corrupted_attachment_is_rejected_without_replacing_data(catalog, tmp_pa
     corrupt = tmp_path / "corrupt.zip"
     with ZipFile(archive) as source, ZipFile(corrupt, "w") as target:
         for name in source.namelist():
-            target.writestr(
-                name, b"changed" if name.endswith("template.docx") else source.read(name)
-            )
+            target.writestr(name, b"changed" if name.startswith("assets/") else source.read(name))
     existing = tmp_path / "existing"
     existing.mkdir()
     (existing / "instance.json").write_text("preserved")
@@ -122,9 +138,14 @@ def test_corrupted_attachment_is_rejected_without_replacing_data(catalog, tmp_pa
 
 def test_nested_backup_metadata_name_remains_an_attachment(catalog, tmp_path):
     """附件中的同名文件照常校验，只有 ZIP 根目录清单不属于附件"""
-    source = register_template(catalog, catalog.db.path.parent)
-    (source.parent / "backup.json").write_text("synthetic attachment")
+    register_template(catalog, catalog.db.path.parent)
+    staged = catalog.assets.stage_bundle(
+        "ext.template-adapter", {"backup.json": b"synthetic attachment"}
+    )
+    with catalog.db.transaction() as conn:
+        catalog.assets.update_bundle(conn, "ext.template-adapter", "templates/mapped", staged)
     archive = create_backup(catalog.db, catalog.db.path.parent)
     restored = tmp_path / "restored"
     restore_backup(archive, restored)
-    assert (restored / "templates" / "mapped" / "backup.json").read_text() == "synthetic attachment"
+    restored_assets = Assets(Database(restored / "resume.db"), restored)
+    assert restored_assets.read_file("templates/mapped", "backup.json") == b"synthetic attachment"

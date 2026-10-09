@@ -2,7 +2,6 @@
 
 import argparse
 import json
-import os
 import subprocess
 import sys
 import threading
@@ -12,7 +11,9 @@ from pathlib import Path
 import psutil
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-from resume_maker.integrations import local_ocr
+from resume_maker.core.process_environment import EnvironmentPolicy, process_environment
+from resume_maker.plugin_packages.provider_rapidocr import local_ocr
+from resume_maker.plugin_packages.provider_rapidocr.configuration import Settings
 
 FIELDS = [
     "张明远",
@@ -46,7 +47,9 @@ def sample(font, kind):
 
 def measure(font, mode):
     """独立进程统计冷启动、页面耗时及进程峰值 RSS，置信度不作为准确率"""
-    local_ocr.BASE_SIDE = {"fast": 960, "balanced": 960, "high": 2000}[mode]
+    backend = local_ocr.LocalOCR(
+        Settings(base_side={"fast": 960, "balanced": 960, "high": 2000}[mode])
+    )
     process = psutil.Process()
     peak, stopped = [process.memory_info().rss], threading.Event()
 
@@ -58,14 +61,14 @@ def measure(font, mode):
     worker = threading.Thread(target=monitor)
     worker.start()
     started = time.perf_counter()
-    local_ocr.engine()
+    backend.engine()
     cold = time.perf_counter() - started
     rows = []
     try:
         for kind in ("clean", "small", "tiny", "scan", "upside-down"):
             image = sample(font, kind)
             started = time.perf_counter()
-            result = local_ocr.recognize(image, threading.Event(), adaptive=mode == "balanced")
+            result = backend.recognize(image, threading.Event(), adaptive=mode == "balanced")
             elapsed = time.perf_counter() - started
             text = "".join(row["text"].replace(" ", "") for row in result["blocks"])
             matches = [value for value in FIELDS if value in text]
@@ -105,7 +108,7 @@ def main():
         for mode in ("fast", "balanced", "high"):
             run = subprocess.run(
                 [sys.executable, __file__, "--font", args.font, "--mode", mode],
-                env={**os.environ, "PYTHONUTF8": "1"},
+                env={**process_environment(EnvironmentPolicy.CANDIDATE), "PYTHONUTF8": "1"},
                 capture_output=True,
                 text=True,
                 encoding="utf-8",

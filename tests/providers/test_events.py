@@ -9,10 +9,11 @@ from contextlib import contextmanager
 import pytest
 
 from resume_maker.domain.models import ProviderSettings
-from resume_maker.integrations.providers import cli
-from resume_maker.integrations.providers.base import ProviderError
-from resume_maker.integrations.providers.codex import structured_text
+from resume_maker.integrations.privacy_gateway import structured_text
 from resume_maker.integrations.providers.process import execute
+from resume_maker.plugin_packages.ext_provider_codex.integrations.providers import cli
+from resume_maker.plugin_packages.ext_provider_codex.integrations.providers.cli import run_cli
+from resume_maker.sdk.model import ProviderError
 
 
 @pytest.fixture
@@ -56,7 +57,7 @@ def cli_stream(tmp_path, monkeypatch):
         nonlocal version_output
         version_output = version
         stream.extend(events)
-        return cli.run_cli(
+        return run_cli(
             {"input": "synthetic context", "schema": {}},
             ProviderSettings(),
             {},

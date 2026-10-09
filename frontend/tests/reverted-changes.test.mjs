@@ -3,14 +3,14 @@ import assert from "node:assert/strict";
 import {
   fieldChanged,
   editHighlightText,
-} from "../src/features/experiences/changes.ts";
-import { experienceContent } from "../src/features/experiences/visibility.ts";
+} from "../../src/resume_maker/plugin_packages/sys_resume/client/features/experiences/changes.ts";
+import { experienceContent } from "../src/shared/resume/visibility.ts";
 import {
   projectBodyOrder,
   restoreBodyOrder,
-} from "../src/features/experiences/bodyOrder.ts";
-import { buildLivePreview } from "../src/features/resumes/livePreview.ts";
-import { newDocument } from "../src/features/profile/document.ts";
+} from "../src/shared/resume/bodyOrder.ts";
+import { buildLivePreview } from "../../src/resume_maker/plugin_packages/sys_resume/client/features/resumes/livePreview.ts";
+import { newDocument } from "../src/shared/resume/document.ts";
 
 /** 包含核实证据、自定义信息和两条亮点，覆盖多个编辑器共同变化 */
 function fixture() {

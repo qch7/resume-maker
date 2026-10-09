@@ -15,19 +15,19 @@ from resume_maker.core.errors import Problem
 from resume_maker.domain.image_layout import ImagePage
 from resume_maker.domain.models import ProviderSettings
 from resume_maker.domain.templates import TemplatePlan
-from resume_maker.integrations import local_ocr
-from resume_maker.integrations.local_ocr import OCRBudget
+from resume_maker.integrations.ocr_support import OCRBudget
 from resume_maker.integrations.providers import page_images
-from resume_maker.integrations.providers.base import Cancelled, PageImage, ProviderError
-from resume_maker.integrations.providers.codex import CodexProvider
 from resume_maker.integrations.word.image.header import private_image_text
 from resume_maker.integrations.word.pdf.geometry import SOURCE, recovered_pdf
 from resume_maker.integrations.word.recovery import prepare_template
 from resume_maker.integrations.word.templates.fill import fill_template
 from resume_maker.integrations.word.templates.mapping import TemplatePackage
-from resume_maker.services.templates.analysis import visual_evidence
+from resume_maker.plugin_packages.ext_template_ai.services.templates.analysis import visual_evidence
+from resume_maker.plugin_packages.provider_rapidocr import local_ocr
+from resume_maker.sdk.model import Cancelled, PageImage, ProviderError
 from tests.support.documents import header_content
 from tests.support.images import page_fixture, source_plan
+from tests.support.providers import privacy_provider
 from tests.support.templates import simple_document
 
 
@@ -88,7 +88,7 @@ def test_mixed_pdf_recovers_private_pages_and_reopens_safely(tmp_path, monkeypat
     package, notes = prepare_template(
         source,
         output,
-        CodexProvider(runner=runner),
+        privacy_provider(runner=runner),
         ProviderSettings(),
         Event(),
         lambda *_: None,
@@ -136,7 +136,7 @@ def test_mixed_pdf_recovers_private_pages_and_reopens_safely(tmp_path, monkeypat
             warnings=[],
         ).model_dump_json()
 
-    provider = CodexProvider(runner=reopened)
+    provider = privacy_provider(runner=reopened)
     visual_evidence(provider, package, output, tmp_path, Event())
     provider.run_structured(
         result_model=TemplatePlan,
@@ -180,7 +180,7 @@ def test_pdf_later_page_failure_keeps_previous_output(tmp_path, monkeypatch, fai
         prepare_template(
             source,
             output,
-            CodexProvider(runner=runner),
+            privacy_provider(runner=runner),
             ProviderSettings(),
             flag,
             lambda *_: None,
@@ -206,7 +206,7 @@ def test_pdf_ocr_budget_stops_request_before_send(tmp_path, monkeypatch, limit):
         calls.append(payload)
         return json.dumps(page_answer(payload, layout))
 
-    provider = CodexProvider(runner=runner)
+    provider = privacy_provider(runner=runner)
 
     def request():
         """让当前页经过真实隐私出口进行累计限额检查"""
@@ -263,7 +263,7 @@ def test_native_conversion_failure_uses_sanitized_page(tmp_path, monkeypatch):
     package, notes = prepare_template(
         source,
         output,
-        CodexProvider(runner=runner),
+        privacy_provider(runner=runner),
         ProviderSettings(),
         Event(),
         lambda *_: None,
@@ -291,7 +291,7 @@ def test_private_pdf_keeps_empty_pages_without_ocr(tmp_path, monkeypatch):
     _, notes = prepare_template(
         source,
         output,
-        CodexProvider(runner=forbidden),
+        privacy_provider(runner=forbidden),
         ProviderSettings(),
         Event(),
         lambda *_: None,
@@ -325,7 +325,7 @@ def test_scanned_pdf_fields_and_photo_remain_fillable(tmp_path, monkeypatch):
     package, _ = prepare_template(
         source,
         output,
-        CodexProvider(runner=runner),
+        privacy_provider(runner=runner),
         ProviderSettings(),
         Event(),
         lambda *_: None,
@@ -372,6 +372,7 @@ def test_private_mixed_pdf_recovers_only_scanned_page(tmp_path, monkeypatch, bla
         }
 
     monkeypatch.setattr(local_ocr, "recognize", recognize)
+    monkeypatch.setattr(page_images, "read_document", local_ocr.read_document)
 
     def runner(payload, *args, safe_images):
         """扫描页模型只获得脱敏图和占位文字，回复使用本地 OCR 坐标"""
@@ -383,7 +384,7 @@ def test_private_mixed_pdf_recovers_only_scanned_page(tmp_path, monkeypatch, bla
             {"texts": [{"text": r["text"], "box": r["box"]} for r in context["blocks"]]}
         )
 
-    provider = CodexProvider(runner=runner)
+    provider = privacy_provider(runner=runner)
     if blank:
         with pytest.raises(Problem, match="第 2 页"):
             prepare_template(

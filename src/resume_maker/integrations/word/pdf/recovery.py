@@ -6,11 +6,11 @@ import pymupdf
 from docx import Document
 from docx.shared import Pt
 
-from resume_maker.integrations.providers.base import Cancelled
 from resume_maker.integrations.word.pdf.assets import extract_assets, place_assets, separate_bullets
 from resume_maker.integrations.word.pdf.flow import append_document, convert_flow
 from resume_maker.integrations.word.pdf.geometry import SOURCE
 from resume_maker.integrations.word.pdf.symbols import font_symbols
+from resume_maker.sdk.model import Cancelled
 
 # pdf2docx 的底层坐标矩阵是进程级状态，同进程多个工作台实例必须串行调用
 LAYOUT_LOCK = RLock()

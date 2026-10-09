@@ -31,7 +31,7 @@ def test_initialize_complete_schema_and_reopen(tmp_path):
     assert reopened.all("SELECT * FROM project_hierarchy") == []
 
 
-@pytest.mark.parametrize("version", [0, 1, 2, 3, 4, 5, SCHEMA_VERSION + 1])
+@pytest.mark.parametrize("version", [0, 1, 2, 3, 4, 5, 6, 7, 8, SCHEMA_VERSION + 1])
 def test_unsupported_database_is_rejected_without_modification(tmp_path, version):
     """未标版本的非空库和不匹配版本均被拒绝，原文件不被升级或重建"""
     path = tmp_path / "unsupported.db"
@@ -49,7 +49,8 @@ def test_failed_initialization_rolls_back_all_tables(tmp_path, monkeypatch):
     """建库途中失败时回滚全部结构，修正后可从空库重新初始化"""
     path = tmp_path / "resume.db"
     with monkeypatch.context() as patch:
-        patch.setattr(database, "SCHEMA", database.SCHEMA + "INVALID SQL;")
+        resources = database.resources
+        patch.setattr(database, "resources", lambda *args: resources(*args) + "\nINVALID SQL;")
         with pytest.raises(sqlite3.OperationalError):
             Database(path)
     with closing(sqlite3.connect(path)) as conn:

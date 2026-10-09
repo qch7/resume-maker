@@ -1,0 +1,31 @@
+{
+  "manifest_version": 1,
+  "id": "ext.native-shell",
+  "title": "本机文件交互",
+  "version": "1.0.0",
+  "package": "resume-maker",
+  "entrypoints": {
+    "host": {
+      "mode": "trusted-host",
+      "entry": "resume_maker.plugin_packages.ext_native_shell.entry:activate"
+    }
+  },
+  "requires": {
+    "host": {
+      "projects": ">=1.0.0 <2.0.0",
+      "sandbox": ">=1.0.0 <2.0.0"
+    }
+  },
+  "provides": {
+    "host": {}
+  },
+  "contributes": {
+    "http.routes": [
+      "ext.native-shell/projects",
+      "ext.native-shell/system"
+    ]
+  },
+  "permissions": [
+    "workspace.trusted"
+  ]
+}

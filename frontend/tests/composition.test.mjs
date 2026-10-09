@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   orderedHighlightIds,
   toggleHighlightSelection,
-} from "../src/features/resumes/composition.ts";
+} from "../src/shared/resume/composition.ts";
 
 const highlights = [
   { id: "evidence", title: "证据研判", text: "证据研判内容", evidence: [] },

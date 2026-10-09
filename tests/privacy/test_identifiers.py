@@ -8,7 +8,7 @@ import pytest
 from resume_maker.domain.honors import HonorRecognition
 from resume_maker.domain.models import ProviderSettings
 from resume_maker.integrations.privacy import TOKEN, Redactor
-from resume_maker.integrations.providers.codex import CodexProvider
+from tests.support.providers import privacy_provider
 
 
 @pytest.mark.parametrize(
@@ -110,7 +110,8 @@ def test_ocr_fragments_and_structured_aliases_use_the_same_gateway(tmp_path, mon
         "pages": [{"blocks": [{"text": value, "confidence": 1.0} for value in fragments]}],
     }
     monkeypatch.setattr(
-        "resume_maker.integrations.providers.codex.read_document", lambda *_: document
+        "resume_maker.plugin_packages.provider_rapidocr.local_ocr.read_document",
+        lambda *_: document,
     )
 
     def runner(payload, *_):
@@ -130,7 +131,7 @@ def test_ocr_fragments_and_structured_aliases_use_the_same_gateway(tmp_path, mon
             }
         )
 
-    result = CodexProvider(runner=runner).run_structured(
+    result = privacy_provider(runner=runner).run_structured(
         result_model=HonorRecognition,
         workspace=tmp_path,
         thread_id=None,

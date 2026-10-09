@@ -1,0 +1,78 @@
+{
+  "manifest_version": 1,
+  "id": "sys.activity",
+  "title": "系统日志",
+  "version": "1.0.0",
+  "package": "resume-maker",
+  "entrypoints": {
+    "host": {
+      "mode": "trusted-host",
+      "entry": "resume_maker.plugin_packages.sys_activity.entry:activate"
+    }
+  },
+  "requires": {
+    "host": {
+      "db": ">=1.0.0 <2.0.0"
+    }
+  },
+  "provides": {
+    "host": {
+      "activity": {
+        "version": "1.0.0",
+        "cardinality": "one"
+      }
+    }
+  },
+  "contributes": {
+    "http.routes": [
+      "sys.activity/activity"
+    ]
+  },
+  "permissions": [
+    "system.trusted"
+  ],
+  "data": {
+    "settings": [
+      "activity.preferences"
+    ],
+    "backup": false
+  },
+  "config": {
+    "max_records": 50000,
+    "retention_days": 30,
+    "lock_timeout_seconds": 2.0
+  },
+  "config_schema": {
+    "additionalProperties": false,
+    "description": "重建日志服务时按有效配置执行保留，采集偏好继续持久保存",
+    "properties": {
+      "max_records": {
+        "default": 50000,
+        "description": "最多保留日志条数",
+        "maximum": 1000000,
+        "minimum": 100,
+        "title": "Max Records",
+        "type": "integer"
+      },
+      "retention_days": {
+        "default": 30,
+        "description": "日志保留天数",
+        "maximum": 3650,
+        "minimum": 1,
+        "title": "Retention Days",
+        "type": "integer"
+      },
+      "lock_timeout_seconds": {
+        "default": 2,
+        "description": "日志库锁等待秒数",
+        "maximum": 10,
+        "minimum": 0.1,
+        "title": "Lock Timeout Seconds",
+        "type": "number"
+      }
+    },
+    "title": "ActivityPolicy",
+    "type": "object",
+    "x-resume-maker-strict": true
+  }
+}

@@ -7,12 +7,12 @@ import {
   hasHonor,
   matchesHonor,
   removeHonor,
-} from "../src/features/honors/model.ts";
+} from "../src/shared/resume/honors/model.ts";
 import {
   filledEntries,
   newDocument,
   newEntry,
-} from "../src/features/profile/document.ts";
+} from "../src/shared/resume/document.ts";
 import {
   honorFieldHidden,
   honorFieldValue,
@@ -23,11 +23,37 @@ import {
   updateHonorField,
   entryWithHonorFields,
   honorFieldsFromEntry,
-} from "../src/features/honors/entry.ts";
-import { HONOR_FIELDS } from "../src/features/honors/fields.ts";
-import { entryComposition, findEntry } from "../src/features/profile/entry.ts";
-import { sameSectionEntry } from "../src/features/profile/comparison.ts";
-import { syncHonorDocument } from "../src/features/honors/sync.ts";
+} from "../src/shared/resume/honors/entry.ts";
+import { HONOR_FIELDS } from "../src/shared/resume/honors/fields.ts";
+import {
+  entryComposition,
+  findEntry,
+} from "../../src/resume_maker/plugin_packages/sys_resume/client/features/profile/entry.ts";
+import { sameSectionEntry } from "../src/shared/resume/comparison.ts";
+import { syncHonorDocument } from "../src/shared/resume/honors/sync.ts";
+
+test("new competitions display award and level while saved visibility survives syncing", /* 新条目默认展示奖项，既有显隐偏好不改变 */ () => {
+  const source = honor();
+  source.fields.category = "竞赛获奖";
+  source.fields.award = "一等奖";
+  source.fields.level = "校级";
+  const entry = newHonorEntry(source.fields);
+  assert.equal(honorFieldHidden(entry, "award"), false);
+  assert.equal(honorFieldHidden(entry, "level"), false);
+  assert.equal(honorFieldValue(entry, "award"), "一等奖");
+  const existing = updateHonorField(entry, "award", { hidden: true });
+  assert.equal(
+    honorFieldHidden(entryWithHonorFields(existing, source.fields), "award"),
+    true,
+  );
+  assert.equal(
+    honorFieldHidden(
+      newHonorEntry({ ...source.fields, category: "资格证书" }),
+      "award",
+    ),
+    true,
+  );
+});
 
 test("removing a linked honor preserves same-name entries, sections and other resume data", /* 自定义栏目也可移除，原始简历、同名资料及库中来源保持不变 */ () => {
   const source = honor();
@@ -83,7 +109,14 @@ test("removed honors stay absent during source sync and can be added again", /* 
 
 test("unified honor editing preserves resume preferences and separates source data", /* 内容双向对应，显隐及自定义备注不进入共享荣誉 */ () => {
   const source = honor();
-  const existing = newHonorEntry(source.fields, `honor:${source.id}`);
+  const existing = {
+    ...newHonorEntry(source.fields, `honor:${source.id}`),
+    source: {
+      provider: "ext.honors/library",
+      id: source.id,
+      version: String(source.version),
+    },
+  };
   existing.visible = false;
   existing.custom_fields.push({
     id: "note",
@@ -110,6 +143,7 @@ test("unified honor editing preserves resume preferences and separates source da
 function honor(id = "sample") {
   return {
     id,
+    version: 1,
     status: "ready",
     reviewed: true,
     fields: {
@@ -151,7 +185,7 @@ test("adding honors keeps initial values immutable until a source update is rece
   );
 });
 
-test("all honor fields keep their meaning while only name and date appear by default", /* 所有库字段无损复制，奖项、级别和说明不再合并 */ () => {
+test("all honor fields keep their meaning while competitions also display award and level", /* 所有库字段无损复制，奖项、级别和说明不再合并 */ () => {
   const item = honor();
   const composed = addHonors(newDocument(), [item]);
   const section = composed.sections.find(
@@ -159,20 +193,20 @@ test("all honor fields keep their meaning while only name and date appear by def
       section.id === "honors",
   );
   const entry = section.entries[0];
-  assert.deepEqual(
-    entry,
-    JSON.parse(
-      readFileSync(
-        new URL("../../tests/fixtures/honor-entry.json", import.meta.url),
-        "utf8",
-      ),
+  const expected = JSON.parse(
+    readFileSync(
+      new URL("../../tests/fixtures/honor-entry.json", import.meta.url),
+      "utf8",
     ),
   );
+  expected.custom_fields[0].visible = true;
+  expected.custom_fields[1].visible = true;
+  assert.deepEqual(entry, expected);
   for (const field of HONOR_FIELDS) {
     assert.equal(honorFieldValue(entry, field.key), item.fields[field.key]);
     assert.equal(
       honorFieldHidden(entry, field.key),
-      !["name", "date"].includes(field.key),
+      !["name", "date", "award", "level"].includes(field.key),
     );
   }
   const [displayed] = filledEntries(section);
@@ -184,7 +218,7 @@ test("all honor fields keep their meaning while only name and date appear by def
       displayed.details,
       displayed.custom_fields,
     ],
-    ["示例竞赛", "2026-06", "", "", []],
+    ["示例竞赛", "2026-06", "", "", expected.custom_fields.slice(0, 2)],
   );
   assert.equal(entry.details, item.fields.description);
   item.fields.award = "后续改奖项";
@@ -264,7 +298,10 @@ test("optional honor edits and visibility survive a single-entry save without to
         field.value,
       ],
     ),
-    [["奖项", "二等奖"]],
+    [
+      ["奖项", "二等奖"],
+      ["荣誉级别", "省级"],
+    ],
   );
   assert.equal(
     honorFieldValue(findEntry(saved.document, "honors", entry.id), "award"),

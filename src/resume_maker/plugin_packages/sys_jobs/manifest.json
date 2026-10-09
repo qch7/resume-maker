@@ -1,0 +1,83 @@
+{
+  "manifest_version": 1,
+  "id": "sys.jobs",
+  "title": "任务协调",
+  "version": "1.0.0",
+  "package": "resume-maker",
+  "entrypoints": {
+    "host": {
+      "mode": "trusted-host",
+      "entry": "resume_maker.plugin_packages.sys_jobs.entry:activate"
+    }
+  },
+  "requires": {
+    "host": {
+      "db": ">=1.0.0 <2.0.0",
+      "activity": ">=1.0.0 <2.0.0"
+    }
+  },
+  "provides": {
+    "host": {
+      "tasks": {
+        "version": "1.0.0",
+        "cardinality": "one"
+      }
+    }
+  },
+  "contributes": {},
+  "permissions": [
+    "system.trusted"
+  ],
+  "data": {
+    "settings": [
+      "task:"
+    ]
+  },
+  "config": {
+    "max_workers": 4,
+    "max_pending_tasks": 256,
+    "close_timeout_seconds": 30.0,
+    "owner_close_timeout_seconds": 30.0
+  },
+  "config_schema": {
+    "additionalProperties": false,
+    "description": "配置变更排空现有执行器后才创建新的线程池",
+    "properties": {
+      "max_workers": {
+        "default": 4,
+        "description": "任务执行线程数",
+        "maximum": 32,
+        "minimum": 1,
+        "title": "Max Workers",
+        "type": "integer"
+      },
+      "max_pending_tasks": {
+        "default": 256,
+        "description": "未结束任务及排队总数",
+        "maximum": 4096,
+        "minimum": 1,
+        "title": "Max Pending Tasks",
+        "type": "integer"
+      },
+      "close_timeout_seconds": {
+        "default": 30,
+        "description": "任务关闭等待秒数",
+        "maximum": 300,
+        "minimum": 1,
+        "title": "Close Timeout Seconds",
+        "type": "number"
+      },
+      "owner_close_timeout_seconds": {
+        "default": 30,
+        "description": "单个任务所有者的关闭等待秒数",
+        "maximum": 300,
+        "minimum": 1,
+        "title": "Owner Close Timeout Seconds",
+        "type": "number"
+      }
+    },
+    "title": "TaskPolicy",
+    "type": "object",
+    "x-resume-maker-strict": true
+  }
+}

@@ -1,14 +1,16 @@
 """项目显隐属于简历方案，保存、预览和导出都不创建项目版本"""
 
+from io import BytesIO
+
 import pytest
 
 from resume_maker.domain.models import ProjectVisibility, ResumeItem
+from resume_maker.infrastructure.assets import Assets
 from resume_maker.infrastructure.database import Database, dump, now
 from resume_maker.integrations.sources import digest
-from resume_maker.services.catalog import Catalog
-from resume_maker.services.documents import Documents
-from resume_maker.services.resume_previews import ResumePreviews
-from tests.support.data import body_text, project_info
+from resume_maker.plugin_packages.sys_resume.services.resumes import Resumes
+from tests.support.data import body_text, make_catalog, project_info
+from tests.support.document_services import Documents, ResumePreviews
 from tests.support.layouts import metadata_template, project_document
 
 
@@ -38,12 +40,23 @@ def test_resume_visibility_isolated_persistent_and_matches_export(
                     now(),
                 ),
             )
+        staged = catalog.assets.stage_bundle(
+            "ext.template-adapter", {"template.docx": source.read_bytes()}
+        )
+        with catalog.db.transaction() as conn:
+            catalog.assets.publish_bundle(
+                conn, "ext.template-adapter", f"templates/{template_id}", staged
+            )
     document = project_document()
     item = ResumeItem(
         project_id=identifier, revision_id=revision["id"], highlight_ids=["one", "two"]
     )
-    original = catalog.save_resume("原简历", template_id, [item], document=document)
-    other = catalog.save_resume("另一简历", template_id, [item], document=document)
+    original = Resumes(catalog, storage=catalog.db, assets=catalog.assets).save_resume(
+        "原简历", template_id, [item], document=document
+    )
+    other = Resumes(catalog, storage=catalog.db, assets=catalog.assets).save_resume(
+        "另一简历", template_id, [item], document=document
+    )
     before = {
         table: catalog.db.all(f"SELECT * FROM {table}")
         for table in ("revisions", "drafts", "experience_branches")
@@ -54,10 +67,10 @@ def test_resume_visibility_isolated_persistent_and_matches_export(
         order=["custom:team", "highlights", "role", "stack", "description"],
     )
     selected = item.model_copy(update={"highlight_ids": ["two"]})
-    saved = catalog.save_resume(
+    saved = Resumes(catalog, storage=catalog.db, assets=catalog.assets).save_resume(
         "原简历", template_id, [selected], original["id"], original["version"], document
     )
-    reopened = Catalog(Database(catalog.db.path))
+    reopened = make_catalog(Database(catalog.db.path))
     stored = reopened.db.one("SELECT * FROM resumes WHERE id=?", (saved["id"],))
     assert stored["document"]["project_visibility"][identifier]["fields"]["title"] is False
     assert (
@@ -72,18 +85,28 @@ def test_resume_visibility_isolated_persistent_and_matches_export(
     )
     assert before == {table: catalog.db.all(f"SELECT * FROM {table}") for table in before}
     monkeypatch.setattr(
-        "resume_maker.services.documents.render_word", lambda *_: (None, "测试不启动 Word")
+        "tests.support.document_services.render_word", lambda *_: (None, "测试不启动 Word")
     )
     monkeypatch.setattr(
-        "resume_maker.services.resume_previews.render_word", lambda *_: (None, "测试不启动 Word")
+        "tests.support.document_services.render_word", lambda *_: (None, "测试不启动 Word")
     )
-    previews = ResumePreviews(reopened, data_dir)
-    documents = Documents(reopened, data_dir)
+    previews = ResumePreviews(
+        Resumes(reopened, storage=reopened.db, assets=reopened.assets),
+        data_dir,
+    )
+    documents = Documents(
+        Resumes(reopened, storage=reopened.db, assets=reopened.assets),
+        data_dir,
+        storage=reopened.db,
+        assets=Assets(reopened.db, data_dir),
+    )
     try:
         preview = previews.render(template_id, stored["document"], stored["items"])
         exported = documents.export(saved["id"])
         text = body_text(previews.file(preview["id"], "resume.docx"))
-        assert text == body_text(data_dir / "exports" / exported["id"] / "resume.docx")
+        assert text == body_text(
+            BytesIO(catalog.assets.read_file(f"exports/{exported['id']}", "resume.docx"))
+        )
         assert (
             text.index("隐藏团队原值")
             < text.index("Export Word")
@@ -96,7 +119,9 @@ def test_resume_visibility_isolated_persistent_and_matches_export(
             for value in ("项目标题原值", "2025.01", "example.test", "Parse documents")
         )
         unchanged = documents.export(other["id"])
-        old_text = body_text(data_dir / "exports" / unchanged["id"] / "resume.docx")
+        old_text = body_text(
+            BytesIO(catalog.assets.read_file(f"exports/{unchanged['id']}", "resume.docx"))
+        )
         assert (
             "项目标题原值" in old_text
             and "Parse documents" in old_text

@@ -7,12 +7,12 @@
     "node": ">=22.16.0"
   },
   "scripts": {
-    "test": "node --experimental-strip-types --test tests/*.test.mjs",
-    "build": "tsc -b && vite build",
+    "test": "node scripts/test.mjs",
+    "build": "tsc -b && vite build && node scripts/build-plugins.mjs",
     "typecheck": "tsc --noEmit",
     "quality": "node scripts/check-quality.mjs",
-    "format": "prettier --write src tests scripts vite.config.ts index.html",
-    "format:check": "prettier --check src tests scripts vite.config.ts index.html",
+    "format": "prettier --write src tests scripts vite.config.ts index.html ../src/resume_maker/plugin_packages/*/{client,tests}/**/*.{ts,tsx,css,mjs}",
+    "format:check": "prettier --check src tests scripts vite.config.ts index.html ../src/resume_maker/plugin_packages/*/{client,tests}/**/*.{ts,tsx,css,mjs}",
     "check": "npm run quality && npm run typecheck && npm run format:check && npm test"
   },
   "dependencies": {

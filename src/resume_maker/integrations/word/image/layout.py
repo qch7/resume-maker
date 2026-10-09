@@ -13,11 +13,11 @@ from docx.shared import Pt
 from PIL import Image, ImageDraw
 
 from resume_maker.core.errors import Problem
-from resume_maker.integrations.providers.base import Cancelled
 from resume_maker.integrations.word.pdf.assets import attach_asset
 from resume_maker.integrations.word.pdf.flow import convert_flow, text_counter
 from resume_maker.integrations.word.pdf.geometry import SOURCE
 from resume_maker.integrations.word.pdf.recovery import LAYOUT_LOCK
+from resume_maker.sdk.model import Cancelled
 
 FONT_NAMES = {
     "microsoft yahei": "微软雅黑",
@@ -220,8 +220,10 @@ def build_image_document(path, layout, flag, *, paper_size=None):
                 if flag.is_set():
                     raise Cancelled("图片模板恢复已取消。")
                 document, paragraphs = convert_flow(pdf[0], split_lines=True)
-                document._element.set(SOURCE, "image-v1")
-                document.sections[0]._sectPr.set(SOURCE, "image-v1")
+                from resume_maker.integrations.word.image.constants import IMAGE_SOURCE
+
+                document._element.set(SOURCE, IMAGE_SOURCE)
+                document.sections[0]._sectPr.set(SOURCE, IMAGE_SOURCE)
                 image_text_styles(paragraphs)
                 place_image_assets(image, layout, paragraphs, width, height)
                 return document

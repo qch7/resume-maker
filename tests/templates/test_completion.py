@@ -17,8 +17,17 @@ from resume_maker.integrations.word.templates.completion import complete_templat
 from resume_maker.integrations.word.templates.fill import fill_template
 from resume_maker.integrations.word.templates.mapping import TemplatePackage
 from resume_maker.integrations.word.templates.values import missing_targets
-from resume_maker.services.templates.analysis import analyze_plan, assess_plan
-from resume_maker.services.templates.cache import cache_path, cached_plan, remember_plan
+from resume_maker.plugin_packages.ext_template_ai.services.templates.analysis import (
+    analyze_plan,
+    assess_plan,
+)
+from resume_maker.plugin_packages.ext_template_ai.services.templates.cache import (
+    cache_path,
+    cached_plan,
+    remember_plan,
+)
+from resume_maker.plugin_packages.sys_resume.services.resumes import Resumes
+from tests.support.document_services import use_renderer
 from tests.support.documents import photo_bytes
 from tests.support.layouts import generic_content, generic_template, visible_text
 from tests.support.templates import TemplateProvider, completed
@@ -140,7 +149,8 @@ def test_first_analysis_completes_all_supported_missing_fields(tmp_path, monkeyp
     package, plan = generic_template(source, "cells", 8)
     document, projects = generic_content()
     monkeypatch.setattr(
-        "resume_maker.services.templates.analysis.source_pages", lambda *_: ([], {}, [])
+        "resume_maker.plugin_packages.ext_template_ai.services.templates.analysis.source_pages",
+        lambda *_: ([], {}, []),
     )
 
     class MappedProvider(TemplateProvider):
@@ -172,14 +182,16 @@ def test_library_review_save_and_reopen_share_completion(tmp_path, monkeypatch):
     config = Config(data_dir=tmp_path / "data", token="test")
     provider = TemplateProvider(failure=True)
     app = create_app(config, provider)
-    monkeypatch.setattr("resume_maker.services.templates.tasks.render_word", lambda *_: (1, None))
+    use_renderer(app, monkeypatch, lambda *_: (None, "测试无渲染器"))
     with TestClient(app) as client:
         catalog = app.state.services.catalog
         folder = config.data_dir / "templates" / "generic"
         folder.mkdir(parents=True)
         _, plan = generic_template(folder / "template.docx", "rows", 5)
         original = (folder / "template.docx").read_bytes()
+        staged = catalog.assets.stage_bundle("ext.template-adapter", {"template.docx": original})
         with catalog.db.transaction() as conn:
+            catalog.assets.publish_bundle(conn, "ext.template-adapter", "templates/generic", staged)
             conn.execute(
                 "INSERT INTO templates VALUES (?,?,?,?,?)",
                 ("generic", "任意模板", digest(original), dump({"plan": plan.model_dump()}), now()),
@@ -225,8 +237,13 @@ def test_library_review_save_and_reopen_share_completion(tmp_path, monkeypatch):
         assert reviewed["ready"] and reviewed["missing"] == [] and reviewed["notices"]
         preview = client.post(prefix + "/preview", json=body, headers=headers)
         assert preview.status_code == 200
-        output = task_source.parent / preview.json()["id"] / "resume.docx"
-        assert "电话：123456789" in visible_text(output) and "New subtitle" in visible_text(output)
+        assert preview.json()["pages"] is None
+        with app.state.services.templates.preview_lease(
+            opened["id"], preview.json()["id"], "resume.docx"
+        ) as output:
+            assert "电话：123456789" in visible_text(output) and "New subtitle" in visible_text(
+                output
+            )
         saved = client.post(prefix + "/save", json={**body, "name": "新版"}, headers=headers)
         assert saved.status_code == 200
         reopened = client.post(
@@ -238,4 +255,9 @@ def test_library_review_save_and_reopen_share_completion(tmp_path, monkeypatch):
         assert (
             folder / "template.docx"
         ).read_bytes() == original and task_source.read_bytes() == task_bytes
-        assert catalog.template("generic")["mapping"]["plan"] == plan.model_dump()
+        assert (
+            Resumes(catalog, storage=catalog.db, assets=catalog.assets).template("generic")[
+                "mapping"
+            ]["plan"]
+            == plan.model_dump()
+        )

@@ -14,7 +14,7 @@
 | `sources/` | 按需源码访问、引用证据、材料读取和本机定位 |
 | `templates/` | 模板分析、缓存、修复、映射、填充、版式和模板库 |
 | `word/` | DOCX/PDF/图片恢复、OCR 和渲染适配 |
-| `test_config.py`、`test_architecture.py` | 全局运行配置和生产代码依赖边界 |
+| `test_config.py`、`test_environment.py`、`test_process_environment.py`、`test_launch_scripts.py`、`test_architecture.py` | 运行目录、分层配置、重启及子进程环境、Windows 启停和依赖边界 |
 | `support/` | 多个测试文件共用的合成资料、可控 Provider 和任务等待函数 |
 | `fixtures/` | 固定接口契约和跨前后端共用的合成资料 |
 
@@ -36,13 +36,14 @@ uv run pytest -q --durations=15
 uv run python scripts/check.py
 ```
 
-Windows 默认临时目录权限异常时，可以临时指定新的专用目录：`uv run pytest -q --basetemp=output/pytest-local`。pytest 会清空指定目录，只能使用专门存放本轮测试产物的路径。
+Windows 默认临时目录权限异常时，可以临时指定新的专用目录：`uv run pytest -q --basetemp=.local/tmp/pytest-local`。pytest 会清空指定目录，只能使用专门存放本轮测试产物的路径。
 
 ## 共享代码和隔离
 
 - `conftest.py` 只提供 pytest 自动发现的夹具，不由测试显式导入。`catalog`、`project`、`populated` 按测试创建独立数据库；`fixtures_dir` 提供固定资料目录。
 - 仅一个文件使用的辅助函数留在该文件。多个文件共用时放入 `tests.support`，通过绝对路径导入；辅助模块不导入 `test_*.py` 或 `conftest.py`。
 - 根层自动夹具对所有分组继续生效：隔离模型配置、阻止真实模型请求，并替换桌面 Word。不要通过移动目录、跳过夹具或放宽断言解决测试失败。
+- 启动配置自动夹具清除应用前缀变量并关闭源码 dotenv 自动发现；每个配置测试显式设置输入。启动真实合成宿主时传入 `--no-env-file`；wheel 和缺包验收的 Python 子进程使用独立系统环境。真实 CLI 验收开关继续保留。
 - 使用 pytest 的 `importlib` 导入模式，允许不同功能下存在 `test_library.py` 等同名文件。根层 `__init__.py` 为共享模块提供包入口并注册断言重写，各功能目录无需再添加包标记。
 - 固定资料通过 `fixtures_dir` 读取，仓库脚本通过 `pytestconfig.rootpath` 定位，避免根据测试所在深度推算根目录。
 - 合并用例时保留边界场景和参数化组合。只有相同前置条件及断言已被覆盖，或验证对象已移除且当前契约已有覆盖时，才删除用例；测试短小或近期未失败不是删除依据。

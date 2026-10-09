@@ -1,0 +1,96 @@
+{
+  "manifest_version": 1,
+  "id": "ext.template-adapter",
+  "title": "模板适配",
+  "version": "1.0.0",
+  "package": "resume-maker",
+  "entrypoints": {
+    "host": {
+      "mode": "trusted-host",
+      "entry": "resume_maker.plugin_packages.ext_template_adapter.entry:activate"
+    },
+    "client": {
+      "mode": "trusted-client",
+      "entry": "bundled:plugin.js"
+    }
+  },
+  "requires": {
+    "host": {
+      "config": ">=1.0.0 <2.0.0",
+      "documents": ">=1.0.0 <2.0.0",
+      "resume_previews": ">=1.0.0 <2.0.0",
+      "activity": ">=1.0.0 <2.0.0",
+      "resume": ">=1.0.0 <2.0.0",
+      "document.registry": ">=1.0.0 <2.0.0",
+      "db": ">=1.0.0 <2.0.0",
+      "assets": ">=1.0.0 <2.0.0"
+    }
+  },
+  "provides": {
+    "host": {
+      "templates": {
+        "version": "1.0.0",
+        "cardinality": "one"
+      },
+      "template.records": {
+        "version": "1.0.0",
+        "cardinality": "one"
+      }
+    }
+  },
+  "contributes": {
+    "http.routes": [
+      "ext.template-adapter/templates"
+    ],
+    "documents.engines": [
+      "ext.template-adapter/default"
+    ]
+  },
+  "permissions": [
+    "workspace.trusted"
+  ],
+  "data": {
+    "tables": [
+      "templates"
+    ],
+    "settings": [
+      "template-analysis:",
+      "template-draft:"
+    ],
+    "folders": [
+      "templates",
+      "template-drafts"
+    ],
+    "schemas": [
+      "plugin_packages/ext_template_adapter/data/ext.template-adapter.sql"
+    ],
+    "relations": [
+      "plugin_packages/ext_template_adapter/data/ext.template-adapter.references.sql"
+    ]
+  },
+  "enhances": [],
+  "consumes": [
+    "documents.importers",
+    "documents.renderers"
+  ],
+  "config": {
+    "close_timeout_seconds": 8.0
+  },
+  "config_schema": {
+    "additionalProperties": false,
+    "description": "关闭等待超时继续保留任务依赖和原件",
+    "properties": {
+      "close_timeout_seconds": {
+        "default": 8,
+        "description": "模板任务关闭等待秒数",
+        "maximum": 300,
+        "minimum": 1,
+        "title": "Close Timeout Seconds",
+        "type": "number"
+      }
+    },
+    "title": "Settings",
+    "type": "object",
+    "x-resume-maker-strict": true
+  }
+}

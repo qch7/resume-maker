@@ -1,0 +1,10 @@
+{
+  "packages": [
+    {
+      "path": "ABSOLUTE_PACKAGE_PATH",
+      "digest": "DIGEST_FROM_INSPECT",
+      "trusted_modes": ["trusted-host", "trusted-client"]
+    }
+  ],
+  "generation": 1
+}

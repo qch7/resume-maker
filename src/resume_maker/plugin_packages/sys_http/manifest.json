@@ -1,0 +1,35 @@
+{
+  "manifest_version": 1,
+  "id": "sys.http",
+  "title": "本机 HTTP",
+  "version": "1.0.0",
+  "package": "resume-maker",
+  "entrypoints": {
+    "host": {
+      "mode": "trusted-host",
+      "entry": "resume_maker.plugin_packages.sys_http.entry:activate"
+    }
+  },
+  "requires": {
+    "host": {
+      "config": ">=1.0.0 <2.0.0"
+    }
+  },
+  "provides": {
+    "host": {
+      "http.client": {"version": "1.0.0", "cardinality": "one"},
+      "http": {
+        "version": "1.0.0",
+        "cardinality": "one"
+      }
+    }
+  },
+  "contributes": {
+    "http.routes": [
+      "sys.http/system"
+    ]
+  },
+  "permissions": [
+    "system.trusted"
+  ]
+}

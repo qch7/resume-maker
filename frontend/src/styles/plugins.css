@@ -1,0 +1,71 @@
+.plugin-toolbar {
+  position: fixed;
+  right: 16px;
+  bottom: 12px;
+  display: flex;
+  gap: 8px;
+  z-index: 30;
+}
+.plugin-notice {
+  position: fixed;
+  inset: 0 0 auto;
+  padding: 16px;
+  background: var(--surface, #fff);
+  border-bottom: 2px solid #b38b33;
+  z-index: 60;
+}
+.plugin-manager .settings-body {
+  max-height: 70vh;
+  overflow: auto;
+}
+.plugin-choice {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 10px;
+  border-bottom: 1px solid #ddd;
+}
+.plugin-choice input {
+  width: auto;
+}
+.content-preview {
+  background: #fff;
+  color: #222;
+  margin: 12px;
+  padding: 24px;
+  min-height: 550px;
+  overflow-wrap: anywhere;
+}
+.content-preview h1 {
+  font-size: 25px;
+  margin: 10px 0;
+}
+.content-preview h2 {
+  color: #537ba3;
+  font-size: 17px;
+  border-bottom: 1px solid #ccc;
+  margin-top: 22px;
+}
+.content-preview h3 {
+  font-size: 15px;
+}
+.content-preview p,
+.content-preview li {
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+.content-preview img {
+  float: right;
+  max-width: 90px;
+  max-height: 120px;
+  object-fit: contain;
+}
+.content-contact:not(:empty) {
+  display: inline-block;
+  margin-right: 12px;
+}
+.plugin-isolated-page {
+  width: 100%;
+  min-height: 70vh;
+  border: 0;
+}

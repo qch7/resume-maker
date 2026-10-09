@@ -1,0 +1,65 @@
+{
+  "manifest_version": 1,
+  "id": "ext.provider-codex",
+  "title": "Codex 适配器",
+  "version": "1.0.0",
+  "package": "resume-maker",
+  "entrypoints": {
+    "host": {
+      "mode": "trusted-host",
+      "entry": "resume_maker.plugin_packages.ext_provider_codex.entry:activate"
+    },
+    "client": {
+      "mode": "trusted-client",
+      "entry": "bundled:plugin.js"
+    }
+  },
+  "requires": {
+    "host": {
+      "sandbox": ">=1.0.0 <2.0.0",
+      "execution": ">=1.0.0 <2.0.0",
+      "credentials": ">=1.0.0 <2.0.0",
+      "settings": ">=1.0.0 <2.0.0"
+    }
+  },
+  "provides": {
+    "host": {
+      "model.transport": {
+        "version": "1.0.0",
+        "cardinality": "one"
+      },
+      "model.inspection": {
+        "version": "1.0.0",
+        "cardinality": "one"
+      }
+    }
+  },
+  "contributes": {
+    "http.routes": [
+      "ext.provider-codex/settings"
+    ]
+  },
+  "permissions": [
+    "workspace.trusted"
+  ],
+  "config": {
+    "inspection_timeout_seconds": 15.0
+  },
+  "config_schema": {
+    "additionalProperties": false,
+    "description": "版本检查超时独立于实际模型请求超时",
+    "properties": {
+      "inspection_timeout_seconds": {
+        "default": 15,
+        "description": "CLI 版本探测秒数",
+        "maximum": 120,
+        "minimum": 1,
+        "title": "Inspection Timeout Seconds",
+        "type": "number"
+      }
+    },
+    "title": "Settings",
+    "type": "object",
+    "x-resume-maker-strict": true
+  }
+}

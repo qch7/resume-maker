@@ -14,15 +14,17 @@ from resume_maker.core.config import Config
 from resume_maker.domain.models import Model, ProviderSettings
 from resume_maker.integrations.privacy import TOKEN, Redactor
 from resume_maker.integrations.privacy_store import PrivacyStore
-from resume_maker.integrations.providers.base import Cancelled, ProviderError, StructuredOutputError
-from resume_maker.integrations.providers.codex import CodexProvider
-from resume_maker.integrations.providers.connection import connection
 from resume_maker.integrations.providers.material_server import call
 from resume_maker.integrations.providers.sandbox import materials
 from resume_maker.integrations.source_access import SourceAccess
 from resume_maker.integrations.source_context import source_context
 from resume_maker.integrations.sources import project_sources
+from resume_maker.plugin_packages.ext_provider_codex.integrations.providers.connection import (
+    connection,
+)
+from resume_maker.sdk.model import Cancelled, ProviderError, StructuredOutputError
 from tests.support.privacy import provider_at, reply, run
+from tests.support.providers import privacy_provider
 
 
 def test_actual_request_masks_context_schema_and_restores_locally(tmp_path, catalog):
@@ -40,7 +42,7 @@ def test_actual_request_masks_context_schema_and_restores_locally(tmp_path, cata
             value not in serialized
             for value in [*values, "old-private-session", "private-workspace"]
         )
-        assert body["transport"] == "codex-cli-sandbox" and "schema" in body
+        assert body["transport"] == "privacy-gateway" and "schema" in body
         return reply(body["input"])
 
     provider = provider_at(tmp_path, handle, catalog.db)
@@ -99,7 +101,7 @@ def test_task_secrets_survive_copying_and_are_never_restored(tmp_path, origin):
         seen.append(payload)
         return json.dumps({"answer": payload["input"]})
 
-    base = CodexProvider(runner=runner)
+    base = privacy_provider(runner=runner)
     provider = base.with_private_data({"personal": {"name": "合成姓名"}})
     sibling = provider.with_private_data({})
     if origin == "private_data":
@@ -269,7 +271,7 @@ def test_cancelled_cli_marks_audit_without_publishing_result(tmp_path, catalog):
         flag.set()
         raise Cancelled("取消")
 
-    provider = CodexProvider(privacy=PrivacyStore(catalog.db), runner=runner)
+    provider = privacy_provider(privacy=PrivacyStore(catalog.db), runner=runner)
     with pytest.raises(Cancelled):
         run(provider, tmp_path, "测试", cancelled=flag)
     assert catalog.db.setting("privacy_audit")[0]["status"] == "cancelled"
@@ -396,7 +398,7 @@ def test_schema_private_enum_restores_without_changing_protocol(tmp_path):
         assert "合成学校栏目" not in json.dumps(payload, ensure_ascii=False)
         return json.dumps({"section": field["const"]})
 
-    provider = CodexProvider(runner=runner).with_private_data(
+    provider = privacy_provider(runner=runner).with_private_data(
         {"personal": {"name": "string", "custom_fields": [{"value": "合成学校栏目"}]}}
     )
     result = provider.run_structured(
