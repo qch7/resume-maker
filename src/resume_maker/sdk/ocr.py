@@ -2,6 +2,7 @@
 
 import math
 import threading
+from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol, TypedDict
 
@@ -127,15 +128,20 @@ def validate_ocr_document(value: object) -> OCRDocument:
 class ValidatedOCR:
     """消费入口统一校验第三方返回值并阻止取消后的结果发布"""
 
-    def __init__(self, backend: OCRBackend):
+    def __init__(self, backend: OCRBackend | Callable[[Path, threading.Event], OCRDocument]):
         """只保存当前计划绑定的提供方"""
         self.backend = backend
+        self.reader = backend if callable(backend) else backend.read_document
 
     def read_document(self, path: Path, cancelled: threading.Event) -> OCRDocument:
         """在实际调用前后检查取消，提供方保留自己的停止屏障"""
         if cancelled.is_set():
             raise Cancelled("OCR 已取消。")
-        value = self.backend.read_document(path, cancelled)
+        value = self.reader(path, cancelled)
         if cancelled.is_set():
             raise Cancelled("OCR 已取消。")
         return validate_ocr_document(value)
+
+    def __call__(self, path: Path, cancelled: threading.Event) -> OCRDocument:
+        """沿用现有业务的函数式调用，复用同一取消及结果校验"""
+        return self.read_document(path, cancelled)

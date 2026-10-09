@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from resume_maker.integrations import document_limits, privacy_policy
+from resume_maker.integrations.privacy_gateway import PrivacyGateway
 from resume_maker.sdk import ocr
 from resume_maker.sdk.model import Cancelled, ProviderError
 from resume_maker.sdk.ocr import (
@@ -72,7 +73,9 @@ def test_public_limits_match_consumers_and_empty_pages_remain_valid():
         validate_ocr_document(value)
 
 
-def test_cancelled_result_is_never_published():
+@pytest.mark.parametrize("as_function", [False, True])
+@pytest.mark.parametrize("entry", ["read_document", "__call__"])
+def test_cancelled_result_is_never_published(as_function, entry):
     """提供方忽略执行中取消时，能力入口仍拒绝迟到的结果"""
     calls = []
     cancelled = threading.Event()
@@ -86,9 +89,37 @@ def test_cancelled_result_is_never_published():
             signal.set()
             return document()
 
-    service = ValidatedOCR(Backend())
+    backend = Backend()
+    service = ValidatedOCR(backend.read_document if as_function else backend)
+    read = getattr(service, entry)
     with pytest.raises(Cancelled):
-        service.read_document(Path("synthetic.png"), cancelled)
+        read(Path("synthetic.png"), cancelled)
     with pytest.raises(Cancelled):
-        service.read_document(Path("another.png"), cancelled)
+        read(Path("another.png"), cancelled)
     assert calls == [Path("synthetic.png")]
+
+
+@pytest.mark.parametrize("as_function", [False, True])
+def test_existing_gateway_consumes_both_ocr_provider_interfaces(as_function):
+    """实际隐私消费入口兼容函数及对象提供方，并继续核验返回结构"""
+    calls = []
+    result = document()
+
+    class Backend:
+        """提供相同结果供两种公开调用方式验收"""
+
+        def read_document(self, path, signal):
+            """保留实际材料路径和取消信号，不依赖具体 OCR 引擎"""
+            calls.append((path, signal))
+            return result
+
+    backend = Backend()
+    wrapper = ValidatedOCR(backend.read_document if as_function else backend)
+    gateway = PrivacyGateway(runner=object(), privacy=object(), ocr=wrapper)
+    path, signal = Path("synthetic.png"), threading.Event()
+    assert gateway.read_ocr(path, signal) == result
+    assert wrapper.read_document(path, signal) == result
+    assert calls == [(path, signal), (path, signal)]
+    result["pages"][0]["blocks"][0]["confidence"] = float("nan")
+    with pytest.raises(ProviderError, match="公开契约"):
+        gateway.read_ocr(path, signal)
