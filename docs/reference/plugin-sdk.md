@@ -2,6 +2,8 @@
 
 本文说明当前插件接口、包格式和运行边界。宿主装配及生命周期见 [架构说明](../architecture.md)，开发检查见 [开发指南](../development.md)。
 
+Host 和 Client SDK 当前为 **1.1.0**。使用公开 OCR 类型、凭据字段和可取消请求的插件应声明对应的 `host_api` / `client_api: ">=1.1.0 <2.0.0"`；既有 `>=1.0.0 <2.0.0` 插件继续兼容。服务自身的版本独立维护，`ocr.backend` 和 `credentials` 仍为 1.0.0。
+
 ## 本地组合
 
 `plugins/profiles.json` 定义必需身份和发行策略，minimal / standard 成员来自各独立包的 `package.json.resumeMaker.profiles`。18 个系统职责必装，5 个本地提供方补全依赖；标准组合另含 18 个扩展及提供方。系统身份由发行策略判断，第三方不能占用内置 ID。
@@ -77,6 +79,79 @@ Python 公共入口在 `resume_maker.sdk`，定义见 `sdk/manifest.py`、`conte
 `--plugin-config <JSON文件>` 接受 `{bundles: [{name, edits}], startup: [操作...]}`。bundle 按顺序应用并持久保留；startup 只在当前启动生效，普通重启不会把临时值当成永久配置。发行组合也可通过 `profiles.json` 的 `profile_bundles` 及 `bundles` 声明默认配置。文件不执行代码，不包含密钥原文，凭据继续使用独立引用。
 
 ## Host 服务、路由及资源
+
+### 外部提供方身份和替换
+
+`sys.*` 和 `provider.*` 为宿主保留身份，外部包及构建前校验均拒绝使用。第三方 OCR 包使用 `community.baidu-ocr` 等自有 ID，提供的能力仍声明为 `ocr.backend`；包身份和服务名分别表达所有者和接口。
+
+“设置 → 插件 → 能力提供方”在一份计划中启用候选、停用冲突的旧提供方，并审查消费者及配置影响。插件卡片的启用开关同样协调唯一能力。显式实例绑定同步替换；清单硬性依赖某个包或固定提供方时仍由求解器拒绝不兼容计划。旧提供方的全部能力一并消失，其他消费者缺依赖时计划失败，活动组合保持原样。`many` 集合能力继续允许多个提供方，不进入唯一能力替换入口。
+
+### OCR 契约和合成验收
+
+公开接口位于 `resume_maker.sdk.ocr`：`OCRBackend.read_document(Path, threading.Event) -> OCRDocument`、`OCRPage` 和 `OCRBlock`。返回值保持普通字典，便于原有插件兼容。`pages` 使用原文分页顺序；每行包含非空 `text`、`confidence`（有限的 0..1）和 `box: [x0, y0, x1, y1]`，坐标以原页面左上角为原点，归一化至 0..1 且有正面积。页面 `width` / `height` 为相应坐标页面的尺寸，图片可使用像素、PDF 文字层可使用页面单位；比例坐标不受单位影响。`method` 是提供方的提取方式标识。
+
+文档 `text` 按行 `\n`、页间 `\n\n` 汇总，`seconds` 是非负有限耗时，`needs_review` 至少覆盖置信度低于 `OCR_REVIEW_CONFIDENCE` 的行，`notice` 提供提取及复核说明。空页保留分页和空 `blocks`，整份无文字抛出 `ProviderError`。异常不能包含凭据或原文；取消抛出 `Cancelled`，返回前再次检查信号。实际 HTTP、模型或子进程结束前不得报告停止完成。
+
+SDK 导出统一边界：12 页、100000 字符、6000 行、20 MiB 输入和 4000 万原图像素；当前复核门槛为 0.85。宿主内部复用同一组常量。文件与像素检查由读取原件的提供方执行，`ext.ocr` 在公共消费入口通过 `validate_ocr_document` 统一核验返回值和取消后的结果。图片恢复所用的低层 `recognize` 保持原有私有策略接口。
+
+插件可把合成结果输出为 JSON，执行 `plugin-sdk test --ocr-result synthetic-ocr.json` 验收结构；本地测试也可以直接调用 `validate_ocr_document`。此验收覆盖格式和资源边界，真实图片准确率另行验证。
+
+### 凭据字段和持久引用
+
+`resume_maker.sdk.credentials.Credentials` 公开 `register(adapter, purpose, loader)`、`borrow(reference, adapter, purpose)` 和 `revoke(reference)`。临时加载器注册沿用原行为；持久密码由宿主管理界面保存，插件通过引用借用。声明如下：
+
+```json
+{
+  "host_api": ">=1.1.0 <2.0.0",
+  "requires": {"host": {"credentials": ">=1.0.0 <2.0.0"}},
+  "credential_fields": {"api_key": {"title": "API Key", "purpose": "ocr.auth"}},
+  "config": {"api_key": ""},
+  "config_schema": {
+    "type": "object",
+    "properties": {"api_key": {"type": "string", "format": "credential-ref"}},
+    "additionalProperties": false
+  }
+}
+```
+
+凭据字段目前支持顶层字符串。密码控件初始为空，保存只返回 `cred.<随机身份>`；普通配置、客户端快照和计划只能保存引用，服务端拒绝填入原文。API 日志不采集凭据请求正文和摘要，输入校验也不回显原文。随后在现有计划中应用新引用，当前插件继续使用旧引用。代码借用示例：
+
+```python
+from resume_maker.sdk.context import ServiceKey
+from resume_maker.sdk.credentials import Credentials
+
+credentials = context.require(ServiceKey[Credentials[str]]("credentials"))
+with credentials.borrow(context.config["api_key"], context.instance_id, "ocr.auth") as api_key:
+    pass  # 仅在本轮可信适配器调用内使用
+```
+
+引用固定到实例和用途，重启后可继续使用；创建新实例需重新配置密钥。Windows 使用当前用户 DPAPI 加密，POSIX 使用 0700 目录和 0600 文件限制访问，不宣称 POSIX 文件加密。密码存放在资料目录的 `credential-vault/`，不进入资料 ZIP 备份；同机恢复保留现有 vault，换机恢复需重新录入。停用和保存新引用保留旧凭据，插件可以显式撤销不再使用的引用，已借用的实际执行仍需结束。已保存但未应用的引用不会自动改变活动配置。
+
+### HTTP 截止、取消和共享配额
+
+声明 `requires.host["http.client"]` 后，通过 `ServiceKey[HTTPClient]("http.client")` 消费 `sdk.http` 契约。同步 `request(method, url, deadline=..., cancelled=..., quota=..., headers=..., body=..., max_bytes=...)` 共用宿主连接池；`deadline` 为 `time.monotonic()` 的绝对截止，覆盖排队、连接和响应。只接受 HTTPS，不继承环境代理、不自动重定向；返回有界的原始响应字节、状态码和头部，供应商格式由插件解释。
+
+同一供应商账户须使用相同 `quota` 键，建议按供应商身份和持久凭据引用组合，不含密码原文。每个键最多四个传输和三十二个等待，宿主总等待及执行最多一百二十八个，配额键最多二百五十六个。此服务提供并发配额协调；供应商的每分钟请求数和计费额度仍需插件按账户策略控制。取消和关闭均等待实际异步传输清理，不能保证已经送达供应商的请求被撤回。模型材料仍须经过隐私网关，这个通用服务不构成隐私授权。
+
+客户端 `context.request(method, payload, signal?)` 现接受 `AbortSignal`，沿用固定代次及 RPC 命名空间。浏览器中止只停止等待及接收结果，服务端任务停止仍由已声明的任务取消接口和实际停止屏障控制。
+
+### 插件作者工具
+
+安装 Resume Maker 后即可使用 `plugin-sdk`，也可执行 `python -m resume_maker.plugins.tools`：
+
+```sh
+plugin-sdk validate ./source --include python/helpers.py
+plugin-sdk package ./source ./plugin.rmp --include python/helpers.py
+plugin-sdk environment-lock ./source ./source/wheels ./source/environment.json
+plugin-sdk test ./plugin.rmp --enable ext.ocr
+plugin-sdk test --ocr-result ./synthetic-ocr.json
+```
+
+`validate` 和 `package` 不执行插件代码，核验身份、SDK 区间、清单、入口、摘要及包资源边界。只收集入口、许可证、声明的资料/锁文件和显式 `--include` 文件，输出文件存在时拒绝覆盖。依赖辅助模块需显式列入，源码目录中的未列入文件不随包发布。
+
+`environment-lock` 从包内 wheel 目录读取 METADATA，按当前解释器平台筛选并核验传递依赖和 extras；Host 插件必须包含 Resume Maker 及其完整运行依赖。缺包或版本冲突直接失败，不能把本机已有库当作离线依赖。工具不下载 wheel，也不修改活动解释器；发布者准备相应平台的二进制 wheel 后，将 `environment_lock` 指向生成文件，再校验并打包。安装预览提供目标解释器及 `uv pip install` 参数数组，Host 依赖准备须停机，不自动补装。
+
+`test` 显式执行受信任插件，在临时资料目录启动独立本机宿主，通过 HTTP 验收安装、启用、停用、再次启用和正常关闭；清除继承的模型凭据，不使用正式资料或 `tests.support`。`--enable` 补充消费者及依赖，整个候选仍须满足求解器。存在独立表迁移的包须先按离线维护流程验收。可复用 `resume_maker.plugins.testing.PluginTestClient` 编写 RPC 和业务断言；默认生命周期冒烟检查不替代插件自己的完整业务测试。
 
 普通编辑的共享写入也需要并发基线。`PUT /api/settings/provider` 使用 `ProviderSettings.version`，成功响应返回本次写入的新版本；旧资料未存版本时从 0 开始，无需数据库迁移。修改 `PATCH /api/conversations/{id}` 的 `input_draft` 时必须同时携带原始 `expected_input_draft`，缺少基线返回 422，基线变化返回 409。仅修改标题、讨论范围或归档状态不需要输入基线。
 

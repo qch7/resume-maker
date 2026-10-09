@@ -17,6 +17,7 @@ dependencies = [
   "pywin32>=308; sys_platform == 'win32'",
   "packaging>=24,<27",
   "jsonschema>=4.23,<5",
+  "httpx>=0.28,<1",
 ]
 
 [project.optional-dependencies]
@@ -32,6 +33,7 @@ capabilities = ["pymupdf>=1.25,<2", "pdf2docx>=0.5.8,<0.6", "pillow>=11,<13", "r
 
 [project.scripts]
 resume-maker = "resume_maker.cli:main"
+plugin-sdk = "resume_maker.plugins.tools:main"
 
 [project.urls]
 Homepage = "https://github.com/qch7/resume-maker"

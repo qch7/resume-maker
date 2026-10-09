@@ -1,4 +1,5 @@
 import { useId } from "react";
+import CredentialControl from "./CredentialControl";
 import {
   changeConfigField,
   changeConfigJson,
@@ -19,6 +20,10 @@ import {
 } from "./configurationForm";
 
 interface Props {
+  plugin?: string;
+  credentialFields?: Record<string, { title: string; purpose: string }>;
+  onCredentialPending?: (field: string, pending: boolean) => void;
+  onSaveCredential?: (field: string, secret: string) => Promise<string>;
   title: string;
   schema: ConfigSchema;
   value: Record<string, unknown>;
@@ -114,6 +119,10 @@ function ConfigControl({
 
 /** 配置值、来源和恢复操作在同一字段内显示，复杂结构保留高级编辑 */
 export default function PluginConfigEditor({
+  plugin,
+  credentialFields = {},
+  onCredentialPending,
+  onSaveCredential,
   title,
   schema,
   value,
@@ -202,6 +211,26 @@ export default function PluginConfigEditor({
               <div className="plugin-config-control">
                 {pendingReset ? (
                   <span className="plugin-config-pending">待恢复</span>
+                ) : plugin &&
+                  onSaveCredential &&
+                  field.path.length === 1 &&
+                  credentialFields[field.path[0]] ? (
+                  <CredentialControl
+                    id={id}
+                    field={field.path[0]}
+                    label={credentialFields[field.path[0]].title}
+                    reference={input.text}
+                    disabled={disabled || !!rawError}
+                    onChange={(reference) =>
+                      onChange(
+                        changeConfigField(draft, field, { text: reference }),
+                      )
+                    }
+                    onPending={(pending) =>
+                      onCredentialPending?.(field.path[0], pending)
+                    }
+                    onSave={onSaveCredential}
+                  />
                 ) : (
                   <ConfigControl
                     id={id}

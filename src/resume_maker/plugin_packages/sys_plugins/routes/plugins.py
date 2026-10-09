@@ -14,7 +14,9 @@ from resume_maker.infrastructure.task_supervisor import TaskSupervisor
 from resume_maker.runtime.manager import PluginManager
 from resume_maker.runtime.worker import validate_schema
 from resume_maker.sdk.configuration import ConfigurationEdit
+from resume_maker.sdk.credentials import CredentialManagement
 from resume_maker.sdk.manifest import Contract, InstanceSpec
+from resume_maker.sdk.version import CLIENT_API_VERSION, HOST_API_VERSION
 
 router = APIRouter(prefix="/api", tags=["plugins"])
 
@@ -68,6 +70,9 @@ class PackageBatchInput(Contract):
     packages: list[PackageInstallInput] = Field(min_length=1, max_length=100)
     generation: int = Field(ge=1)
     selected: list[str] | None = None
+    instances: list[InstanceSpec] | None = None
+    configs: dict[str, dict] | None = None
+    config_edits: list[ConfigurationEdit] = Field(default_factory=list, max_length=1000)
 
 
 class RpcInput(Contract):
@@ -91,13 +96,50 @@ class PinInput(Contract):
     digest: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
 
 
+class CredentialInput(Contract):
+    """密码仅交给凭据后端，不进入配置计划及客户端快照"""
+
+    generation: int = Field(ge=1)
+    secret: str = Field(min_length=1, max_length=16_384, repr=False)
+
+
+@router.put("/plugins/{plugin_id}/credentials/{field}")
+def save_plugin_credential(
+    dep_plugins: Annotated[PluginManager, Depends(service("plugins"))],
+    dep_credentials: Annotated[CredentialManagement, Depends(service("credentials"))],
+    plugin_id: str,
+    field: str,
+    body: CredentialInput,
+):
+    """为已声明字段创建引用，应用配置仍需经过现有变更计划"""
+    with dep_plugins.lock:
+        if (
+            body.generation != dep_plugins.host.generation
+            or dep_plugins.pending_plan
+            or dep_plugins.maintenance
+        ):
+            raise Problem("插件组合已变化或正在变更，请刷新后重试。", 409)
+        manifest = dep_plugins.host.manifests.get(plugin_id)
+        declaration = manifest.credential_fields.get(field) if manifest else None
+        if declaration is None:
+            raise Problem("插件没有声明此凭据字段。", 404)
+        return {"reference": dep_credentials.save(plugin_id, declaration.purpose, body.secret)}
+
+
 @router.post("/plugins/packages/plans")
 def plan_package_batch(
     dep_plugins: Annotated[PluginManager, Depends(service("plugins"))], body: PackageBatchInput
 ):
     """暂存所有候选包但保持活动索引，返回同一窗口确认协议的变更计划"""
     return dep_plugins.upgrades.plan(
-        [item.model_dump() for item in body.packages], body.generation, body.selected
+        [item.model_dump() for item in body.packages],
+        body.generation,
+        body.selected,
+        instances=body.instances,
+        configs=body.configs,
+        config_edits=[
+            edit.model_dump(mode="json", exclude_unset=True) for edit in body.config_edits
+        ],
     )
 
 
@@ -213,8 +255,8 @@ def capabilities(
     host = dep_plugins.host
     return {
         "generation": host.generation,
-        "host_api": "1.0.0",
-        "client_api": "1.0.0",
+        "host_api": HOST_API_VERSION,
+        "client_api": CLIENT_API_VERSION,
         "ready": not dep_plugins.maintenance
         and all(host.instances[key].state == "active" for key in host.required),
         "plugins": sorted(host.selected),

@@ -684,6 +684,9 @@ class Host:
                 "desired": identifier in self.desired,
                 "config": deepcopy(self.configs.get(identifier, manifest.config)),
                 "config_schema": manifest.config_schema,
+                "credential_fields": {
+                    key: field.model_dump() for key, field in manifest.credential_fields.items()
+                },
                 "config_provenance": (self.configuration or {})
                 .get("provenance", {})
                 .get(identifier, {}),

@@ -254,6 +254,12 @@ export function parseConfigField(
       throw new Error(`须为 ${schema.multipleOf} 的倍数`);
   }
   if (typeof value === "string") {
+    if (
+      schema.format === "credential-ref" &&
+      value &&
+      !/^cred\.[a-f0-9]{32}$/.test(value)
+    )
+      throw new Error("请通过密码控件保存凭据，此项只接受宿主引用");
     const length = [...value].length;
     if (schema.minLength !== undefined && length < schema.minLength)
       throw new Error(`至少 ${schema.minLength} 个字符`);

@@ -92,7 +92,11 @@ export interface ClientContext {
   ): void;
   style(css: string): void;
   effect(dispose: () => void | Promise<void>): void;
-  request<T = unknown>(method: string, payload: unknown): Promise<T>;
+  request<T = unknown>(
+    method: string,
+    payload: unknown,
+    signal?: AbortSignal,
+  ): Promise<T>;
 }
 
 export interface ClientPlugin {

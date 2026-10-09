@@ -35,13 +35,14 @@ def main():
     with redirect_stdout(output):
         launch(["--print-config", "--env-file", str(configuration)])
     assert json.loads(output.getvalue())["port"] == 8111
-    for name in ("PIL", "pymupdf", "pdf2docx", "rapidocr_onnxruntime", "httpx", "pytest"):
+    for name in ("PIL", "pymupdf", "pdf2docx", "rapidocr_onnxruntime", "pytest"):
         assert importlib.util.find_spec(name) is None, name
     directory = Path.cwd() / "minimal-data"
     app = create_app(Config(data_dir=directory, profile="minimal"))
     host = app.state.runtime
     host.start()
     try:
+        assert host.require(ServiceKey("http.client")) is not None
         catalog = host.require(ServiceKey("catalog"))
         project = catalog.create_project("合成手工经历", [])
         catalog.put_draft(

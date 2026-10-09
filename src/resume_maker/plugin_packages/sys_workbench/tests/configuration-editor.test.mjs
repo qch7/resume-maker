@@ -69,6 +69,27 @@ const props = {
   onChange: () => {},
 };
 
+test("凭据字段使用空密码控件，普通配置只保留引用", () => {
+  const html = render({
+    ...props,
+    plugin: "community.synthetic",
+    schema: {
+      type: "object",
+      properties: {
+        api_key: { type: "string", format: "credential-ref", title: "API Key" },
+      },
+    },
+    credentialFields: { api_key: { title: "API Key", purpose: "ocr.auth" } },
+    value: { api_key: "cred." + "a".repeat(32) },
+    provenance: {},
+    onSaveCredential: async () => "cred." + "b".repeat(32),
+  });
+  assert.match(html, /type="password"/);
+  assert.match(html, /autoComplete="new-password"/);
+  assert.match(html, /已配置凭据/);
+  assert.ok(!html.includes('value="cred.'));
+});
+
 test("OCR 表单显示十个数值控件和一个开关，JSON 默认折叠且无重复来源列表", () => {
   const html = render(props);
   assert.equal((html.match(/type="number"/g) ?? []).length, 10);

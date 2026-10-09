@@ -3,6 +3,7 @@
 import secrets
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -50,6 +51,18 @@ def configure_middleware(app: FastAPI, config: Config) -> None:
     async def validation_handler(_request, exc):
         """将业务模型验证错误转换为 422 响应以免当作服务器故障"""
         return JSONResponse({"detail": str(exc)}, status_code=422)
+
+    @app.exception_handler(RequestValidationError)
+    async def request_validation_handler(_request, exc):
+        """输入错误只返回字段和原因，密码及个人资料不回显到响应"""
+        return JSONResponse(
+            {
+                "detail": [
+                    {key: error[key] for key in ("loc", "msg", "type")} for error in exc.errors()
+                ]
+            },
+            status_code=422,
+        )
 
     @app.exception_handler(FileNotFoundError)
     async def missing_handler(_request, _exc):

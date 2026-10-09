@@ -213,7 +213,7 @@ export async function initializePlugins() {
         effects.push(dispose);
       },
       /** 插件只能调用自身命名空间的已声明远程操作 */
-      request(method, payload) {
+      request(method, payload, signal) {
         if (!/^[a-zA-Z][a-zA-Z0-9_.-]{0,100}$/.test(method))
           throw new Error("远程操作标识无效。");
         return api(
@@ -223,6 +223,7 @@ export async function initializePlugins() {
             generation: value.generation,
             payload,
           },
+          signal,
         );
       },
     };

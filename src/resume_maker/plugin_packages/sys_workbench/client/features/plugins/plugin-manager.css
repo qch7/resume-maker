@@ -1,3 +1,167 @@
+.plugin-manager-panel {
+  --plugin-space: 20px;
+}
+.plugin-section {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: var(--plugin-space);
+  background: var(--surface);
+  margin: 16px 0;
+}
+.plugin-section-heading h4 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+.plugin-section-heading p,
+.plugin-advanced > p,
+.plugin-downloads > p {
+  margin: 0 0 16px;
+  color: var(--subtle);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.plugin-provider-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(160px, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding-top: 16px;
+  margin-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.plugin-provider-row strong,
+.plugin-provider-row small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.plugin-provider-row strong {
+  font-size: 13px;
+}
+.plugin-provider-row small {
+  margin-top: 6px;
+  color: var(--subtle);
+  font-size: 12px;
+}
+.plugin-input-action,
+.plugin-instance-form,
+.plugin-download-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+}
+.plugin-instance-form,
+.plugin-download-form {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+}
+.plugin-manager-panel label {
+  font-size: 13px;
+  line-height: 1.5;
+}
+.plugin-instance-form label,
+.plugin-download-form label {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  min-width: 0;
+}
+.plugin-provider-row select,
+.plugin-input-action input,
+.plugin-instance-form input,
+.plugin-instance-form select,
+.plugin-download-form input {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+}
+.plugin-input-action button,
+.plugin-instance-form button,
+.plugin-download-form button {
+  white-space: nowrap;
+  margin: 0;
+}
+.plugin-file-label {
+  display: block;
+  margin: 20px 0 8px;
+}
+.plugin-advanced > summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+}
+.plugin-advanced[open] > summary {
+  margin-bottom: 16px;
+}
+.plugin-downloads {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px;
+  background: var(--muted);
+}
+.plugin-downloads > summary {
+  cursor: pointer;
+  font-size: 13px;
+}
+.plugin-downloads[open] > summary {
+  margin-bottom: 14px;
+}
+.plugin-download-item,
+.plugin-inspection,
+.plugin-install-candidates {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin-top: 16px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.plugin-inspection {
+  background: var(--muted);
+}
+.plugin-candidate-row,
+.plugin-trust-confirmation {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.plugin-candidate-row label {
+  flex: 1;
+}
+.plugin-trust-confirmation input,
+.plugin-candidate-row input[type="checkbox"] {
+  width: 16px;
+  margin: 0 8px 0 0;
+  flex-shrink: 0;
+}
+.plugin-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.plugin-card-body > details:not(.plugin-card-configuration) label {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0;
+}
+.plugin-credential-control {
+  width: 100%;
+  display: grid;
+  gap: 8px;
+}
+.plugin-credential-control small,
+.plugin-credential-status {
+  color: var(--subtle);
+  font-size: 12px;
+}
+.plugin-credential-control .plugin-input-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.plugin-credential-control input {
+  flex: 1 1 180px;
+}
 .plugin-mode-row {
   display: flex;
   align-items: center;
@@ -19,7 +183,11 @@
   min-width: 140px;
 }
 .plugin-mode-description {
-  margin: 12px 0 20px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 12px 4px 20px;
   font-size: 13px;
   color: var(--subtle);
 }
@@ -183,7 +351,7 @@
   color: var(--warning);
   overflow-wrap: anywhere;
 }
-.plugin-card:has(.plugin-card-configuration[open]) {
+.plugin-card:has(.plugin-card-details[open] .plugin-card-configuration[open]) {
   grid-column: 1 / -1;
 }
 .plugin-config-editor {
@@ -282,10 +450,6 @@
     grid-template-columns: 1fr;
   }
 }
-.plugin-manager-panel > details:not(.plugin-group) {
-  border-top: 1px solid var(--line);
-  padding: 16px 0;
-}
 .plugin-plan {
   border: 1px solid var(--line);
   background: var(--muted);
@@ -329,6 +493,18 @@
   }
 }
 @media (max-width: 700px) {
+  .plugin-provider-row,
+  .plugin-instance-form,
+  .plugin-download-form {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .plugin-input-action {
+    grid-template-columns: 1fr;
+  }
+  .plugin-candidate-row {
+    flex-wrap: wrap;
+  }
   .plugin-mode-row {
     flex-wrap: wrap;
   }

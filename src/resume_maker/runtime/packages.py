@@ -6,6 +6,7 @@ import json
 import os
 import re
 import shutil
+import sys
 from pathlib import Path, PurePosixPath
 from uuid import uuid4
 from zipfile import ZipFile
@@ -166,6 +167,21 @@ class PackageStore:
                 "digest": fingerprint(artifacts),
                 "artifacts": artifacts,
                 "missing_dependencies": check_dependencies(manifest),
+                "dependency_plan": {
+                    "stop_host": "host" in manifest.entrypoints,
+                    "automatic": False,
+                    "command": [
+                        "uv",
+                        "pip",
+                        "install",
+                        "--python",
+                        sys.executable,
+                        *manifest.dependencies,
+                    ],
+                    "environment_lock": manifest.environment_lock,
+                }
+                if manifest.dependencies
+                else None,
                 "trust_modes": sorted({entry.mode for entry in manifest.entrypoints.values()}),
             }
 

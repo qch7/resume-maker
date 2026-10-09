@@ -23,7 +23,7 @@ export type {
   ActivityPresentation,
   ActivityPresenter,
 } from "../activity";
-export const CLIENT_API_VERSION = "1.0.0";
+export const CLIENT_API_VERSION = "1.1.0";
 export type {
   DocumentPreviewer,
   DocumentPreviewProps,

@@ -1,11 +1,13 @@
 """插件配置在执行代码前按清单校验，运行实例只收到独立快照"""
 
+import re
 from copy import deepcopy
 from math import isfinite
 
 from jsonschema import Draft202012Validator
 from jsonschema.validators import extend
 
+from resume_maker.infrastructure.observability import protect_secrets
 from resume_maker.runtime.graph import PluginError
 from resume_maker.runtime.state import fingerprint
 from resume_maker.runtime.worker import validate_schema
@@ -34,6 +36,14 @@ def configurations(manifests, overrides):
         validate_schema(manifest.config_schema)
         Draft202012Validator.check_schema(manifest.config_schema)
         value = deepcopy(overrides.get(identifier, manifest.config))
+        for name in manifest.credential_fields:
+            reference = value.get(name, "") if isinstance(value, dict) else None
+            if not isinstance(reference, str) or (
+                reference and not re.fullmatch(r"cred\.[a-f0-9]{32}", reference)
+            ):
+                if isinstance(reference, str):
+                    protect_secrets(reference)
+                raise PluginError(f"{identifier} 的凭据字段 {name} 只能保存宿主凭据引用")
         if isinstance(value, dict):
             for key, declaration in manifest.config_schema.get("properties", {}).items():
                 if (
