@@ -309,6 +309,8 @@ class ModelCapacity:
                     self.condition.wait(min(0.05, remaining))
                 if cancelled.is_set():
                     raise Cancelled("模型调用已取消。")
+                if time.monotonic() >= deadline:
+                    raise ProviderError("模型排队超过等待预算，请重试。")
                 self.active += 1
             finally:
                 self.pending -= 1

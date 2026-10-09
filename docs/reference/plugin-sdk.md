@@ -84,6 +84,8 @@ Python 公共入口在 `resume_maker.sdk`，定义见 `sdk/manifest.py`、`conte
 
 临时预览使用 `sdk.previews.PreviewCache`，简历预览和模板试填各保留最多 24 份、总计 128 MiB，按最近使用顺序回收。单份超过预算时拒绝发布，渲染失败的部分产物立即回收。HTTP 下载通过 `LeasedFileResponse` 持有租约直到完整传输结束或断开，所有容量被活动租约占用时等待用户重试。只清理当前实例创建的临时目录，正式导出、模板原件和分析草稿继续按各自资料规则保留。
 
+异步简历预览入口先进入 `ResumePreviews.request_work(cancelled, timeout=...)` 上下文，再提交线程池；上下文固定实例准入、取消事件和绝对截止，并保持到实际工作及清理结束。AnyIO 将上下文复制给工作线程，`render` 沿用原预算，不重复准入或重新计时；直接同步调用 `render` 仍自动建立独立作用域。HTTP 请求拥有监视器和执行子任务，默认每 50 ms 核验截止及断开；请求任务取消也通知同步工作，池外等待可撤销，已开始工作须完成清理后归还容量。渲染器通过 `sdk.documents.current_document_work()` 或 `check_document_work()` 响应同一取消和截止，单个不协作的原生调用仍不能任意抢占。实例默认最多 16 个执行及等待请求、串行生成、总预算 660 秒；每次未命中预览通常生成一份 DOCX 并调用一次渲染器，不增加自动重试。
+
 ```python
 from fastapi import APIRouter
 from resume_maker.sdk.context import ServiceKey
@@ -113,7 +115,7 @@ def activate(context):
 
 宿主退出先完成本作用域的停止屏障，任务调度器拒绝新任务、通知取消并等待执行及其清理实际结束；之后回收残留子作用域，最后释放父资源。等待子作用域关闭时不占用父容器锁，任务可以自行完成清理，重复 `close_scope()` 安全。停止超时仍保留执行器和资源，旧任务退出后可重试关闭。
 
-应用内业务路由通过 `Depends(service("服务名"))` 显式注入；建立快照时核验所有权。领域方法签名定义在 `sdk/services.py` 的 Protocol 中，HTTP 层不再为类型声明导入对应服务实现。已有 HTTP 路径保持兼容，模块内部的端点分组由插件注册确定。
+应用内业务路由通过 `Depends(service("服务名"))` 显式注入；建立快照时核验所有权。依赖解析只异步查找请求租约内已注册的内存服务，不借用共享线程池，阻塞业务方法仍在工作线程执行。领域方法签名定义在 `sdk/services.py` 的 Protocol 中，HTTP 层不再为类型声明导入对应服务实现。已有 HTTP 路径保持兼容，模块内部的端点分组由插件注册确定。
 
 持久资源使用 `assets.stage(owner, bytes, media_type)`，之后在业务数据库事务内 `assets.publish(conn, staged, references)`。未提交的暂存记录不允许读取；读取通过 `lease()` 保持摘要和生命周期。历史模板、荣誉和证据目录仍由各插件的持久描述枚举，不能以插件停用为由清理它们。
 

@@ -26,8 +26,8 @@ class ServiceView:
 def service(name: str):
     """路由逐项声明依赖，解析器按当前所有者清单校验授权"""
 
-    def resolve(request: Request):
-        """在请求租约内读取同代次的公开能力，参数不暴露万能容器"""
+    async def resolve(request: Request):
+        """在请求租约内查找内存中的公开能力，不等待共享线程池"""
         route = request.scope["route"]
         owner = request.app.state.route_owners[id(route)]
         return request.app.state.contexts[owner].require(ServiceKey(name))
