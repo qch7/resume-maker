@@ -1,0 +1,111 @@
+{
+  "manifest_version": 1,
+  "id": "community.baidu-ocr",
+  "title": "百度云 OCR",
+  "version": "1.0.0",
+  "package": "community.baidu-ocr",
+  "host_api": ">=1.0.0 <2.0.0",
+  "client_api": ">=1.0.0 <2.0.0",
+  "entrypoints": {
+    "host": { "mode": "trusted-host", "entry": "python/plugin.py:activate" },
+    "client": { "mode": "trusted-client", "entry": "client/index.js" }
+  },
+  "requires": { "host": { "credentials": ">=1.0.0 <2.0.0" } },
+  "provides": {
+    "host": { "ocr.backend": { "version": "1.0.0", "cardinality": "one" } }
+  },
+  "contributes": {},
+  "permissions": ["workspace.trusted"],
+  "dependencies": ["pillow>=11,<13", "pymupdf>=1.25,<2"],
+  "lifecycle": {
+    "toggle": "drain",
+    "config_update": "drain",
+    "host_code_update": "host-restart",
+    "deactivate_timeout_seconds": 120
+  },
+  "config": {
+    "credentials_file": "",
+    "api": "accurate",
+    "request_timeout_seconds": 20,
+    "image_long_side": 2400,
+    "pdf_scale": 3,
+    "min_request_interval_seconds": 1,
+    "native_pdf_text": true
+  },
+  "config_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "credentials_file": {
+        "type": "string",
+        "default": "",
+        "maxLength": 4096,
+        "description": "凭据 JSON 文件的绝对路径；留空时先安装和配置"
+      },
+      "api": {
+        "type": "string",
+        "enum": ["accurate", "general"],
+        "default": "accurate",
+        "description": "含位置版接口：accurate 高精度，general 标准"
+      },
+      "request_timeout_seconds": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 30,
+        "default": 20,
+        "description": "每次鉴权或识别请求的网络等待秒数"
+      },
+      "image_long_side": {
+        "type": "integer",
+        "minimum": 512,
+        "maximum": 4096,
+        "default": 2400,
+        "description": "上传图像最长边像素数，过大可能超过请求体上限"
+      },
+      "pdf_scale": {
+        "type": "number",
+        "minimum": 1,
+        "maximum": 4,
+        "default": 3,
+        "description": "PDF 扫描页栅格化倍率，仍受最长边限制"
+      },
+      "min_request_interval_seconds": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 60,
+        "default": 1,
+        "description": "同实例两次识别请求的最短间隔秒数"
+      },
+      "native_pdf_text": {
+        "type": "boolean",
+        "default": true,
+        "description": "优先本机提取可靠 PDF 文字，扫描和混合页调用百度"
+      }
+    }
+  },
+  "rpc": {
+    "status": {
+      "input_schema": { "type": "null" },
+      "output_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "configured": { "type": "boolean" },
+          "running": { "type": "boolean" },
+          "api": { "type": "string", "enum": ["accurate", "general"] }
+        },
+        "required": ["configured", "running", "api"]
+      }
+    },
+    "connect": {
+      "input_schema": { "type": "null" },
+      "output_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": { "connected": { "type": "boolean" } },
+        "required": ["connected"]
+      },
+      "timeout_seconds": 40
+    }
+  }
+}
