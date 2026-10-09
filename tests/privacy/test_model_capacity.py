@@ -1,10 +1,12 @@
 """所有模型入口共用实际调用容量，任务副本不会复制容量池"""
 
 import threading
+from types import SimpleNamespace
 
 import pytest
 
 from resume_maker.domain.models import ProviderSettings
+from resume_maker.integrations import privacy_gateway
 from resume_maker.integrations.privacy_gateway import ModelCapacity, PrivacyGateway
 from resume_maker.sdk.model import Cancelled, ProviderError
 
@@ -119,3 +121,54 @@ def test_full_wait_queue_and_mid_wait_cancellation_never_start_transport():
         if worker.ident:
             worker.join(2)
     assert capacity.pending == 0 and capacity.active == 0
+
+
+@pytest.mark.parametrize("elapsed,allowed", [(0.5, True), (1.0, False), (2.0, False)])
+def test_capacity_wakeup_checks_original_deadline(monkeypatch, elapsed, allowed):
+    """截止前释放只调用一次，截止时或之后唤醒不启动传输"""
+    clock, calls, errors = [0.0], [], []
+    waiting, cancelled = threading.Event(), threading.Event()
+    monkeypatch.setattr(privacy_gateway, "time", SimpleNamespace(monotonic=lambda: clock[0]))
+    capacity = ModelCapacity(parallel=1, waiting=1, wait_seconds=1)
+
+    class Condition(threading.Condition):
+        """固定等待者已释放锁的时机"""
+
+        def wait(self, timeout=None):
+            """进入实际短等待前通知主线程"""
+            waiting.set()
+            return super().wait(timeout)
+
+    capacity.condition = Condition()
+
+    def run():
+        """计数真正通过模型门的传输入口"""
+        try:
+            with capacity.enter(cancelled):
+                calls.append(1)
+        except Exception as exc:
+            errors.append(type(exc))
+
+    hold = capacity.enter(threading.Event())
+    hold.__enter__()
+    held = True
+    worker = threading.Thread(target=run)
+    try:
+        worker.start()
+        assert waiting.wait(1)
+        with capacity.condition:
+            clock[0] = elapsed
+            hold.__exit__(None, None, None)
+            held = False
+        worker.join(1)
+        assert not worker.is_alive()
+        assert calls == ([1] if allowed else [])
+        assert errors == ([] if allowed else [ProviderError])
+        assert capacity.active == 0 and capacity.pending == 0
+    finally:
+        cancelled.set()
+        if held:
+            hold.__exit__(None, None, None)
+        with capacity.condition:
+            capacity.condition.notify_all()
+        worker.join(1)

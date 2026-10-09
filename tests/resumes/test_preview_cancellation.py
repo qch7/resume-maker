@@ -168,15 +168,20 @@ def test_preview_admission_rejects_extra_work_and_stop_cancels_active(catalog, t
 
 def test_preview_route_disconnect_waits_for_actual_cleanup():
     """路由将断开传给同步生成器，真实清理结束前保持请求未完成"""
-    cancelled_seen, cleanup = threading.Event(), threading.Event()
+    entered, cancelled_seen, cleanup = threading.Event(), threading.Event(), threading.Event()
     calls, results = [], []
 
     class Service:
         """受控同步预览替身"""
 
+        def request_work(self, cancelled):
+            """在真实路由线程池等待前提供同一预算"""
+            return document_work(cancelled, timeout=5, max_bytes=100)
+
         def render(self, *args, cancelled, force, **kwargs):
             """接到断开后仍需清理资源"""
             calls.append(force)
+            entered.set()
             assert cancelled.wait(2)
             cancelled_seen.set()
             assert cleanup.wait(2)
@@ -184,13 +189,10 @@ def test_preview_route_disconnect_waits_for_actual_cleanup():
 
     async def scenario():
         """用异步请求边界验证取消和结果发布的先后顺序"""
-        disconnected = False
 
         async def is_disconnected():
-            """仅生成一次可控断开事件"""
-            nonlocal disconnected
-            disconnected = True
-            return disconnected
+            """工作已经启动后模拟消费者断开"""
+            return entered.is_set()
 
         async def request():
             """调用实际路由，保存真实异常类型"""

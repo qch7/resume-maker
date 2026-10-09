@@ -2,7 +2,8 @@
 
 import threading
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
+from contextvars import ContextVar
 from dataclasses import replace
 
 from resume_maker.core.content import digest
@@ -44,22 +45,14 @@ class ResumePreviews:
         self.stopped = False
         self.admission = threading.Lock()
         self.requests = {}
+        self.request_context = ContextVar("resume_preview_request", default=None)
         self.failures = {}
         self.pool = PreviewCache(data_dir / "workspaces", prefix="resume-previews-")
 
-    def render(
-        self,
-        template_id,
-        document,
-        items,
-        *,
-        engine_id=None,
-        renderer_id=None,
-        cancelled=None,
-        force=False,
-        timeout=None,
-    ):
-        """核验固定版本归属后使用当前资料和可选工作副本试填"""
+    @internal
+    @contextmanager
+    def request_work(self, cancelled=None, *, timeout=None):
+        """在线程池排队前固定准入和截止，实际工作结束后才释放"""
         flag = cancelled if cancelled is not None else threading.Event()
         request_key = object()
         with self.admission:
@@ -73,19 +66,44 @@ class ResumePreviews:
                 flag,
                 timeout=self.settings.preview_timeout_seconds if timeout is None else timeout,
                 max_bytes=self.pool.max_bytes,
-            ):
-                with self.render_lock():
-                    return self._render(
-                        template_id,
-                        document,
-                        items,
-                        engine_id=engine_id,
-                        renderer_id=renderer_id,
-                        force=force,
-                    )
+            ) as work:
+                token = self.request_context.set(work)
+                try:
+                    yield work
+                finally:
+                    self.request_context.reset(token)
         finally:
             with self.admission:
                 self.requests.pop(request_key, None)
+
+    def render(
+        self,
+        template_id,
+        document,
+        items,
+        *,
+        engine_id=None,
+        renderer_id=None,
+        cancelled=None,
+        force=False,
+        timeout=None,
+    ):
+        """沿用请求原有预算，直接同步调用则创建独立的准入作用域"""
+        work = self.request_context.get()
+        if work is not None and cancelled is not None and cancelled is not work.cancelled:
+            raise Problem("预览取消信号不属于当前请求。", 409)
+        with (
+            nullcontext(work) if work is not None else self.request_work(cancelled, timeout=timeout)
+        ):
+            with self.render_lock():
+                return self._render(
+                    template_id,
+                    document,
+                    items,
+                    engine_id=engine_id,
+                    renderer_id=renderer_id,
+                    force=force,
+                )
 
     @contextmanager
     def render_lock(self):

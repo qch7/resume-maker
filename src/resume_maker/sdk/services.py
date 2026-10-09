@@ -336,6 +336,10 @@ class ResumePreviews(Protocol):
         """撤销已清理模板的预览缓存"""
         ...
 
+    def request_work(self, cancelled=None, *, timeout=None):
+        """线程池排队前保留请求容量，返回含原截止的文档工作作用域"""
+        ...
+
     def render(
         self,
         template_id,
