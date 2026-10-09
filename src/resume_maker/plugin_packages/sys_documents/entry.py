@@ -1,5 +1,6 @@
 """文档流程的注册和生命周期入口"""
 
+from resume_maker.plugin_packages.sys_documents.configuration import Settings
 from resume_maker.plugins.support import dependency, publish, routes
 
 
@@ -43,7 +44,13 @@ def activate(context):
         },
     )
     previews = ResumePreviews(
-        catalog, directory, render=None, templates=False, engine=engine, registry=registry
+        catalog,
+        directory,
+        render=None,
+        templates=False,
+        engine=engine,
+        registry=registry,
+        settings=Settings.model_validate(context.config),
     )
     publish(context, "document.registry", registry, observed=False)
     publish(context, "documents", documents)

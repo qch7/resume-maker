@@ -1,9 +1,12 @@
 """固定版本简历组合和导出下载的 HTTP 入口"""
 
+import threading
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+import anyio
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import Response
+from starlette.concurrency import run_in_threadpool
 
 from resume_maker.api.dependencies import service
 from resume_maker.api.resources import AssetResponse, LeasedFileResponse
@@ -18,20 +21,46 @@ router = APIRouter(prefix="/api", tags=["resumes"])
 
 
 @router.post("/resume-previews")
-def preview_resume(
+async def preview_resume(
     dep_resume_previews: Annotated[ResumePreviews, Depends(service("resume_previews"))],
     body: ResumePreviewInput,
+    request: Request,
     engine_id: str | None = None,
     renderer_id: str | None = None,
 ):
     """用当前模板为未保存资料生成临时预览"""
-    return dep_resume_previews.render(
-        body.template_id,
-        body.document.model_dump(),
-        [item.model_dump() for item in body.items],
-        engine_id=engine_id,
-        renderer_id=renderer_id,
-    )
+    cancelled = threading.Event()
+
+    async def watch_disconnect():
+        """断开只发送取消，路由租约保留到实际生成结束"""
+        while not cancelled.is_set():
+            if await request.is_disconnected():
+                cancelled.set()
+                return
+            await anyio.sleep(0.05)
+
+    async with anyio.create_task_group() as group:
+        group.start_soon(watch_disconnect)
+        try:
+            result = await run_in_threadpool(
+                dep_resume_previews.render,
+                body.template_id,
+                body.document.model_dump(),
+                [item.model_dump() for item in body.items],
+                engine_id=engine_id,
+                renderer_id=renderer_id,
+                cancelled=cancelled,
+                force=request.headers.get("x-resume-preview-force") == "1",
+            )
+            failure = None
+        except Exception as exc:
+            failure = exc
+        finally:
+            cancelled.set()
+            group.cancel_scope.cancel()
+    if failure is not None:
+        raise failure
+    return result
 
 
 @router.get("/resume-previews/{preview_id}/{file_name}")

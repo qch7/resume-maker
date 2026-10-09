@@ -35,6 +35,9 @@ OCR 的引擎输出门槛 `text_score` 和隐私复核门槛属于不同职责�
 | `ext.ai-conversation` | `close_timeout_seconds` | `8.0` | 1 … 300 | 经历任务关闭等待秒数 |
 | `ext.ai-conversation` | `queue_poll_seconds` | `0.5` | 0.1 … 10 | 独立队列检查间隔秒数 |
 | `ext.ai-conversation` | `event_poll_seconds` | `0.5` | 0.1 … 10 | 进度流检查间隔秒数 |
+| `ext.ai-runtime` | `max_parallel_calls` | `4` | 1 … 32 | 模型实际调用并发数 |
+| `ext.ai-runtime` | `max_waiting_calls` | `32` | 1 … 256 | 模型等待调用数 |
+| `ext.ai-runtime` | `wait_timeout_seconds` | `1200.0` | 1 … 7200 | 模型排队等待秒数 |
 | `ext.honors` | `close_timeout_seconds` | `10.0` | 1 … 300 | 荣誉任务关闭等待秒数 |
 | `ext.provider-codex` | `inspection_timeout_seconds` | `15.0` | 1 … 120 | CLI 版本探测秒数 |
 | `ext.source-code` | `git_timeout_seconds` | `20.0` | 1 … 120 | 只读 Git 查询等待秒数 |
@@ -60,7 +63,11 @@ OCR 的引擎输出门槛 `text_score` 和隐私复核门槛属于不同职责�
 | `sys.activity` | `max_records` | `50000` | 100 … 1000000 | 最多保留日志条数 |
 | `sys.activity` | `retention_days` | `30` | 1 … 3650 | 日志保留天数 |
 | `sys.activity` | `lock_timeout_seconds` | `2.0` | 0.1 … 10 | 日志库锁等待秒数 |
+| `sys.documents` | `max_preview_requests` | `16` | 1 … 128 | 预览执行及等待总数 |
+| `sys.documents` | `preview_timeout_seconds` | `660.0` | 5 … 3600 | 预览排队及全部生成阶段的总秒数 |
+| `sys.documents` | `failed_preview_retry_seconds` | `2.0` | 0 … 30 | 相同输入预览失败的自动重试间隔 |
 | `sys.jobs` | `max_workers` | `4` | 1 … 32 | 任务执行线程数 |
+| `sys.jobs` | `max_pending_tasks` | `256` | 1 … 4096 | 未结束任务及排队总数 |
 | `sys.jobs` | `close_timeout_seconds` | `30.0` | 1 … 300 | 任务关闭等待秒数 |
 | `sys.jobs` | `owner_close_timeout_seconds` | `30.0` | 1 … 300 | 单个任务所有者的关闭等待秒数 |
 | `sys.plugins` | `download_timeout_seconds` | `5.0` | 1 … 60 | 下载网络等待秒数 |

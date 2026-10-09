@@ -195,7 +195,7 @@ def test_failed_render_can_download_word_and_retry(preview, monkeypatch):
     with pytest.raises(Problem, match="不存在"):
         service.file(result["id"], "resume.pdf")
     monkeypatch.setattr("tests.support.document_services.render_word", renderer)
-    retry = service.render("mapped", resume_content().model_dump(), [])
+    retry = service.render("mapped", resume_content().model_dump(), [], force=True)
     assert retry["id"] != result["id"]
     assert retry["pages"] == 1
 

@@ -336,7 +336,18 @@ class ResumePreviews(Protocol):
         """撤销已清理模板的预览缓存"""
         ...
 
-    def render(self, template_id, document, items, *, engine_id=None, renderer_id=None):
+    def render(
+        self,
+        template_id,
+        document,
+        items,
+        *,
+        engine_id=None,
+        renderer_id=None,
+        cancelled=None,
+        force=False,
+        timeout=None,
+    ):
         """核验固定版本归属后使用当前资料和可选工作副本试填"""
         ...
 
@@ -434,6 +445,10 @@ class Workspace(Protocol):
 
     def state(self):
         """保持经历活动时间、简历来源和各插件摘要的事务一致性"""
+        ...
+
+    def poll(self, previous):
+        """根据提交和贡献版本返回完整正文或未变化标识"""
         ...
 
 

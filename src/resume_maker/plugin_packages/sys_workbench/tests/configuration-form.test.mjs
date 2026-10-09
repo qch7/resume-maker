@@ -35,10 +35,10 @@ test("全部内置运行参数按清单声明生成中文标签和对应控件�
   const configured = manifests.filter(
     (item) => Object.keys(item.config ?? {}).length,
   );
-  assert.equal(configured.length, 13);
+  assert.equal(configured.length, 15);
   assert.equal(
     configured.flatMap((item) => configFields(item.config_schema)).length,
-    36,
+    43,
   );
   for (const manifest of configured) {
     const declared = configFields(manifest.config_schema);

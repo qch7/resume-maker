@@ -259,6 +259,7 @@ class Honors:
                     lambda: self._recognize(identifier, settings),
                     metadata,
                     prepared=prepared,
+                    on_cancel=lambda: self._recognize(identifier, settings),
                 )
             except Exception:
                 with self.lock:

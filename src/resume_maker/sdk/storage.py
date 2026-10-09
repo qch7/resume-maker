@@ -1,8 +1,15 @@
 """插件实例的数据接口，提供版本比较和同事务多键更新"""
 
+from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from typing import Any, Protocol
+
+
+def database_query(callback):
+    """声明工作台贡献只依赖读取快照，允许未提交变化时复用聚合"""
+    callback.database_only = True
+    return callback
 
 
 class Rows(Protocol):
@@ -78,6 +85,14 @@ class RelationalStore(Protocol):
 
     def set_setting(self, key: str, value) -> None:
         """以独立写事务保存设置"""
+        ...
+
+
+class ObservedStore(RelationalStore, Protocol):
+    """可选提交观察能力，未实现的后端继续完整读取以保证新鲜度"""
+
+    def change_observer(self) -> AbstractContextManager[Callable[[], object]]:
+        """提供实例独立的提交观察器，包含其他连接的实际写入"""
         ...
 
 

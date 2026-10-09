@@ -1,9 +1,11 @@
 """持久任务元数据、取消及发布检查的统一协调器"""
 
 import threading
-from concurrent.futures import ThreadPoolExecutor, TimeoutError
+from collections import defaultdict, deque
+from concurrent.futures import Future, ThreadPoolExecutor, TimeoutError
 from contextlib import nullcontext
 from copy import deepcopy
+from time import monotonic
 
 from resume_maker.core.errors import Problem
 from resume_maker.infrastructure.database import dump, now, uid, unpack
@@ -35,8 +37,12 @@ class TaskSupervisor:
         self.adapters = {}
         self.owned = {}
         self.condition = threading.Condition(self.lock)
-        self.serial = {}
         self.persistence_errors = {}
+        self.recoveries = {}
+        self.pending = defaultdict(deque)
+        self.dispatched = set()
+        self.dispatcher = None
+        self.dispatcher_stop = threading.Event()
 
     def scope(self, owner, generation, providers, version="1.0.0"):
         """业务队列取得固定插件身份和配置快照的调度入口"""
@@ -76,12 +82,24 @@ class TaskSupervisor:
             for row in executions
             if (row["owner"], row["entity_id"]) not in known
         )
+        known = {(row["owner"], row["id"]) for row in result}
+        with self.lock:
+            result.extend(
+                {"id": identifier, "owner": owner, "state": "finalizing"}
+                for owner, identifier in self.recoveries
+                if owner in owners and (owner, identifier) not in known
+            )
         return result
 
     def prepare(self, conn, queue, identifier, metadata):
         """调度意图同业务输入原子保存，崩溃后明确中断且不自动重放"""
         if self.executor is None or self.stopping:
             raise Problem("系统任务执行器尚未启动。", 409)
+        if (
+            len(self.owned) + len(self.running) + len(self.recoveries)
+            >= self.policy.max_pending_tasks
+        ):
+            raise Problem("任务队列已满，请等待现有任务结束后重试。", 429)
         record = {
             "id": uid(),
             "entity_id": identifier,
@@ -133,20 +151,27 @@ class TaskSupervisor:
                 for item in self.persistence_errors.values()
             ]
 
-    def schedule(self, queue, identifier, flag, work, metadata, prepared=None):
+    def schedule(self, queue, identifier, flag, work, metadata, prepared=None, on_cancel=None):
         """统一持有执行句柄，领域结果沿用其原子事务且不复制第二份业务状态"""
         with self.lock:
             if self.executor is None or self.stopping:
                 raise Problem("系统任务执行器尚未启动。", 409)
+            if (
+                len(self.owned) + len(self.running) + len(self.recoveries)
+                >= self.policy.max_pending_tasks
+            ):
+                raise Problem("任务队列已满，请等待现有任务结束后重试。", 429)
             record = prepared
             if record is None:
                 with self.db.transaction() as conn:
                     record = self.prepare(conn, queue, identifier, metadata)
             key = record["id"]
             self.owned[key] = (record, flag)
-            serial = self.serial.setdefault(queue.owner, threading.Lock())
+            future = Future()
+            item = (record, flag, work, on_cancel, future)
+            self.pending[queue.owner].append(item)
             try:
-                future = self.executor.submit(self._execute_owned, record, flag, work, serial)
+                self._dispatch_owner(queue.owner)
             except BaseException as exc:
                 record.update(
                     execution_state="schedule-failed",
@@ -155,30 +180,109 @@ class TaskSupervisor:
                 )
                 self._finish("task-execution", record)
                 self.owned.pop(key, None)
+                self.pending[queue.owner].remove(item)
                 self.condition.notify_all()
                 raise
+            self.condition.notify_all()
             return ExecutionHandle(future)
 
-    def _execute_owned(self, record, flag, work, serial):
+    def _dispatch_owner(self, owner):
+        """每个所有者只把一个可执行任务交给线程池"""
+        if owner in self.dispatched or not self.pending[owner]:
+            return
+        item = self.pending[owner][0]
+        if item[1].is_set() and item[3] is not None:
+            self.condition.notify_all()
+            return
+        self.executor.submit(self._execute_owned, item)
+        self.pending[owner].popleft()
+        self.dispatched.add(owner)
+
+    def _execute_owned(self, item):
         """同资源队列串行执行，领域取消后仍持有租约直到真实函数返回"""
+        record, flag, work, on_cancel, future = item
         try:
-            with serial:
-                with self.lock:
-                    record["execution_state"] = "running"
-                    self.db.set_setting(f"task-execution:{record['id']}", record)
-                with self.scope_factory(record):
+            with self.lock:
+                record["execution_state"] = "running"
+                self._finish("task-execution", record)
+            with self.scope_factory(record):
+                if flag.is_set() and on_cancel is not None:
+                    on_cancel()
+                else:
                     work()
         except Exception as exc:
             record["error_type"] = type(exc).__name__
         finally:
+            self._finish_owned(item, dispatched=True)
+
+    def _finish_owned(self, item, *, dispatched=False):
+        """领域函数实际返回后才回收租约并派发同类后继"""
+        record, flag, _work, _on_cancel, future = item
+        with self.condition:
+            record.update(
+                execution_state="stopped",
+                finished_at=now(),
+                cancellation_requested=flag.is_set(),
+            )
+            self._finish("task-execution", record)
+            self.owned.pop(record["id"], None)
+            if dispatched:
+                self.dispatched.discard(record["owner"])
+            future.set_result(None)
+            self._dispatch_owner(record["owner"])
+            self.condition.notify_all()
+
+    def _cancel_pending(self):
+        """取消未派发任务的轻量领域收尾不等待正在运行的同类任务"""
+        while not self.dispatcher_stop.is_set():
+            cancelled = []
             with self.condition:
-                record.update(
-                    execution_state="stopped",
-                    finished_at=now(),
-                    cancellation_requested=flag.is_set(),
-                )
-                self._finish("task-execution", record)
-                self.owned.pop(record["id"], None)
+                for owner, pending in list(self.pending.items()):
+                    for item in list(pending):
+                        if item[1].is_set() and item[3] is not None:
+                            pending.remove(item)
+                            cancelled.append(item)
+                    self._dispatch_owner(owner)
+                if not cancelled:
+                    self.condition.wait(0.05)
+            for item in cancelled:
+                record, _flag, _work, on_cancel, _future = item
+                try:
+                    if on_cancel:
+                        on_cancel()
+                except Exception as exc:
+                    record["error_type"] = type(exc).__name__
+                finally:
+                    self._finish_owned(item)
+            self._retry_recoveries()
+
+    def recover(self, owner, identifier, callback):
+        """领域终态失败仍保留关闭屏障，只重试持久收尾而不重发外部调用"""
+        with self.condition:
+            self.recoveries[(owner, identifier)] = {
+                "callback": callback,
+                "due": monotonic(),
+                "delay": 0.5,
+            }
+            self.condition.notify_all()
+
+    def _retry_recoveries(self):
+        """数据库恢复后提交领域终态，未成功的所有者仍不能释放依赖"""
+        with self.lock:
+            pending = [
+                (key, item) for key, item in self.recoveries.items() if item["due"] <= monotonic()
+            ]
+        for key, item in pending:
+            try:
+                item["callback"]()
+            except Exception:
+                with self.lock:
+                    item["due"] = monotonic() + item["delay"]
+                    item["delay"] = min(30, item["delay"] * 2)
+                continue
+            with self.condition:
+                if self.recoveries.get(key) is item:
+                    self.recoveries.pop(key)
                 self.condition.notify_all()
 
     def wait_owned(self, owner, timeout=None):
@@ -188,7 +292,10 @@ class TaskSupervisor:
                 if record["owner"] == owner:
                     flag.set()
             if not self.condition.wait_for(
-                lambda: not any(record["owner"] == owner for record, _ in self.owned.values()),
+                lambda: (
+                    not any(record["owner"] == owner for record, _ in self.owned.values())
+                    and not any(key[0] == owner for key in self.recoveries)
+                ),
                 self.policy.owner_close_timeout_seconds if timeout is None else timeout,
             ):
                 raise Problem("插件任务尚未实际结束，保留执行租约。", 409)
@@ -246,6 +353,11 @@ class TaskSupervisor:
                 max_workers=self.policy.max_workers, thread_name_prefix="plugin-task"
             )
             self.stopping = False
+            self.dispatcher_stop.clear()
+            self.dispatcher = threading.Thread(
+                target=self._cancel_pending, daemon=True, name="task-cancellations"
+            )
+            self.dispatcher.start()
 
     def submit(
         self,
@@ -273,6 +385,11 @@ class TaskSupervisor:
                 ).fetchone()
                 if existing:
                     return unpack(existing)["value"]
+                if (
+                    len(self.owned) + len(self.running) + len(self.recoveries)
+                    >= self.policy.max_pending_tasks
+                ):
+                    raise Problem("任务队列已满，请等待现有任务结束后重试。", 429)
                 record = {
                     "id": uid(),
                     "owner": owner,
@@ -358,11 +475,15 @@ class TaskSupervisor:
             for _, event in self.owned.values():
                 event.set()
             if not self.condition.wait_for(
-                lambda: not self.running and not self.owned,
+                lambda: not self.running and not self.owned and not self.recoveries,
                 self.policy.close_timeout_seconds if timeout is None else timeout,
             ):
                 raise Problem("系统任务仍持有执行租约，关闭尚未完成。", 409)
             self.executor = None
+            self.dispatcher_stop.set()
+            self.condition.notify_all()
+        if self.dispatcher:
+            self.dispatcher.join(1)
         if executor:
             executor.shutdown(wait=True, cancel_futures=False)
         self.retry_persistence()
@@ -399,10 +520,14 @@ class OwnedQueue:
         """在业务写事务内登记同一次执行意图"""
         return self.supervisor.prepare(conn, self, identifier, metadata)
 
-    def submit(self, identifier, flag, work, metadata, *, prepared=None):
+    def submit(self, identifier, flag, work, metadata, *, prepared=None, on_cancel=None):
         """领域先提交持久输入，再将实际执行交给系统调度"""
-        return self.supervisor.schedule(self, identifier, flag, work, metadata, prepared)
+        return self.supervisor.schedule(self, identifier, flag, work, metadata, prepared, on_cancel)
 
     def close(self):
         """取消信号不代表关闭成功，必须等待执行租约释放"""
         self.supervisor.wait_owned(self.owner)
+
+    def recover(self, identifier, callback):
+        """实际模型结束后仍等待领域终态持久化，失败不重新调用模型"""
+        self.supervisor.recover(self.owner, identifier, callback)

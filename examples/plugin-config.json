@@ -13,6 +13,15 @@
           }
         },
         {
+          "instance": "ext.ai-runtime",
+          "operation": "replace",
+          "value": {
+            "max_parallel_calls": 4,
+            "max_waiting_calls": 32,
+            "wait_timeout_seconds": 1200.0
+          }
+        },
+        {
           "instance": "ext.honors",
           "operation": "replace",
           "value": {
@@ -98,10 +107,20 @@
           }
         },
         {
+          "instance": "sys.documents",
+          "operation": "replace",
+          "value": {
+            "max_preview_requests": 16,
+            "preview_timeout_seconds": 660.0,
+            "failed_preview_retry_seconds": 2.0
+          }
+        },
+        {
           "instance": "sys.jobs",
           "operation": "replace",
           "value": {
             "max_workers": 4,
+            "max_pending_tasks": 256,
             "close_timeout_seconds": 30.0,
             "owner_close_timeout_seconds": 30.0
           }

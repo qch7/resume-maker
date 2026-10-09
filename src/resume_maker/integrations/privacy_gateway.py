@@ -2,7 +2,9 @@
 
 import json
 import re
-from contextlib import nullcontext
+import threading
+import time
+from contextlib import contextmanager, nullcontext
 from copy import copy
 
 from pydantic import ValidationError
@@ -92,7 +94,9 @@ class PrivacyGateway:
     supports_page_images = True
     preprocess_images = True
 
-    def __init__(self, *, runner, environment=None, privacy=None, ocr=None, images=False):
+    def __init__(
+        self, *, runner, environment=None, privacy=None, ocr=None, images=False, capacity=None
+    ):
         """测试注入 CLI 替身，生产通过严格配置和受限材料工具调用"""
         self.environment = dict(environment or {})
         self.privacy = privacy or PrivacyStore()
@@ -104,6 +108,7 @@ class PrivacyGateway:
         self.preprocess_images = ocr is not None
         self.sensitive_values = set()
         self.sensitive_secrets = set()
+        self.capacity = capacity or ModelCapacity()
 
     def with_private_data(self, value):
         """为当前任务登记尚未保存的资料，独立副本避免并发互相污染"""
@@ -251,7 +256,10 @@ class PrivacyGateway:
                     options["safe_images"] = safe_images
                 if cancelled.is_set():
                     raise Cancelled("隐私规则已更新或任务取消，请重新准备材料。")
-                raw = self.runner(payload, settings, self.environment, cancelled, emit, **options)
+                with self.capacity.enter(cancelled):
+                    raw = self.runner(
+                        payload, settings, self.environment, cancelled, emit, **options
+                    )
             if cancelled.is_set():
                 raise Cancelled("请求已取消。")
             try:
@@ -272,3 +280,41 @@ class PrivacyGateway:
         except Exception:
             self.privacy.finish(identifier, "cancelled" if cancelled.is_set() else "failed")
             raise
+
+
+class ModelCapacity:
+    """一个模型出口的任务副本和连接检查共用有限的真实传输容量"""
+
+    def __init__(self, parallel=4, waiting=32, wait_seconds=1200):
+        """容量属于提供方实例，独立资料目录不共享配额"""
+        self.parallel, self.waiting, self.wait_seconds = parallel, waiting, wait_seconds
+        self.condition = threading.Condition()
+        self.active = self.pending = 0
+
+    @contextmanager
+    def enter(self, cancelled):
+        """等待期间响应取消，失败和取消均归还容量且不重发请求"""
+        deadline = time.monotonic() + self.wait_seconds
+        with self.condition:
+            if self.active >= self.parallel and self.pending >= self.waiting:
+                raise ProviderError("模型等待队列已满，请等待现有调用结束后重试。")
+            self.pending += 1
+            try:
+                while self.active >= self.parallel:
+                    if cancelled.is_set():
+                        raise Cancelled("模型排队已取消。")
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise ProviderError("模型排队超过等待预算，请重试。")
+                    self.condition.wait(min(0.05, remaining))
+                if cancelled.is_set():
+                    raise Cancelled("模型调用已取消。")
+                self.active += 1
+            finally:
+                self.pending -= 1
+        try:
+            yield
+        finally:
+            with self.condition:
+                self.active -= 1
+                self.condition.notify_all()

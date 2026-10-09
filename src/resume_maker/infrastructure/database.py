@@ -132,6 +132,17 @@ class Database:
         return ReadSession(conn)
 
     @contextmanager
+    def change_observer(self):
+        """独立只读连接观察所有提交，调用方负责串行读取及关闭"""
+        conn = sqlite3.connect(
+            self.path, timeout=self.policy.lock_timeout_seconds, check_same_thread=False
+        )
+        try:
+            yield lambda: conn.execute("PRAGMA data_version").fetchone()[0]
+        finally:
+            conn.close()
+
+    @contextmanager
     def connect(self):
         """创建启用外键约束的短连接并确保异常退出后也释放文件句柄"""
         conn = sqlite3.connect(

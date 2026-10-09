@@ -1,6 +1,6 @@
 import type { WordPreviewProps } from "@resume-maker/plugin-sdk/plugins/slots";
 import { useEffect, useRef, useState } from "react";
-import { api, download } from "@resume-maker/plugin-sdk/shared/lib/api";
+import { request, download } from "@resume-maker/plugin-sdk/shared/lib/api";
 import PrintedPage from "@resume-maker/plugin-sdk/shared/components/PrintedPage";
 import { createPreviewQueue, type PreviewState } from "./templatePreviewQueue";
 
@@ -28,13 +28,19 @@ export default function TemplatePreview({
   useEffect(
     /* 队列跨资料及模板切换保留以防重复启动 Word */ () => {
       const current = createPreviewQueue(
-        /* 发送临时预览快照 */ (key, signal) =>
-          api<PreviewResult>(
-            "/resume-previews",
-            "POST",
-            JSON.parse(key),
+        /* 发送临时预览快照，明确重试绕过短暂失败缓存 */ async (
+          key,
+          signal,
+          force,
+        ) => {
+          const response = await request("/resume-previews", {
+            method: "POST",
+            body: key,
             signal,
-          ),
+            headers: force ? { "x-resume-preview-force": "1" } : {},
+          });
+          return response.json() as Promise<PreviewResult>;
+        },
         setState,
       );
       queue.current = current;

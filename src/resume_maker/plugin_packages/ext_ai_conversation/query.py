@@ -1,8 +1,10 @@
 """插件拥有的工作台查询贡献"""
 
 from resume_maker.infrastructure.database import unpack
+from resume_maker.sdk.storage import database_query
 
 
+@database_query
 def conversations(conn, state):
     """提供会话及当前任务摘要，不把后台服务对象传入聚合器"""
     state["conversations"] = [
@@ -11,15 +13,11 @@ def conversations(conn, state):
             "SELECT * FROM conversations WHERE archived=0 ORDER BY updated_at DESC"
         )
     ]
+    activity = {}
+    for item in state["conversations"]:
+        activity[item["project_id"]] = max(activity.get(item["project_id"], ""), item["updated_at"])
     for project in state["projects"]:
-        project["activity_at"] = max(
-            [project["activity_at"]]
-            + [
-                item["updated_at"]
-                for item in state["conversations"]
-                if item["project_id"] == project["id"]
-            ]
-        )
+        project["activity_at"] = max(project["activity_at"], activity.get(project["id"], ""))
     state["jobs"] = [
         unpack(row)
         for row in conn.execute(
