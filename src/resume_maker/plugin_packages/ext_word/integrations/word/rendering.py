@@ -5,6 +5,8 @@ import os
 import subprocess
 import sys
 import threading
+import time
+from contextlib import contextmanager
 from pathlib import Path
 
 import psutil
@@ -12,10 +14,23 @@ import psutil
 from resume_maker.core.process_environment import EnvironmentPolicy, process_environment
 from resume_maker.infrastructure.observability import operation, record
 from resume_maker.plugin_packages.ext_word.configuration import Settings
+from resume_maker.sdk.documents import check_document_work, current_document_work
 from resume_maker.sdk.model import ProviderError
 
 # Word COM 排版串行运行以免并发导出争用桌面实例
 RENDER_LOCK = threading.Lock()
+
+
+@contextmanager
+def render_lock():
+    """等候 Word 时仍检查当前预览的取消和总截止"""
+    while not RENDER_LOCK.acquire(timeout=0.05):
+        check_document_work()
+    try:
+        check_document_work()
+        yield
+    finally:
+        RENDER_LOCK.release()
 
 
 def render_pages(pdf: Path, *, settings=None) -> int:
@@ -25,12 +40,14 @@ def render_pages(pdf: Path, *, settings=None) -> int:
     settings = settings or Settings()
     with pymupdf.open(pdf) as document:
         for index, page in enumerate(document):
+            check_document_work(pdf.parent)
             (pdf.parent / f"page-{index + 1}.svg").write_text(
                 page.get_svg_image(text_as_path=True), encoding="utf-8"
             )
             page.get_pixmap(
                 matrix=pymupdf.Matrix(settings.preview_scale, settings.preview_scale)
             ).save(pdf.parent / f"page-{index + 1}.png")
+            check_document_work(pdf.parent)
         return len(document)
 
 
@@ -43,7 +60,10 @@ def word_process(
     if os.name != "nt":
         record("system", "unavailable", "Word 自动转换不可用", level="warning", source="word")
         return "此自动转换需要 Windows 上的 Microsoft Word。"
-    with RENDER_LOCK:
+    with render_lock():
+        timeout = settings.render_timeout_seconds
+        if work := current_document_work():
+            timeout = min(timeout, max(0.01, work.deadline - time.monotonic()))
         owner_file = output.with_suffix(".owner.json")
         try:
             if executor is not None:
@@ -60,7 +80,7 @@ def word_process(
                         mode,
                     ],
                     cwd=source.parent,
-                    timeout=settings.render_timeout_seconds,
+                    timeout=timeout,
                 )
                 return None if output.exists() else "Word 没有生成输出文件。"
             result = subprocess.run(
@@ -79,7 +99,7 @@ def word_process(
                 text=True,
                 encoding="utf-8",
                 errors="replace",
-                timeout=settings.render_timeout_seconds,
+                timeout=timeout,
                 creationflags=0x08000000,
                 env=process_environment(EnvironmentPolicy.DESKTOP),
             )

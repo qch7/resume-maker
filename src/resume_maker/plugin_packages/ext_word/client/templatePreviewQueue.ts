@@ -9,7 +9,7 @@ export interface PreviewState<T> {
 
 /** 等待当前 Word 请求完成后处理最新输入 */
 export function createPreviewQueue<T>(
-  execute: (key: string, signal: AbortSignal) => Promise<T>,
+  execute: (key: string, signal: AbortSignal, force: boolean) => Promise<T>,
   emit: (state: PreviewState<T>) => void,
   delay = PREVIEW_DEBOUNCE_MS,
 ) {
@@ -18,6 +18,7 @@ export function createPreviewQueue<T>(
   let ready = false;
   let busy = false;
   let disposed = false;
+  let forced = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const controller = new AbortController();
 
@@ -32,11 +33,12 @@ export function createPreviewQueue<T>(
     if (disposed || busy || !ready || state.key === null) return;
     const current = generation;
     const key = state.key;
+    const force = forced;
     ready = false;
     busy = true;
     publish({ ...state, status: "rendering" });
     try {
-      const value = await execute(key, controller.signal);
+      const value = await execute(key, controller.signal, force);
       if (!disposed && generation === current)
         publish({ key, status: "ready", result: { key, value } });
     } catch (error) {
@@ -57,6 +59,7 @@ export function createPreviewQueue<T>(
     submit(key: string | null, force = false) {
       if (disposed || (state.key === key && !force)) return;
       generation++;
+      forced = force;
       ready = false;
       clearTimeout(timer);
       publish({

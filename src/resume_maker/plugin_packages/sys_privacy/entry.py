@@ -15,9 +15,11 @@ def activate(context):
     store = publish(context, "privacy.store", PrivacyStore(db, rules), observed=False)
     context.health(rules.entries)
 
-    def gateway(runner, *, ocr=None, images=False):
+    def gateway(runner, *, ocr=None, images=False, capacity=None):
         """绑定选定传输，任务副本和脱敏还原保持归系统所有"""
-        return PrivacyGateway(privacy=store, runner=runner, ocr=ocr, images=images)
+        return PrivacyGateway(
+            privacy=store, runner=runner, ocr=ocr, images=images, capacity=capacity
+        )
 
     publish(context, "privacy.gateway", gateway, observed=False)
 

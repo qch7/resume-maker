@@ -82,8 +82,8 @@ def test_restore_rejects_unsupported_schema_without_changing_target(catalog, tmp
     assert not list(tmp_path.glob(".restored-restore-*"))
 
 
-def test_backup_blocks_concurrent_attachment_deletion(catalog, tmp_path, monkeypatch):
-    """附件删除等待数据库及文件备份完成，恢复不会遇到悬空模板记录"""
+def test_backup_pins_concurrent_attachment_deletion(catalog, tmp_path, monkeypatch):
+    """附件删除不等待压缩，固定副本确保恢复不会遇到悬空模板记录"""
     root = catalog.db.path.parent
     source = register_template(catalog, root)
     attempted, deleted = threading.Event(), threading.Event()
@@ -106,7 +106,7 @@ def test_backup_blocks_concurrent_attachment_deletion(catalog, tmp_path, monkeyp
             result = super().__enter__()
             worker.start()
             assert attempted.wait(2)
-            assert not deleted.wait(0.1)
+            assert deleted.wait(2)
             return result
 
     with monkeypatch.context() as patch:

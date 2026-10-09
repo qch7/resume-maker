@@ -43,5 +43,43 @@
   },
   "enhances": [
     "settings"
-  ]
+  ],
+  "config": {
+    "max_parallel_calls": 4,
+    "max_waiting_calls": 32,
+    "wait_timeout_seconds": 1200.0
+  },
+  "config_schema": {
+    "additionalProperties": false,
+    "description": "设置重建提供方实例，已有任务在旧配置下实际排空",
+    "properties": {
+      "max_parallel_calls": {
+        "default": 4,
+        "description": "模型实际调用并发数",
+        "maximum": 32,
+        "minimum": 1,
+        "title": "Max Parallel Calls",
+        "type": "integer"
+      },
+      "max_waiting_calls": {
+        "default": 32,
+        "description": "模型等待调用数",
+        "maximum": 256,
+        "minimum": 1,
+        "title": "Max Waiting Calls",
+        "type": "integer"
+      },
+      "wait_timeout_seconds": {
+        "default": 1200,
+        "description": "模型排队等待秒数",
+        "maximum": 7200,
+        "minimum": 1,
+        "title": "Wait Timeout Seconds",
+        "type": "number"
+      }
+    },
+    "title": "Settings",
+    "type": "object",
+    "x-resume-maker-strict": true
+  }
 }

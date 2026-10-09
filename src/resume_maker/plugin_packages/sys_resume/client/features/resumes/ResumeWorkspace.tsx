@@ -78,7 +78,9 @@ import type {
 import ResizeHandle from "@resume-maker/plugin-sdk/shared/components/ResizeHandle";
 import ThemeSwitch from "@resume-maker/plugin-sdk/shared/components/ThemeSwitch";
 import { useRemote } from "@resume-maker/plugin-sdk/shared/hooks/useRemote";
-import { api } from "@resume-maker/plugin-sdk/shared/lib/api";
+import { api, request } from "@resume-maker/plugin-sdk/shared/lib/api";
+import { createStateReader } from "./stateReader";
+import { bindStatePolling, createStatePolling } from "./statePolling";
 import { flushDrafts } from "@resume-maker/plugin-sdk/shared/lib/draftRegistry";
 import {
   clamp,
@@ -176,6 +178,14 @@ export default function ResumeWorkspace() {
     entry: SectionEntry;
   } | null>(null);
   const stateRequests = useRef(0);
+  const [readState] = useState(() =>
+    createStateReader<State>((version, signal) =>
+      request("/state", {
+        signal,
+        headers: version ? { "if-none-match": version } : {},
+      }),
+    ),
+  );
   const [activeProject, setActiveProject] = useState("");
   const [sidebarSort, setSidebarSort] = useState(
     /* 恢复排序偏好，使首次打开的项目和侧栏首项一致 */ () =>
@@ -289,10 +299,10 @@ export default function ResumeWorkspace() {
   );
 
   /** 刷新工作台聚合数据，首次加载时校验并恢复本地组合 */
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (signal?: AbortSignal) => {
     const request = ++stateRequests.current;
-    const value = await api<State>("/state");
-    if (request !== stateRequests.current) return;
+    const value = await readState(signal);
+    if (signal?.aborted || request !== stateRequests.current) return;
     setState(value);
     setLoaded(true);
     if (!initialized.current) {
@@ -412,21 +422,16 @@ export default function ResumeWorkspace() {
   );
 
   useEffect(() => {
-    let stopped = false,
-      timer: ReturnType<typeof setTimeout>;
-    /** 串行轮询服务器状态并在卸载后清除定时器 */
-    async function poll() {
-      try {
-        await reload();
-      } catch (e) {
-        if (!stopped) setToast({ text: (e as Error).message, error: true });
-      }
-      if (!stopped) timer = setTimeout(poll, PREVIEW_PROGRESS_POLL_MS);
-    }
-    void poll();
+    const polling = createStatePolling(
+      reload,
+      /* 保存读取错误，恢复后仍按原频率跟随状态 */ (e) =>
+        setToast({ text: (e as Error).message, error: true }),
+      PREVIEW_PROGRESS_POLL_MS,
+    );
+    const unbind = bindStatePolling(polling);
     return () => {
-      stopped = true;
-      clearTimeout(timer);
+      unbind();
+      polling.stop();
     };
   }, [reload]);
   useEffect(

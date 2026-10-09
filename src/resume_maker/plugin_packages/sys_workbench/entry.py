@@ -7,7 +7,7 @@ def activate(context):
     """建立工作台查询扩展点，系统页面只读取系统能力"""
     from resume_maker.plugin_packages.sys_workbench.services.workspace import Workspace
 
-    publish(
+    workspace = publish(
         context,
         "workspace",
         Workspace(
@@ -19,4 +19,5 @@ def activate(context):
             contributors=lambda: context.host.collection("workspace.queries"),
         ),
     )
+    context.effect(workspace.stop)
     routes(context, "resume_maker.plugin_packages.sys_workbench.routes.system")

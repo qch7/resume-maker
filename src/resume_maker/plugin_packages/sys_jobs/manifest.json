@@ -35,6 +35,7 @@
   },
   "config": {
     "max_workers": 4,
+    "max_pending_tasks": 256,
     "close_timeout_seconds": 30.0,
     "owner_close_timeout_seconds": 30.0
   },
@@ -48,6 +49,14 @@
         "maximum": 32,
         "minimum": 1,
         "title": "Max Workers",
+        "type": "integer"
+      },
+      "max_pending_tasks": {
+        "default": 256,
+        "description": "未结束任务及排队总数",
+        "maximum": 4096,
+        "minimum": 1,
+        "title": "Max Pending Tasks",
         "type": "integer"
       },
       "close_timeout_seconds": {

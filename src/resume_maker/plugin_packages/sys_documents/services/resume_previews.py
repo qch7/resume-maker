@@ -1,13 +1,15 @@
 """为未保存的资料生成临时 Word 模板预览"""
 
 import threading
+import time
 from contextlib import contextmanager
 from dataclasses import replace
 
 from resume_maker.core.content import digest
 from resume_maker.core.errors import Problem
 from resume_maker.domain.extensions import display_document
-from resume_maker.sdk.documents import generate_docx
+from resume_maker.plugin_packages.sys_documents.configuration import Settings
+from resume_maker.sdk.documents import check_document_work, document_work, generate_docx
 from resume_maker.sdk.observation import internal
 from resume_maker.sdk.previews import PreviewCache
 from resume_maker.sdk.records import dump
@@ -26,6 +28,7 @@ class ResumePreviews:
         engine,
         template_engine=None,
         registry=None,
+        settings=None,
     ):
         """仅保存依赖，首次预览时才创建临时目录"""
         self.catalog, self.data_dir = catalog, data_dir
@@ -33,15 +36,70 @@ class ResumePreviews:
         self.engine = engine
         self.registry = registry
         self.template_engine = template_engine
+        self.settings = settings or Settings()
         self.lock = threading.Lock()
         self.directory = None
         self.results, self.cache = {}, {}
         self.templates = {}
         self.stopped = False
+        self.admission = threading.Lock()
+        self.requests = {}
+        self.failures = {}
         self.pool = PreviewCache(data_dir / "workspaces", prefix="resume-previews-")
 
-    def render(self, template_id, document, items, *, engine_id=None, renderer_id=None):
+    def render(
+        self,
+        template_id,
+        document,
+        items,
+        *,
+        engine_id=None,
+        renderer_id=None,
+        cancelled=None,
+        force=False,
+        timeout=None,
+    ):
         """核验固定版本归属后使用当前资料和可选工作副本试填"""
+        flag = cancelled if cancelled is not None else threading.Event()
+        request_key = object()
+        with self.admission:
+            if self.stopped:
+                raise Problem("应用正在关闭。", 409)
+            if len(self.requests) >= self.settings.max_preview_requests:
+                raise Problem("预览队列已满，请等待当前预览结束后重试。", 429)
+            self.requests[request_key] = flag
+        try:
+            with document_work(
+                flag,
+                timeout=self.settings.preview_timeout_seconds if timeout is None else timeout,
+                max_bytes=self.pool.max_bytes,
+            ):
+                with self.render_lock():
+                    return self._render(
+                        template_id,
+                        document,
+                        items,
+                        engine_id=engine_id,
+                        renderer_id=renderer_id,
+                        force=force,
+                    )
+        finally:
+            with self.admission:
+                self.requests.pop(request_key, None)
+
+    @contextmanager
+    def render_lock(self):
+        """未开始的预览可取消，不占住已运行请求的资源"""
+        while not self.lock.acquire(timeout=0.05):
+            check_document_work()
+        try:
+            check_document_work()
+            yield
+        finally:
+            self.lock.release()
+
+    def _render(self, template_id, document, items, *, engine_id, renderer_id, force):
+        """固定输入后复用同键结果，成功及短暂失败均合并重复工作"""
         inputs = self.catalog.freeze_preview(self.data_dir, template_id, document, items)
         resume, projects, template = inputs.values()
         if template and not self.templates_enabled and not self.registry:
@@ -68,59 +126,77 @@ class ResumePreviews:
                 }
             ).encode()
         )
-        with self.lock:
-            if self.stopped:
-                raise Problem("应用正在关闭。", 409)
-            if template_id:
-                self.catalog.template(template_id)
-            if key in self.cache and self.pool.touch(self.cache[key]["id"]):
-                return dict(self.cache[key])
-            with self.pool.allocate() as (identifier, directory):
-                self.directory = self.pool.directory
-                output = directory / "resume.docx"
-                if selected_engine:
-                    selected_engine.value.generate(
-                        output, replace(inputs, resume_json=dump({**resume, "document": document}))
-                    )
-                else:
-                    generate_docx(
-                        output,
-                        document,
-                        projects,
-                        engine=self.engine,
-                        template_data=data,
-                        plan=template["mapping"]["plan"] if template else None,
-                        template_engine=self.template_engine,
-                    )
-                if not output.is_file():
-                    raise Problem("文档引擎未生成声明的 DOCX 文件。", 409)
-                renderer = self.renderer
-                if self.registry:
-                    renderer = selected_renderer.value.render if selected_renderer else None
-                pages, error = (
-                    renderer(output, directory / "resume.pdf")
-                    if renderer
-                    else (None, "Word 精确渲染未启用，可使用内容预览。")
+        if self.stopped:
+            raise Problem("应用正在关闭。", 409)
+        if template_id:
+            self.catalog.template(template_id)
+        if not force and key in self.cache and self.pool.touch(self.cache[key]["id"]):
+            return dict(self.cache[key])
+        failed = self.failures.get(key)
+        if (
+            not force
+            and failed
+            and failed[1] > time.monotonic()
+            and self.pool.touch(failed[0]["id"])
+        ):
+            return dict(failed[0])
+        with self.pool.allocate() as (identifier, directory):
+            self.directory = self.pool.directory
+            output = directory / "resume.docx"
+            if selected_engine:
+                selected_engine.value.generate(
+                    output, replace(inputs, resume_json=dump({**resume, "document": document}))
                 )
-                result = {"id": identifier, "pages": pages, "render_error": error}
-                files = {"resume.docx"}
-                if pages:
-                    files.add("resume.pdf")
-                    files.update(
-                        f"page-{i}.{ext}" for i in range(1, pages + 1) for ext in ("png", "svg")
-                    )
-                evicted = self.pool.publish(identifier, directory, files, owner=template_id)
-                for old in evicted:
-                    self.results.pop(old, None)
-                    self.templates.pop(old, None)
-                self.cache = {
-                    key: value for key, value in self.cache.items() if value["id"] not in evicted
-                }
-                self.results[identifier] = result
-                self.templates[identifier] = template_id
-                if pages:
-                    self.cache[key] = result
-                return dict(result)
+            else:
+                generate_docx(
+                    output,
+                    document,
+                    projects,
+                    engine=self.engine,
+                    template_data=data,
+                    plan=template["mapping"]["plan"] if template else None,
+                    template_engine=self.template_engine,
+                )
+            if not output.is_file():
+                raise Problem("文档引擎未生成声明的 DOCX 文件。", 409)
+            check_document_work(directory)
+            renderer = self.renderer
+            if self.registry:
+                renderer = selected_renderer.value.render if selected_renderer else None
+            pages, error = (
+                renderer(output, directory / "resume.pdf")
+                if renderer
+                else (None, "Word 精确渲染未启用，可使用内容预览。")
+            )
+            check_document_work(directory)
+            result = {"id": identifier, "pages": pages, "render_error": error}
+            files = {"resume.docx"}
+            if pages:
+                files.add("resume.pdf")
+                files.update(
+                    f"page-{i}.{ext}" for i in range(1, pages + 1) for ext in ("png", "svg")
+                )
+            evicted = self.pool.publish(identifier, directory, files, owner=template_id)
+            for old in evicted:
+                self.results.pop(old, None)
+                self.templates.pop(old, None)
+            self.cache = {
+                key: value for key, value in self.cache.items() if value["id"] not in evicted
+            }
+            self.failures = {
+                key: value for key, value in self.failures.items() if value[0]["id"] not in evicted
+            }
+            self.results[identifier] = result
+            self.templates[identifier] = template_id
+            if pages:
+                self.cache[key] = result
+                self.failures.pop(key, None)
+            else:
+                self.failures[key] = (
+                    result,
+                    time.monotonic() + self.settings.failed_preview_retry_seconds,
+                )
+            return dict(result)
 
     def file(self, identifier, filename):
         """只提供当前实例已生成的预览文件，模板源文件和任意路径均不可下载"""
@@ -151,13 +227,18 @@ class ResumePreviews:
         self.cache = {
             key: value for key, value in self.cache.items() if value["id"] not in identifiers
         }
+        self.failures.clear()
 
     def stop(self):
         """请求结束后回收本实例创建的预览目录，正式简历和导出文件不受影响"""
-        with self.lock:
+        with self.admission:
             self.stopped = True
+            for flag in self.requests.values():
+                flag.set()
+        with self.lock:
             self.results.clear()
             self.cache.clear()
+            self.failures.clear()
             self.templates.clear()
             self.pool.stop()
             self.directory = None

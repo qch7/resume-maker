@@ -263,7 +263,12 @@ class Jobs:
             flag = self.cancel_flags[job_id] = threading.Event()
             try:
                 self.execution_queue.submit(
-                    job_id, flag, lambda: self._run(job), metadata, prepared=prepared
+                    job_id,
+                    flag,
+                    lambda: self._run(job),
+                    metadata,
+                    prepared=prepared,
+                    on_cancel=lambda: self._run(job),
                 )
             except Exception:
                 self.cancel_flags.pop(job_id, None)
@@ -306,6 +311,31 @@ class Jobs:
         return [{**item, "status": "unverified"} for item in evidence]
 
     def _run(self, job: dict):
+        """连续数据库失败时交给执行器重试终态，始终释放实际执行标识"""
+        cancelled = self.cancel_flags.setdefault(job["id"], threading.Event())
+        try:
+            self._execute(job)
+        except Exception as exc:
+            status = "cancelled" if cancelled.is_set() or self.stopped.is_set() else "failed"
+            error = redact(str(exc))[:6000]
+
+            def finish():
+                """仅补写领域终态，保留已取消或已完成结果"""
+                with self.db.transaction() as conn:
+                    conn.execute(
+                        "UPDATE jobs SET status=?,error=?,finished_at=? "
+                        "WHERE id=? AND status IN ('queued','running')",
+                        (status, error, now(), job["id"]),
+                    )
+
+            if self.execution_queue:
+                self.execution_queue.recover(job["id"], finish)
+            else:
+                finish()
+        finally:
+            self.cancel_flags.pop(job["id"], None)
+
+    def _execute(self, job: dict):
         """传递当前来源目录、调用 Provider、验证引用并原子保存消息和结果"""
         job_id, conversation_id = job["id"], job["conversation_id"]
         cancelled = self.cancel_flags.setdefault(job_id, threading.Event())

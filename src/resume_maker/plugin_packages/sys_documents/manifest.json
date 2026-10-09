@@ -57,5 +57,43 @@
   },
   "consumes": [
     "documents.importers"
-  ]
+  ],
+  "config": {
+    "max_preview_requests": 16,
+    "preview_timeout_seconds": 660.0,
+    "failed_preview_retry_seconds": 2.0
+  },
+  "config_schema": {
+    "additionalProperties": false,
+    "description": "重建服务后使用新预算，已有渲染仍先实际排空",
+    "properties": {
+      "max_preview_requests": {
+        "default": 16,
+        "description": "预览执行及等待总数",
+        "maximum": 128,
+        "minimum": 1,
+        "title": "Max Preview Requests",
+        "type": "integer"
+      },
+      "preview_timeout_seconds": {
+        "default": 660,
+        "description": "预览排队及全部生成阶段的总秒数",
+        "maximum": 3600,
+        "minimum": 5,
+        "title": "Preview Timeout Seconds",
+        "type": "number"
+      },
+      "failed_preview_retry_seconds": {
+        "default": 2,
+        "description": "相同输入预览失败的自动重试间隔",
+        "maximum": 30,
+        "minimum": 0,
+        "title": "Failed Preview Retry Seconds",
+        "type": "number"
+      }
+    },
+    "title": "Settings",
+    "type": "object",
+    "x-resume-maker-strict": true
+  }
 }

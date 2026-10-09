@@ -1,14 +1,68 @@
 """文档引擎只接收已冻结的输入，插件不读取正在编辑的工作区对象"""
 
+import time
 from collections.abc import Callable
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from json import loads
 from pathlib import Path
 
 from resume_maker.core.errors import Problem
 from resume_maker.domain.templates import TemplatePlan
+from resume_maker.sdk.model import Cancelled, ProviderError
 
 DEFAULT_RENDERER = object()
+DOCUMENT_WORK = ContextVar("document_work", default=None)
+
+
+@dataclass
+class DocumentWork:
+    """预览请求的取消和生成预算沿渲染调用链传递"""
+
+    cancelled: object
+    deadline: float
+    max_bytes: int
+
+    def is_set(self):
+        """平台执行器持续检查请求取消及总截止"""
+        return self.cancelled.is_set() or time.monotonic() >= self.deadline
+
+    def check(self, directory=None):
+        """生成阶段及分页写入前后核验同一预算"""
+        if self.cancelled.is_set():
+            raise Cancelled("预览请求已取消。")
+        if time.monotonic() >= self.deadline:
+            raise ProviderError("预览排队及生成超过执行预算，请重试最新资料。")
+        if (
+            directory
+            and sum(path.stat().st_size for path in directory.rglob("*") if path.is_file())
+            > self.max_bytes
+        ):
+            raise ProviderError("预览生成超过临时文件容量预算，请减少图片或内容。")
+
+
+@contextmanager
+def document_work(cancelled, *, timeout, max_bytes):
+    """保持第三方渲染器签名不变，为协作式消费者发布本轮执行上下文"""
+    work = DocumentWork(cancelled, time.monotonic() + timeout, max_bytes)
+    token = DOCUMENT_WORK.set(work)
+    try:
+        work.check()
+        yield work
+    finally:
+        DOCUMENT_WORK.reset(token)
+
+
+def current_document_work():
+    """文档执行消费者只读取当前调用的取消上下文"""
+    return DOCUMENT_WORK.get()
+
+
+def check_document_work(directory=None):
+    """正式导出没有预览预算，预览各阶段必须响应取消"""
+    if work := current_document_work():
+        work.check(directory)
 
 
 @dataclass(frozen=True)

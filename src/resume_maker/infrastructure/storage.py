@@ -53,59 +53,93 @@ def instance_lock(directory: Path):
 
 
 def create_backup(db: Database, directory: Path) -> Path:
-    """冻结业务写事务后备份数据库及登记附件，完整校验成功才发布 ZIP"""
+    """短事务固定读取快照和附件副本，释放写锁后复制数据库及压缩"""
     folder = directory / "backups"
     folder.mkdir(parents=True, exist_ok=True)
     snapshot = folder / f"{uid()}.db"
     output = snapshot.with_suffix(".zip")
     pending = snapshot.with_suffix(".partial")
     try:
-        # 写锁阻止附件删除及登记，独立读连接可在 WAL 模式下执行在线备份
-        with db.transaction() as frozen:
+        with tempfile.TemporaryDirectory(prefix="backup-frozen-", dir=folder) as frozen_dir:
+            frozen_root = Path(frozen_dir)
             with db.connect() as source, closing(sqlite3.connect(snapshot)) as target:
-                source.backup(target)
-            files = {"resume.db": snapshot}
-            if (directory / "plugins.json").is_file():
-                files["plugins.json"] = directory / "plugins.json"
-            for resource in resource_records(frozen):
-                relative = resource["path"]
-                root = directory / relative
-                if not root.is_dir():
-                    if resource.get("optional"):
-                        continue
-                    raise Problem(f"备份缺少附件目录：{relative}")
-                for file in root.rglob("*"):
-                    if any(
-                        node.is_symlink() or node.is_junction() for node in (file, *file.parents)
-                    ):
-                        raise Problem("备份附件包含链接，请先检查数据目录。")
-                    if file.is_file():
-                        if not any(
-                            fnmatchcase(file.relative_to(root).as_posix(), pattern)
-                            for pattern in resource["files"]
-                        ):
-                            continue
-                        files[file.relative_to(directory).as_posix()] = file
-            validate_assets(frozen, directory)
-            checksums = {}
-            with ZipFile(pending, "w", ZIP_DEFLATED) as archive:
-                for name, file in files.items():
-                    digest = hashlib.sha256()
-                    size = 0
-                    with file.open("rb") as source, archive.open(name, "w") as target:
-                        while chunk := source.read(1024 * 1024):
-                            target.write(chunk)
-                            digest.update(chunk)
-                            size += len(chunk)
-                    checksums[name] = {"sha256": digest.hexdigest(), "size": size}
-                archive.writestr(
-                    "backup.json", dump({"version": 2, "created_at": now(), "files": checksums})
-                )
+                wal = source.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+                with db.transaction():
+                    source.execute("BEGIN")
+                    source.execute("SELECT name FROM sqlite_master LIMIT 1").fetchone()
+                    files = freeze_backup_files(source, directory, frozen_root)
+                    if not wal:
+                        # 离线迁移副本的读锁须在写事务提交前释放
+                        source.backup(target)
+                        source.rollback()
+                if wal:
+                    source.backup(target)
+            files["resume.db"] = snapshot
+            with closing(sqlite3.connect(snapshot)) as frozen:
+                validate_assets(frozen, frozen_root)
+            write_backup_zip(pending, files)
         pending.replace(output)
         return output
     finally:
         snapshot.unlink(missing_ok=True)
         pending.unlink(missing_ok=True)
+
+
+def freeze_backup_files(conn, directory, frozen_root):
+    """不可变附件用硬链接固定生命周期，可变插件文件在写锁内复制"""
+    files = {}
+    if (directory / "plugins.json").is_file():
+        target = frozen_root / "plugins.json"
+        shutil.copyfile(directory / "plugins.json", target)
+        files["plugins.json"] = target
+    for resource in resource_records(conn):
+        relative = resource["path"]
+        root = directory / relative
+        if not root.is_dir():
+            if resource.get("optional"):
+                continue
+            raise Problem(f"备份缺少附件目录：{relative}")
+        for file in root.rglob("*"):
+            if any(node.is_symlink() or node.is_junction() for node in (file, *file.parents)):
+                raise Problem("备份附件包含链接，请先检查数据目录。")
+            if file.is_file():
+                if not any(
+                    fnmatchcase(file.relative_to(root).as_posix(), pattern)
+                    for pattern in resource["files"]
+                ):
+                    continue
+                name = file.relative_to(directory).as_posix()
+                target = frozen_root / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                if name in files:
+                    continue
+                if name.startswith("assets/"):
+                    try:
+                        os.link(file, target)
+                    except OSError:
+                        shutil.copyfile(file, target)
+                else:
+                    shutil.copyfile(file, target)
+                files[name] = target
+    return files
+
+
+def write_backup_zip(pending, files):
+    """压缩只读取固定副本，不再持有业务数据库写锁"""
+    checksums = {}
+    with ZipFile(pending, "w", ZIP_DEFLATED) as archive:
+        for name, file in files.items():
+            digest = hashlib.sha256()
+            size = 0
+            with file.open("rb") as source, archive.open(name, "w") as target:
+                while chunk := source.read(1024 * 1024):
+                    target.write(chunk)
+                    digest.update(chunk)
+                    size += len(chunk)
+            checksums[name] = {"sha256": digest.hexdigest(), "size": size}
+        archive.writestr(
+            "backup.json", dump({"version": 2, "created_at": now(), "files": checksums})
+        )
 
 
 def validate_database(path: Path):

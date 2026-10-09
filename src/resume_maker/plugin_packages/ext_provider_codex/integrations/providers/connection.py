@@ -84,6 +84,12 @@ def connection(settings, environment):
                 for k in ("name", "base_url", "requires_openai_auth")
                 if k in provider
             }
+            for field in ("request_max_retries", "stream_max_retries", "stream_idle_timeout_ms"):
+                if field in provider:
+                    value = provider[field]
+                    if type(value) is not int or value < (1 if field.endswith("timeout_ms") else 0):
+                        raise ProviderError("供应商重试及空闲等待配置须为有效整数。")
+                    selected[field] = value
             selected.setdefault("name", "Resume Maker provider")
             selected["wire_api"] = "responses"
             key = original.get(provider.get("env_key", "OPENAI_API_KEY"), "") or provider.get(
