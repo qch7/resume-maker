@@ -15,13 +15,13 @@ from resume_maker.domain.models import ProviderSettings
 from resume_maker.domain.templates import TemplatePlan
 from resume_maker.integrations.privacy import Redactor
 from resume_maker.integrations.providers import page_images
+from resume_maker.integrations.providers.base import Cancelled, PageImage, ProviderError
+from resume_maker.integrations.providers.codex import CodexProvider
 from resume_maker.integrations.word.image.layout import text_layer
 from resume_maker.integrations.word.image.recovery import rebuild_image
 from resume_maker.integrations.word.templates.mapping import TemplatePackage
-from resume_maker.plugin_packages.ext_template_ai.services.templates.analysis import visual_evidence
-from resume_maker.sdk.model import Cancelled, PageImage, ProviderError
+from resume_maker.services.templates.analysis import visual_evidence
 from tests.support.images import page_fixture
-from tests.support.providers import privacy_provider
 
 
 def test_page_pixels_metadata_and_sensitive_rows_are_removed(tmp_path, monkeypatch):
@@ -70,9 +70,7 @@ def test_private_page_rebuild_restores_text_assets_and_preserves_source(tmp_path
             result["texts"].pop()
         return json.dumps(result)
 
-    provider = privacy_provider(runner=runner).with_private_data(
-        {"personal": {"name": "SAMPLE NAME"}}
-    )
+    provider = CodexProvider(runner=runner).with_private_data({"personal": {"name": "SAMPLE NAME"}})
     notes = rebuild_image(source, output, provider, ProviderSettings(), Event(), lambda *_: None)
     assert len(calls) == 2
     assert "OLD ROLE" in provider.sensitive_values
@@ -103,7 +101,7 @@ def test_private_page_rebuild_restores_text_assets_and_preserves_source(tmp_path
             summary="checked", fields=[], repeats=[], photos=[], keep=[], remove=[], warnings=[]
         ).model_dump_json()
 
-    fresh = privacy_provider(runner=reopened_runner)
+    fresh = CodexProvider(runner=reopened_runner)
     package = TemplatePackage(output)
     visual_evidence(fresh, package, output, tmp_path, Event())
     fresh.run_structured(
@@ -139,7 +137,7 @@ def test_page_sanitization_failure_never_sends_original(tmp_path, monkeypatch, f
         )
     calls = []
     with pytest.raises((ProviderError, Cancelled)):
-        privacy_provider(runner=lambda *args, **kwargs: calls.append(args)).run_structured(
+        CodexProvider(runner=lambda *args, **kwargs: calls.append(args)).run_structured(
             result_model=ImagePage,
             workspace=tmp_path,
             prompt="恢复图片模板",

@@ -1,5 +1,0 @@
-"""模板建议缓存契约随实现发布，禁止由运行配置指定"""
-
-WORD_CACHE_CONTRACT = 16
-PDF_CACHE_CONTRACT = 20
-IMAGE_CACHE_CONTRACT = 19

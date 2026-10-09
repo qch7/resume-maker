@@ -1,15 +1,9 @@
-﻿param([string]$DataDir = '', [string]$EnvFile, [switch]$NoEnvFile, [switch]$PrintConfig)
+param([string]$DataDir = '')
 $ErrorActionPreference = 'Stop'
-$repoPath = Split-Path -Parent $PSScriptRoot
-if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
-    throw 'Install uv first: https://docs.astral.sh/uv/getting-started/installation/'
+if (-not $DataDir) {
+    $repoPath = Split-Path -Parent $PSScriptRoot
+    $DataDir = if ($env:RESUME_MAKER_DATA_DIR) { $env:RESUME_MAKER_DATA_DIR } else { Join-Path $repoPath 'data' }
 }
-& uv sync --locked --project $repoPath
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-. (Join-Path $PSScriptRoot 'launch-config.ps1')
-$configuration = Get-LaunchConfiguration -Parameters $PSBoundParameters -RepoPath $repoPath
-if ($PrintConfig) { $configuration | ConvertTo-Json -Depth 4; exit 0 }
-$DataDir = $configuration.data_dir
 $instancePath = Join-Path $DataDir 'instance.json'
 if (-not (Test-Path -LiteralPath $instancePath)) { Write-Host 'No running instance recorded.'; exit 0 }
 $instance = Get-Content -LiteralPath $instancePath -Raw | ConvertFrom-Json

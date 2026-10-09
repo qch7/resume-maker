@@ -1,10 +1,11 @@
 """为模板识别提供整页图和 OOXML 版式证据"""
 
+import pymupdf
 from lxml import etree
 
-from resume_maker.integrations.word.capabilities import word_process
+from resume_maker.integrations.providers.base import Cancelled
 from resume_maker.integrations.word.ooxml import NS, w
-from resume_maker.sdk.model import Cancelled
+from resume_maker.integrations.word.rendering import word_process
 
 
 def attributes(node):
@@ -65,8 +66,6 @@ def layout_context(package):
 
 def source_pages(source, directory, flag):
     """仅渲染源模板副本供模型看整页，失败和超出图片预算的页数明确返回"""
-    import pymupdf
-
     if flag.is_set():
         raise Cancelled("模板分析已取消。")
     output = directory / "source-layout"

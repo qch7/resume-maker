@@ -3,15 +3,13 @@
 import secrets
 
 from fastapi import FastAPI, Request
-from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from resume_maker.core.config import Config
 from resume_maker.core.errors import Problem
-from resume_maker.runtime.graph import PluginError
-from resume_maker.sdk.model import ProviderError
+from resume_maker.integrations.providers.base import ProviderError
 
 
 def configure_middleware(app: FastAPI, config: Config) -> None:
@@ -19,11 +17,6 @@ def configure_middleware(app: FastAPI, config: Config) -> None:
     app.add_middleware(
         TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "testserver"]
     )
-
-    @app.exception_handler(PluginError)
-    async def plugin_error_handler(_request, exc):
-        """插件依赖及配置冲突返回可操作诊断，不作为未知服务器错误"""
-        return JSONResponse({"detail": str(exc)}, status_code=409)
 
     @app.middleware("http")
     async def local_auth(request: Request, call_next):
@@ -37,8 +30,7 @@ def configure_middleware(app: FastAPI, config: Config) -> None:
                 return JSONResponse({"detail": "会话已失效，请刷新页面。"}, status_code=401)
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
-        if not request.url.path.startswith("/plugin-ui/"):
-            response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-Frame-Options"] = "DENY"
         response.headers["Cache-Control"] = "no-store"
         return response
 
@@ -51,18 +43,6 @@ def configure_middleware(app: FastAPI, config: Config) -> None:
     async def validation_handler(_request, exc):
         """将业务模型验证错误转换为 422 响应以免当作服务器故障"""
         return JSONResponse({"detail": str(exc)}, status_code=422)
-
-    @app.exception_handler(RequestValidationError)
-    async def request_validation_handler(_request, exc):
-        """输入错误只返回字段和原因，密码及个人资料不回显到响应"""
-        return JSONResponse(
-            {
-                "detail": [
-                    {key: error[key] for key in ("loc", "msg", "type")} for error in exc.errors()
-                ]
-            },
-            status_code=422,
-        )
 
     @app.exception_handler(FileNotFoundError)
     async def missing_handler(_request, _exc):

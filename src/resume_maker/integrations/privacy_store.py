@@ -3,17 +3,15 @@
 import json
 
 from resume_maker.infrastructure.database import dump, now, uid
-from resume_maker.infrastructure.privacy_contributions import retained_private_data
 from resume_maker.integrations.privacy import Redactor
 
 
 class PrivacyStore:
     """原始资料和敏感词保留在本机数据库，外发记录不保存还原表"""
 
-    def __init__(self, db=None, contributions=None):
+    def __init__(self, db=None):
         """允许独立脚本只使用格式规则，应用实例额外加载本机已知资料"""
         self.db = db
-        self.contributions = contributions
 
     def redactor(self):
         """每轮重新读取保存资料和自定义词，避免多用户实例共享敏感值"""
@@ -21,24 +19,9 @@ class PrivacyStore:
         if self.db:
             for row in self.db.all("SELECT document_json FROM resumes"):
                 redactor.learn(row["document"])
-            for value in retained_private_data(self.db):
-                redactor.learn(value)
-        if self.contributions:
-            values, _version = self.contributions.snapshot()
-            for value in values:
-                redactor.values.update(value.terms)
-                for record in value.private_data:
-                    redactor.learn(record)
+            for row in self.db.all("SELECT value_json FROM settings WHERE key LIKE 'honor:%'"):
+                redactor.learn(row["value"])
         return redactor
-
-    def policy_version(self):
-        """保护规则有独立代次，更新后旧材料不能继续被读取或发送"""
-        version = self.db.setting("privacy_terms_version", 0) if self.db else 0
-        if self.contributions:
-            _values, contribution_version = self.contributions.snapshot()
-            if contribution_version:
-                return version, contribution_version
-        return version
 
     def record(self, payload, count):
         """原子保存最多十条已脱敏请求，单次请求内容和数量都有上限"""

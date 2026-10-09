@@ -1,13 +1,13 @@
-import { acceptSavedComposition } from "../src/shared/resume/composition.ts";
+import { acceptSavedComposition } from "../src/features/resumes/composition.ts";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { newDocument } from "../src/shared/resume/document.ts";
-import { sameSectionEntry } from "../src/shared/resume/comparison.ts";
+import { newDocument } from "../src/features/profile/document.ts";
+import { sameSectionEntry } from "../src/features/profile/comparison.ts";
 import {
   entryComposition,
   findEntry,
   replaceEntry,
-} from "../../src/resume_maker/plugin_packages/sys_resume/client/features/profile/entry.ts";
+} from "../src/features/profile/entry.ts";
 
 test("modal entry saves apply only on success and retain unrelated drafts", /* 模态表单不提前污染草稿，保存时只提交本条，保留其他输入 */ () => {
   const saved = baseline();

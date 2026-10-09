@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   historyGraph,
   revisionChanges,
-} from "../../src/resume_maker/plugin_packages/sys_resume/client/features/experiences/history.ts";
+} from "../src/features/experiences/history.ts";
 
 test("uncommitted nodes belong to their own baseline and never consume revision numbers", /* 多个分支的草稿分别连接到对应的历史节点 */ () => {
   const revisions = [

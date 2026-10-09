@@ -12,7 +12,7 @@ from resume_maker.domain.resume import ResumeDocument
 from resume_maker.domain.templates import RepeatBinding, TemplatePlan, TextBinding
 from resume_maker.integrations.word.templates.fill import fill_template
 from resume_maker.integrations.word.templates.mapping import TemplatePackage
-from resume_maker.plugin_packages.ext_template_ai.services.templates.analysis import analyze_plan
+from resume_maker.services.templates.analysis import analyze_plan
 from tests.support.providers import ProviderStub
 
 
@@ -123,8 +123,7 @@ def test_duplicate_record_feedback_is_bounded_and_reusable(tmp_path, monkeypatch
         bad = good.model_copy(deep=True)
         bad.repeats[0].fields[0].quote = "Incorrectly remembered source wording"
     monkeypatch.setattr(
-        "resume_maker.plugin_packages.ext_template_ai.services.templates.analysis.source_pages",
-        lambda *_: ([], [], []),
+        "resume_maker.services.templates.analysis.source_pages", lambda *_: ([], [], [])
     )
 
     class Provider(ProviderStub):

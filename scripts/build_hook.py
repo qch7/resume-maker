@@ -18,16 +18,3 @@ class CustomBuildHook(BuildHookInterface):
                 "请先运行 npm --prefix frontend ci 和 npm --prefix frontend run build。"
             )
         build_data.setdefault("force_include", {})[str(frontend)] = "resume_maker/web"
-        packages = Path(self.root) / "src/resume_maker/plugin_packages"
-        for path in packages.glob("*/package.json"):
-            import json
-
-            metadata = json.loads(path.read_text(encoding="utf-8"))
-            if not metadata["resumeMaker"].get("client"):
-                continue
-            output = Path(self.root) / ".local/plugin-builds" / path.parent.name
-            if not (output / "artifacts.json").is_file():
-                raise RuntimeError(f"插件 {path.parent.name} 尚未构建，请重新运行前端构建。")
-            build_data["force_include"][str(output)] = (
-                f"resume_maker/plugin_packages/{path.parent.name}/client_dist"
-            )

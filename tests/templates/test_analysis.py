@@ -13,15 +13,9 @@ from resume_maker.core.config import Config
 from resume_maker.core.errors import Problem
 from resume_maker.domain.models import AIResult, ResumeItem
 from resume_maker.domain.templates import TemplatePlan
-from resume_maker.infrastructure.assets import Assets
-from resume_maker.integrations.privacy_gateway import schema
+from resume_maker.integrations.providers.codex import schema
 from resume_maker.integrations.word.templates.mapping import TemplatePackage
-from resume_maker.plugin_packages.ext_template_adapter.services.templates.tasks import Templates
-from resume_maker.plugin_packages.ext_template_ai.services.templates.analysis_driver import (
-    TemplateAnalysis,
-)
-from resume_maker.plugin_packages.sys_resume.services.resumes import Resumes
-from tests.support.document_services import use_renderer
+from resume_maker.services.templates.tasks import Templates
 from tests.support.documents import photo_bytes
 from tests.support.templates import TemplateProvider, completed, simple_document, simple_template
 
@@ -33,18 +27,12 @@ def test_analysis_snapshot_save_restart_and_export(tmp_path, monkeypatch):
     provider = TemplateProvider()
     config = Config(data_dir=tmp_path / "data", token="test")
     app = create_app(config, provider)
-    use_renderer(app, monkeypatch, lambda *_: (None, "测试无渲染器"))
-
-    def render_preview(output, pdf):
-        """发布前生成合成分页，验证下载只接受本次声明的产物"""
-        assert Document(output).paragraphs[0].text == "新的用户资料"
-        pdf.write_bytes(b"synthetic PDF")
-        (pdf.parent / "page-1.svg").write_text(
-            '<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0L10 10"/></svg>',
-            encoding="utf-8",
-        )
-        return 1, None
-
+    monkeypatch.setattr(
+        "resume_maker.services.templates.tasks.render_word", lambda *_: (None, "测试无渲染器")
+    )
+    monkeypatch.setattr(
+        "resume_maker.services.documents.render_word", lambda *_: (None, "测试无渲染器")
+    )
     with TestClient(app) as client:
         headers = {"x-resume-token": "test"}
         payload = {"path": str(source), "document": simple_document().model_dump()}
@@ -65,15 +53,10 @@ def test_analysis_snapshot_save_restart_and_export(tmp_path, monkeypatch):
         assert client.get(preview_prefix + "/resume.docx", headers=headers).status_code == 200
         assert client.get(preview_prefix + "/original.docx", headers=headers).status_code == 404
         assert client.get(preview_prefix + "/resume.docx").status_code == 401
-        with app.state.services.templates.preview_lease(
-            task["id"], preview.json()["id"], "resume.docx"
-        ) as output:
-            (output.parent / "page-1.svg").write_text("未声明的分页", encoding="utf-8")
-        assert client.get(preview_prefix + "/page-1.svg", headers=headers).status_code == 404
-        use_renderer(app, monkeypatch, render_preview)
-        rendered = client.post(prefix + "/preview", json=body, headers=headers)
-        assert rendered.status_code == 200 and rendered.json()["pages"] == 1
-        preview_prefix = prefix + "/previews/" + rendered.json()["id"]
+        vector = (
+            config.data_dir / "template-drafts" / task["id"] / preview.json()["id"] / "page-1.svg"
+        )
+        vector.write_text('<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0L10 10"/></svg>')
         response = client.get(preview_prefix + "/page-1.svg", headers=headers)
         assert response.status_code == 200 and response.headers["content-type"].startswith(
             "image/svg+xml"
@@ -93,27 +76,22 @@ def test_analysis_snapshot_save_restart_and_export(tmp_path, monkeypatch):
         assert listed == [
             {"id": template_id, "name": "完整模板", "created_at": saved.json()["created_at"]}
         ]
-        resume = app.state.services.resume.save_resume(
+        resume = app.state.services.catalog.save_resume(
             "试填简历",
             template_id,
             [],
             document=simple_document(),
         )
     restarted = create_app(config, TemplateProvider())
-    use_renderer(restarted, monkeypatch, lambda *_: (None, "测试无渲染器"))
     with TestClient(restarted):
         assert restarted.state.services.templates.get(task["id"])["plan"] == task["plan"]
         exported = restarted.state.services.documents.export(resume["id"])
         assert exported["manifest"]["layout"] == "adaptive-template"
-        assets = restarted.state.services.assets
-        output = assets.read_file(f"exports/{exported['id']}", "resume.docx")
-        assert Document(BytesIO(output)).paragraphs[0].text == "新的用户资料"
-        managed = (
-            assets.resource_path(assets.file_id(f"templates/{template_id}", "template.docx"))
-            / "payload"
-        )
+        output = config.data_dir / "exports" / exported["id"] / "resume.docx"
+        assert Document(output).paragraphs[0].text == "新的用户资料"
+        managed = config.data_dir / "templates" / template_id / "template.docx"
         managed.write_bytes(b"tampered")
-        with pytest.raises(Problem, match="摘要不匹配"):
+        with pytest.raises(Problem, match="程序外变化"):
             restarted.state.services.documents.export(resume["id"])
 
 
@@ -122,16 +100,9 @@ def test_cancel_and_stop_discard_late_analysis(catalog, tmp_path):
     source = tmp_path / "source.docx"
     simple_template(source)
     with TemplateProvider(block=True) as provider:
-        service = Templates(
-            Resumes(catalog, storage=catalog.db, assets=catalog.assets),
-            tmp_path / "data",
-            provider,
-            storage=catalog.db,
-            analysis=TemplateAnalysis(),
-            assets=Assets(catalog.db, tmp_path / "data"),
-        )
+        service = Templates(catalog, tmp_path / "data", provider)
         task = service.analyze(source, simple_document())
-        provider.wait_started()
+        assert provider.started.wait(2)
         assert service.cancel(task["id"])["status"] == "cancelled"
         with pytest.raises(Problem, match="已有模板"):
             service.analyze(source, simple_document())
@@ -159,7 +130,7 @@ def test_reopen_saved_mapping_preserves_versions_and_checks_hash(tmp_path):
         original = service.save(
             task["id"], "原模板", TemplatePlan.model_validate(task["plan"]), simple_document(), []
         )
-        resume = app.state.services.resume.save_resume(
+        resume = app.state.services.catalog.save_resume(
             "已有简历", original["id"], [], document=simple_document()
         )
         endpoint = f"/api/templates/{original['id']}/edit"
@@ -182,14 +153,10 @@ def test_reopen_saved_mapping_preserves_versions_and_checks_hash(tmp_path):
         )
         assert service.open(original["id"])["plan"]["summary"] == task["plan"]["summary"]
         assert service.open(saved["id"])["plan"]["summary"] == "人工核对后另存"
-        assets = app.state.services.assets
-        managed = (
-            assets.resource_path(assets.file_id(f"templates/{original['id']}", "template.docx"))
-            / "payload"
-        )
+        managed = config.data_dir / "templates" / original["id"] / "template.docx"
         managed.write_bytes(b"changed outside application")
         invalid = client.post(endpoint, headers=headers)
-        assert invalid.status_code == 409 and "摘要不匹配" in invalid.text
+        assert invalid.status_code == 400 and "程序外变化" in invalid.text
         assert service.review(opened["id"], plan)["ready"]
     with TestClient(create_app(config, TemplateProvider())) as restarted:
         assert (
@@ -206,14 +173,7 @@ def test_failure_and_invalid_save_do_not_register_templates(catalog, tmp_path):
     source = tmp_path / "source.docx"
     simple_template(source)
     provider = TemplateProvider(failure=True)
-    service = Templates(
-        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
-        tmp_path / "data",
-        provider,
-        storage=catalog.db,
-        analysis=TemplateAnalysis(),
-        assets=Assets(catalog.db, tmp_path / "data"),
-    )
+    service = Templates(catalog, tmp_path / "data", provider)
     task = service.analyze(source, simple_document())
     assert completed(service, task["id"])["status"] == "failed"
     provider.failure = False
@@ -232,14 +192,7 @@ def test_failure_and_invalid_save_do_not_register_templates(catalog, tmp_path):
 
 def test_preview_checks_fixed_references(catalog, project, populated, tmp_path):
     """重复项目、无效亮点及跨项目修订不能通过模板试填绕过引用校验"""
-    service = Templates(
-        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
-        tmp_path / "data",
-        TemplateProvider(),
-        storage=catalog.db,
-        analysis=TemplateAnalysis(),
-        assets=Assets(catalog.db, tmp_path / "data"),
-    )
+    service = Templates(catalog, tmp_path / "data", TemplateProvider())
     valid = ResumeItem(project_id=project["id"], revision_id=populated["id"], highlight_ids=["one"])
     assert service.projects([valid])[0]["content"]["title"] == "Example"
     with pytest.raises(Problem, match="不能重复"):

@@ -10,7 +10,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from resume_maker.core.config import sandbox_directory
-from resume_maker.sdk.model import ProviderError
+from resume_maker.integrations.providers.base import ProviderError
 
 
 def toml(value):
@@ -94,9 +94,9 @@ def workspace():
     """在应用专用沙箱内生成独立副本，清理前再次核验归属及路径"""
     base = sandbox_directory()
     try:
+        base.mkdir(mode=0o700, exist_ok=True)
         if base.is_symlink() or base.resolve() != base.absolute():
-            raise ProviderError("沙箱路径不能包含链接，请检查沙箱及其父目录。")
-        base.mkdir(mode=0o700, parents=True, exist_ok=True)
+            raise ProviderError("沙箱根目录不能是链接，请检查 ResumeMakerSandbox 目录。")
         if os.name == "nt":
             windows_parent(base)
         else:
@@ -149,19 +149,3 @@ def materials(root, prompt, schema):
     (work / "context.txt").write_text(prompt, encoding="utf-8", newline="")
     (work / "schema.json").write_text(json.dumps(schema, ensure_ascii=False), encoding="utf-8")
     return prompt
-
-
-class LocalSandbox:
-    """本机材料会话的真实强制能力报告"""
-
-    capabilities = {
-        "directory_acl": True,
-        "tool_allowlist": True,
-        "process_cleanup": True,
-        "os_filesystem_isolation": False,
-        "os_network_isolation": False,
-    }
-
-    def session(self):
-        """使用独立控制目录和材料目录创建本轮会话"""
-        return workspace()

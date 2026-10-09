@@ -1,22 +1,11 @@
-import os
 from pathlib import Path
 
 import httpx
 import pytest
 
-from resume_maker.core.environment import PREFIX
 from resume_maker.infrastructure.database import Database
-from resume_maker.plugin_packages.ext_ai_conversation.services.conversations import Conversations
-from tests.support.data import experience, make_catalog
-
-
-@pytest.fixture(autouse=True)
-def isolate_launch_configuration(monkeypatch):
-    """测试显式声明启动输入，不读取开发者环境和源码根目录配置文件"""
-    for key in tuple(os.environ):
-        if key.upper().startswith(PREFIX) and key.upper() != PREFIX + "TEST_NATIVE_CLI":
-            monkeypatch.delenv(key)
-    monkeypatch.setattr("resume_maker.cli.default_env_file", lambda: None)
+from resume_maker.services.catalog import Catalog
+from tests.support.data import experience
 
 
 @pytest.fixture(scope="session")
@@ -41,13 +30,7 @@ def isolate_model_network(monkeypatch, tmp_path):
         """默认禁止真实 CLI 模型请求，单测必须显式注入执行替身"""
         pytest.fail("测试禁止启动真实模型会话，请注入 CLI runner")
 
-    monkeypatch.setattr(
-        "resume_maker.plugin_packages.ext_provider_codex.integrations.providers.cli.run_cli",
-        blocked_cli,
-    )
-    monkeypatch.setattr(
-        "resume_maker.plugin_packages.ext_provider_codex.entry.run_model", blocked_cli
-    )
+    monkeypatch.setattr("resume_maker.integrations.providers.codex.run_cli", blocked_cli)
 
 
 @pytest.fixture(autouse=True)
@@ -62,11 +45,7 @@ def isolate_template_visual_renderer(monkeypatch):
 @pytest.fixture
 def catalog(tmp_path):
     """在临时数据目录创建业务服务，让每个测试的数据相互隔离"""
-    catalog = make_catalog(Database(tmp_path / "data" / "resume.db"))
-    catalog.project_initializers["test.conversations"] = Conversations(
-        catalog, storage=catalog.db
-    ).initialize_project
-    return catalog
+    return Catalog(Database(tmp_path / "data" / "resume.db"))
 
 
 @pytest.fixture

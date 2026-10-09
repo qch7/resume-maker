@@ -12,12 +12,8 @@ from resume_maker.core.config import Config, frontend_directory
 def test_sidebar_activity_tracks_drafts_and_conversation_edits(tmp_path, monkeypatch):
     """验证项目活动时间聚合草稿和会话修改，重复值不会刷新时间"""
     stamp = "2026-01-01T00:00:00Z"
-    monkeypatch.setattr(
-        "resume_maker.plugin_packages.sys_experience.services.catalog.now", lambda: stamp
-    )
-    monkeypatch.setattr(
-        "resume_maker.plugin_packages.ext_ai_conversation.services.conversations.now", lambda: stamp
-    )
+    monkeypatch.setattr("resume_maker.services.catalog.now", lambda: stamp)
+    monkeypatch.setattr("resume_maker.services.conversations.now", lambda: stamp)
     source = tmp_path / "source"
     source.mkdir()
     headers = {"x-resume-token": "test-token"}
@@ -49,14 +45,7 @@ def test_sidebar_activity_tracks_drafts_and_conversation_edits(tmp_path, monkeyp
         path = f"/api/conversations/{conversation['id']}"
         for field, value, day in [("title", "修改名称", "03"), ("input_draft", "输入草稿", "04")]:
             stamp = f"2026-01-{day}T00:00:00Z"
-            response = client.patch(
-                path,
-                headers=headers,
-                json={
-                    field: value,
-                    **({"expected_input_draft": ""} if field == "input_draft" else {}),
-                },
-            )
+            response = client.patch(path, headers=headers, json={field: value})
             assert response.status_code == 200, response.text
             assert response.json()["updated_at"] == stamp
             assert state()["projects"][0]["activity_at"] == stamp
@@ -64,15 +53,7 @@ def test_sidebar_activity_tracks_drafts_and_conversation_edits(tmp_path, monkeyp
         previous = stamp
         stamp = "2026-01-05T00:00:00Z"
         client.get(path, headers=headers)
-        client.patch(
-            path,
-            headers=headers,
-            json={
-                "title": "修改名称",
-                "input_draft": "输入草稿",
-                "expected_input_draft": "输入草稿",
-            },
-        )
+        client.patch(path, headers=headers, json={"title": "修改名称", "input_draft": "输入草稿"})
         assert state()["projects"][0]["activity_at"] == previous
 
 
@@ -116,7 +97,7 @@ def test_project_and_conversation_persist_after_app_restart(tmp_path):
         saved = client.patch(
             f"/api/conversations/{conversation['id']}",
             headers=headers,
-            json={"input_draft": "未发送草稿", "expected_input_draft": "", "title": "后端岗位版"},
+            json={"input_draft": "未发送草稿", "title": "后端岗位版"},
         )
         assert saved.status_code == 200
     with TestClient(create_app(config)) as client:
@@ -218,12 +199,10 @@ def test_lifespan_stops_worker_even_on_exception(tmp_path):
     app = create_app(Config(data_dir=tmp_path))
     queue = app.state.services.jobs
     with pytest.raises(RuntimeError, match="模拟关闭异常"), TestClient(app):
-        assert queue.worker is None
-        assert queue.execution_queue.supervisor.executor is not None
+        assert queue.worker.is_alive()
         raise RuntimeError("模拟关闭异常")
     assert queue.stopped.is_set()
-    assert queue.execution_queue.supervisor.executor is None
-    assert not queue.execution_queue.supervisor.owned
+    assert not queue.worker.is_alive()
 
 
 def test_static_assets_and_current_token_are_served(tmp_path):

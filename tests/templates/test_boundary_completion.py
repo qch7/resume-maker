@@ -12,11 +12,8 @@ from resume_maker.integrations.word.ooxml import w
 from resume_maker.integrations.word.templates.completion import complete_template
 from resume_maker.integrations.word.templates.fill import fill_template
 from resume_maker.integrations.word.templates.mapping import TemplatePackage, paragraph_text
-from resume_maker.plugin_packages.ext_template_ai.services.templates.analysis import (
-    assess_plan,
-    complete_labels,
-)
-from resume_maker.plugin_packages.ext_template_ai.services.templates.schema import plan_schema
+from resume_maker.services.templates.analysis import assess_plan, complete_labels
+from resume_maker.services.templates.schema import plan_schema
 from tests.support.layouts import generic_content, generic_template, visible_text
 from tests.support.layouts import template_body_text as body_text
 

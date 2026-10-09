@@ -1,172 +1,145 @@
-"""启动器只装配运行时和 HTTP 外壳，业务入口由清单发现"""
+"""应用组装入口：配置、服务生命周期、路由和静态资源"""
 
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from fastapi.openapi.utils import get_openapi
 
 from resume_maker import __version__
 from resume_maker.api.activity import ActivityMiddleware
-from resume_maker.api.dependencies import ServiceView
+from resume_maker.api.dependencies import Services
 from resume_maker.api.middleware import configure_middleware
-from resume_maker.api.plugin_dispatch import PluginDispatch, snapshot
+from resume_maker.api.routes import (
+    activity,
+    conversations,
+    honors,
+    jobs,
+    privacy,
+    projects,
+    recruitment,
+    resumes,
+    settings,
+    system,
+    templates,
+    workspace_storage,
+)
 from resume_maker.api.static import mount_frontend
 from resume_maker.core.config import Config
-from resume_maker.plugins.discovery import configuration_bundles, selection
-from resume_maker.runtime.configuration import compose_configuration, startup_configuration
-from resume_maker.runtime.environments import EnvironmentStore
-from resume_maker.runtime.graph import PluginError, available_selection
-from resume_maker.runtime.host import Host
-from resume_maker.runtime.instances import definition_id, expand_instances
-from resume_maker.runtime.packages import PackageStore
-from resume_maker.runtime.state import StateStore
-from resume_maker.sdk.context import ServiceKey
-from resume_maker.sdk.model import Provider
+from resume_maker.infrastructure.activity import ActivityLog
+from resume_maker.infrastructure.database import Database
+from resume_maker.infrastructure.observability import install_logging, instrument_service
+from resume_maker.integrations.privacy_store import PrivacyStore
+from resume_maker.integrations.providers.base import Provider
+from resume_maker.integrations.providers.codex import CodexProvider
+from resume_maker.services.catalog import Catalog
+from resume_maker.services.conversations import Conversations
+from resume_maker.services.documents import Documents
+from resume_maker.services.honors import Honors
+from resume_maker.services.jobs import Jobs
+from resume_maker.services.privacy import Privacy
+from resume_maker.services.projects import Projects
+from resume_maker.services.recruitment import Recruitment
+from resume_maker.services.resume_previews import ResumePreviews
+from resume_maker.services.settings import Settings
+from resume_maker.services.templates.library import TemplateLibrary
+from resume_maker.services.templates.tasks import Templates
+from resume_maker.services.workspace import Workspace
+from resume_maker.services.workspace_storage import WorkspaceStorage
 
 
 def create_app(config: Config | None = None, provider: Provider | None = None) -> FastAPI:
-    """解析完整组合后激活插件，未选择的模块不会被入口集中导入"""
+    """按配置组装独立应用，后台任务由应用生命周期启动"""
     config = config or Config()
     config.prepare()
-    store = StateStore(config.data_dir)
-    saved = store.read()
-    overrides = config.plugins
-    if saved and config.profile is None and overrides is None:
-        overrides = tuple(saved["selected"])
-    manifests, selected, required = selection(config.profile or "standard", overrides)
-    packages = PackageStore(
-        config.package_root or config.data_dir, set(manifests), records=config.package_records
+    db = Database(config.data_dir / "resume.db")
+    db.activity = ActivityLog(config.data_dir / "logs" / "activity.sqlite", secrets=(config.token,))
+    db.activity.import_history(db)
+    install_logging()
+    privacy_store = PrivacyStore(db)
+    provider = provider if provider is not None else CodexProvider(privacy=privacy_store)
+    catalog = Catalog(db)
+    queue = Jobs(db, catalog, config.data_dir, provider)
+    template_service = Templates(catalog, config.data_dir, provider)
+    preview_service = ResumePreviews(catalog, config.data_dir)
+    services = Services(
+        config=config,
+        db=db,
+        catalog=catalog,
+        jobs=queue,
+        honors=Honors(db, config.data_dir, provider),
+        settings=Settings(db, config.data_dir, provider),
+        privacy=Privacy(db, privacy_store),
+        documents=Documents(catalog, config.data_dir),
+        resume_previews=preview_service,
+        templates=template_service,
+        template_library=TemplateLibrary(
+            catalog, config.data_dir, template_service, preview_service
+        ),
+        projects=Projects(catalog),
+        conversations=Conversations(catalog),
+        workspace=Workspace(catalog),
+        workspace_storage=WorkspaceStorage(db),
+        recruitment=Recruitment(db),
     )
-    external, locations = packages.discover(strict=False)
-    manifests.update(external)
-    environments = EnvironmentStore(
-        config.package_root or config.data_dir, records=config.environment_records
-    )
-    worker_environments = environments.available(locations)
-    instance_specs = (saved or {}).get("instances", [])
-    expanded, parsed_specs = expand_instances(manifests, instance_specs, missing_ok=True)
-    desired, blocked = set(selected), {}
-    if config.plugins is None:
-        selected, blocked = available_selection(
-            expanded,
-            desired,
-            required,
-            {
-                key: packages.failures[definition_id(parsed_specs, key)]
-                for key in desired
-                if definition_id(parsed_specs, key) in packages.failures
-            },
-            {
-                key: worker_environments.get(definition_id(parsed_specs, key), {})
-                for key in expanded
-            },
-        )
-    layers = startup_configuration(
-        saved, config.plugin_config, configuration_bundles(config.profile or "standard")
-    )
-    if config.plugin_config and any(
-        edit["instance"] not in expanded
-        for layer in layers
-        if layer["name"] != "workspace"
-        for edit in layer.get("edits", [])
-    ):
-        raise PluginError("本次启动配置引用尚未安装的插件实例")
-    configuration = compose_configuration(
-        expanded,
-        layers,
-        missing_ok=True,
-    )
-    configs = configuration["configs"]
-    generation = saved["generation"] if saved else 1
 
-    def activate_host(selection, reasons, current_generation):
-        """只在全部注册验证完成后返回宿主，实际能力变化重新绑定统一代次"""
-        candidate = Host(
-            manifests,
-            selection,
-            required,
-            {
-                "config": config,
-                "provider": provider,
-                "state_store": store,
-                "packages": locations,
-                "package_store": packages,
-                "configs": configs,
-                "configuration": configuration,
-                "environment_store": environments,
-                "worker_environments": worker_environments,
-            },
-            current_generation,
-            instance_specs=instance_specs,
-        )
-        candidate.desired, candidate.blocked = desired, reasons
-        candidate.activate()
-        return candidate
-
-    host = activate_host(selected, blocked, generation)
-    if saved and (
-        set(saved.get("effective", saved["selected"])) != host.selected
-        or any(
-            saved.get("configs", {}).get(key, expanded[key].config) != configs[key]
-            for key in host.selected
-        )
+    for name in (
+        "catalog",
+        "jobs",
+        "honors",
+        "documents",
+        "resume_previews",
+        "templates",
+        "template_library",
+        "projects",
+        "conversations",
+        "workspace",
+        "settings",
+        "privacy",
+        "workspace_storage",
+        "recruitment",
     ):
-        selected, blocked = set(host.selected), dict(host.blocked)
-        host.close()
-        generation += 1
-        host = activate_host(selected, blocked, generation)
-    log = host.require(ServiceKey("activity"))
+        instrument_service(
+            getattr(services, name),
+            db.activity,
+            name,
+            background=("_run", "_analyze", "_recognize"),
+        )
+    instrument_service(catalog.history, db.activity, "history")
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
-        """后台工作遵守插件拓扑启动和逆依赖关闭"""
-        log.write("system", "startup", "本机服务启动", {"instance_id": config.instance_id})
-        host.start()
-        if ready := host.bootstrap.get("on_ready"):
-            ready()
+        """随服务器启动队列并在正常关闭或异常退出时回收任务进程"""
+        db.activity.write("system", "startup", "本机服务启动", {"instance_id": config.instance_id})
+        queue.start()
+        services.honors.start()
+        services.template_library.start()
         try:
             yield
         finally:
-            host.close()
-            log.write("system", "shutdown", "本机服务停止")
+            services.template_library.stop()
+            services.honors.stop()
+            services.templates.stop()
+            services.resume_previews.stop()
+            queue.stop()
+            db.activity.write("system", "shutdown", "本机服务停止")
 
     app = FastAPI(title="Resume Maker", version=__version__, lifespan=lifespan)
-    app.state.runtime = host
-    app.state.services = ServiceView(host)
+    app.state.services = services
     configure_middleware(app, config)
-    app.add_middleware(ActivityMiddleware, log=log)
-    dispatch = PluginDispatch(snapshot(host, app.exception_handlers))
-    manager = host.require(ServiceKey("plugins"))
-
-    def publish_routes():
-        """完整候选路由通过验证后原子替换，已有请求仍使用旧快照"""
-        dispatch.current = snapshot(host, app.exception_handlers)
-
-    manager.publish_routes = publish_routes
-    retained_configs = {**(saved or {}).get("configs", {}), **configs}
-    store.commit(
-        desired,
-        generation,
-        manager.package_lock(),
-        retained_configs,
-        host.selected,
-        instance_specs,
-        configuration["layers"],
-    )
-    app.router.routes.append(dispatch)
-    app.state.dispatch = dispatch
-
-    def openapi():
-        """插件 API 和根静态入口共享完整 HTTP 契约"""
-        return get_openapi(
-            title="Resume Maker",
-            version=__version__,
-            routes=[
-                *dispatch.current.router.routes,
-                *(route for route in app.router.routes if route is not dispatch),
-            ],
-        )
-
-    app.openapi = openapi
+    app.add_middleware(ActivityMiddleware, log=db.activity)
+    for module in (
+        activity,
+        system,
+        projects,
+        conversations,
+        jobs,
+        resumes,
+        templates,
+        settings,
+        honors,
+        privacy,
+        workspace_storage,
+        recruitment,
+    ):
+        app.include_router(module.router)
     mount_frontend(app, config)
     return app

@@ -35,7 +35,7 @@ def replace_field(content: dict, field: str, value) -> dict:
     """在深拷贝上替换指定字段并校验亮点内容及完整排序"""
     content = deepcopy(content)
     if field == "experience":
-        # AI 只修改正文时保留用户已有的排序、自定义条目和显隐设置
+        # 旧客户端或历史 AI 建议未提供扩展资料时，保留用户已有的条目和显隐设置
         preserved = {
             key: content[key]
             for key in ("hidden_fields", "custom_fields", "body_order")
@@ -71,7 +71,7 @@ def displayed_experience(
     visibility: ProjectVisibility | None = None,
     definitions: list[DefaultField] | None = None,
 ) -> dict:
-    """在排版副本中应用版本显隐和当前简历的覆盖设置"""
+    """先应用当前简历的显隐覆盖，再清空排版副本，兼容旧版本自带的显隐设置"""
     value = Experience.model_validate(content).model_dump()
     hidden = set(value["hidden_fields"])
     configured = {field.id: field for field in definitions} if definitions is not None else None

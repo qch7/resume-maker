@@ -13,6 +13,7 @@ from pydantic import ValidationError
 from resume_maker.core.errors import Problem
 from resume_maker.domain.image_layout import ImageAsset, ImagePage, ImageText
 from resume_maker.domain.templates import RepeatBinding, TemplatePlan, TextBinding
+from resume_maker.integrations.providers.base import Cancelled
 from resume_maker.integrations.word.image.header import check_image_header
 from resume_maker.integrations.word.image.layout import (
     asset_bytes,
@@ -26,7 +27,6 @@ from resume_maker.integrations.word.pdf.geometry import PDF, SOURCE, WP, recover
 from resume_maker.integrations.word.recovery import prepare_template
 from resume_maker.integrations.word.templates.fill import fill_template
 from resume_maker.integrations.word.templates.mapping import TemplatePackage
-from resume_maker.sdk.model import Cancelled
 from tests.support.documents import header_content
 from tests.support.images import image_fixture, quiet, source_plan
 from tests.support.providers import ProviderStub
@@ -302,9 +302,7 @@ def test_header_repeat_conflict_is_reported_but_sidebar_is_preserved(tmp_path, s
 
 def test_image_mapping_constraints_do_not_change_word_or_pdf_prompts(tmp_path):
     """图片专属边界提示不进入 Word/PDF 映射上下文及其缓存键"""
-    from resume_maker.plugin_packages.ext_template_ai.services.templates.analysis import (
-        analysis_context,
-    )
+    from resume_maker.services.templates.analysis import analysis_context
 
     path = tmp_path / "source.docx"
     document = Document()

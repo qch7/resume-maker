@@ -3,13 +3,13 @@ import assert from "node:assert/strict";
 import {
   experienceContent,
   fieldVisible,
-} from "../src/shared/resume/visibility.ts";
-import { buildLivePreview } from "../../src/resume_maker/plugin_packages/sys_resume/client/features/resumes/livePreview.ts";
-import { sameResumeDocument } from "../src/shared/resume/comparison.ts";
-import { newDocument } from "../src/shared/resume/document.ts";
-import { toggleHighlightSelection } from "../src/shared/resume/composition.ts";
-import { projectBodyOrder } from "../src/shared/resume/bodyOrder.ts";
-import { revisionChanges } from "../../src/resume_maker/plugin_packages/sys_resume/client/features/experiences/history.ts";
+} from "../src/features/experiences/visibility.ts";
+import { buildLivePreview } from "../src/features/resumes/livePreview.ts";
+import { sameResumeDocument } from "../src/features/profile/comparison.ts";
+import { newDocument } from "../src/features/profile/document.ts";
+import { toggleHighlightSelection } from "../src/features/resumes/composition.ts";
+import { projectBodyOrder } from "../src/features/experiences/bodyOrder.ts";
+import { revisionChanges } from "../src/features/experiences/history.ts";
 
 /** 创建带隐藏默认值的旧项目版本，测试新覆盖可同时隐藏和恢复 */
 function fixture() {

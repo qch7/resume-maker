@@ -116,8 +116,6 @@ def operation(source, category="service", *, title=None):
 def instrument_service(service, log, name, *, background=()):
     """集中覆盖服务公开入口及明确的后台执行边界，新增公开方法自动纳入日志"""
     for method_name, method in inspect.getmembers(service, predicate=inspect.ismethod):
-        if getattr(method, "__activity_internal__", False):
-            continue
         if method_name.startswith("_") and method_name not in background:
             continue
         wrapped = operation(f"{name}.{method_name}")(method)

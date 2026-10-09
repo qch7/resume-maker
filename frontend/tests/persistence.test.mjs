@@ -11,10 +11,9 @@ function fixture() {
   let loseResponse = false;
   const instances = [];
   /** 返回同一服务上的独立浏览器窗口 */
-  function window(client, generation = 0) {
+  function window(client) {
     const instance = createPersistence({
       client,
-      generation: () => generation,
       changed: () => {},
       local: {
         keys: () => [...local.keys()],
@@ -211,20 +210,4 @@ test("changes during a request remain pending until a second confirmed write", a
   assert.equal(page.getItem("rm.profile.test"), "later");
   await page.flush();
   assert.equal(page.pending(), false);
-});
-
-test("old plugin generation remains a recovery copy without automatic replay", async (t) => {
-  const env = fixture();
-  t.after(env.close);
-  const old = env.window("old", 1);
-  await old.initialize();
-  old.setItem("rm.resume.v2.new", "offline extension content");
-  old.dispose();
-  const current = env.window("current", 2);
-  await current.initialize();
-  await current.flush();
-  assert.equal(current.getItem("rm.resume.v2.new"), null);
-  assert.equal(env.values["rm.resume.v2.new"], undefined);
-  assert.equal(current.recoveries()[0].value, "offline extension content");
-  assert.equal(env.local.size, 1);
 });

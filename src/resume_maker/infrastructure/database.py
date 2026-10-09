@@ -1,60 +1,51 @@
 """短连接 SQLite 访问、即时写事务和数据库初始化"""
 
+import json
 import sqlite3
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
+from uuid import uuid4
 
-from resume_maker.core.errors import Problem
-from resume_maker.infrastructure.data_catalog import CATALOG_SCHEMA, initialize_catalog
-from resume_maker.infrastructure.database_policy import DatabasePolicy
-from resume_maker.infrastructure.schema_resources import (
-    definitions,
-    execute_script,
-    relational_owners,
-    resources,
-)
-from resume_maker.sdk.records import dump as dump
-from resume_maker.sdk.records import now as now
-from resume_maker.sdk.records import uid as uid
-from resume_maker.sdk.records import unpack as unpack
+
+def now() -> str:
+    """返回毫秒精度的 UTC 时间，供持久化记录和排序统一使用"""
+    return datetime.now(UTC).isoformat(timespec="milliseconds")
+
+
+def uid() -> str:
+    """生成不依赖数据库自增序列的唯一记录标识"""
+    return str(uuid4())
+
+
+def dump(value: Any) -> str:
+    """将数据编码为紧凑 UTF-8 JSON，保留中文并稳定比较草稿内容"""
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+
+
+def unpack(row: sqlite3.Row | None) -> dict | None:
+    """把 SQLite 行转成字典，解码以 _json 结尾的列并去掉后缀"""
+    if row is None:
+        return None
+    return {
+        k.removesuffix("_json"): json.loads(v) if k.endswith("_json") and v else v
+        for k, v in dict(row).items()
+    }
+
 
 # SQL 随 Python 包分发，读取位置和当前工作目录无关
 SCHEMA = Path(__file__).with_name("schema.sql").read_text(encoding="utf-8")
 # 只接受当前数据库结构
-SCHEMA_VERSION = 9
-
-
-class Connection(sqlite3.Connection):
-    """写事务完成后才使业务缓存失效，失败不会提前改写内存状态"""
-
-    def after_commit(self, callback):
-        """仅允许在活动事务登记本机缓存操作"""
-        if not self.in_transaction:
-            raise RuntimeError("缓存回调必须属于活动事务")
-        if not hasattr(self, "callbacks"):
-            self.callbacks = []
-        self.callbacks.append(callback)
-
-    def commit(self):
-        """数据库成功提交后按登记顺序同步缓存"""
-        super().commit()
-        callbacks, self.callbacks = getattr(self, "callbacks", []), []
-        for callback in callbacks:
-            callback()
-
-    def rollback(self):
-        """放弃未提交写入和对应的缓存修改"""
-        super().rollback()
-        self.callbacks = []
+SCHEMA_VERSION = 6
 
 
 class Database:
     """短连接 SQLite 访问和事务边界，统一 JSON 编解码和配置存储"""
 
-    def __init__(self, path: Path, *, plugins=None, policy=None):
-        """校验资料版本后建立所选插件的表，拒绝未迁移的旧库"""
+    def __init__(self, path: Path):
+        """为空库一次性建立完整结构，已有数据库必须使用当前结构版本"""
         self.path = path
-        self.policy = policy or DatabasePolicy()
         self.activity = None
         path.parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as conn:
@@ -63,91 +54,17 @@ class Database:
                 version == 0
                 and conn.execute("SELECT 1 FROM sqlite_master WHERE type='table'").fetchone()
             ):
-                raise RuntimeError("数据库结构不受当前程序支持，请先迁移资料或恢复当前版本备份。")
+                raise RuntimeError("数据库结构不受当前程序支持，请使用新的数据目录。")
             conn.execute("PRAGMA journal_mode=WAL")
-            try:
-                conn.execute("BEGIN IMMEDIATE")
-                self._install(conn, plugins)
-                conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
-                conn.commit()
-            except BaseException:
-                conn.rollback()
-                raise
-
-    def _schema_script(self, plugins):
-        """读取各插件自行声明的初始结构，不在数据库类维护业务名单"""
-        script = resources(definitions() if plugins is None else plugins, "schemas")
-        script = script.replace("CREATE TABLE ", "CREATE TABLE IF NOT EXISTS ")
-        script = script.replace("CREATE INDEX ", "CREATE INDEX IF NOT EXISTS ")
-        script = script.replace("CREATE UNIQUE INDEX ", "CREATE UNIQUE INDEX IF NOT EXISTS ")
-        return script.replace("IF NOT EXISTS IF NOT EXISTS", "IF NOT EXISTS")
-
-    def _install(self, conn, plugins):
-        """建表、资料归属和持久引用规则全部加入调用方事务"""
-        execute_script(conn, self._schema_script(plugins))
-        execute_script(conn, CATALOG_SCHEMA)
-        execute_script(conn, resources(relational_owners(conn), "relations"))
-        initialize_catalog(conn, plugins)
-
-    def ensure_schemas(self, plugins):
-        """按清单补建新启用的结构，已有资料和停用模块的引用规则继续保留"""
-        with self.transaction() as conn:
-            self._install(conn, plugins)
-
-    def prepare_delete(self, namespace, identifiers, conn):
-        """通过持久引用规则先收集阻断原因，再同事务清理依赖资料"""
-        identifier = uid()
-        conn.execute(
-            "INSERT INTO record_operations(id,namespace,identifiers_json,phase) "
-            "VALUES (?,?,?,'check')",
-            (identifier, namespace, dump(identifiers)),
-        )
-        row = unpack(
-            conn.execute(
-                "SELECT blockers_json FROM record_operations WHERE id=?", (identifier,)
-            ).fetchone()
-        )
-        if row["blockers"]:
-            raise Problem("\n".join(row["blockers"]), 409)
-        conn.execute("UPDATE record_operations SET phase='apply' WHERE id=?", (identifier,))
-        conn.execute("DELETE FROM record_operations WHERE id=?", (identifier,))
-
-    def reference(self, namespace, identifier, conn=None):
-        """读取由所有者发布的稳定引用快照，消费者不查询插件私有表"""
-        if conn is None:
-            with self.connect() as connection:
-                return self.reference(namespace, identifier, connection)
-        row = unpack(
-            conn.execute(
-                "SELECT value_json FROM record_references WHERE namespace=? AND identifier=?",
-                (namespace, identifier),
-            ).fetchone()
-        )
-        return row["value"] if row else None
-
-    def read_session(self, conn):
-        """关系后端负责提供只读事务视图，业务不接触 SQLite 授权器"""
-        from resume_maker.infrastructure.read_session import ReadSession
-
-        return ReadSession(conn)
-
-    @contextmanager
-    def change_observer(self):
-        """独立只读连接观察所有提交，调用方负责串行读取及关闭"""
-        conn = sqlite3.connect(
-            self.path, timeout=self.policy.lock_timeout_seconds, check_same_thread=False
-        )
-        try:
-            yield lambda: conn.execute("PRAGMA data_version").fetchone()[0]
-        finally:
-            conn.close()
+            if version == 0:
+                conn.executescript(
+                    f"BEGIN IMMEDIATE;{SCHEMA}PRAGMA user_version={SCHEMA_VERSION};COMMIT;"
+                )
 
     @contextmanager
     def connect(self):
         """创建启用外键约束的短连接并确保异常退出后也释放文件句柄"""
-        conn = sqlite3.connect(
-            self.path, timeout=self.policy.lock_timeout_seconds, factory=Connection
-        )
+        conn = sqlite3.connect(self.path, timeout=10)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys=ON")
         try:

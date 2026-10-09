@@ -9,19 +9,11 @@ from resume_maker.api import create_app
 from resume_maker.core.config import Config
 from resume_maker.core.errors import Problem
 from resume_maker.domain.templates import TemplatePlan
-from resume_maker.infrastructure.assets import Assets
 from resume_maker.infrastructure.database import dump, now
-from resume_maker.plugin_packages.ext_template_adapter.services.template_records import (
-    TemplateRecords,
-)
-from resume_maker.plugin_packages.ext_template_library.query import templates as query_templates
-from resume_maker.plugin_packages.ext_template_library.services.templates.library import (
-    TemplateLibrary,
-)
-from resume_maker.plugin_packages.sys_resume.services.resumes import Resumes
-from resume_maker.runtime.host import Contribution
-from tests.support.data import workspace
-from tests.support.document_services import Documents, ResumePreviews
+from resume_maker.services.documents import Documents
+from resume_maker.services.resume_previews import ResumePreviews
+from resume_maker.services.templates.library import TemplateLibrary
+from resume_maker.services.workspace import Workspace
 from tests.support.documents import resume_content
 from tests.support.templates import (
     TemplateProvider,
@@ -42,7 +34,6 @@ def test_library_persists_and_category_deletion_keeps_likes(tmp_path):
             "categories": [],
             "items": {},
             "templates": [],
-            "trash_retention_days": 30,
         }
         register_template(client.app.state.services.catalog, config.data_dir)
         result = client.post(
@@ -62,19 +53,13 @@ def test_library_persists_and_category_deletion_keeps_likes(tmp_path):
             f"/api/template-library/categories/{category}", headers=headers
         ).json()
         assert state["items"]["mapped"] == {"category_id": "", "liked": True}
-        assert client.app.state.services.resume.template("mapped")["name"] == "测试模板"
+        assert client.app.state.services.catalog.template("mapped")["name"] == "测试模板"
         assert not client.app.state.services.db.all("SELECT * FROM resumes")
 
 
 def test_library_validation_and_independent_updates(catalog, tmp_path):
     """新分类校验空白和重名并发修改分类和收藏互不覆盖"""
-    service = TemplateLibrary(
-        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
-        tmp_path / "data",
-        storage=catalog.db,
-        records=TemplateRecords(),
-        assets=Assets(catalog.db, tmp_path / "data"),
-    )
+    service = TemplateLibrary(catalog, tmp_path / "data")
     category = service.create_category(" 技术 ")["categories"][0]["id"]
     for name in (" ", "技术", "未分类", "全部模板", "我的喜欢", "回收站"):
         with pytest.raises(Problem):
@@ -101,7 +86,7 @@ def test_template_rename_persists_without_changing_references(tmp_path):
         services = client.app.state.services
         source = register_template(services.catalog, config.data_dir)
         original = source.read_bytes()
-        record = services.resume.template("mapped")
+        record = services.catalog.template("mapped")
         category = services.template_library.create_category("技术")["categories"][0]["id"]
         services.template_library.update("mapped", {"category_id": category, "liked": True})
         for name in ("第一份简历", "第二份简历"):
@@ -128,7 +113,7 @@ def test_template_rename_persists_without_changing_references(tmp_path):
         assert state["templates"][0]["name"] == "新名称"
         assert state["templates"][0]["usage_count"] == 2
         assert state["items"]["mapped"] == {"category_id": category, "liked": True}
-        assert services.resume.template("mapped") == {**record, "name": "新名称"}
+        assert services.catalog.template("mapped") == {**record, "name": "新名称"}
         assert source.read_bytes() == original
         assert services.db.all("SELECT * FROM resumes") == resumes
         assert (
@@ -174,7 +159,7 @@ def test_thumbnail_cache_and_original_are_isolated(catalog, tmp_path, monkeypatc
     data_dir = tmp_path / "data"
     source = register_template(catalog, data_dir)
     original = source.read_bytes()
-    record = Resumes(catalog, storage=catalog.db, assets=catalog.assets).template("mapped")
+    record = catalog.template("mapped")
     calls = []
 
     def render(path, pdf):
@@ -184,38 +169,17 @@ def test_thumbnail_cache_and_original_are_isolated(catalog, tmp_path, monkeypatc
         (pdf.parent / "page-1.png").write_bytes(b"thumbnail")
         return 1, None
 
-    monkeypatch.setattr(
-        "resume_maker.plugin_packages.ext_template_library.services.templates.library.render_word",
-        render,
-    )
-    service = TemplateLibrary(
-        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
-        data_dir,
-        storage=catalog.db,
-        records=TemplateRecords(),
-        assets=Assets(catalog.db, data_dir),
-    )
+    monkeypatch.setattr("resume_maker.services.templates.library.render_word", render)
+    service = TemplateLibrary(catalog, data_dir)
     with ThreadPoolExecutor(max_workers=2) as pool:
         results = list(pool.map(service.thumbnail, ["mapped", "mapped"]))
     assert results[0] == results[1]
     assert results[0].read_bytes() == b"thumbnail"
     assert len(calls) == 1
-    assert (
-        TemplateLibrary(
-            Resumes(catalog, storage=catalog.db, assets=catalog.assets),
-            data_dir,
-            storage=catalog.db,
-            records=TemplateRecords(),
-            assets=Assets(catalog.db, data_dir),
-        ).thumbnail("mapped")
-        == results[0]
-    )
-    assert (
-        source.read_bytes() == original
-        and Resumes(catalog, storage=catalog.db, assets=catalog.assets).template("mapped") == record
-    )
+    assert TemplateLibrary(catalog, data_dir).thumbnail("mapped") == results[0]
+    assert source.read_bytes() == original and catalog.template("mapped") == record
     source.write_bytes(b"changed outside app")
-    with pytest.raises(Problem, match="摘要不匹配"):
+    with pytest.raises(Problem, match="程序外变化"):
         service.thumbnail("mapped")
 
 
@@ -240,17 +204,8 @@ def test_thumbnail_failure_can_retry_and_builtin_is_real_docx(catalog, tmp_path,
         (pdf.parent / "page-1.png").write_bytes(b"png")
         return 1, None
 
-    monkeypatch.setattr(
-        "resume_maker.plugin_packages.ext_template_library.services.templates.library.render_word",
-        render,
-    )
-    service = TemplateLibrary(
-        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
-        tmp_path / "data",
-        storage=catalog.db,
-        records=TemplateRecords(),
-        assets=Assets(catalog.db, tmp_path / "data"),
-    )
+    monkeypatch.setattr("resume_maker.services.templates.library.render_word", render)
+    service = TemplateLibrary(catalog, tmp_path / "data")
     with pytest.raises(Problem, match="Word 暂不可用"):
         service.thumbnail("builtin")
     assert service.thumbnail("builtin").is_file()
@@ -266,37 +221,20 @@ def test_only_complete_templates_can_be_selected(catalog, tmp_path):
             "INSERT INTO templates VALUES (?,?,?,?,?)",
             ("unavailable", "无完整映射", "unused", dump({}), now()),
         )
-    library = workspace(
-        catalog,
-        contributors=lambda: [
-            Contribution("ext.template-library", "workspace.queries", "templates", query_templates)
-        ],
-    ).state()["templates"]
+    library = Workspace(catalog).state()["templates"]
     assert [item["id"] for item in library] == ["mapped"]
     assert all(set(item) == {"id", "name", "created_at"} for item in library)
     document = resume_content()
     with pytest.raises(Problem, match="AI 识别"):
-        Resumes(catalog, storage=catalog.db, assets=catalog.assets).save_resume(
-            "缺失映射", "unavailable", [], document=document
-        )
-    previews = ResumePreviews(
-        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
-        data,
-    )
+        catalog.save_resume("缺失映射", "unavailable", [], document=document)
+    previews = ResumePreviews(catalog, data)
     with pytest.raises(Problem, match="AI 识别"):
         previews.render("unavailable", document.model_dump(), [])
-    resume = Resumes(catalog, storage=catalog.db, assets=catalog.assets).save_resume(
-        "完整方案", "mapped", [], document=document
-    )
+    resume = catalog.save_resume("完整方案", "mapped", [], document=document)
     with catalog.db.transaction() as conn:
         conn.execute("UPDATE resumes SET template_id='unavailable' WHERE id=?", (resume["id"],))
     with pytest.raises(Problem, match="AI 识别"):
-        Documents(
-            Resumes(catalog, storage=catalog.db, assets=catalog.assets),
-            data,
-            storage=catalog.db,
-            assets=Assets(catalog.db, data),
-        ).export(resume["id"])
+        Documents(catalog, data).export(resume["id"])
     assert catalog.db.one("SELECT mapping_json FROM templates WHERE id='unavailable'") == {
         "mapping": {}
     }
@@ -346,7 +284,6 @@ def test_saved_recognition_history_survives_restart_and_resave(tmp_path):
             task["id"], "保存记录", TemplatePlan.model_validate(task["plan"]), simple_document(), []
         )
         assert saved["mapping"]["analysis"] == history
-        assert saved["mapping"]["importer"] == task["importer"]
 
     restarted_provider = TemplateProvider(failure=True)
     with TestClient(create_app(config, restarted_provider)) as client:
@@ -355,12 +292,10 @@ def test_saved_recognition_history_survives_restart_and_resave(tmp_path):
         assert opened["from_library"] and opened["status"] == "completed"
         assert opened["id"] != task["id"]
         assert {key: opened[key] for key in keys} == history
-        assert opened["importer"] == task["importer"]
         plan = TemplatePlan.model_validate(opened["plan"])
         plan.summary = "已人工核对"
         resaved = service.save(opened["id"], "人工另存", plan, simple_document(), [])
         assert resaved["mapping"]["analysis"] == history
-        assert resaved["mapping"]["importer"] == task["importer"]
         opened["events"].clear()
         assert service.get(opened["id"])["events"] == history["events"]
         assert not restarted_provider.calls

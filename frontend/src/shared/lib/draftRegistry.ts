@@ -13,15 +13,16 @@ export function registerDraft(
     pending.delete(key);
   };
 }
-/** 同阶段草稿全部收尾后才报告失败，避免恢复副本遗漏较晚完成的输入 */
+/** 等待所有当前登记的草稿写入，任一失败都会阻止后续页面操作 */
 export const flushDrafts = async () => {
-  for (const final of [false, true]) {
-    const results = await Promise.allSettled(
-      [...pending.values()]
-        .filter((entry) => entry.final === final)
-        .map(async (entry) => entry.flush()),
-    );
-    const failure = results.find((result) => result.status === "rejected");
-    if (failure) throw failure.reason;
-  }
+  await Promise.all(
+    [...pending.values()]
+      .filter((entry) => !entry.final)
+      .map((entry) => entry.flush()),
+  );
+  await Promise.all(
+    [...pending.values()]
+      .filter((entry) => entry.final)
+      .map((entry) => entry.flush()),
+  );
 };

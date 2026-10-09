@@ -7,10 +7,7 @@ from resume_maker.domain.templates import TextBinding
 from resume_maker.integrations.word.templates.mapping import TemplatePackage
 from resume_maker.integrations.word.templates.supplement import supplement_personal_fields
 from resume_maker.integrations.word.templates.values import missing_targets
-from resume_maker.plugin_packages.ext_template_ai.services.templates.analysis import (
-    analysis_context,
-    assess_plan,
-)
+from resume_maker.services.templates.analysis import analysis_context, assess_plan
 from tests.support.documents import make_template, project_content, resume_content
 
 

@@ -1,5 +1,3 @@
-import type { ImportTrace } from "./imports";
-
 export const CATEGORIES = [
   "竞赛获奖",
   "资格证书",
@@ -25,26 +23,5 @@ export interface HonorSource {
   fields: HonorFields;
   reviewed: boolean;
   version: number;
-  updated_at: string;
-}
-
-export interface Honor {
-  id: string;
-  fields: HonorFields;
-  attachment: {
-    name: string;
-    size: number;
-    pages: number;
-    extension: string;
-    text: string;
-    importer?: ImportTrace;
-    notices?: string[];
-  } | null;
-  status: "queued" | "running" | "review" | "ready" | "failed" | "cancelled";
-  reviewed: boolean;
-  recognition: { fields: HonorFields; text: string; warnings: string[] } | null;
-  error: string;
-  version: number;
-  created_at: string;
   updated_at: string;
 }

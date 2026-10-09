@@ -1,29 +1,16 @@
-﻿param(
-    [string]$Port,
+param(
+    [int]$Port = 8765,
     [string]$DataDir = '',
-    [string]$FrontendDir,
-    [string]$Profile,
-    [string]$PluginConfig,
-    [string]$EnvFile,
-    [switch]$NoEnvFile,
-    [switch]$Browser,
     [switch]$Rebuild,
-    [switch]$NoBrowser,
-    [switch]$PrintConfig
+    [switch]$NoBrowser
 )
 $ErrorActionPreference = 'Stop'
 $repoPath = Split-Path -Parent $PSScriptRoot
-if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
-    throw 'Install uv first: https://docs.astral.sh/uv/getting-started/installation/'
-}
-& uv sync --locked --project $repoPath
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-. (Join-Path $PSScriptRoot 'launch-config.ps1')
-$configuration = Get-LaunchConfiguration -Parameters $PSBoundParameters -RepoPath $repoPath
-if ($PrintConfig) { $configuration | ConvertTo-Json -Depth 4; exit 0 }
-$DataDir = $configuration.data_dir
-$Port = $configuration.port
 Set-Location -LiteralPath $repoPath
+if (-not $DataDir) {
+    $DataDir = if ($env:RESUME_MAKER_DATA_DIR) { $env:RESUME_MAKER_DATA_DIR } else { Join-Path $repoPath 'data' }
+}
+$DataDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($DataDir)
 $url = "http://127.0.0.1:$Port"
 # 仅复用目标数据目录登记的实例，避免迁移目录后仍打开旧数据库
 $health = $null
@@ -34,20 +21,20 @@ if ($health.status -eq 'ok') {
     $instancePath = Join-Path $DataDir 'instance.json'
     $instance = if (Test-Path -LiteralPath $instancePath) { Get-Content -LiteralPath $instancePath -Raw | ConvertFrom-Json } else { $null }
     if ($instance.instance_id -and $instance.instance_id -eq $health.instance_id -and $instance.port -eq $Port) {
-        if ($configuration.open_browser) { Start-Process $url }
+        if (-not $NoBrowser) { Start-Process $url }
         Write-Host "Resume Maker is already running at $url"
         exit 0
     }
     throw "Port $Port is used by a different Resume Maker data directory. Stop that instance or choose another -Port."
 }
-$defaultFrontend = Join-Path $repoPath 'frontend/dist'
-$sourceFrontend = -not $configuration.frontend_override -and $configuration.frontend_dir -eq $defaultFrontend
-$indexPath = Join-Path $configuration.frontend_dir 'index.html'
-$needsBuild = $sourceFrontend -and ($Rebuild -or -not (Test-Path -LiteralPath $indexPath))
-if (-not $sourceFrontend -and -not (Test-Path -LiteralPath $indexPath)) {
-    throw 'The configured frontend directory has no index.html. Build it before launching.'
+if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
+    throw 'Install uv first: https://docs.astral.sh/uv/getting-started/installation/'
 }
-if ($sourceFrontend -and -not $needsBuild) {
+& uv sync --locked
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+$indexPath = Join-Path $repoPath 'frontend/dist/index.html'
+$needsBuild = $Rebuild -or -not (Test-Path -LiteralPath $indexPath)
+if (-not $needsBuild) {
     $builtAt = (Get-Item -LiteralPath $indexPath).LastWriteTimeUtc
     # 构建配置、依赖锁和入口 HTML 的变化同样要求重建，不能只比较组件源码
     $buildInputs = @(Get-ChildItem -LiteralPath (Join-Path $repoPath 'frontend/src') -File -Recurse)
@@ -65,7 +52,8 @@ if ($needsBuild) {
     & npm --prefix frontend run build
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
+$launchArgs = @('run', '--no-sync', 'python', '-m', 'resume_maker.cli', '--port', "$Port", '--data-dir', $DataDir)
 # 前台运行让终端关闭行为和 CLI 正常退出保持一致
-Write-Host "Starting Resume Maker at $url; preparing local data..."
-$exitCode = Invoke-FrozenLaunch $configuration
-exit $exitCode
+if ($NoBrowser) { $launchArgs += '--no-browser' }
+& uv @launchArgs
+exit $LASTEXITCODE

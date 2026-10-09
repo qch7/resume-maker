@@ -7,7 +7,7 @@ import pytest
 
 from resume_maker.domain.models import AIResult, Experience
 from resume_maker.infrastructure.database import uid
-from resume_maker.sdk.model import Cancelled
+from resume_maker.integrations.providers.base import Cancelled
 from tests.support.providers import ProviderStub
 
 

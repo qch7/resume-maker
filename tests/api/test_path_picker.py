@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from resume_maker.api import create_app
 from resume_maker.core.config import Config
 from resume_maker.core.errors import Problem
-from resume_maker.plugin_packages.ext_native_shell.integrations import path_picker
+from resume_maker.integrations import path_picker
 
 
 def test_path_picker_endpoint_requires_token_and_valid_kind(tmp_path, monkeypatch):
@@ -22,9 +22,7 @@ def test_path_picker_endpoint_requires_token_and_valid_kind(tmp_path, monkeypatc
         calls.append((kind, initial))
         return selected if len(calls) == 1 else None
 
-    monkeypatch.setattr(
-        "resume_maker.plugin_packages.ext_native_shell.routes.system.pick_path", choose
-    )
+    monkeypatch.setattr("resume_maker.api.routes.system.pick_path", choose)
     with TestClient(create_app(Config(data_dir=tmp_path / "data", token="picker-test"))) as client:
         payload = {"kind": "docx", "initial_path": str(tmp_path)}
         headers = {"x-resume-token": "picker-test"}

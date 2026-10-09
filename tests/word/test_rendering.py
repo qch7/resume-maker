@@ -3,7 +3,7 @@
 import pymupdf
 from lxml import etree
 
-from resume_maker.plugin_packages.ext_word.integrations.word.rendering import render_pages
+from resume_maker.integrations.word.rendering import render_pages
 
 
 def test_vector_pages_preserve_page_sizes_and_outline_text(tmp_path):

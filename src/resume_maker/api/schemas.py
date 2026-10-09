@@ -4,7 +4,7 @@ from typing import Any, Literal
 
 from pydantic import Field
 
-from resume_maker.domain.models import Experience, Model, ProjectProfile, ResumeItem
+from resume_maker.domain.models import Experience, Model, ResumeItem
 from resume_maker.domain.resume import ResumeDocument
 from resume_maker.domain.templates import TemplatePlan
 
@@ -13,21 +13,7 @@ class ProjectInput(Model):
     """项目登记或来源重绑请求，限制名称和来源数量"""
 
     name: str = Field(min_length=1, max_length=200)
-    roots: list[str] = Field(default_factory=list, max_length=30)
-
-
-class ProjectSourcesInput(ProjectInput):
-    """来源更新携带读取时的名称和目录基线"""
-
-    expected_name: str
-    expected_roots: list[str] = Field(max_length=30)
-
-
-class ProjectProfileInput(Model):
-    """本人贡献更新携带原表单以拒绝旧窗口覆盖"""
-
-    profile: ProjectProfile
-    expected_profile: ProjectProfile
+    roots: list[str] = Field(min_length=1, max_length=30)
 
 
 class DraftInput(Model):
@@ -76,7 +62,6 @@ class ConversationInput(Model):
 
     title: str | None = Field(default=None, max_length=200)
     input_draft: str | None = Field(default=None, max_length=30000)
-    expected_input_draft: str | None = Field(default=None, max_length=30000)
     scope: str | None = None
     archived: bool | None = None
 
@@ -122,7 +107,6 @@ class TemplateAnalysisInput(Model):
     """分析本机模板时只发送栏目名称"""
 
     path: str
-    importer_id: str | None = None
     document: ResumeDocument
     items: list[ResumeItem] = Field(default_factory=list)
 

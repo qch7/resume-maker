@@ -164,7 +164,6 @@ export interface ResumeItem {
 }
 export interface Resume {
   id: string;
-  draft_id?: string;
   name: string;
   template_id: string | null;
   items: ResumeItem[];
@@ -198,7 +197,6 @@ export type PersonalField = keyof Omit<
 >;
 export type SectionEntryField = "title" | "subtitle" | "period" | "details";
 export interface SectionEntry {
-  source?: { provider: string; id: string; version: string } | null;
   field_definitions?: DefaultField[] | null;
   id: string;
   title: string;
@@ -222,7 +220,6 @@ export interface ResumeDocument {
   personal: PersonalInfo;
   sections: ResumeSection[];
   project_visibility?: Record<string, ProjectVisibility>;
-  extensions?: Record<string, unknown>;
 }
 export interface ProjectVisibility {
   fields?: Partial<Record<ExperienceField, boolean>>;
@@ -288,7 +285,6 @@ export interface AISettings {
   reasoning_effort: ReasoningEffort;
 }
 export interface ProviderSettings extends AISettings {
-  version: number;
   executable: string;
   profile: string;
   timeout_seconds: number;

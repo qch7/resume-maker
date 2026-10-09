@@ -1,4 +1,4 @@
-"""经历版本保存正文顺序，未指定时采用简历编排，标题和时间固定在顶部"""
+"""版本内的项目正文顺序，兼容旧版简历设置，标题和时间独立保留在顶部"""
 
 from resume_maker.domain.models import ProjectVisibility
 

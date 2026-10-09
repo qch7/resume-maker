@@ -1,7 +1,6 @@
 """完整简历资料的持久化、层级校验、完整保存和 Word 排版行为"""
 
 from copy import deepcopy
-from io import BytesIO
 from zipfile import ZipFile
 
 import pytest
@@ -14,14 +13,12 @@ from resume_maker.core.config import Config
 from resume_maker.core.errors import Problem
 from resume_maker.domain.models import ResumeItem
 from resume_maker.domain.resume import ResumeDocument
-from resume_maker.infrastructure.assets import Assets
 from resume_maker.infrastructure.database import Database
 from resume_maker.infrastructure.storage import create_backup, restore_backup
 from resume_maker.integrations.word.full_resume import write_full_resume
 from resume_maker.integrations.word.ooxml import NS
-from resume_maker.plugin_packages.sys_resume.services.resumes import Resumes
-from tests.support.data import make_catalog
-from tests.support.document_services import Documents
+from resume_maker.services.catalog import Catalog
+from resume_maker.services.documents import Documents
 
 
 def document_data():
@@ -69,22 +66,14 @@ def document_data():
 def test_profile_persists_across_restart_and_backup(catalog, tmp_path):
     """完整资料可重启、备份恢复，保存时仍检查方案版本"""
     content = ResumeDocument.model_validate(document_data())
-    resume = Resumes(catalog, storage=catalog.db, assets=catalog.assets).save_resume(
-        "完整简历", None, [], document=content
-    )
-    restarted = make_catalog(Database(catalog.db.path))
-    saved = Resumes(restarted, storage=restarted.db, assets=restarted.assets).save_resume(
-        "重命名", None, [], resume["id"], resume["version"], content
-    )
+    resume = catalog.save_resume("完整简历", None, [], document=content)
+    restarted = Catalog(Database(catalog.db.path))
+    saved = restarted.save_resume("重命名", None, [], resume["id"], resume["version"], content)
     assert saved["document"] == content.model_dump()
-    other = Resumes(catalog, storage=catalog.db, assets=catalog.assets).save_resume(
-        "另一个方案", None, []
-    )
+    other = catalog.save_resume("另一个方案", None, [])
     assert other["document"] is None
     with pytest.raises(Problem, match="其他窗口"):
-        Resumes(catalog, storage=catalog.db, assets=catalog.assets).save_resume(
-            "过时窗口", None, [], resume["id"], resume["version"], content
-        )
+        catalog.save_resume("过时窗口", None, [], resume["id"], resume["version"], content)
     backup = create_backup(catalog.db, catalog.db.path.parent)
     restore_backup(backup, tmp_path / "restored")
     restored = Database(tmp_path / "restored" / "resume.db")
@@ -97,12 +86,8 @@ def test_profile_persists_across_restart_and_backup(catalog, tmp_path):
 def test_resume_save_replaces_document_instead_of_retaining_previous_fields(catalog):
     """完整替换方案时按请求保存资料，空资料不会隐式保留上一次内容"""
     content = ResumeDocument.model_validate(document_data())
-    resume = Resumes(catalog, storage=catalog.db, assets=catalog.assets).save_resume(
-        "完整简历", None, [], document=content
-    )
-    saved = Resumes(catalog, storage=catalog.db, assets=catalog.assets).save_resume(
-        "项目组合", None, [], resume["id"], resume["version"], None
-    )
+    resume = catalog.save_resume("完整简历", None, [], document=content)
+    saved = catalog.save_resume("项目组合", None, [], resume["id"], resume["version"], None)
     assert saved["document"] is None
     assert saved["version"] == resume["version"] + 1
 
@@ -140,23 +125,18 @@ def test_full_word_follows_sections_and_preserves_pinned_projects(
     content = ResumeDocument.model_validate(document_data())
     # 将专业技能移到教育背景前并保留课程归属
     content.sections.insert(0, content.sections.pop(3))
-    resume = Resumes(catalog, storage=catalog.db, assets=catalog.assets).save_resume(
+    resume = catalog.save_resume(
         "完整简历",
         None,
         [ResumeItem(project_id=project["id"], revision_id=populated["id"], highlight_ids=["two"])],
         document=content,
     )
     monkeypatch.setattr(
-        "tests.support.document_services.render_word", lambda *_: (None, "No renderer")
+        "resume_maker.services.documents.render_word", lambda *_: (None, "No renderer")
     )
-    exporter = Documents(
-        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
-        tmp_path / "data",
-        storage=catalog.db,
-        assets=Assets(catalog.db, tmp_path / "data"),
-    )
+    exporter = Documents(catalog, tmp_path / "data")
     result = exporter.export(resume["id"])
-    path = BytesIO(catalog.assets.read_file(f"exports/{result['id']}", "resume.docx"))
+    path = tmp_path / "data" / "exports" / result["id"] / "resume.docx"
     with ZipFile(path) as archive:
         root = etree.fromstring(archive.read("word/document.xml"))
     text = "".join(root.xpath("//w:t/text()", namespaces=NS))
@@ -168,13 +148,9 @@ def test_full_word_follows_sections_and_preserves_pinned_projects(
     assert result["manifest"]["resume"]["document"] == content.model_dump()
     assert result["manifest"]["items"][0]["revision_id"] == populated["id"]
     content.sections[1].visible = False
-    saved = Resumes(catalog, storage=catalog.db, assets=catalog.assets).save_resume(
-        "完整简历", None, [], resume["id"], resume["version"], content
-    )
+    saved = catalog.save_resume("完整简历", None, [], resume["id"], resume["version"], content)
     result = exporter.export(saved["id"])
-    with ZipFile(
-        BytesIO(catalog.assets.read_file(f"exports/{result['id']}", "resume.docx"))
-    ) as archive:
+    with ZipFile(tmp_path / "data" / "exports" / result["id"] / "resume.docx") as archive:
         root = etree.fromstring(archive.read("word/document.xml"))
     text = "".join(root.xpath("//w:t/text()", namespaces=NS))
     assert "教育背景" not in text and "主修课程" not in text
@@ -245,9 +221,7 @@ def test_project_children_persist_and_export_after_project_content(
     data = document_data()
     data["sections"][1]["parent_id"] = "projects"
     content = ResumeDocument.model_validate(data)
-    saved = Resumes(catalog, storage=catalog.db, assets=catalog.assets).save_resume(
-        "项目子栏目", None, [], document=content
-    )
+    saved = catalog.save_resume("项目子栏目", None, [], document=content)
     assert saved["document"]["sections"][1]["parent_id"] == "projects"
     projects = (
         [

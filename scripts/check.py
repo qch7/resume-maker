@@ -17,7 +17,6 @@ def main() -> None:
     if not npm:
         raise SystemExit("请先安装 Node.js 22.16+ 和 npm。")
     commands = [
-        [sys.executable, "scripts/sync_plugin_settings.py", "--check"],
         [sys.executable, "scripts/check_quality.py"],
         [sys.executable, "-m", "ruff", "check", "src", "tests", "scripts"],
         [sys.executable, "-m", "ruff", "format", "--check", "src", "tests", "scripts"],

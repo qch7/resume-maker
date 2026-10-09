@@ -10,30 +10,22 @@ dependencies = [
   "fastapi>=0.115,<1",
   "uvicorn>=0.34,<1",
   "pydantic>=2.10,<3",
-  "python-dotenv>=1.1,<2",
   "python-docx>=1.1,<2",
   "lxml>=5,<7",
   "psutil>=6,<8",
+  "pymupdf>=1.25,<2",
   "pywin32>=308; sys_platform == 'win32'",
-  "packaging>=24,<27",
-  "jsonschema>=4.23,<5",
+  "pillow>=11,<13",
+  "pdf2docx>=0.5.8,<0.6",
   "httpx>=0.28,<1",
+  "rapidocr-onnxruntime==1.4.4",
 ]
 
-[project.optional-dependencies]
-images = ["pillow>=11,<13"]
-pdf = ["pymupdf>=1.25,<2", "pdf2docx>=0.5.8,<0.6", "pillow>=11,<13"]
-ocr = ["rapidocr-onnxruntime==1.4.4", "pymupdf>=1.25,<2", "pillow>=11,<13"]
-word = ["pymupdf>=1.25,<2"]
-all = ["pymupdf>=1.25,<2", "pdf2docx>=0.5.8,<0.6", "pillow>=11,<13", "rapidocr-onnxruntime==1.4.4"]
-
 [dependency-groups]
-dev = ["pytest>=8,<10", "httpx>=0.28,<1", "ruff>=0.11,<1", {include-group = "capabilities"}]
-capabilities = ["pymupdf>=1.25,<2", "pdf2docx>=0.5.8,<0.6", "pillow>=11,<13", "rapidocr-onnxruntime==1.4.4"]
+dev = ["pytest>=8,<10", "httpx>=0.28,<1", "ruff>=0.11,<1"]
 
 [project.scripts]
 resume-maker = "resume_maker.cli:main"
-plugin-sdk = "resume_maker.plugins.tools:main"
 
 [project.urls]
 Homepage = "https://github.com/qch7/resume-maker"
@@ -66,15 +58,11 @@ include = [
   "/scripts",
   "/tests",
   "/docs",
-  "/examples",
   "/README.md",
-  "/AGENTS.md",
-  "/.editorconfig",
-  "/.env.example",
-  "/.gitattributes",
   "/LICENSE",
-  "/.github/CONTRIBUTING.md",
-  "/.github/SECURITY.md",
+  "/CONTRIBUTING.md",
+  "/SECURITY.md",
+  "/CHANGELOG.md",
   "/pyproject.toml",
   "/uv.lock",
   "/start.cmd",
@@ -86,10 +74,8 @@ include = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = ["--import-mode=importlib"]
-cache_dir = ".local/cache/pytest"
 
 [tool.ruff]
-cache-dir = ".local/cache/ruff"
 line-length = 100
 target-version = "py312"
 

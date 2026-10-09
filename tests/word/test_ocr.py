@@ -9,9 +9,9 @@ import pytest
 from PIL import Image, ImageDraw, ImageFont
 
 from resume_maker.domain.models import Model, ProviderSettings
-from resume_maker.plugin_packages.provider_rapidocr import local_ocr
-from resume_maker.sdk.model import Cancelled, ProviderError
-from tests.support.providers import privacy_provider
+from resume_maker.integrations import local_ocr
+from resume_maker.integrations.providers.base import Cancelled, ProviderError
+from resume_maker.integrations.providers.codex import CodexProvider
 
 
 def test_native_pdf_avoids_ocr(tmp_path, monkeypatch):
@@ -128,7 +128,7 @@ def test_actual_ocr_private_fields_never_reach_runner(tmp_path):
         captured.append(payload)
         return '{"answer":"done"}'
 
-    result = privacy_provider(runner=runner).run_structured(
+    result = CodexProvider(runner=runner).run_structured(
         result_model=Answer,
         workspace=tmp_path,
         prompt="Extract the award",
@@ -146,6 +146,7 @@ def test_actual_ocr_private_fields_never_reach_runner(tmp_path):
 
 def test_uncertain_ocr_span_masked_whole(tmp_path, monkeypatch):
     """低分文字即使没有姓名标签，也在发送前整体替换"""
+    from resume_maker.integrations.providers import codex
 
     document = {
         "text": "UncertainPerson",
@@ -153,7 +154,7 @@ def test_uncertain_ocr_span_masked_whole(tmp_path, monkeypatch):
             {"blocks": [{"text": "UncertainPerson", "confidence": 0.4, "box": [0, 0, 1, 1]}]}
         ],
     }
-    monkeypatch.setattr(local_ocr, "read_document", lambda *_: document)
+    monkeypatch.setattr(codex, "read_document", lambda *_: document)
 
     class Answer(Model):
         """检验低置信度文字处理的最小响应"""
@@ -165,7 +166,7 @@ def test_uncertain_ocr_span_masked_whole(tmp_path, monkeypatch):
         assert "UncertainPerson" not in json.dumps(payload)
         return '{"answer":"done"}'
 
-    privacy_provider(runner=runner).run_structured(
+    CodexProvider(runner=runner).run_structured(
         result_model=Answer,
         workspace=tmp_path,
         prompt="Analyze",

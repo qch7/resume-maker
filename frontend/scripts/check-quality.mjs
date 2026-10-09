@@ -3,7 +3,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
-import { packageRoot, pluginPackages } from "./plugin-packages.mjs";
 
 const root = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -83,14 +82,6 @@ export function checkFile(name, sourceRoot = root) {
     if (specifier && ts.isStringLiteralLike(specifier)) {
       const module = specifier.text;
       if (module.startsWith(".")) {
-        const absolute = path.resolve(path.dirname(name), module);
-        if (name.startsWith(packageRoot + path.sep)) {
-          const owner = path.relative(packageRoot, name).split(path.sep)[0];
-          if (!absolute.startsWith(path.join(packageRoot, owner) + path.sep))
-            errors.push(`${relative} 插件只能通过公开 SDK 引用宿主或其他包`);
-        } else if (absolute.startsWith(packageRoot + path.sep)) {
-          errors.push(`${relative} 宿主不能导入插件私有源码`);
-        }
         const target = path
           .relative(sourceRoot, path.resolve(path.dirname(name), module))
           .replaceAll("\\", "/");
@@ -112,14 +103,7 @@ export function checkFile(name, sourceRoot = root) {
 function main() {
   const errors = [];
   let functions = 0;
-  const files = [
-    ...sourceFiles(root),
-    ...pluginPackages().flatMap((item) => {
-      const client = path.join(item.directory, "client");
-      return fs.existsSync(client) ? sourceFiles(client) : [];
-    }),
-  ];
-  for (const name of files) {
+  for (const name of sourceFiles(root)) {
     const result = checkFile(name);
     errors.push(...result.errors);
     functions += result.functions;

@@ -10,13 +10,6 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from resume_maker.domain.activity import ActivityCaptureSettings
-from resume_maker.infrastructure.activity_policy import (
-    HISTORY_BATCH_SIZE,
-    MAX_DETAIL_CHARS,
-    MAX_DETAIL_DEPTH,
-    MAX_DETAIL_ITEMS,
-    ActivityPolicy,
-)
 from resume_maker.infrastructure.database import dump, now
 
 SECRET_KEY = re.compile(
@@ -32,7 +25,7 @@ SECRET_TEXT = re.compile(
     r"\bsk-[a-zA-Z0-9_-]{8,}|"
     r"-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?-----END [^-]*PRIVATE KEY-----"
 )
-MAX_DETAIL = MAX_DETAIL_CHARS
+MAX_DETAIL = 262_144
 DEFAULT_POLLING_PATHS = "/api/state\n/api/honors\n/api/templates/analyses/*/progress"
 SUMMARY_COLUMNS = (
     "id,created_at,category,level,source,event,title,trace_id,span_id,parent_span_id,"
@@ -69,7 +62,7 @@ def safe_text(value):
 
 def safe_value(value, depth=0):
     """将领域对象变成有界 JSON，二进制只记录大小且未知对象不展开内部属性"""
-    if depth > MAX_DETAIL_DEPTH:
+    if depth > 16:
         return "[嵌套过深，已截断]"
     if isinstance(value, str):
         text = safe_text(value)
@@ -87,16 +80,16 @@ def safe_value(value, depth=0):
             safe_text(str(key)): "[已遮盖]"
             if SECRET_KEY.search(str(key))
             else safe_value(item, depth + 1)
-            for key, item in list(value.items())[:MAX_DETAIL_ITEMS]
+            for key, item in list(value.items())[:1000]
         }
-        if len(value) > MAX_DETAIL_ITEMS:
-            result["_truncated_items"] = len(value) - MAX_DETAIL_ITEMS
+        if len(value) > 1000:
+            result["_truncated_items"] = len(value) - 1000
         return result
     if isinstance(value, (list, tuple, set)):
         items = list(value)
-        result = [safe_value(item, depth + 1) for item in items[:MAX_DETAIL_ITEMS]]
-        if len(items) > MAX_DETAIL_ITEMS:
-            result.append({"_truncated_items": len(items) - MAX_DETAIL_ITEMS})
+        result = [safe_value(item, depth + 1) for item in items[:1000]]
+        if len(items) > 1000:
+            result.append({"_truncated_items": len(items) - 1000})
         return result
     return f"<{type(value).__name__}>"
 
@@ -127,20 +120,12 @@ def mask_secrets(value, secrets):
 class ActivityLog:
     """每个应用实例独立持有日志库和保留策略"""
 
-    def __init__(
-        self, path: Path, *, max_records=None, retention_days=None, secrets=(), policy=None
-    ):
+    def __init__(self, path: Path, *, max_records=50_000, retention_days=30, secrets=()):
         """建立独立日志库以保留现有业务数据库结构和用户数据"""
         self.path = path
-        self.policy = policy or ActivityPolicy()
-        self.max_records = self.policy.max_records if max_records is None else max_records
-        self.retention_days = (
-            self.policy.retention_days if retention_days is None else retention_days
-        )
+        self.max_records, self.retention_days = max_records, retention_days
         self.lock = threading.Lock()
         self.task_contexts = OrderedDict()
-        self.counts_cache = OrderedDict()
-        self.counts_lock = threading.Lock()
         self.secrets = {value for value in secrets if value}
         self.write_failures = 0
         self.last_error = ""
@@ -160,9 +145,7 @@ class ActivityLog:
 
     def connect(self, *, check_same_thread=True):
         """创建短连接，日志锁和业务事务互不共享"""
-        conn = sqlite3.connect(
-            self.path, timeout=self.policy.lock_timeout_seconds, check_same_thread=check_same_thread
-        )
+        conn = sqlite3.connect(self.path, timeout=2, check_same_thread=check_same_thread)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys=ON")
         return conn
@@ -175,14 +158,6 @@ class ActivityLog:
             "DELETE FROM activity WHERE id <= "
             "(SELECT id FROM activity ORDER BY id DESC LIMIT 1 OFFSET ?)",
             (self.max_records,),
-        )
-        self._advance_counts(conn)
-
-    def _advance_counts(self, conn):
-        """删除推进持久计数代次，其他日志实例也会立即失效缓存"""
-        conn.execute(
-            "INSERT INTO metadata(key,value) VALUES ('counts_revision','1') "
-            "ON CONFLICT(key) DO UPDATE SET value=CAST(value AS INTEGER)+1"
         )
 
     def _cursor(self, conn):
@@ -353,7 +328,6 @@ class ActivityLog:
         hide_polling=False,
         polling_paths=DEFAULT_POLLING_PATHS,
         hidden_rules=None,
-        since_id=None,
         **_,
     ):
         """从成功响应识别轮询链路，路径只支持星号且其余字符按字面匹配"""
@@ -370,21 +344,16 @@ class ActivityLog:
                     patterns.append(
                         (match[1] or "GET") + " " + wildcard_pattern(match[2]) + " · 200"
                     )
-        responses = [item for pattern in patterns for item in (pattern, pattern[:-3] + "304")]
-        matches = " OR ".join("title LIKE ? ESCAPE '\\'" for _ in responses) or "0"
+        matches = " OR ".join("title LIKE ? ESCAPE '\\'" for _ in patterns) or "0"
         cte = (
             "WITH hidden_polling AS (SELECT trace_id,MAX(id) AS completed_id FROM activity "
             "WHERE category='api' AND event='response' AND level='info' AND trace_id<>'' "
             f"AND ({matches}) "
             "AND COALESCE(json_extract(payload_json,'$.error'),'') IN ('',0,'[]','{}') "
             "AND COALESCE(json_extract(payload_json,'$.response.body.errors'),'') "
-            "IN ('',0,'[]','{}') "
-            + ("AND id>? " if since_id is not None else "")
-            + "GROUP BY trace_id) "
+            "IN ('',0,'[]','{}') GROUP BY trace_id) "
         )
-        args = list(responses)
-        if since_id is not None:
-            args.append(since_id)
+        args = list(patterns)
         if hidden_rules is None:
             return cte, args
         endpoints = [pattern.removesuffix(" · 200") for pattern in patterns]
@@ -412,60 +381,31 @@ class ActivityLog:
                 bounds += " AND id<?"
                 values.append(before)
             direction = "ASC" if after is not None else "DESC"
-            rows = (
-                []
-                if after is not None and after >= snapshot
-                else conn.execute(
-                    cte + f"SELECT {SUMMARY_COLUMNS} FROM activity WHERE {where} AND {bounds} "
-                    f"ORDER BY id {direction} LIMIT ?",
-                    (*polling_args, *args, *values, limit + 1),
-                ).fetchall()
-            )
+            rows = conn.execute(
+                cte + f"SELECT {SUMMARY_COLUMNS} FROM activity WHERE {where} AND {bounds} "
+                f"ORDER BY id {direction} LIMIT ?",
+                (*polling_args, *args, *values, limit + 1),
+            ).fetchall()
             more = len(rows) > limit
             rows = rows[:limit]
             if after is None:
                 rows = rows[::-1]
-            revision = conn.execute(
-                "SELECT value FROM metadata WHERE key='counts_revision'"
-            ).fetchone()
-            cache_key = (
-                snapshot,
-                revision[0] if revision else "0",
-                where,
-                tuple(args),
-                cte,
-                tuple(polling_args),
+            counts = dict(
+                conn.execute(
+                    cte + f"SELECT category,COUNT(*) FROM activity WHERE {where} "
+                    "AND id<=? GROUP BY category",
+                    (*polling_args, *args, snapshot),
+                ).fetchall()
             )
-            with self.counts_lock:
-                counts = self.counts_cache.get(cache_key)
-                if counts is None:
-                    counts = dict(
-                        conn.execute(
-                            cte + f"SELECT category,COUNT(*) FROM activity WHERE {where} "
-                            "AND id<=? GROUP BY category",
-                            (*polling_args, *args, snapshot),
-                        ).fetchall()
-                    )
-                    self.counts_cache[cache_key] = counts
-                    while len(self.counts_cache) > 32:
-                        self.counts_cache.popitem(last=False)
-                self.counts_cache.move_to_end(cache_key)
-                counts = dict(counts)
             cursor = rows[-1]["id"] if after is not None and more else snapshot
             hidden = []
-            if (
-                after is not None
-                and after < snapshot
-                and filters.get("hide_polling")
-                and not filters.get("trace_id")
-            ):
-                delta_cte, delta_args = self.polling_cte(since_id=after, **filters)
+            if after is not None and filters.get("hide_polling") and not filters.get("trace_id"):
                 hidden = [
                     row[0]
                     for row in conn.execute(
-                        delta_cte + "SELECT trace_id FROM hidden_polling WHERE completed_id>? "
+                        cte + "SELECT trace_id FROM hidden_polling WHERE completed_id>? "
                         "AND completed_id<=?",
-                        (*delta_args, after, cursor),
+                        (*polling_args, after, cursor),
                     )
                 ]
         return {
@@ -492,7 +432,6 @@ class ActivityLog:
                 (before,) if before is not None else (),
             )
             deleted = cursor.rowcount
-            self._advance_counts(conn)
             conn.execute("INSERT OR REPLACE INTO metadata VALUES ('history_imported','1')")
             conn.commit()
         return deleted
@@ -520,8 +459,8 @@ class ActivityLog:
             while True:
                 rows = conn.execute(
                     cte + f"SELECT * FROM activity WHERE {where} AND id>? AND id<=? "
-                    "ORDER BY id LIMIT ?",
-                    (*polling_args, *args, after, snapshot, HISTORY_BATCH_SIZE),
+                    "ORDER BY id LIMIT 200",
+                    (*polling_args, *args, after, snapshot),
                 ).fetchall()
                 if not rows:
                     return
@@ -537,9 +476,6 @@ class ActivityLog:
         with closing(self.connect()) as conn:
             if conn.execute("SELECT 1 FROM metadata WHERE key='history_imported'").fetchone():
                 return
-        tables = {
-            row["name"] for row in db.all("SELECT name FROM sqlite_master WHERE type='table'")
-        }
         cutoff = (datetime.now(UTC) - timedelta(days=self.retention_days)).isoformat()
         rows = (
             db.all(
@@ -548,7 +484,7 @@ class ActivityLog:
                 "WHERE m.created_at>=? ORDER BY m.created_at DESC LIMIT ?",
                 (cutoff, self.max_records),
             )
-            if "ai" in self.capture_categories and {"messages", "conversations"} <= tables
+            if "ai" in self.capture_categories
             else []
         )
         events = (
@@ -558,7 +494,7 @@ class ActivityLog:
                 "WHERE e.created_at>=? ORDER BY e.created_at DESC LIMIT ?",
                 (cutoff, self.max_records),
             )
-            if "task" in self.capture_categories and {"events", "jobs"} <= tables
+            if "task" in self.capture_categories
             else []
         )
         pending = [

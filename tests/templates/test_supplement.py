@@ -6,16 +6,11 @@ from docx.shared import Pt
 
 from resume_maker.domain.resume import CustomInfoField
 from resume_maker.domain.templates import RepeatBinding, TemplatePlan, TextBinding
-from resume_maker.infrastructure.assets import Assets
 from resume_maker.integrations.word.ooxml import w
 from resume_maker.integrations.word.templates.fill import fill_template
 from resume_maker.integrations.word.templates.mapping import TemplatePackage, paragraph_text
 from resume_maker.integrations.word.templates.supplement import supplement_personal_fields
-from resume_maker.plugin_packages.ext_template_adapter.services.templates.tasks import Templates
-from resume_maker.plugin_packages.ext_template_ai.services.templates.analysis_driver import (
-    TemplateAnalysis,
-)
-from resume_maker.plugin_packages.sys_resume.services.resumes import Resumes
+from resume_maker.services.templates.tasks import Templates
 from tests.support.documents import make_template, project_content, resume_content
 from tests.support.templates import TemplateProvider, completed, simple_document, simple_template
 
@@ -131,14 +126,7 @@ def test_first_analysis_completes_fields_without_blank_slots(catalog, tmp_path):
     document.personal.hidden_fields = ["email"]
     document.personal.custom_fields = [CustomInfoField(id="language", label="语言", value="中文")]
     provider = TemplateProvider()
-    service = Templates(
-        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
-        tmp_path,
-        provider,
-        storage=catalog.db,
-        analysis=TemplateAnalysis(),
-        assets=Assets(catalog.db, tmp_path),
-    )
+    service = Templates(catalog, tmp_path, provider)
     task = completed(service, service.analyze(source, document)["id"])
     assert task["review"]["ready"] and task["attempts"] == 1 and len(provider.calls) == 1
     assert source.read_bytes() == original
@@ -168,14 +156,7 @@ def test_repair_of_missing_location_needs_no_more_model_calls(catalog, tmp_path)
     simple_template(source)
     document = simple_document()
     provider = TemplateProvider()
-    service = Templates(
-        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
-        tmp_path,
-        provider,
-        storage=catalog.db,
-        analysis=TemplateAnalysis(),
-        assets=Assets(catalog.db, tmp_path),
-    )
+    service = Templates(catalog, tmp_path, provider)
     original = completed(service, service.analyze(source, document)["id"])
     original_bytes = service.source(original["id"]).read_bytes()
     plan = TemplatePlan.model_validate(original["plan"])

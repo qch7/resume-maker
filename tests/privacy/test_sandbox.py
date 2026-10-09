@@ -15,15 +15,15 @@ import pytest
 
 from resume_maker.domain.models import Model, ProviderSettings
 from resume_maker.integrations.providers import sandbox
+from resume_maker.integrations.providers.base import Cancelled, MosaicImage, ProviderError
+from resume_maker.integrations.providers.cli import run_cli
+from resume_maker.integrations.providers.codex import CodexProvider
 from resume_maker.integrations.providers.credentials import isolated_credentials
 from resume_maker.integrations.providers.material_server import call, dispatch
 from resume_maker.integrations.providers.mosaic import mosaic_sheets
 from resume_maker.integrations.providers.process import execute
 from resume_maker.integrations.providers.sandbox import materials, posix_parent
-from resume_maker.plugin_packages.ext_provider_codex.integrations.providers.cli import run_cli
-from resume_maker.sdk.model import Cancelled, MosaicImage, ProviderError
 from tests.support.privacy import synthetic_image
-from tests.support.providers import privacy_provider
 
 
 class BoundaryReply(Model):
@@ -83,8 +83,8 @@ def test_project_sandbox_cleans_only_its_task(tmp_path, monkeypatch, exit_reason
     project.mkdir()
     original = project / "main.py"
     original.write_text("ORIGINAL-CANARY", encoding="utf-8")
-    parent = project / ".local" / "sandbox"
-    parent.mkdir(mode=0o700, parents=True)
+    parent = project / "ResumeMakerSandbox"
+    parent.mkdir(mode=0o700)
     other = parent / "task-other"
     other.mkdir()
     marker = other / "context.txt"
@@ -125,20 +125,6 @@ def test_posix_parent_requires_private_permissions(tmp_path, monkeypatch, mode):
             pytest.fail("权限过宽时不得创建任务目录")
     assert parent.stat().st_mode & 0o777 == mode
     assert list(parent.iterdir()) == []
-
-
-@pytest.mark.skipif(os.name == "nt", reason="POSIX 父目录链接由 Linux CI 验证")
-def test_nested_sandbox_rejects_linked_ancestor_before_creating_files(tmp_path, monkeypatch):
-    """本机目录指向项目外时，在创建沙箱之前拒绝使用，外部目录保持原样"""
-    project = tmp_path / "project"
-    project.mkdir()
-    outside = tmp_path / "outside"
-    outside.mkdir(mode=0o700)
-    (project / ".local").symlink_to(outside, target_is_directory=True)
-    monkeypatch.setattr(sandbox, "sandbox_directory", lambda: project / ".local" / "sandbox")
-    with pytest.raises(ProviderError, match="链接"), sandbox.workspace():
-        pytest.fail("父目录链接不能创建任务")
-    assert list(outside.iterdir()) == []
 
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX 所有权及链接由 Linux CI 验证")
@@ -296,101 +282,6 @@ def test_cancel_reaps_child_even_after_leader_exit(tmp_path):
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows 进程挂起和 Job Object 边界")
-def test_windows_job_waits_for_delayed_descendant_exit(tmp_path, monkeypatch):
-    """主进程已退出且终止请求异步完成时，回收仍等待后代真实结束"""
-    import win32api
-    import win32con
-    import win32event
-    import win32job
-
-    from resume_maker.integrations.providers import process as module
-
-    pidfile = tmp_path / "child.pid"
-    script = (
-        "import subprocess,sys,pathlib; p=subprocess.Popen([sys.executable,'-c',"
-        "'import time; time.sleep(60)']); pathlib.Path(sys.argv[1]).write_text(str(p.pid))"
-    )
-    parent = subprocess.Popen(
-        [sys.executable, "-c", script, str(pidfile)],
-        creationflags=0x08000204,
-    )
-    job = module.windows_job(parent)
-    original = win32job.TerminateJobObject
-    requested = threading.Event()
-    worker = None
-    child = None
-    child_handle = None
-    cleanup_started = False
-
-    def delayed_termination(handle, code):
-        """模拟系统已接受终止请求，但进程退出尚未完成"""
-        nonlocal worker
-
-        def finish():
-            """延后发出系统终止请求，供回收入口等待真实退出"""
-            time.sleep(0.2)
-            requested.set()
-            original(handle, code)
-
-        worker = threading.Thread(target=finish)
-        worker.start()
-
-    try:
-        assert parent.wait(timeout=5) == 0
-        child = psutil.Process(int(pidfile.read_text()))
-        assert child.is_running()
-        child_handle = win32api.OpenProcess(win32con.SYNCHRONIZE, False, child.pid)
-        monkeypatch.setattr(win32job, "TerminateJobObject", delayed_termination)
-        cleanup_started = True
-        module.close_windows_job(job)
-        assert requested.is_set()
-        # 持有句柄时 psutil 仍可能识别到已退出进程，内核信号才表示退出完成
-        assert win32event.WaitForSingleObject(child_handle, 0) == win32event.WAIT_OBJECT_0
-    finally:
-        if worker is not None:
-            worker.join(timeout=3)
-        if not cleanup_started:
-            original(job, 1)
-            job.Close()
-        if (
-            child is not None
-            and child_handle is not None
-            and win32event.WaitForSingleObject(child_handle, 0) == win32event.WAIT_TIMEOUT
-        ):
-            child.kill()
-            child.wait(timeout=3)
-        if child_handle is not None:
-            child_handle.Close()
-        if parent.poll() is None:
-            parent.kill()
-            parent.wait(timeout=3)
-
-
-@pytest.mark.skipif(os.name != "nt", reason="Windows 任务对象回收确认")
-def test_windows_job_cleanup_timeout_is_reported_and_handle_closed(monkeypatch):
-    """无法确认进程退出时报告回收失败，同时释放任务对象句柄"""
-    import win32job
-
-    from resume_maker.integrations.providers import process as module
-
-    class Job:
-        """保留关闭状态以核验失败路径释放任务对象"""
-
-        closed = False
-
-        def Close(self):
-            """记录句柄已释放"""
-            self.closed = True
-
-    job = Job()
-    monkeypatch.setattr(win32job, "TerminateJobObject", lambda *_: None)
-    monkeypatch.setattr(win32job, "QueryInformationJobObject", lambda *_: {"ActiveProcesses": 1})
-    with pytest.raises(ProviderError, match="进程回收超时"):
-        module.close_windows_job(job, timeout=0)
-    assert job.closed
-
-
-@pytest.mark.skipif(os.name != "nt", reason="Windows 进程挂起和 Job Object 边界")
 def test_fast_exit_waits_for_job_assignment(tmp_path, monkeypatch):
     """模拟繁忙机器延迟绑定任务对象，快速退出命令仍正常完成且不逃逸"""
     from resume_maker.integrations.providers import process as module
@@ -531,7 +422,7 @@ def test_native_cli_tool_boundary(tmp_path, model, with_mosaic):
         encoding="utf-8",
     )
     try:
-        provider = privacy_provider(
+        provider = CodexProvider(
             environment={"CODEX_HOME": str(tmp_path), "SYNTHETIC_KEY": "SECRET-CANARY"},
             runner=run_cli,
         ).with_private_data({"personal": {"name": "合成测试甲", "age": "21"}})

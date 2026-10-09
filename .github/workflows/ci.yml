@@ -42,8 +42,6 @@ jobs:
           npm --prefix frontend ci
       - name: Check Python architecture and comments
         run: uv run --locked python scripts/check_quality.py
-      - name: Check generated plugin configuration
-        run: uv run --locked python scripts/sync_plugin_settings.py --check
       - name: Lint Python
         run: uv run --locked ruff check src tests scripts
       - name: Check Python formatting
@@ -55,11 +53,10 @@ jobs:
       - name: Build frontend
         run: npm --prefix frontend run build
       - name: Build installable wheel
-        run: uv build --wheel --out-dir .local/artifacts
+        run: uv build --wheel
       - name: Verify installed wheel and bundled resources
         run: uv run --locked python scripts/check_wheel.py
       - uses: actions/upload-artifact@v4
         with:
           name: resume-maker-${{ matrix.os }}
-          path: .local/artifacts/*.whl
-          include-hidden-files: true
+          path: dist/*.whl

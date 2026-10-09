@@ -26,19 +26,10 @@ def register_template(catalog, data_dir):
                 "mapped",
                 "测试模板",
                 digest(path.read_bytes()),
-                dump({"plan": plan.model_dump(), "artifacts": []}),
+                dump({"plan": plan.model_dump()}),
                 now(),
             ),
         )
-    if catalog.assets:
-        staged = catalog.assets.stage_bundle(
-            "ext.template-adapter", {"template.docx": path.read_bytes()}
-        )
-        with catalog.db.transaction() as conn:
-            catalog.assets.publish_bundle(conn, "ext.template-adapter", "templates/mapped", staged)
-        path.unlink()
-        path.parent.rmdir()
-        path = catalog.assets.resource_path(staged["template.docx"]["id"]) / "payload"
     return path
 
 
@@ -75,10 +66,6 @@ class TemplateProvider(ProviderStub):
     def __exit__(self, *_):
         """断言失败也释放后台线程，不依赖磁盘写入耗时来结束模型替身"""
         self.release.set()
-
-    def wait_started(self):
-        """有界等待后台文档准备结束，共享 Windows runner 允许较慢的磁盘和字体处理"""
-        assert self.started.wait(60), "模板模型替身未在 60 秒内启动"
 
     def run_structured(self, **kwargs):
         """返回模板映射，故意允许取消后的迟到结果以检验服务保护"""

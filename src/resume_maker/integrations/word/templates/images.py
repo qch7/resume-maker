@@ -2,10 +2,11 @@
 
 from pathlib import Path
 
+import pymupdf
+
 from resume_maker.core.errors import Problem
-from resume_maker.integrations.document_limits import SAFE_IMAGE_MAX_PIXELS
-from resume_maker.integrations.privacy_layout import MAX_IMAGES
-from resume_maker.sdk.model import MosaicImage
+from resume_maker.integrations.providers.base import MosaicImage
+from resume_maker.integrations.providers.mosaic import MAX_IMAGES
 
 
 def mosaic_sources(package):
@@ -26,16 +27,14 @@ def mosaic_sources(package):
 
 def image_sheets(package, directory: Path) -> tuple[list[Path], list[str]]:
     """只读取包内图片，最多展示二十四张，无法解码的图片继续由文字清单报告"""
-    import pymupdf
-
     images, shown = [], []
     for row in package.inventory()["nodes"]:
-        if row["kind"] != "image" or len(images) >= MAX_IMAGES:
+        if row["kind"] != "image" or len(images) >= 24:
             continue
         try:
             raw = package.image(row["id"])
             pixmap = pymupdf.Pixmap(raw)
-            if pixmap.width * pixmap.height > SAFE_IMAGE_MAX_PIXELS:
+            if pixmap.width * pixmap.height > 20_000_000:
                 continue
             images.append((row["id"], raw))
             shown.append(row["id"])

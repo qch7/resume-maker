@@ -7,15 +7,10 @@ from docx import Document
 from lxml import etree
 
 from resume_maker.domain.templates import TemplatePlan, TextBinding
-from resume_maker.infrastructure.assets import Assets
 from resume_maker.integrations.word.ooxml import NS, w
 from resume_maker.integrations.word.templates.fill import fill_template
 from resume_maker.integrations.word.templates.mapping import TemplatePackage
-from resume_maker.plugin_packages.ext_template_adapter.services.templates.tasks import Templates
-from resume_maker.plugin_packages.ext_template_ai.services.templates.analysis_driver import (
-    TemplateAnalysis,
-)
-from resume_maker.plugin_packages.sys_resume.services.resumes import Resumes
+from resume_maker.services.templates.tasks import Templates
 from tests.support.templates import TemplateProvider, completed, simple_document
 
 
@@ -100,14 +95,7 @@ def test_hyperlink_import_reaches_analysis_and_keeps_snapshot_ids(catalog, tmp_p
     add_complex(doc.add_paragraph(), [' HYPERLINK "https://example.test" '], "原姓名")
     doc.save(source)
     provider = TemplateProvider()
-    service = Templates(
-        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
-        tmp_path / "data",
-        provider,
-        storage=catalog.db,
-        analysis=TemplateAnalysis(),
-        assets=Assets(catalog.db, tmp_path / "data"),
-    )
+    service = Templates(catalog, tmp_path / "data", provider)
     task = service.analyze(source, simple_document())
     result = completed(service, task["id"])
     assert result["status"] == "completed" and result["review"]["ready"]

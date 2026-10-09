@@ -1,6 +1,5 @@
 import { api } from "./api";
 import { registerDraft } from "./draftRegistry";
-import { capabilities } from "./capabilities";
 import {
   createPersistence,
   type StorageSnapshot,
@@ -24,7 +23,6 @@ export const storage = createPersistence({
     keys: () => Object.keys(localStorage),
   },
   client: crypto.randomUUID(),
-  generation: () => capabilities().generation,
   changed: () => {
     statusVersion++;
     for (const listener of listeners) listener();
@@ -32,9 +30,29 @@ export const storage = createPersistence({
 });
 registerDraft("workspace-storage", storage.flush, true);
 
-/** 从当前资料目录恢复草稿并初始化保存队列 */
+/** 首次升级把浏览器旧草稿导入当前目录，恢复备份后不重放其他代次旧内容 */
 export async function initializeStorage() {
   await storage.initialize();
+  try {
+    const namespace = storage.namespace();
+    const owner = localStorage.getItem("rm.legacy.owner");
+    if (owner && owner !== namespace) return;
+    if (localStorage.getItem(`rm.legacy.done.${namespace}`)) return;
+    localStorage.setItem("rm.legacy.owner", namespace);
+    const keys = Object.keys(localStorage).filter((key) =>
+      /^rm\.(resume\.v2\.|field\.|chat\.|profile\.|theme$|layout$|sidebarSort$|activity$|template\.library\.view$)/.test(
+        key,
+      ),
+    );
+    for (const key of keys) {
+      const value = localStorage.getItem(key);
+      if (value !== null && !storage.has(key)) storage.setItem(key, value);
+    }
+    await storage.flush();
+    localStorage.setItem(`rm.legacy.done.${namespace}`, "1");
+  } catch {
+    // 原浏览器记录始终保留，保存失败由统一状态提示处理
+  }
 }
 
 /** 通知保存提示更新，不把输入正文放到公共状态中 */

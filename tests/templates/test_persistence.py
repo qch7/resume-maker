@@ -2,16 +2,11 @@
 
 from zipfile import ZipFile
 
-from resume_maker.infrastructure.assets import Assets
 from resume_maker.infrastructure.database import Database, dump
 from resume_maker.infrastructure.storage import create_backup, restore_backup
-from resume_maker.plugin_packages.ext_template_adapter.services.templates.tasks import Templates
-from resume_maker.plugin_packages.ext_template_ai.services.templates.analysis_driver import (
-    TemplateAnalysis,
-)
-from resume_maker.plugin_packages.sys_drafts.services.workspace_storage import WorkspaceStorage
-from resume_maker.plugin_packages.sys_resume.services.resumes import Resumes
-from tests.support.data import make_catalog
+from resume_maker.services.catalog import Catalog
+from resume_maker.services.templates.tasks import Templates
+from resume_maker.services.workspace_storage import WorkspaceStorage
 from tests.support.templates import TemplateProvider, completed, simple_document, simple_template
 
 
@@ -20,14 +15,7 @@ def test_analysis_and_manual_mapping_survive_backup(catalog, tmp_path):
     root = catalog.db.path.parent
     source = tmp_path / "template.docx"
     simple_template(source)
-    service = Templates(
-        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
-        root,
-        TemplateProvider(),
-        storage=catalog.db,
-        analysis=TemplateAnalysis(),
-        assets=Assets(catalog.db, root),
-    )
+    service = Templates(catalog, root, TemplateProvider())
     task = completed(service, service.analyze(source, simple_document())["id"])
     assert task["status"] == "completed"
     source.unlink()
@@ -40,23 +28,11 @@ def test_analysis_and_manual_mapping_survive_backup(catalog, tmp_path):
     archive = create_backup(catalog.db, root)
     with ZipFile(archive) as saved:
         assert not any(name.startswith("workspaces/") for name in saved.namelist())
-        resource = service.assets.file_id(f"template-drafts/{task['id']}", "uploaded.docx")
-        assert f"assets/{resource}/payload" in saved.namelist()
+        assert f"template-drafts/{task['id']}/uploaded.docx" in saved.namelist()
     target = tmp_path / "restored"
     restore_backup(archive, target)
-    restored_catalog = make_catalog(Database(target / "resume.db"))
-    restored = Templates(
-        Resumes(
-            restored_catalog,
-            storage=restored_catalog.db,
-            assets=restored_catalog.assets,
-        ),
-        target,
-        TemplateProvider(),
-        storage=restored_catalog.db,
-        analysis=TemplateAnalysis(),
-        assets=Assets(restored_catalog.db, target),
-    )
+    restored_catalog = Catalog(Database(target / "resume.db"))
+    restored = Templates(restored_catalog, target, TemplateProvider())
     assert restored.get(task["id"])["plan"] == task["plan"]
     assert restored.source(task["id"]).is_file()
     assert restored.list_tasks()[0]["id"] == task["id"]
@@ -70,28 +46,14 @@ def test_interrupted_analysis_requires_explicit_retry(catalog, tmp_path):
     source = tmp_path / "template.docx"
     simple_template(source)
     root = catalog.db.path.parent
-    service = Templates(
-        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
-        root,
-        TemplateProvider(),
-        storage=catalog.db,
-        analysis=TemplateAnalysis(),
-        assets=Assets(catalog.db, root),
-    )
+    service = Templates(catalog, root, TemplateProvider())
     task = completed(service, service.analyze(source, simple_document())["id"])
     record = catalog.db.setting(f"template-task:{task['id']}")
     record["task"]["status"] = "running"
     record["task"]["plan"] = None
     catalog.db.set_setting(f"template-task:{task['id']}", record)
     provider = TemplateProvider()
-    restarted = Templates(
-        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
-        root,
-        provider,
-        storage=catalog.db,
-        analysis=TemplateAnalysis(),
-        assets=Assets(catalog.db, root),
-    )
+    restarted = Templates(catalog, root, provider)
     assert not provider.calls
     interrupted = restarted.get(task["id"])
     assert interrupted["status"] == "failed"

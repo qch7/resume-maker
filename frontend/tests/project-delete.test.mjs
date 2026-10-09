@@ -3,7 +3,7 @@ import test from "node:test";
 import {
   projectDeletionBlocker,
   projectDeletionIds,
-} from "../../src/resume_maker/plugin_packages/sys_resume/client/features/projects/deletion.ts";
+} from "../src/features/projects/deletion.ts";
 
 const projects = [
   { id: "parent" },

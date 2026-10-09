@@ -5,7 +5,6 @@ import sys
 from pathlib import Path
 
 from resume_maker.core.errors import Problem
-from resume_maker.core.process_environment import EnvironmentPolicy, process_environment
 
 
 def reveal_file(path: Path) -> None:
@@ -17,6 +16,6 @@ def reveal_file(path: Path) -> None:
     else:
         command = ["xdg-open", str(path.parent)]
     try:
-        subprocess.Popen(command, env=process_environment(EnvironmentPolicy.DESKTOP))
+        subprocess.Popen(command)
     except OSError as exc:
         raise Problem("无法启动资源管理器，请确认本机桌面环境可用。") from exc

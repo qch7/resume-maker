@@ -3,21 +3,18 @@ import assert from "node:assert/strict";
 import {
   syncHonorDocument,
   syncHonorResume,
-} from "../src/shared/resume/honors/sync.ts";
-import {
-  emptyHonor,
-  HONOR_FIELDS,
-} from "../src/shared/resume/honors/fields.ts";
+} from "../src/features/honors/sync.ts";
+import { emptyHonor, HONOR_FIELDS } from "../src/features/honors/fields.ts";
 import {
   honorFieldValue,
   honorFieldHidden,
   newHonorEntry,
-} from "../src/shared/resume/honors/entry.ts";
-import { newDocument, newEntry } from "../src/shared/resume/document.ts";
+} from "../src/features/honors/entry.ts";
+import { newDocument, newEntry } from "../src/features/profile/document.ts";
 import {
   sameComposition,
   isCurrentExport,
-} from "../src/shared/resume/composition.ts";
+} from "../src/features/resumes/composition.ts";
 
 /** 完整已核对资料，和个人数据库无关 */
 function source() {
@@ -46,7 +43,6 @@ test("existing linked honors recover all library fields without changing layout 
   const legacy = {
     ...newEntry(),
     id: "honor:linked",
-    source: { provider: "ext.honors/library", id: "linked", version: "1" },
     title: "旧名称 · 一等奖",
     details: "省级\n旧说明",
     hidden_fields: ["subtitle", "details"],
@@ -85,14 +81,7 @@ test("confirmed source changes and clearing fields update every selected resume 
   const originalSource = source();
   const document = newDocument();
   document.sections[3].entries = [
-    {
-      ...newHonorEntry(originalSource.fields, "honor:linked"),
-      source: {
-        provider: "ext.honors/library",
-        id: "linked",
-        version: String(originalSource.version),
-      },
-    },
+    newHonorEntry(originalSource.fields, "honor:linked"),
   ];
   const resume = {
     id: "resume",
@@ -144,14 +133,7 @@ test("confirmed source changes and clearing fields update every selected resume 
 test("unreviewed suggestions, same-name records and manual entries cannot overwrite linked content", /* 同名不同标识、人工条目和未核对识别结果都不会被误关联 */ () => {
   const document = newDocument();
   document.sections[3].entries = [
-    {
-      ...newHonorEntry(source().fields, "honor:linked"),
-      source: {
-        provider: "ext.honors/library",
-        id: "linked",
-        version: String(source().version),
-      },
-    },
+    newHonorEntry(source().fields, "honor:linked"),
     newHonorEntry(source().fields),
   ];
   assert.equal(

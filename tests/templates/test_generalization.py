@@ -13,7 +13,6 @@ from lxml import etree
 
 from resume_maker.domain.resume import ResumeDocument, ResumeSection
 from resume_maker.domain.templates import RepeatBinding, TemplatePlan, TextBinding
-from resume_maker.infrastructure.assets import Assets
 from resume_maker.integrations.word.ooxml import NS, w
 from resume_maker.integrations.word.templates.fill import fill_template
 from resume_maker.integrations.word.templates.mapping import TemplatePackage, paragraph_text
@@ -22,11 +21,7 @@ from resume_maker.integrations.word.templates.supplement import (
     supplement_personal_fields,
 )
 from resume_maker.integrations.word.templates.visuals import layout_context
-from resume_maker.plugin_packages.ext_template_adapter.services.templates.tasks import Templates
-from resume_maker.plugin_packages.ext_template_ai.services.templates.analysis_driver import (
-    TemplateAnalysis,
-)
-from resume_maker.plugin_packages.sys_resume.services.resumes import Resumes
+from resume_maker.services.templates.tasks import Templates
 from tests.support.documents import photo_bytes
 from tests.support.layouts import generic_content, generic_template, visible_text
 from tests.support.templates import TemplateProvider, completed, simple_document, simple_template
@@ -281,14 +276,7 @@ def test_source_pages_and_structural_controls_reach_the_model_without_current_va
 
     monkeypatch.setattr("resume_maker.integrations.word.templates.visuals.word_process", render)
     provider = TemplateProvider()
-    service = Templates(
-        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
-        tmp_path,
-        provider,
-        storage=catalog.db,
-        analysis=TemplateAnalysis(),
-        assets=Assets(catalog.db, tmp_path),
-    )
+    service = Templates(catalog, tmp_path, provider)
     task = completed(service, service.analyze(source, simple_document())["id"])
     request = json.loads(provider.calls[0]["prompt"].split("\n")[-1])
     assert request["source_pages"]["total"] == 8 and request["source_pages"]["omitted"] == 2
@@ -350,14 +338,7 @@ def test_failed_structural_repair_restores_matching_best_snapshot_and_resets_mod
     document = simple_document()
     document.personal.location = "New City"
     provider = ChangingProvider()
-    service = Templates(
-        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
-        tmp_path,
-        provider,
-        storage=catalog.db,
-        analysis=TemplateAnalysis(),
-        assets=Assets(catalog.db, tmp_path),
-    )
+    service = Templates(catalog, tmp_path, provider)
     task = completed(service, service.analyze(source, document)["id"])
     assert task["status"] == "completed" and not task["review"]["ready"]
     assert task["repair_error"] == "第三轮模拟失败" and len(provider.calls) == 3
@@ -370,19 +351,12 @@ def test_failed_structural_repair_restores_matching_best_snapshot_and_resets_mod
 
 def test_cached_mapping_reenters_repair_when_current_trial_fails(catalog, tmp_path, monkeypatch):
     """缓存映射在当前资料上试填失败时重新识别"""
-    from resume_maker.plugin_packages.ext_template_ai.services.templates.analysis import check_trial
+    from resume_maker.services.templates.analysis import check_trial
 
     source = tmp_path / "source.docx"
     simple_template(source)
     provider = TemplateProvider()
-    service = Templates(
-        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
-        tmp_path,
-        provider,
-        storage=catalog.db,
-        analysis=TemplateAnalysis(),
-        assets=Assets(catalog.db, tmp_path),
-    )
+    service = Templates(catalog, tmp_path, provider)
     first = completed(service, service.analyze(source, simple_document())["id"])
     assert first["review"]["ready"]
     calls = []
@@ -396,10 +370,7 @@ def test_cached_mapping_reenters_repair_when_current_trial_fails(catalog, tmp_pa
             return review
         return check_trial(source, plan, review, document, projects)
 
-    monkeypatch.setattr(
-        "resume_maker.plugin_packages.ext_template_adapter.services.templates.tasks.check_trial",
-        fail_cached_trial_once,
-    )
+    monkeypatch.setattr("resume_maker.services.templates.tasks.check_trial", fail_cached_trial_once)
     task = completed(service, service.analyze(source, simple_document())["id"])
     assert task["review"]["ready"] and not task["reused"] and len(provider.calls) == 2
 

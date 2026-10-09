@@ -237,20 +237,14 @@ def test_honors_backup_restore_and_delete_preserve_resume_snapshot(tmp_path):
         )
         assert created.status_code == 200, created.text
         backup = create_backup(app.state.services.db, directory)
-        reference = app.state.services.honors.file_reference(item["id"])
-        resource_path = f"assets/{reference['id']}/payload"
         with ZipFile(backup) as archive:
-            assert (
-                archive.read(resource_path)
-                == client.get(f"/api/honors/{item['id']}/original").content
-            )
-            assert not any(name.startswith("honors/") for name in archive.namelist())
+            assert f"honors/{item['id']}/original.png" in archive.namelist()
         target = tmp_path / "restored"
         restore_backup(backup, target)
         incomplete = tmp_path / "incomplete.zip"
         with ZipFile(backup) as source, ZipFile(incomplete, "w") as broken:
             for name in source.namelist():
-                if name != resource_path:
+                if not name.endswith("original.png"):
                     broken.writestr(name, source.read(name))
         with pytest.raises(Problem, match="备份文件清单不完整"):
             restore_backup(incomplete, tmp_path / "incomplete-restore")
@@ -291,9 +285,7 @@ def test_restart_marks_unfinished_recognition_as_retryable(tmp_path):
         assert client.post("/api/honors", json={"fields": {"name": "   "}}).status_code == 400
         assert client.post(f"/api/honors/{manual['id']}/recognize").status_code == 400
     manual["status"] = "running"
-    from resume_maker.infrastructure.database import Database
-
-    Database(tmp_path / "resume.db").set_setting("honor:" + manual["id"], manual)
+    app.state.services.db.set_setting("honor:" + manual["id"], manual)
     with TestClient(
         create_app(config, CertificateProvider()), headers={"x-resume-token": "test"}
     ) as client:

@@ -1,7 +1,6 @@
-"""显式授权后用 CC Switch 中指定供应商评测模板
+"""显式授权后，用 CC Switch 中指定供应商评测模板，配置、会话和产物完全隔离。
 
-配置、会话和产物完全隔离
-密钥只传入 CLI 子进程环境，不保存到报告、命令行或测试配置
+密钥只传入 CLI 子进程环境，不保存到报告、命令行或测试配置。
 正式 SQLite 数据库以只读方式打开，模型不共享会话或映射缓存
 """
 
@@ -13,26 +12,21 @@ import threading
 import time
 import tomllib
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import contextmanager
 from pathlib import Path
 
 import pymupdf
 
+from resume_maker.domain.honor_entries import sync_honor_document
 from resume_maker.domain.models import ProviderSettings
 from resume_maker.domain.resume import ResumeDocument
-from resume_maker.infrastructure.read_session import ReadSession
-from resume_maker.integrations.privacy_gateway import PrivacyGateway
+from resume_maker.integrations.providers.base import StructuredOutputError
+from resume_maker.integrations.providers.codex import CodexProvider
 from resume_maker.integrations.word.recovery import prepare_template
+from resume_maker.integrations.word.rendering import render_word
 from resume_maker.integrations.word.templates.fill import fill_template
 from resume_maker.integrations.word.templates.mapping import TemplatePackage
 from resume_maker.integrations.word.templates.values import personal_values, section_records
-from resume_maker.plugin_packages.ext_honors.services.honor_links import resume_source
-from resume_maker.plugin_packages.ext_provider_codex.integrations.providers.cli import run_cli
-from resume_maker.plugin_packages.ext_template_ai.services.templates.analysis import analyze_plan
-from resume_maker.plugin_packages.ext_word.integrations.word.rendering import render_word
-from resume_maker.plugin_packages.sys_resume.services.resume_sources import ResumeSources
-from resume_maker.runtime.host import Contribution
-from resume_maker.sdk.model import StructuredOutputError
+from resume_maker.services.templates.analysis import analyze_plan
 
 
 def save(path, value):
@@ -45,37 +39,10 @@ def readonly(path):
     return sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)
 
 
-class ReadOnlyData:
-    """评测使用只读数据库接口，来源同步复用正式生成规则"""
-
-    def __init__(self, path):
-        """固定资料位置，不初始化或修改正式数据库"""
-        self.path = path
-
-    @contextmanager
-    def connect(self):
-        """在同一只读事务中读取所有来源并及时关闭连接"""
-        conn = readonly(self.path)
-        conn.row_factory = sqlite3.Row
-        try:
-            conn.execute("BEGIN")
-            yield conn
-        finally:
-            conn.close()
-
-    def read_session(self, conn):
-        """沿用正式来源查询的只读边界"""
-        return ReadSession(conn)
-
-
 def profile(path, resume_id):
     """取得当前简历、固定项目版本及同步荣誉的只读快照"""
-    data = ReadOnlyData(path)
-    contribution = Contribution(
-        "ext.honors", "resume.sources", "ext.honors/library", resume_source()
-    )
-    sources = ResumeSources(data, lambda _point: [contribution])
-    with data.connect() as conn:
+    with readonly(path) as conn:
+        conn.row_factory = sqlite3.Row
         row = conn.execute(
             "SELECT * FROM resumes WHERE document_json IS NOT NULL "
             "AND (? = '' OR id = ?) AND id NOT IN (SELECT resume_id FROM resume_deletions) "
@@ -84,8 +51,12 @@ def profile(path, resume_id):
         ).fetchone()
         if row is None:
             raise ValueError("没有可供试填的简历资料。")
+        honors = [
+            json.loads(r[0])
+            for r in conn.execute("SELECT value_json FROM settings WHERE key LIKE 'honor:%'")
+        ]
         document = ResumeDocument.model_validate(
-            sources.resolve(json.loads(row["document_json"]), conn)
+            sync_honor_document(json.loads(row["document_json"]), honors)
         )
         projects = []
         for item in json.loads(row["items_json"]):
@@ -150,15 +121,12 @@ def isolated_provider(database, name, directory):
     return {"CODEX_HOME": str(home), "RESUME_EVALUATION_API_KEY": key}, settings
 
 
-class RecordedProvider(PrivacyGateway):
+class RecordedProvider(CodexProvider):
     """记录实际发给模型的证据和原始映射，便于区分模型错误和程序补全"""
 
     def __init__(self, environment, directory):
         """配置仅属于本次模型和模板的独立会话目录"""
-        from resume_maker.plugin_packages.provider_rapidocr.local_ocr import read_document
-
-        super().__init__(runner=run_cli, environment=environment, ocr=read_document, images=True)
-        self.page_ocr = read_document
+        super().__init__(environment=environment)
         self.directory, self.calls = directory, 0
 
     def run_structured(self, **kwargs):

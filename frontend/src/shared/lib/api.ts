@@ -1,5 +1,3 @@
-import { generationHeaders } from "./capabilities";
-
 const token =
   document.querySelector<HTMLMetaElement>('meta[name="resume-token"]')
     ?.content ?? "";
@@ -38,7 +36,6 @@ export async function request(
     ...options,
     headers: {
       "x-resume-token": token,
-      ...generationHeaders(),
       ...(options.body ? { "content-type": "application/json" } : {}),
       ...options.headers,
     },
@@ -47,7 +44,7 @@ export async function request(
       reportClientError("network_error", error, path);
     throw error;
   });
-  if (!response.ok && response.status !== 304) {
+  if (!response.ok) {
     const body = await response.json().catch(
       /* 取消后忽略迟到的错误 */ () => ({
         detail: `请求失败 (${response.status})`,

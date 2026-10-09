@@ -10,9 +10,9 @@ frontend/dist/
 frontend/test-results/
 frontend/playwright-report/
 *.egg-info/
-/data/
+data/
 /ResumeMakerSandbox/
-/.*.instance.lock
+/.data.instance.lock
 .env
 .env.*
 !.env.example

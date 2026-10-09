@@ -10,7 +10,7 @@ from resume_maker.core.config import Config
 from resume_maker.core.errors import Problem
 from resume_maker.infrastructure.database import Database
 from resume_maker.infrastructure.storage import create_backup, restore_backup
-from resume_maker.plugin_packages.sys_drafts.services.workspace_storage import WorkspaceStorage
+from resume_maker.services.workspace_storage import WorkspaceStorage
 
 
 def test_drafts_survive_restart_backup_without_publishing(catalog, tmp_path):

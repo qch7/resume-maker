@@ -8,13 +8,9 @@ from fastapi.testclient import TestClient
 from resume_maker.api import create_app
 from resume_maker.core.config import Config
 from resume_maker.domain.models import ProviderSettings
-from resume_maker.plugin_packages.ext_provider_codex.integrations.providers.connection import (
-    connection,
-)
-from resume_maker.plugin_packages.ext_provider_codex.integrations.providers.model_catalog import (
-    write_catalog,
-)
-from resume_maker.sdk.model import ProviderError
+from resume_maker.integrations.providers.base import ProviderError
+from resume_maker.integrations.providers.connection import connection
+from resume_maker.integrations.providers.model_catalog import write_catalog
 
 
 def test_custom_efforts_persist_and_inherit_per_function(tmp_path):
@@ -25,7 +21,6 @@ def test_custom_efforts_persist_and_inherit_per_function(tmp_path):
             response = client.put(
                 "/api/settings/provider",
                 json={
-                    "version": client.get("/api/settings").json()["provider"]["version"],
                     "reasoning_effort": " high ",
                     "functions": {
                         "conversation": {"reasoning_effort": f" {effort} "},

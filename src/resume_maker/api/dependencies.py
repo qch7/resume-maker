@@ -1,36 +1,53 @@
-"""按路由所有者声明注入依赖，不再集中构造业务服务"""
+"""每个应用实例独立持有服务，通过 FastAPI 依赖注入交给路由"""
 
-from fastapi import Request
+from dataclasses import dataclass
+from typing import Annotated
 
-from resume_maker.runtime.graph import PluginError
-from resume_maker.sdk.context import ServiceKey
+from fastapi import Depends, Request
+
+from resume_maker.core.config import Config
+from resume_maker.infrastructure.database import Database
+from resume_maker.services.catalog import Catalog
+from resume_maker.services.conversations import Conversations
+from resume_maker.services.documents import Documents
+from resume_maker.services.honors import Honors
+from resume_maker.services.jobs import Jobs
+from resume_maker.services.privacy import Privacy
+from resume_maker.services.projects import Projects
+from resume_maker.services.recruitment import Recruitment
+from resume_maker.services.resume_previews import ResumePreviews
+from resume_maker.services.settings import Settings
+from resume_maker.services.templates.library import TemplateLibrary
+from resume_maker.services.templates.tasks import Templates
+from resume_maker.services.workspace import Workspace
+from resume_maker.services.workspace_storage import WorkspaceStorage
 
 
-class ServiceView:
-    """只读服务投影，业务请求只能取得所属插件已声明的能力"""
+@dataclass(frozen=True)
+class Services:
+    """应用服务容器，禁止用模块全局变量共享用户数据目录"""
 
-    def __init__(self, host, owner=None):
-        """宿主诊断可遍历能力，请求视图则按插件清单收窄"""
-        self.host, self.owner = host, owner
+    config: Config
+    db: Database
+    catalog: Catalog
+    jobs: Jobs
+    honors: Honors
+    documents: Documents
+    workspace: Workspace
+    conversations: Conversations
+    projects: Projects
+    templates: Templates
+    template_library: TemplateLibrary
+    resume_previews: ResumePreviews
+    settings: Settings
+    privacy: Privacy
+    workspace_storage: WorkspaceStorage
+    recruitment: Recruitment
 
-    def __getattr__(self, name):
-        """保留现有路由属性语法，实际依赖取自插件作用域"""
-        if self.owner:
-            return self.host.instances[self.owner].require(ServiceKey(name))
-        try:
-            return self.host.require(ServiceKey(name))
-        except PluginError as exc:
-            raise AttributeError(name) from exc
+
+def get_services(request: Request) -> Services:
+    """从当前请求所属应用取得服务，支持多实例隔离和测试替换"""
+    return request.app.state.services
 
 
-def service(name: str):
-    """路由逐项声明依赖，解析器按当前所有者清单校验授权"""
-
-    async def resolve(request: Request):
-        """在请求租约内查找内存中的公开能力，不等待共享线程池"""
-        route = request.scope["route"]
-        owner = request.app.state.route_owners[id(route)]
-        return request.app.state.contexts[owner].require(ServiceKey(name))
-
-    resolve.service_key = ServiceKey(name)
-    return resolve
+ServicesDep = Annotated[Services, Depends(get_services)]

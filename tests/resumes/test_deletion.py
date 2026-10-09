@@ -35,21 +35,17 @@ def test_delete_resume_preserves_projects_exports_and_other_plans(tmp_path):
             "/api/resumes", headers=headers, json={"name": "保留方案", "items": [item]}
         ).json()
         export_id = "retained-export"
-        assets = app.state.services.assets
-        resources = assets.stage_bundle("sys.documents", {"resume.docx": b"retained document"})
+        directory = config.data_dir / "exports" / export_id
+        directory.mkdir()
+        document = directory / "resume.docx"
+        document.write_bytes(b"retained document")
         with app.state.services.db.transaction() as conn:
-            assets.publish_bundle(conn, "sys.documents", f"exports/{export_id}", resources)
             conn.execute(
                 "INSERT INTO exports VALUES (?,?,?,?,?,?)",
                 (
                     export_id,
                     target["id"],
-                    dump(
-                        {
-                            "resume": target,
-                            "assets": {name: row["id"] for name, row in resources.items()},
-                        }
-                    ),
+                    dump({"resume": target}),
                     None,
                     None,
                     now(),
@@ -80,9 +76,7 @@ def test_delete_resume_preserves_projects_exports_and_other_plans(tmp_path):
             client.get(f"/api/exports/{export_id}/resume.docx", headers=headers).content
             == b"retained document"
         )
-        assert (
-            client.post(url + "/exports", params={"version": 0}, headers=headers).status_code == 404
-        )
+        assert client.post(url + "/exports", headers=headers).status_code == 404
         assert (
             client.put(
                 url,
@@ -99,7 +93,7 @@ def test_delete_resume_preserves_projects_exports_and_other_plans(tmp_path):
             client.delete(url, params={"version": target["version"]}, headers=headers).status_code
             == 404
         )
-        assert assets.read_file(f"exports/{export_id}", "resume.docx") == b"retained document"
+        assert document.read_bytes() == b"retained document"
     with TestClient(create_app(config)) as restarted:
         assert [
             r["id"] for r in restarted.get("/api/state", headers=headers).json()["resumes"]

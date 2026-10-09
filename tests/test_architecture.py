@@ -9,10 +9,7 @@ import pytest
     "source,forbidden",
     [
         ("from resume_maker import services", True),
-        (
-            "from resume_maker.services import jobs as queue",
-            True,
-        ),
+        ("from resume_maker.services import jobs as queue", True),
         ("import resume_maker.api.app as app", True),
         ("from resume_maker import core", False),
         ("from resume_maker.core.errors import Problem", False),
@@ -30,36 +27,3 @@ def test_layer_check_covers_package_imports(tmp_path, source, forbidden, pytestc
     assert bool(errors) is forbidden
     if forbidden:
         assert all("禁止 domain 依赖" in error for error in errors)
-
-
-@pytest.mark.parametrize(
-    "location,source,forbidden",
-    [
-        ("plugin_packages/example/services/item.py", "from resume_maker.api import app", True),
-        (
-            "plugin_packages/example/integrations/item.py",
-            "from resume_maker.plugin_packages.example.services import item",
-            True,
-        ),
-        (
-            "plugin_packages/example/entry.py",
-            "from resume_maker.plugin_packages.other import entry",
-            True,
-        ),
-        ("domain/item.py", "from resume_maker import plugin_packages", True),
-        ("domain/item.py", "from resume_maker.plugin_packages import other", True),
-        ("plugin_packages/example/services/item.py", "from resume_maker.sdk import records", False),
-    ],
-)
-def test_package_boundaries_keep_layers_and_missing_owners(
-    tmp_path, location, source, forbidden, pytestconfig
-):
-    """目录搬迁或目标缺包不能绕过私有边界及服务依赖方向"""
-    check = runpy.run_path(str(pytestconfig.rootpath / "scripts/check_quality.py"))["check_file"]
-    package = tmp_path / "src/resume_maker"
-    check.__globals__.update(ROOT=tmp_path, PACKAGE=package, OWNERS={})
-    path = package / location
-    path.parent.mkdir(parents=True)
-    path.write_text(source, encoding="utf-8")
-    errors, _ = check(path)
-    assert bool(errors) is forbidden
