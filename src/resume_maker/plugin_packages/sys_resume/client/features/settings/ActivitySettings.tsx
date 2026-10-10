@@ -5,20 +5,19 @@ import {
   type ActivityCaptureSettings,
   type ActivityCategory,
 } from "@resume-maker/plugin-sdk/plugins/activity";
-import {
-  DEFAULT_HIDDEN_RULES,
-  hiddenRuleError,
-} from "@resume-maker/plugin-sdk/shared/lib/activityPreferences";
+import { hiddenRuleError } from "@resume-maker/plugin-sdk/shared/lib/activityPreferences";
 import { localDayRange } from "@resume-maker/plugin-sdk/shared/lib/localTime";
 
 /** 保存后端采集类别和页面过滤规则，并提供日志删除入口 */
 export default function ActivitySettings({
   rules,
+  defaultRules,
   onSave,
   onResetLayout,
   onDeleted,
 }: {
   rules: string;
+  defaultRules: string;
   onSave: (rules: string) => void;
   onResetLayout: () => void;
   onDeleted: () => void;
@@ -188,7 +187,7 @@ export default function ActivitySettings({
         <button
           disabled={!capture || saving}
           onClick={() => {
-            setDraft(DEFAULT_HIDDEN_RULES);
+            setDraft(defaultRules);
             setCapture({ categories: ["ai"] });
           }}
         >

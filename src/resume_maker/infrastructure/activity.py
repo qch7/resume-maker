@@ -33,7 +33,6 @@ SECRET_TEXT = re.compile(
     r"-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?-----END [^-]*PRIVATE KEY-----"
 )
 MAX_DETAIL = MAX_DETAIL_CHARS
-DEFAULT_POLLING_PATHS = "/api/state\n/api/honors\n/api/templates/analyses/*/progress"
 SUMMARY_COLUMNS = (
     "id,created_at,category,level,source,event,title,trace_id,span_id,parent_span_id,"
     "job_id,conversation_id,project_id,duration_ms"
@@ -258,21 +257,19 @@ class ActivityLog:
         since="",
         until="",
         hide_polling=False,
-        hide_maintenance=False,
         hidden_rules=None,
         **_,
     ):
         """组合固定列的参数化条件，关键词按字面搜索全部正文和关联标识"""
+        hidden_rules = "\n".join(self.policy.hidden_rules) if hidden_rules is None else hidden_rules
         clauses, args = [], []
         service_patterns = []
-        if hidden_rules is not None and hide_polling:
+        if hide_polling:
             service_patterns = [
                 wildcard_pattern(rule.strip())
                 for rule in dict.fromkeys(hidden_rules.splitlines())
                 if rule.strip() and "/" not in rule and ":" not in rule
             ]
-        elif hidden_rules is None and hide_maintenance:
-            service_patterns = [wildcard_pattern("template_library.purge_expired")]
         if service_patterns and not trace_id:
             matches = " OR ".join("source LIKE ? ESCAPE '\\'" for _ in service_patterns)
             clauses.append(
@@ -285,7 +282,7 @@ class ActivityLog:
                 f"AND ({matches})))))"
             )
             args.extend(service_patterns * 2)
-        if hidden_rules is not None and hide_polling and not trace_id:
+        if hide_polling and not trace_id:
             for rule in dict.fromkeys(hidden_rules.splitlines()):
                 if ":" in rule and "/" not in rule:
                     kind, event = rule.strip().split(":", 1)
@@ -299,15 +296,12 @@ class ActivityLog:
                 "((category='api' OR "
                 "(category='service' AND event IN ('started','completed'))) "
                 "AND COALESCE(duration_ms,0)<1000)"
-                if hidden_rules is not None
-                else "category IN ('api','service')"
             )
             clauses.append(
                 f"NOT ({event_filter} AND level='info' "
                 "AND trace_id IN (SELECT trace_id FROM hidden_polling))"
             )
-            if hidden_rules is not None:
-                clauses.append("id NOT IN (SELECT id FROM polling_request_starts)")
+            clauses.append("id NOT IN (SELECT id FROM polling_request_starts)")
         for key, value in {"category": category, "level": level}.items():
             selected = list(
                 dict.fromkeys(item.strip() for item in value.split(",") if item.strip())
@@ -351,17 +345,15 @@ class ActivityLog:
         self,
         *,
         hide_polling=False,
-        polling_paths=DEFAULT_POLLING_PATHS,
         hidden_rules=None,
         since_id=None,
         **_,
     ):
         """从成功响应识别轮询链路，路径只支持星号且其余字符按字面匹配"""
+        hidden_rules = "\n".join(self.policy.hidden_rules) if hidden_rules is None else hidden_rules
         patterns = []
         if hide_polling:
-            if hidden_rules is not None:
-                polling_paths = hidden_rules
-            for path in dict.fromkeys(polling_paths.splitlines()):
+            for path in dict.fromkeys(hidden_rules.splitlines()):
                 path = path.strip()
                 match = re.fullmatch(
                     r"(?:(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) )?(/api/[^\s?#]*)", path
@@ -385,8 +377,6 @@ class ActivityLog:
         args = list(responses)
         if since_id is not None:
             args.append(since_id)
-        if hidden_rules is None:
-            return cte, args
         endpoints = [pattern.removesuffix(" · 200") for pattern in patterns]
         starts = " OR ".join("title LIKE ? ESCAPE '\\'" for _ in endpoints) or "0"
         cte += (

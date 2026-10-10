@@ -1,17 +1,19 @@
 """受本机认证保护的日志分页、详情、快照导出和删除"""
 
-import re
 from datetime import UTC
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
-from pydantic import AwareDatetime, BaseModel, Field, field_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator
 
 from resume_maker.api.dependencies import service
 from resume_maker.core.errors import need
-from resume_maker.domain.activity import ActivityCaptureSettings
-from resume_maker.infrastructure.activity import DEFAULT_POLLING_PATHS
+from resume_maker.domain.activity import (
+    ActivityCaptureSettings,
+    ActivityRuleDefaults,
+    normalize_hidden_rules,
+)
 from resume_maker.infrastructure.database import Database
 from resume_maker.plugin_packages.sys_activity.services.activity import (
     capture_settings,
@@ -33,6 +35,7 @@ class ClientActivity(BaseModel):
 class ActivityQuery(BaseModel):
     """日志列表和导出共用筛选条件"""
 
+    model_config = ConfigDict(extra="forbid")
     category: str = Field(default="", max_length=200)
     level: str = Field(default="", max_length=80)
     q: str = Field(default="", max_length=500)
@@ -42,8 +45,6 @@ class ActivityQuery(BaseModel):
     since: str = Field(default="", max_length=40)
     until: str = Field(default="", max_length=40)
     hide_polling: bool = False
-    hide_maintenance: bool = False
-    polling_paths: str = Field(default=DEFAULT_POLLING_PATHS, max_length=2000)
     hidden_rules: str | None = Field(default=None, max_length=4000)
     after: int | None = Field(default=None, ge=0)
     before: int = Field(default=0, ge=0)
@@ -55,18 +56,7 @@ class ActivityQuery(BaseModel):
         """限制统一规则的数量和语法，避免无界查询或误填查询参数"""
         if value is None:
             return value
-        lines = list(dict.fromkeys(line.strip() for line in value.splitlines() if line.strip()))
-        if len(lines) > 100:
-            raise ValueError("最多填写 100 条隐藏规则")
-        for line in lines:
-            if not re.fullmatch(
-                r"(?:(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) )?/api/[^\s?#]*|"
-                r"(?:ai|task|system|client):[A-Za-z0-9_.*-]+|"
-                r"[A-Za-z_*][A-Za-z0-9_.*-]*\.[A-Za-z0-9_.*-]+",
-                line,
-            ):
-                raise ValueError("隐藏规则须为 API 路径、操作名或类型:事件，支持方法前缀和星号")
-        return "\n".join(lines)
+        return normalize_hidden_rules(value)
 
 
 class ActivityDeletion(BaseModel):
@@ -108,6 +98,12 @@ def export_activity(
 def activity_settings(dep_db: Annotated[Database, Depends(service("db"))]):
     """读取后端实际采集类别，不受页面隐藏规则影响"""
     return capture_settings(dep_db.activity)
+
+
+@router.get("/defaults")
+def activity_defaults(dep_db: Annotated[Database, Depends(service("db"))]) -> ActivityRuleDefaults:
+    """发布文件配置生效后的默认规则，界面无需重新构建"""
+    return ActivityRuleDefaults(hidden_rules=dep_db.activity.policy.hidden_rules)
 
 
 @router.put("/settings")

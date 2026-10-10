@@ -3,6 +3,7 @@ import { HOST_RECONNECT_MS } from "./shared/lib/timing";
 import { initializePlugins, pluginComponent } from "./plugins/runtime";
 import { ApiError, reportClientError } from "./shared/lib/api";
 import { initializeStorage, storage } from "./shared/lib/storage";
+import { initializeActivityPreferences } from "./shared/hooks/useActivityPreferences";
 import PersistenceStatus from "./shared/components/PersistenceStatus";
 import "./styles/index.css";
 
@@ -43,6 +44,7 @@ async function start() {
   try {
     await initializePlugins();
     await initializeStorage();
+    await initializeActivityPreferences();
     const App = pluginComponent("workbench");
     const theme = storage.getItem("rm.theme");
     if (theme) document.documentElement.dataset.theme = theme;

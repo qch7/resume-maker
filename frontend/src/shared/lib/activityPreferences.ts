@@ -1,51 +1,28 @@
-export const DEFAULT_POLLING_PATHS =
-  "/api/state\n/api/honors\n/api/templates/analyses/*/progress";
-export const DEFAULT_HIDDEN_RULES = [
-  DEFAULT_POLLING_PATHS,
-  "GET /api/templates/analyses/*",
-  "POST /api/templates/analyses/*/review",
-  "template_library.purge_expired",
-  "template_library.state",
-  "workspace.state",
-  "catalog.project",
-  "catalog.revision",
-  "catalog.template",
-  "catalog.conversation",
-  "catalog.working",
-  "templates.get",
-  "templates.source",
-  "templates.projects",
-  "templates.progress",
-  "honors.get",
-  "honors.list",
-  "honors.file",
-  "conversations.archived_conversations",
-  "conversations.get_conversation",
-  "ai:thread.started",
-  "ai:turn.started",
-].join("\n");
 export const DEFAULT_ACTIVITY_PREFERENCES = {
   hidePolling: true,
-  hiddenRules: DEFAULT_HIDDEN_RULES,
+  hiddenRules: "",
   overviewHeight: 136,
   detailWidth: 460,
   detailHeight: 280,
 };
 export type ActivityPreferences = typeof DEFAULT_ACTIVITY_PREFERENCES;
-export type SavedActivityPreferences = Partial<ActivityPreferences>;
+export type SavedActivityPreferences = Partial<
+  Omit<ActivityPreferences, "hiddenRules">
+> & { rulesOverride?: string };
 
 /** 校验本地缓存并补齐新增设置，损坏值不会破坏日志布局 */
 export function restoreActivityPreferences(
   value: SavedActivityPreferences | null,
+  defaultRules = "",
 ) {
-  const result = { ...DEFAULT_ACTIVITY_PREFERENCES };
+  const result = { ...DEFAULT_ACTIVITY_PREFERENCES, hiddenRules: defaultRules };
   if (typeof value?.hidePolling === "boolean")
     result.hidePolling = value.hidePolling;
   if (
-    typeof value?.hiddenRules === "string" &&
-    !hiddenRuleError(value.hiddenRules)
+    typeof value?.rulesOverride === "string" &&
+    !hiddenRuleError(value.rulesOverride)
   ) {
-    result.hiddenRules = value.hiddenRules;
+    result.hiddenRules = value.rulesOverride;
   }
   for (const key of [
     "overviewHeight",

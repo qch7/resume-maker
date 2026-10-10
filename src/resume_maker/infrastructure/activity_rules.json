@@ -1,0 +1,31 @@
+{
+  "hidden_rules": [
+    "/api/state",
+    "/api/honors",
+    "/api/templates/analyses/*/progress",
+    "POST /api/plugins/windows",
+    "GET /api/plugins/plans/*",
+    "GET /api/plugins/downloads",
+    "GET /api/templates/analyses/*",
+    "POST /api/templates/analyses/*/review",
+    "template_library.purge_expired",
+    "template_library.state",
+    "workspace.state",
+    "catalog.project",
+    "catalog.revision",
+    "catalog.template",
+    "catalog.conversation",
+    "catalog.working",
+    "templates.get",
+    "templates.source",
+    "templates.projects",
+    "templates.progress",
+    "honors.get",
+    "honors.list",
+    "honors.file",
+    "conversations.archived_conversations",
+    "conversations.get_conversation",
+    "ai:thread.started",
+    "ai:turn.started"
+  ]
+}
