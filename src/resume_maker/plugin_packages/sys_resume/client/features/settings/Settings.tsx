@@ -43,6 +43,7 @@ export default function Settings(props: Props) {
   const closeGuards = useRef(new Set<() => Promise<void>>());
   const {
     preferences,
+    defaultRules,
     setPreferences,
     error: activityError,
   } = props.activityPreferences;
@@ -298,6 +299,7 @@ export default function Settings(props: Props) {
             <section hidden={tab !== "activity"}>
               <ActivitySettings
                 rules={preferences.hiddenRules}
+                defaultRules={defaultRules}
                 onDeleted={props.onActivityDeleted}
                 onSave={(hiddenRules) =>
                   setPreferences((current) => ({ ...current, hiddenRules }))

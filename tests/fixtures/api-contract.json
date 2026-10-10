@@ -136,27 +136,6 @@
             }
           },
           {
-            "name": "hide_maintenance",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "default": false,
-              "title": "Hide Maintenance"
-            }
-          },
-          {
-            "name": "polling_paths",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "maxLength": 2000,
-              "default": "/api/state\n/api/honors\n/api/templates/analyses/*/progress",
-              "title": "Polling Paths"
-            }
-          },
-          {
             "name": "hidden_rules",
             "in": "query",
             "required": false,
@@ -367,27 +346,6 @@
               "type": "boolean",
               "default": false,
               "title": "Hide Polling"
-            }
-          },
-          {
-            "name": "hide_maintenance",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "default": false,
-              "title": "Hide Maintenance"
-            }
-          },
-          {
-            "name": "polling_paths",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "maxLength": 2000,
-              "default": "/api/state\n/api/honors\n/api/templates/analyses/*/progress",
-              "title": "Polling Paths"
             }
           },
           {
@@ -4678,6 +4636,22 @@
           }
         }
       }
+    },
+    "/api/activity/defaults": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityRuleDefaults"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "schemas": {
@@ -7333,6 +7307,24 @@
       ],
       "title": "CredentialInput",
       "description": "密码仅交给凭据后端，不进入配置计划及客户端快照"
+    },
+    "ActivityRuleDefaults": {
+      "properties": {
+        "hidden_rules": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 100,
+          "title": "Hidden Rules"
+        }
+      },
+      "type": "object",
+      "required": [
+        "hidden_rules"
+      ],
+      "title": "ActivityRuleDefaults",
+      "description": "向页面发布当前日志实例使用的默认隐藏规则"
     }
   }
 }

@@ -32,6 +32,19 @@ def generated_files():
         manifest.update(config=defaults, config_schema=schema)
         result[manifest_path] = json_text(manifest)
         edits.append({"instance": manifest["id"], "operation": "replace", "value": defaults})
+        if manifest["id"] == "sys.activity":
+            result[ROOT / "examples/activity-rules.json"] = json_text(
+                {
+                    "startup": [
+                        {
+                            "instance": manifest["id"],
+                            "operation": "set",
+                            "path": ["hidden_rules"],
+                            "value": defaults["hidden_rules"],
+                        }
+                    ]
+                }
+            )
         for key, field in schema["properties"].items():
             bounds = f"{field.get('minimum', '—')} … {field.get('maximum', '—')}"
             rows.append(

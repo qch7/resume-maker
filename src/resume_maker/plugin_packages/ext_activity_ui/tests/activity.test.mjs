@@ -95,25 +95,31 @@ test("成功轮询撤回缓存中的请求及响应，保留慢操作、异常�
   );
 });
 
-test("默认过滤开启，保存的开关、规则和面板尺寸可恢复", () => {
+test("默认过滤开启，保存的开关、独立规则和面板尺寸可恢复", () => {
   assert.deepEqual(
     restoreActivityPreferences(null),
     DEFAULT_ACTIVITY_PREFERENCES,
   );
   const saved = {
     hidePolling: false,
-    hiddenRules: "/api/custom/*\ntemplate_library.purge_expired",
+    rulesOverride: "/api/custom/*\ntemplate_library.purge_expired",
     overviewHeight: 70,
     detailWidth: 520,
     detailHeight: 320,
   };
   assert.deepEqual(
     restoreActivityPreferences(JSON.parse(JSON.stringify(saved))),
-    saved,
+    {
+      hidePolling: saved.hidePolling,
+      hiddenRules: saved.rulesOverride,
+      overviewHeight: saved.overviewHeight,
+      detailWidth: saved.detailWidth,
+      detailHeight: saved.detailHeight,
+    },
   );
   const broken = restoreActivityPreferences({
     hidePolling: "false",
-    hiddenRules: 42,
+    rulesOverride: 42,
     overviewHeight: NaN,
     detailWidth: -200,
   });
@@ -130,8 +136,22 @@ test("默认过滤开启，保存的开关、规则和面板尺寸可恢复", ()
   assert.ok(hiddenRuleError("state"));
 });
 
-test("未指定规则时沿用当前默认过滤并保留隐藏开关", () => {
-  const restored = restoreActivityPreferences({ hidePolling: false });
-  assert.ok(restored.hiddenRules.includes("template_library.purge_expired"));
+test("文件默认直接生效，保存的界面规则可覆盖且空规则保留", () => {
+  const rules = "POST /api/plugins/windows\nworkspace.state";
+  const restored = restoreActivityPreferences({ hidePolling: false }, rules);
+  assert.equal(restored.hiddenRules, rules);
   assert.equal(restored.hidePolling, false);
+  assert.equal(
+    restoreActivityPreferences({ rulesOverride: "/api/custom/*" }, rules)
+      .hiddenRules,
+    "/api/custom/*",
+  );
+  assert.equal(
+    restoreActivityPreferences({ rulesOverride: "" }, rules).hiddenRules,
+    "",
+  );
+  assert.equal(
+    restoreActivityPreferences({ rulesOverride: "invalid" }, rules).hiddenRules,
+    rules,
+  );
 });

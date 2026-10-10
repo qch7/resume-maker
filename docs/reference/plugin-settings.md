@@ -6,6 +6,8 @@
 
 配置顺序为清单默认 → 文件中的 bundle → 已保存 workspace → 本次 startup。示例使用名为 `runtime` 的 bundle，值会保存为工作区默认；已保存的界面修改优先。需要本次启动强制覆盖时，把对应操作移到 `startup`。监督器重启沿用保存值，临时 startup 不重复应用。配置文件只能引用已安装的实例；删除可选插件代码后也要删除其配置操作。
 
+日志默认隐藏规则可单独使用 [activity-rules.json](../../examples/activity-rules.json)。复制文件并把 `.env` 中的 `RESUME_MAKER_PLUGIN_CONFIG` 指向副本，逐项修改 `sys.activity.hidden_rules` 数组，重启后生效，前端无需重新构建。已有插件配置可直接加入示例中的 `startup` 操作；界面“恢复默认”采用后端当前有效值。详见 [系统日志](system-activity.md#独立配置文件)。
+
 例如，只改 OCR 线程数和 Word 等待：
 
 ```json
@@ -63,6 +65,7 @@ OCR 的引擎输出门槛 `text_score` 和隐私复核门槛属于不同职责�
 | `sys.activity` | `max_records` | `50000` | 100 … 1000000 | 最多保留日志条数 |
 | `sys.activity` | `retention_days` | `30` | 1 … 3650 | 日志保留天数 |
 | `sys.activity` | `lock_timeout_seconds` | `2.0` | 0.1 … 10 | 日志库锁等待秒数 |
+| `sys.activity` | `hidden_rules` | `["/api/state", "/api/honors", "/api/templates/analyses/*/progress", "POST /api/plugins/windows", "GET /api/plugins/plans/*", "GET /api/plugins/downloads", "GET /api/templates/analyses/*", "POST /api/templates/analyses/*/review", "template_library.purge_expired", "template_library.state", "workspace.state", "catalog.project", "catalog.revision", "catalog.template", "catalog.conversation", "catalog.working", "templates.get", "templates.source", "templates.projects", "templates.progress", "honors.get", "honors.list", "honors.file", "conversations.archived_conversations", "conversations.get_conversation", "ai:thread.started", "ai:turn.started"]` | — … — | 日志界面默认隐藏规则，每项一条 |
 | `sys.documents` | `max_preview_requests` | `16` | 1 … 128 | 预览执行及等待总数 |
 | `sys.documents` | `preview_timeout_seconds` | `660.0` | 5 … 3600 | 预览排队及全部生成阶段的总秒数 |
 | `sys.documents` | `failed_preview_retry_seconds` | `2.0` | 0 … 30 | 相同输入预览失败的自动重试间隔 |

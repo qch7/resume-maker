@@ -38,7 +38,7 @@ test("全部内置运行参数按清单声明生成中文标签和对应控件�
   assert.equal(configured.length, 15);
   assert.equal(
     configured.flatMap((item) => configFields(item.config_schema)).length,
-    43,
+    44,
   );
   for (const manifest of configured) {
     const declared = configFields(manifest.config_schema);
@@ -48,7 +48,9 @@ test("全部内置运行参数按清单声明生成中文标签和对应控件�
     );
     for (const field of declared) {
       assert.match(field.label, /[\u4e00-\u9fff]/);
-      assert.notEqual(field.kind, "json");
+      if (manifest.id === "sys.activity" && field.path[0] === "hidden_rules")
+        assert.equal(field.kind, "json");
+      else assert.notEqual(field.kind, "json");
       const value = configValue(manifest.config, field.path);
       assert.deepEqual(
         parseConfigField(field, configInput(field, value)),
