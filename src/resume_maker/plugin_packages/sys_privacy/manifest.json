@@ -2,6 +2,12 @@
   "manifest_version": 1,
   "id": "sys.privacy",
   "title": "隐私保护",
+  "capability_groups": [
+    {
+      "id": "privacy",
+      "title": "隐私保护"
+    }
+  ],
   "version": "1.0.0",
   "package": "resume-maker",
   "entrypoints": {

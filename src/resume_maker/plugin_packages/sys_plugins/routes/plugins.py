@@ -15,7 +15,7 @@ from resume_maker.runtime.manager import PluginManager
 from resume_maker.runtime.worker import validate_schema
 from resume_maker.sdk.configuration import ConfigurationEdit
 from resume_maker.sdk.credentials import CredentialManagement
-from resume_maker.sdk.manifest import Contract, InstanceSpec
+from resume_maker.sdk.manifest import IDENTIFIER, Contract, InstanceSpec
 from resume_maker.sdk.version import CLIENT_API_VERSION, HOST_API_VERSION
 
 router = APIRouter(prefix="/api", tags=["plugins"])
@@ -35,6 +35,16 @@ class PlanInput(Contract):
     """用户确认的是具体摘要对应的计划"""
 
     digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class CapabilitySelectionInput(Contract):
+    """当前候选按产品能力批量启停，配置草稿继续由变更计划提交"""
+
+    group: str = Field(pattern=IDENTIFIER)
+    enabled: bool
+    selected: list[str] = Field(max_length=500)
+    generation: int = Field(ge=1)
+    instances: list[InstanceSpec] | None = None
 
 
 class WindowInput(Contract):
@@ -354,6 +364,17 @@ def plan_plugins(
         body.configs,
         body.instances,
         [edit.model_dump(mode="json", exclude_unset=True) for edit in body.config_edits],
+    )
+
+
+@router.post("/plugins/capability-selection")
+def select_plugin_capability(
+    dep_plugins: Annotated[PluginManager, Depends(service("plugins"))],
+    body: CapabilitySelectionInput,
+):
+    """计算整组启停后的候选，当前运行插件等待用户查看并应用计划"""
+    return dep_plugins.select_capability(
+        body.group, body.enabled, body.selected, body.generation, body.instances
     )
 
 

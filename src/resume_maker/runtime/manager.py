@@ -7,6 +7,7 @@ from copy import deepcopy
 from uuid import uuid4
 
 from resume_maker.core.errors import Problem
+from resume_maker.runtime.capability_selection import select_capability_group
 from resume_maker.runtime.configuration import (
     compose_configuration,
     replacement_layer,
@@ -111,6 +112,20 @@ class PluginManager:
             self.host.definitions.pop(identifier, None)
             self.host.bootstrap["packages"].pop(identifier, None)
             return result
+
+    def select_capability(self, group, enabled, selected, expected_generation, instances=None):
+        """能力开关只返回候选，保留活动组合、实例配置及全部资料"""
+        with self.lock:
+            self._generation(expected_generation)
+            if self.pending_plan or self.maintenance:
+                raise Problem("请先完成当前插件变更。", 409)
+            specs = list(self.host.instance_specs.values()) if instances is None else instances
+            manifests, _ = expand_instances(self.host.definitions, specs)
+            return {
+                "selected": select_capability_group(
+                    manifests, selected, self.host.required, group, enabled
+                )
+            }
 
     def plan(
         self,

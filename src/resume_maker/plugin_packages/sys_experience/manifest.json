@@ -2,6 +2,12 @@
   "manifest_version": 1,
   "id": "sys.experience",
   "title": "经历与版本",
+  "capability_groups": [
+    {
+      "id": "sources",
+      "title": "源码资料"
+    }
+  ],
   "version": "1.0.0",
   "package": "resume-maker",
   "entrypoints": {

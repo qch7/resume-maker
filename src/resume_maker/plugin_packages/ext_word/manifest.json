@@ -2,6 +2,12 @@
   "manifest_version": 1,
   "id": "ext.word",
   "title": "Word 精确排版",
+  "capability_groups": [
+    {
+      "id": "documents",
+      "title": "文档处理"
+    }
+  ],
   "version": "1.0.0",
   "package": "resume-maker",
   "entrypoints": {

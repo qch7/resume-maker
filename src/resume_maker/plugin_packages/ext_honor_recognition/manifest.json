@@ -2,6 +2,20 @@
   "manifest_version": 1,
   "id": "ext.honor-recognition",
   "title": "荣誉识别",
+  "capability_groups": [
+    {
+      "id": "ocr",
+      "title": "OCR 识别"
+    },
+    {
+      "id": "ai",
+      "title": "AI"
+    },
+    {
+      "id": "honors",
+      "title": "荣誉"
+    }
+  ],
   "version": "1.0.0",
   "package": "resume-maker",
   "entrypoints": {

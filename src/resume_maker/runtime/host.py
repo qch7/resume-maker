@@ -11,6 +11,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import TypeVar, cast
 
+from resume_maker.runtime.capability_selection import capability_groups
 from resume_maker.runtime.graph import (
     PluginError,
     Resolution,
@@ -675,6 +676,9 @@ class Host:
                 "scope_id": self.scope_id,
                 "multiple": manifest.instances.multiple,
                 "title": manifest.title,
+                "capability_groups": [
+                    group.model_dump() for group in capability_groups(manifest, self.manifests)
+                ],
                 "version": manifest.version,
                 "required": identifier in self.required,
                 "installed": True,

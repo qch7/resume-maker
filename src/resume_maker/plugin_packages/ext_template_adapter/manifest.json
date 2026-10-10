@@ -2,6 +2,12 @@
   "manifest_version": 1,
   "id": "ext.template-adapter",
   "title": "模板适配",
+  "capability_groups": [
+    {
+      "id": "templates",
+      "title": "模板"
+    }
+  ],
   "version": "1.0.0",
   "package": "resume-maker",
   "entrypoints": {

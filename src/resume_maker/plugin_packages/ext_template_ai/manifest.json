@@ -2,6 +2,16 @@
   "manifest_version": 1,
   "id": "ext.template-ai",
   "title": "AI 模板分析",
+  "capability_groups": [
+    {
+      "id": "ai",
+      "title": "AI"
+    },
+    {
+      "id": "templates",
+      "title": "模板"
+    }
+  ],
   "version": "1.0.0",
   "package": "resume-maker",
   "entrypoints": {

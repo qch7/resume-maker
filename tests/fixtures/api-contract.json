@@ -4672,6 +4672,40 @@
           }
         }
       }
+    },
+    "/api/plugins/capability-selection": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CapabilitySelectionInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "schemas": {
@@ -7350,6 +7384,56 @@
       ],
       "title": "ActivityRuleDefaults",
       "description": "向页面发布当前日志实例使用的默认隐藏规则"
+    },
+    "CapabilitySelectionInput": {
+      "properties": {
+        "group": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$",
+          "title": "Group"
+        },
+        "enabled": {
+          "type": "boolean",
+          "title": "Enabled"
+        },
+        "selected": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "maxItems": 500,
+          "title": "Selected"
+        },
+        "generation": {
+          "type": "integer",
+          "minimum": 1.0,
+          "title": "Generation"
+        },
+        "instances": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/components/schemas/InstanceSpec"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Instances"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "group",
+        "enabled",
+        "selected",
+        "generation"
+      ],
+      "title": "CapabilitySelectionInput",
+      "description": "当前候选按产品能力批量启停，配置草稿继续由变更计划提交"
     }
   }
 }

@@ -2,6 +2,12 @@
   "manifest_version": 1,
   "id": "sys.jobs",
   "title": "任务协调",
+  "capability_groups": [
+    {
+      "id": "execution",
+      "title": "任务执行"
+    }
+  ],
   "version": "1.0.0",
   "package": "resume-maker",
   "entrypoints": {

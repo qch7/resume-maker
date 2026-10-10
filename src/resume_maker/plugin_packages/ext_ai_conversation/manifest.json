@@ -2,6 +2,12 @@
   "manifest_version": 1,
   "id": "ext.ai-conversation",
   "title": "AI 会话",
+  "capability_groups": [
+    {
+      "id": "ai",
+      "title": "AI"
+    }
+  ],
   "version": "1.0.0",
   "package": "resume-maker",
   "entrypoints": {

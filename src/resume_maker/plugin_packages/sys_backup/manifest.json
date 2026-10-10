@@ -2,6 +2,12 @@
   "manifest_version": 1,
   "id": "sys.backup",
   "title": "备份恢复",
+  "capability_groups": [
+    {
+      "id": "storage",
+      "title": "资料存储"
+    }
+  ],
   "version": "1.0.0",
   "package": "resume-maker",
   "entrypoints": {

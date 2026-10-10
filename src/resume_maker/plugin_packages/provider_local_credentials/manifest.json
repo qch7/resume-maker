@@ -2,6 +2,12 @@
   "manifest_version": 1,
   "id": "provider.local-credentials",
   "title": "本地凭据后端",
+  "capability_groups": [
+    {
+      "id": "privacy",
+      "title": "隐私保护"
+    }
+  ],
   "version": "1.0.0",
   "package": "resume-maker",
   "entrypoints": {

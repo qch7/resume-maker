@@ -2,6 +2,12 @@
   "manifest_version": 1,
   "id": "ext.honors",
   "title": "荣誉库",
+  "capability_groups": [
+    {
+      "id": "honors",
+      "title": "荣誉"
+    }
+  ],
   "version": "1.0.0",
   "package": "resume-maker",
   "entrypoints": {

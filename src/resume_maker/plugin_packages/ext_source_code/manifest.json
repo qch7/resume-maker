@@ -2,6 +2,12 @@
   "manifest_version": 1,
   "id": "ext.source-code",
   "title": "源码资料",
+  "capability_groups": [
+    {
+      "id": "sources",
+      "title": "源码资料"
+    }
+  ],
   "version": "1.0.0",
   "package": "resume-maker",
   "entrypoints": {

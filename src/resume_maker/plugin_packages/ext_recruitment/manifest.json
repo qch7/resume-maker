@@ -2,6 +2,12 @@
   "manifest_version": 1,
   "id": "ext.recruitment",
   "title": "招聘收藏",
+  "capability_groups": [
+    {
+      "id": "recruitment",
+      "title": "招聘收藏"
+    }
+  ],
   "version": "1.0.0",
   "package": "resume-maker",
   "entrypoints": {
