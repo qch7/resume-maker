@@ -17,7 +17,8 @@
     "host": {
       "ocr.backend": {
         "version": "1.0.0",
-        "cardinality": "one"
+        "cardinality": "one",
+        "title": "文字识别引擎"
       }
     }
   },

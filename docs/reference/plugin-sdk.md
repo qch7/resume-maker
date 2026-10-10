@@ -51,6 +51,7 @@ Python 公共入口在 `resume_maker.sdk`，定义见 `sdk/manifest.py`、`conte
 
 - `requires.host`、`requires.client` 和 `requires.remote` 分域求解；remote 指向 Host 上的服务，但通过 JSON RPC 访问。
 - 依赖值可以是版本字符串，或 `{version, cardinality, provider}`。集合基数为 `many`，唯一能力为 `one`；多个候选必须明确选择，不能按装载顺序抢占。
+- `provides.<域>.<能力>.title` 可声明能力显示名称，例如 `speech.backend: {"cardinality": "one", "title": "语音合成引擎"}`。名称仅用于展示，不参与依赖求解；未声明时使用能力名。
 - `optional` 是当前 Host 可选依赖；存在时验证版本并加入激活依赖。
 - `enhances` 声明插件给其他服务附接的行为，用于计算重建和排空范围。必须同时声明目标依赖。此影响图允许双向关系，不能拿来做激活拓扑排序。
 - `plugins` 约束其他插件的版本；`dependencies` 约束 Python 分发依赖。依赖不满足时不能激活。
@@ -85,6 +86,8 @@ Python 公共入口在 `resume_maker.sdk`，定义见 `sdk/manifest.py`、`conte
 `sys.*` 和 `provider.*` 为宿主保留身份，外部包及构建前校验均拒绝使用。第三方 OCR 包使用 `community.baidu-ocr` 等自有 ID，提供的能力仍声明为 `ocr.backend`；包身份和服务名分别表达所有者和接口。
 
 “设置 → 插件 → 能力提供方”在一份计划中启用候选、停用冲突的旧提供方，并审查消费者及配置影响。插件卡片的启用开关同样协调唯一能力。显式实例绑定同步替换；清单硬性依赖某个包或固定提供方时仍由求解器拒绝不兼容计划。旧提供方的全部能力一并消失，其他消费者缺依赖时计划失败，活动组合保持原样。`many` 集合能力继续允许多个提供方，不进入唯一能力替换入口。
+
+选择页按能力域及能力名自动分组。已安装的同域唯一能力存在两个以上提供方时显示选择行，新增领域能力无需修改设置页。名称取该组首个非空 `title`，建议同一能力的提供方使用一致名称；同名的 Host、Client 能力分别选择。只有一个提供方时继续通过插件开关启用。
 
 ### OCR 契约和合成验收
 

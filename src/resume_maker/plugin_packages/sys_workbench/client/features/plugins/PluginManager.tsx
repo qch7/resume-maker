@@ -16,6 +16,7 @@ import {
   providerChoices,
   replaceProvider,
   replaceProviders,
+  type ProviderService,
 } from "./providerSelection";
 import {
   configDraftError,
@@ -46,7 +47,7 @@ interface Plugin {
   >;
   builtin: boolean;
   dependencies?: Record<string, Record<string, unknown>>;
-  provided?: Record<string, Record<string, { cardinality?: string }>>;
+  provided?: Record<string, Record<string, ProviderService>>;
   credential_fields?: Record<string, { title: string; purpose: string }>;
   environment_lock?: string | null;
   config?: Record<string, unknown>;
@@ -901,9 +902,7 @@ export default function PluginManager(props: SettingsPanelProps) {
             return (
               <div className="plugin-provider-row" key={key}>
                 <div>
-                  <strong>
-                    {group.name === "ocr.backend" ? "文字识别引擎" : group.name}
-                  </strong>
+                  <strong>{group.title}</strong>
                   <small>
                     {active
                       ? `当前：${plugins.find((item) => item.id === active)?.title}`
