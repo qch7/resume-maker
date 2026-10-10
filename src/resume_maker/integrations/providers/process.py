@@ -10,9 +10,10 @@ import time
 
 import psutil
 
+from resume_maker.core.environment import PROVIDER_KEY
 from resume_maker.infrastructure.activity import mask_secrets, safe_text
 from resume_maker.infrastructure.observability import operation, record
-from resume_maker.integrations.providers.base import Cancelled, ProviderError
+from resume_maker.sdk.model import Cancelled, ProviderError
 
 MAX_OUTPUT = 16 * 1024 * 1024
 MAX_LINE = 4 * 1024 * 1024
@@ -59,9 +60,26 @@ def windows_job(process):
             thread.Close()
         return job
     except Exception:
-        job.Close()
+        close_windows_job(job)
         terminate(process)
         raise
+
+
+def close_windows_job(job, timeout=2):
+    """终止后等待任务对象中的全部进程退出，再释放回收边界"""
+    import win32job
+
+    try:
+        win32job.TerminateJobObject(job, 1)
+        deadline = time.monotonic() + timeout
+        while win32job.QueryInformationJobObject(job, win32job.JobObjectBasicAccountingInformation)[
+            "ActiveProcesses"
+        ]:
+            if time.monotonic() >= deadline:
+                raise ProviderError("CLI 后代进程尚未退出，进程回收超时。")
+            time.sleep(0.01)
+    finally:
+        job.Close()
 
 
 def process_title(arguments):
@@ -73,7 +91,7 @@ def process_title(arguments):
 
 def diagnostic(message, env):
     """先遮盖已知鉴权及常见凭据格式，再保留有界的失败原因"""
-    secrets = {env[key] for key in ("RESUME_MAKER_PROVIDER_KEY", "OPENAI_API_KEY") if env.get(key)}
+    secrets = {env[key] for key in (PROVIDER_KEY, "OPENAI_API_KEY") if env.get(key)}
     return safe_text(mask_secrets(message, sorted(secrets, key=len, reverse=True))).strip()[-2000:]
 
 
@@ -143,7 +161,7 @@ def execute(command, *, cwd, env, timeout, cancelled, stdin="", event=None):
         while len(finished) < 2:
             if cancelled.is_set():
                 raise Cancelled("请求已取消。")
-            if time.monotonic() - started > timeout:
+            if timeout is not None and time.monotonic() - started > timeout:
                 raise ProviderError("CLI 或沙箱检查超时，已停止本次请求。")
             try:
                 channel, raw = lines.get(timeout=0.1)
@@ -193,16 +211,18 @@ def execute(command, *, cwd, env, timeout, cancelled, stdin="", event=None):
         return "".join(output)
     finally:
         stopped.set()
-        if job is not None:
-            job.Close()
-        elif os.name != "nt":
-            try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-        if process.poll() is None:
-            terminate(process)
-        for worker in workers:
-            worker.join(timeout=1)
-        for stream in (process.stdin, process.stdout, process.stderr):
-            stream.close()
+        try:
+            if job is not None:
+                close_windows_job(job)
+            elif os.name != "nt":
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+        finally:
+            if process.poll() is None:
+                terminate(process)
+            for worker in workers:
+                worker.join(timeout=1)
+            for stream in (process.stdin, process.stdout, process.stderr):
+                stream.close()

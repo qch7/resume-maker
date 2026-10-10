@@ -1,0 +1,20 @@
+{
+  "name": "@resume-maker/ext_honors",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "resumeMaker": {
+    "profiles": [
+      "standard"
+    ],
+    "client": "client/plugin.ts"
+  },
+  "peerDependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "@resume-maker/plugin-sdk": "^1.0.0"
+  },
+  "dependencies": {
+    "lucide-react": "^0.577.0"
+  }
+}

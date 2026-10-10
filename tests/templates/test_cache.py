@@ -7,9 +7,16 @@ from fastapi.testclient import TestClient
 
 from resume_maker.api import create_app
 from resume_maker.core.config import Config
+from resume_maker.infrastructure.assets import Assets
 from resume_maker.integrations.word.templates.mapping import TemplatePackage
-from resume_maker.services.templates.analysis import compact_inventory
-from resume_maker.services.templates.tasks import Templates
+from resume_maker.plugin_packages.ext_template_adapter.services.templates.tasks import Templates
+from resume_maker.plugin_packages.ext_template_ai.services.templates.analysis import (
+    compact_inventory,
+)
+from resume_maker.plugin_packages.ext_template_ai.services.templates.analysis_driver import (
+    TemplateAnalysis,
+)
+from resume_maker.plugin_packages.sys_resume.services.resumes import Resumes
 from tests.support.templates import (
     RepairProvider,
     TemplateProvider,
@@ -34,7 +41,14 @@ def test_repair_reuses_only_its_own_session(catalog, tmp_path):
     source = tmp_path / "source.docx"
     simple_template(source)
     provider = SessionProvider()
-    service = Templates(catalog, tmp_path, provider)
+    service = Templates(
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
+        tmp_path,
+        provider,
+        storage=catalog.db,
+        analysis=TemplateAnalysis(),
+        assets=Assets(catalog.db, tmp_path),
+    )
     task = completed(service, service.analyze(source, simple_document())["id"])
     first, second = provider.calls
     assert first["settings"].reasoning_effort == second["settings"].reasoning_effort == ""
@@ -60,10 +74,24 @@ def test_cache_survives_restart_but_rechecks_changed_requirements(catalog, tmp_p
     source = tmp_path / "source.docx"
     simple_template(source)
     provider = TemplateProvider()
-    service = Templates(catalog, tmp_path, provider)
+    service = Templates(
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
+        tmp_path,
+        provider,
+        storage=catalog.db,
+        analysis=TemplateAnalysis(),
+        assets=Assets(catalog.db, tmp_path),
+    )
     first = completed(service, service.analyze(source, simple_document())["id"])
     service.stop()
-    service = Templates(catalog, tmp_path, provider)
+    service = Templates(
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
+        tmp_path,
+        provider,
+        storage=catalog.db,
+        analysis=TemplateAnalysis(),
+        assets=Assets(catalog.db, tmp_path),
+    )
     doc = simple_document()
     doc.personal.name = "另一位使用者"
     second = completed(service, service.analyze(source, doc)["id"])
@@ -81,7 +109,14 @@ def test_corrupted_or_invalid_cache_falls_back_to_analysis(catalog, tmp_path):
     source = tmp_path / "source.docx"
     simple_template(source)
     provider = TemplateProvider()
-    service = Templates(catalog, tmp_path, provider)
+    service = Templates(
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
+        tmp_path,
+        provider,
+        storage=catalog.db,
+        analysis=TemplateAnalysis(),
+        assets=Assets(catalog.db, tmp_path),
+    )
     first = completed(service, service.analyze(source, simple_document())["id"])
     path = next((tmp_path / "template-cache").glob("*.json"))
     for content in ("broken json", json.dumps({**first["plan"], "fields": []})):
@@ -129,7 +164,7 @@ def test_progress_is_incremental_bounded_and_freezes_on_cancel(tmp_path, monkeyp
     with TestClient(app) as client, provider:
         service = app.state.services.templates
         task = service.analyze(source, simple_document())
-        assert provider.started.wait(2)
+        provider.wait_started()
         emit = provider.calls[0]["emit"]
         for index in range(100):
             emit("activity", {"text": f"活动 {index} api_key=secret-value"})

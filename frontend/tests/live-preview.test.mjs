@@ -1,10 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildLivePreview } from "../src/features/resumes/livePreview.ts";
+import { buildLivePreview } from "../../src/resume_maker/plugin_packages/sys_resume/client/features/resumes/livePreview.ts";
 import {
   orderCompositionHighlights,
   toggleHighlightSelection,
-} from "../src/features/resumes/composition.ts";
+} from "../src/shared/resume/composition.ts";
 
 /** 构造已固定的简历和三个可独立编辑的经历版本 */
 function fixture() {

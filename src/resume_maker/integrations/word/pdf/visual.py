@@ -3,12 +3,12 @@
 import pymupdf
 
 from resume_maker.core.errors import Problem
-from resume_maker.integrations.providers.base import Cancelled
 from resume_maker.integrations.word.image.layout import build_image_document
 from resume_maker.integrations.word.image.recovery import recognize_image
 from resume_maker.integrations.word.ooxml import w
 from resume_maker.integrations.word.pdf.flow import append_document
 from resume_maker.integrations.word.pdf.geometry import PRIVATE
+from resume_maker.sdk.model import Cancelled
 
 
 def recover_private_page(document, page, number, output, provider, settings, flag, emit, budget):

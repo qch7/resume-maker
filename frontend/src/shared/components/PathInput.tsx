@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { FileSearch, FolderOpen, LoaderCircle } from "lucide-react";
 import { api } from "../lib/api";
+import { hasPlugin } from "../lib/capabilities";
 import { appendPath } from "../lib/paths";
 
 interface Props {
@@ -95,6 +96,7 @@ export default function PathInput({
         )}
         <button
           type="button"
+          hidden={!hasPlugin("ext.native-shell")}
           disabled={disabled || selecting}
           onClick={browse}
           aria-label={`${label}：${action}`}

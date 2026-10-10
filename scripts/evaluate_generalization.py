@@ -15,8 +15,8 @@ from PIL import Image, ImageDraw
 
 from resume_maker.domain.resume import ResumeDocument
 from resume_maker.integrations.word.ooxml import w
-from resume_maker.integrations.word.rendering import render_word
 from resume_maker.integrations.word.templates.mapping import TemplatePackage
+from resume_maker.plugin_packages.ext_word.integrations.word.rendering import render_word
 
 
 def portrait(color):

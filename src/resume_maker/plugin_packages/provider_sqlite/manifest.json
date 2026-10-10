@@ -1,0 +1,48 @@
+{
+  "manifest_version": 1,
+  "id": "provider.sqlite",
+  "title": "SQLite 后端",
+  "version": "1.0.0",
+  "package": "resume-maker",
+  "entrypoints": {
+    "host": {
+      "mode": "trusted-host",
+      "entry": "resume_maker.plugin_packages.provider_sqlite.entry:activate"
+    }
+  },
+  "requires": {
+    "host": {}
+  },
+  "provides": {
+    "host": {
+      "storage.backend": {
+        "version": "1.0.0",
+        "cardinality": "one"
+      }
+    }
+  },
+  "contributes": {},
+  "permissions": [
+    "workspace.trusted"
+  ],
+  "config": {
+    "lock_timeout_seconds": 10.0
+  },
+  "config_schema": {
+    "additionalProperties": false,
+    "description": "锁等待不改变事务、资料版本和 WAL 规则",
+    "properties": {
+      "lock_timeout_seconds": {
+        "default": 10,
+        "description": "SQLite 锁等待秒数",
+        "maximum": 60,
+        "minimum": 0.1,
+        "title": "Lock Timeout Seconds",
+        "type": "number"
+      }
+    },
+    "title": "DatabasePolicy",
+    "type": "object",
+    "x-resume-maker-strict": true
+  }
+}

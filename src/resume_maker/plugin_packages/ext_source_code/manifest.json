@@ -1,0 +1,62 @@
+{
+  "manifest_version": 1,
+  "id": "ext.source-code",
+  "title": "源码资料",
+  "version": "1.0.0",
+  "package": "resume-maker",
+  "entrypoints": {
+    "host": {
+      "mode": "trusted-host",
+      "entry": "resume_maker.plugin_packages.ext_source_code.entry:activate"
+    },
+    "client": {
+      "mode": "trusted-client",
+      "entry": "bundled:plugin.js"
+    }
+  },
+  "requires": {
+    "host": {
+      "catalog": ">=1.0.0 <2.0.0",
+      "projects": ">=1.0.0 <2.0.0",
+      "sandbox": ">=1.0.0 <2.0.0",
+      "assets": ">=1.0.0 <2.0.0",
+      "config": ">=1.0.0 <2.0.0"
+    }
+  },
+  "provides": {
+    "host": {
+      "sources": {
+        "version": "1.0.0",
+        "cardinality": "one"
+      }
+    }
+  },
+  "contributes": {
+    "http.routes": [
+      "ext.source-code/projects"
+    ]
+  },
+  "permissions": [
+    "workspace.trusted"
+  ],
+  "config": {
+    "git_timeout_seconds": 20.0
+  },
+  "config_schema": {
+    "additionalProperties": false,
+    "description": "Git 等待独立于材料读取权限和敏感文件过滤",
+    "properties": {
+      "git_timeout_seconds": {
+        "default": 20,
+        "description": "只读 Git 查询等待秒数",
+        "maximum": 120,
+        "minimum": 1,
+        "title": "Git Timeout Seconds",
+        "type": "number"
+      }
+    },
+    "title": "SourcePolicy",
+    "type": "object",
+    "x-resume-maker-strict": true
+  }
+}

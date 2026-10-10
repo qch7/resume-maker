@@ -8,8 +8,11 @@ from resume_maker.core.config import Config
 from resume_maker.core.errors import Problem
 from resume_maker.domain.models import ResumeItem
 from resume_maker.infrastructure.database import dump, uid
-from resume_maker.services.jobs import Jobs
-from resume_maker.services.projects import Projects
+from resume_maker.plugin_packages.ext_ai_conversation.services.conversations import Conversations
+from resume_maker.plugin_packages.ext_ai_conversation.services.jobs import Jobs
+from resume_maker.plugin_packages.ext_source_code.integrations.source_service import SourceService
+from resume_maker.plugin_packages.sys_experience.services.projects import Projects
+from resume_maker.plugin_packages.sys_resume.services.resumes import Resumes
 from tests.support.data import children, make_sources
 from tests.support.jobs import FakeProvider, wait_job
 
@@ -71,25 +74,40 @@ def test_source_changes_keep_subproject_identity_and_existing_history(catalog, t
     before = children(catalog, parent["id"])
     assert before[roots[0]]["id"] == standalone["id"]
     projects = Projects(catalog)
-    projects.update_sources(parent["id"], "TrustGuard", roots[::-1])
+    parent = projects.update_sources(
+        parent["id"], "TrustGuard", roots[::-1], parent["name"], parent["roots"]
+    )
     assert {root: p["id"] for root, p in children(catalog, parent["id"]).items()} == {
         root: p["id"] for root, p in before.items()
     }
     rebound = tmp_path / "agent-moved"
     rebound.mkdir()
-    projects.update_sources(standalone["id"], "agent", [str(rebound)])
+    standalone = catalog.project(standalone["id"])
+    standalone = projects.update_sources(
+        standalone["id"], "agent", [str(rebound)], standalone["name"], standalone["roots"]
+    )
     assert catalog.project(standalone["id"])["parent_id"] == parent["id"]
     assert str(rebound.resolve()) in catalog.project(parent["id"])["roots"]
-    assert catalog.conversation(conversation["id"])["project_id"] == standalone["id"]
+    assert (
+        Conversations(catalog, storage=catalog.db).conversation(conversation["id"])["project_id"]
+        == standalone["id"]
+    )
     with pytest.raises(Problem, match="同组"):
-        projects.update_sources(standalone["id"], "agent", [roots[1]])
+        projects.update_sources(
+            standalone["id"], "agent", [roots[1]], standalone["name"], standalone["roots"]
+        )
     with pytest.raises(Problem, match="只能关联一个"):
-        projects.update_sources(standalone["id"], "agent", roots)
-    projects.update_sources(parent["id"], "TrustGuard", [roots[1]])
+        projects.update_sources(
+            standalone["id"], "agent", roots, standalone["name"], standalone["roots"]
+        )
+    parent = catalog.project(parent["id"])
+    projects.update_sources(parent["id"], "TrustGuard", [roots[1]], parent["name"], parent["roots"])
     assert children(catalog, parent["id"]) == {}
     assert catalog.project(standalone["id"])["parent_id"] is None
     assert catalog.revision(standalone["head_revision"])["project_id"] == standalone["id"]
-    assert catalog.conversation(conversation["id"]) == conversation
+    assert (
+        Conversations(catalog, storage=catalog.db).conversation(conversation["id"]) == conversation
+    )
 
 
 def test_parent_and_subproject_jobs_use_separate_sources_histories_and_threads(catalog, tmp_path):
@@ -98,7 +116,13 @@ def test_parent_and_subproject_jobs_use_separate_sources_histories_and_threads(c
     parent = catalog.create_project("TrustGuard", roots)
     subs = children(catalog, parent["id"])
     provider = FakeProvider()
-    jobs = Jobs(catalog.db, catalog, tmp_path / "data", provider)
+    jobs = Jobs(
+        catalog.db,
+        catalog,
+        tmp_path / "data",
+        provider,
+        source_service=SourceService(catalog, tmp_path / "data", assets=catalog.assets),
+    )
     projects = [parent, subs[roots[0]], subs[roots[1]]]
     conversations = [
         catalog.db.one("SELECT * FROM conversations WHERE project_id=?", (p["id"],))
@@ -131,7 +155,10 @@ def test_parent_and_subproject_jobs_use_separate_sources_histories_and_threads(c
             assert context["recent_messages"] == [
                 {"role": "user", "text": f"仅此范围消息 {project['name']}"}
             ]
-        threads = [catalog.conversation(c["id"])["provider_thread_id"] for c in conversations]
+        threads = [
+            Conversations(catalog, storage=catalog.db).conversation(c["id"])["provider_thread_id"]
+            for c in conversations
+        ]
         assert len(set(threads)) == 3
         followup = jobs.submit(
             conversations[1]["id"],
@@ -161,7 +188,7 @@ def test_parent_and_subproject_jobs_use_separate_sources_histories_and_threads(c
     published = catalog.save_revision(child["id"], child["head_revision"], child["head_revision"])
     assert catalog.working(parent["id"], parent["head_revision"])["content"]["highlights"] == []
     assert catalog.working(projects[2]["id"], projects[2]["head_revision"])["drafts"] == []
-    resume = catalog.save_resume(
+    resume = Resumes(catalog, storage=catalog.db, assets=catalog.assets).save_resume(
         "仅子项目",
         None,
         [

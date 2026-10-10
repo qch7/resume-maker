@@ -11,7 +11,10 @@ from resume_maker.core.config import Config
 from resume_maker.domain.activity import ACTIVITY_CATEGORIES, ActivityCaptureSettings
 from resume_maker.infrastructure.activity import ActivityLog
 from resume_maker.infrastructure.database import now, uid
-from resume_maker.services.activity import capture_settings, save_capture_settings
+from resume_maker.plugin_packages.sys_activity.services.activity import (
+    capture_settings,
+    save_capture_settings,
+)
 
 
 def test_default_capture_skips_disabled_categories_before_serialization(tmp_path, monkeypatch):

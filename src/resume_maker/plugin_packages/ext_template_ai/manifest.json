@@ -1,0 +1,57 @@
+{
+  "manifest_version": 1,
+  "id": "ext.template-ai",
+  "title": "AI 模板分析",
+  "version": "1.0.0",
+  "package": "resume-maker",
+  "entrypoints": {
+    "host": {
+      "mode": "trusted-host",
+      "entry": "resume_maker.plugin_packages.ext_template_ai.entry:activate"
+    }
+  },
+  "requires": {
+    "host": {
+      "templates": ">=1.0.0 <2.0.0",
+      "provider": ">=1.0.0 <2.0.0",
+      "tasks": ">=1.0.0 <2.0.0"
+    }
+  },
+  "optional": {
+    "word.renderer": ">=1.0.0 <2.0.0"
+  },
+  "provides": {
+    "host": {}
+  },
+  "contributes": {
+    "http.routes": [
+      "ext.template-ai/templates"
+    ]
+  },
+  "permissions": [
+    "workspace.trusted"
+  ],
+  "enhances": [
+    "templates"
+  ],
+  "config": {
+    "max_analysis_rounds": 3
+  },
+  "config_schema": {
+    "additionalProperties": false,
+    "description": "每轮修正仍经过覆盖和边界校验，失败保留最佳建议",
+    "properties": {
+      "max_analysis_rounds": {
+        "default": 3,
+        "description": "最多模型分析和修正轮数",
+        "maximum": 8,
+        "minimum": 1,
+        "title": "Max Analysis Rounds",
+        "type": "integer"
+      }
+    },
+    "title": "Settings",
+    "type": "object",
+    "x-resume-maker-strict": true
+  }
+}

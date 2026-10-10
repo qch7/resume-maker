@@ -13,6 +13,15 @@
     "allowImportingTsExtensions": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true
+    ,"paths": {
+      "@resume-maker/plugin-sdk": ["./src/plugins/shared/sdk.ts"],
+      "@resume-maker/plugin-sdk/*": ["./src/plugins/shared/exports/*"],
+      "react": ["./node_modules/@types/react/index.d.ts"],
+      "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime.d.ts"],
+      "react-dom": ["./node_modules/@types/react-dom/index.d.ts"],
+      "react-dom/client": ["./node_modules/@types/react-dom/client.d.ts"],
+      "*": ["./node_modules/*", "./node_modules/@types/*"]
+    }
   },
-  "include": ["src"]
+  "include": ["src", "../src/resume_maker/plugin_packages/*/client"]
 }

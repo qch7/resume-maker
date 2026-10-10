@@ -9,14 +9,15 @@ from resume_maker.domain.experience import field_value, same_experience
 from resume_maker.domain.models import ResumeItem
 from resume_maker.domain.project_layout import project_body_order
 from resume_maker.infrastructure.database import Database
-from resume_maker.services.catalog import Catalog
-from resume_maker.services.projects import Projects
+from resume_maker.plugin_packages.sys_experience.services.projects import Projects
+from resume_maker.plugin_packages.sys_resume.services.resumes import Resumes
+from tests.support.data import make_catalog
 
 
 def test_commit_publishes_all_drafts_and_preserves_pinned_resume(catalog, project, populated):
     """提交包含全部字段草稿，重启后保留新版本，已存简历仍引用原版本"""
     p, base = project["id"], populated["id"]
-    resume = catalog.save_resume(
+    resume = Resumes(catalog, storage=catalog.db, assets=catalog.assets).save_resume(
         "Application",
         None,
         [ResumeItem(project_id=p, revision_id=base, highlight_ids=["one", "two"])],
@@ -35,7 +36,7 @@ def test_commit_publishes_all_drafts_and_preserves_pinned_resume(catalog, projec
         ]
         == base
     )
-    reopened = Catalog(Database(catalog.db.path))
+    reopened = make_catalog(Database(catalog.db.path))
     assert reopened.working(p, saved["id"]) == {"content": saved["content"], "drafts": []}
 
 
@@ -65,7 +66,7 @@ def test_cross_project_revision_is_rejected(catalog, project, populated, tmp_pat
     other_dir.mkdir()
     other = catalog.create_project("Other", [str(other_dir)])
     with pytest.raises(Problem, match="不属于"):
-        catalog.save_resume(
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets).save_resume(
             "Invalid",
             None,
             [ResumeItem(project_id=other["id"], revision_id=populated["id"], highlight_ids=[])],
@@ -206,7 +207,7 @@ def test_edits_and_repeated_ordering_survive_restart_as_one_pending_change(
     """多次排序、文字修改和删除重启后仍为草稿，确认后只生成一个版本"""
     p, base = project["id"], populated["id"]
     one, two = populated["content"]["highlights"]
-    resume = catalog.save_resume(
+    resume = Resumes(catalog, storage=catalog.db, assets=catalog.assets).save_resume(
         "固定版本", None, [ResumeItem(project_id=p, revision_id=base, highlight_ids=["one", "two"])]
     )
     before = len(Projects(catalog).get_project(p)["revisions"])
@@ -217,7 +218,7 @@ def test_edits_and_repeated_ordering_survive_restart_as_one_pending_change(
     catalog.put_draft(p, base, "highlight:new", {**two, "text": "Temporary addition"}, 0)
     catalog.put_draft(p, base, "highlight:new", None, 1)
 
-    reopened = Catalog(Database(catalog.db.path))
+    reopened = make_catalog(Database(catalog.db.path))
     detail = Projects(reopened).get_project(p, base)
     assert len(detail["revisions"]) == before
     assert detail["branch"]["head_revision"] == base
@@ -273,7 +274,7 @@ def test_failed_commit_keeps_working_tree_and_version_count(catalog, project, po
     before = Projects(catalog).get_project(p)
     with pytest.raises(Problem, match="草稿已保留"):
         catalog.save_revision(p, base, base)
-    after = Projects(Catalog(Database(catalog.db.path))).get_project(p)
+    after = Projects(make_catalog(Database(catalog.db.path))).get_project(p)
     assert after["revisions"] == before["revisions"]
     assert after["uncommitted"] == before["uncommitted"]
     assert after["working"] == before["working"]

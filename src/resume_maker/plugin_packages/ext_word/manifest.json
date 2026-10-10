@@ -1,0 +1,89 @@
+{
+  "manifest_version": 1,
+  "id": "ext.word",
+  "title": "Word 精确排版",
+  "version": "1.0.0",
+  "package": "resume-maker",
+  "entrypoints": {
+    "host": {
+      "mode": "trusted-host",
+      "entry": "resume_maker.plugin_packages.ext_word.entry:activate"
+    },
+    "client": {
+      "mode": "trusted-client",
+      "entry": "bundled:plugin.js"
+    }
+  },
+  "requires": {
+    "host": {
+      "documents": ">=1.0.0 <2.0.0",
+      "resume_previews": ">=1.0.0 <2.0.0",
+      "execution": ">=1.0.0 <2.0.0",
+      "sandbox": ">=1.0.0 <2.0.0"
+    }
+  },
+  "provides": {
+    "host": {
+      "word.renderer": {
+        "version": "1.0.0",
+        "cardinality": "one"
+      }
+    }
+  },
+  "contributes": {
+    "documents.previewers": [
+      "ext.word/pages"
+    ],
+    "documents.renderers": [
+      "ext.word/default"
+    ],
+    "documents.importers": [
+      "ext.word/import"
+    ]
+  },
+  "permissions": [
+    "workspace.trusted"
+  ],
+  "dependencies": [
+    "pymupdf>=1.25,<2"
+  ],
+  "enhances": [],
+  "config": {
+    "render_timeout_seconds": 90.0,
+    "close_timeout_seconds": 30.0,
+    "preview_scale": 1.3
+  },
+  "config_schema": {
+    "additionalProperties": false,
+    "description": "渲染和旧文档转换采用相同等待策略，配置切换保留进程排空屏障",
+    "properties": {
+      "render_timeout_seconds": {
+        "default": 90,
+        "description": "Word 执行秒数",
+        "maximum": 600,
+        "minimum": 5,
+        "title": "Render Timeout Seconds",
+        "type": "number"
+      },
+      "close_timeout_seconds": {
+        "default": 30,
+        "description": "Word 关闭等待秒数",
+        "maximum": 300,
+        "minimum": 1,
+        "title": "Close Timeout Seconds",
+        "type": "number"
+      },
+      "preview_scale": {
+        "default": 1.3,
+        "description": "PNG 分页预览栅格倍率",
+        "maximum": 3,
+        "minimum": 0.5,
+        "title": "Preview Scale",
+        "type": "number"
+      }
+    },
+    "title": "Settings",
+    "type": "object",
+    "x-resume-maker-strict": true
+  }
+}

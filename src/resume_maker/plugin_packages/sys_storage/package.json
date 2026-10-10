@@ -1,0 +1,12 @@
+{
+  "name": "@resume-maker/sys_storage",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "resumeMaker": {
+    "profiles": [
+      "minimal",
+      "standard"
+    ]
+  }
+}

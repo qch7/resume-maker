@@ -13,9 +13,11 @@ from resume_maker.api import create_app
 from resume_maker.core.config import Config
 from resume_maker.domain.activity import ACTIVITY_CATEGORIES, ActivityCaptureSettings
 from resume_maker.infrastructure.activity import MAX_DETAIL, ActivityLog
+from resume_maker.infrastructure.activity_policy import ActivityPolicy
 from resume_maker.infrastructure.database import now, uid
 from resume_maker.infrastructure.observability import activity_scope, record
-from resume_maker.services.activity import save_capture_settings
+from resume_maker.plugin_packages.ext_provider_codex.integrations.providers.cli import run_cli
+from resume_maker.plugin_packages.sys_activity.services.activity import save_capture_settings
 from tests.support.jobs import FakeProvider, wait_job
 
 
@@ -30,11 +32,101 @@ def create_logged_app(config, provider=None):
     return create_app(config, provider)
 
 
+def test_file_rules_reach_page_defaults_filtering_and_restart(tmp_path):
+    """独立配置控制页面默认规则，重启读取文件变化且无需前端构建"""
+    path = tmp_path / "activity-rules.json"
+    headers = {"x-resume-token": "synthetic-token"}
+    data = tmp_path / "data"
+    for rules in (["POST /api/plugins/windows"], []):
+        path.write_text(
+            json.dumps(
+                {
+                    "startup": [
+                        {
+                            "instance": "sys.activity",
+                            "operation": "set",
+                            "path": ["hidden_rules"],
+                            "value": rules,
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        app = create_logged_app(Config(data_dir=data, token="synthetic-token", plugin_config=path))
+        with TestClient(app) as client:
+            assert client.get("/api/activity/defaults").status_code == 401
+            cursor = app.state.services.db.activity.page()["cursor"]
+            response = client.get("/api/activity/defaults", headers=headers)
+            assert response.status_code == 200 and response.json() == {"hidden_rules": rules}
+            assert app.state.services.db.activity.page()["cursor"] == cursor
+            heartbeat = client.post(
+                "/api/plugins/windows",
+                headers=headers,
+                json={"id": "synthetic-window", "generation": app.state.runtime.generation},
+            )
+            assert heartbeat.status_code == 200
+            trace = heartbeat.headers["x-request-id"]
+            client.get("/api/plugins/downloads", headers=headers)
+            query = {"hide_polling": True, "after": cursor}
+            filtered = client.get("/api/activity", params=query, headers=headers).json()
+            assert any(row["trace_id"] == trace for row in filtered["events"]) == (not rules)
+            assert any(
+                row["title"] == "GET /api/plugins/downloads · 200" for row in filtered["events"]
+            )
+            snapshot = client.get(
+                "/api/activity", params={"hide_polling": True}, headers=headers
+            ).json()
+            exported = client.get(
+                "/api/activity/export", params={"hide_polling": True}, headers=headers
+            )
+            assert [json.loads(line)["id"] for line in exported.text.splitlines()] == [
+                row["id"] for row in snapshot["events"]
+            ]
+            for endpoint in ("/api/activity", "/api/activity/export"):
+                for removed in ("polling_paths", "hide_maintenance"):
+                    assert (
+                        client.get(endpoint, params={removed: ""}, headers=headers).status_code
+                        == 422
+                    )
+
+
+def test_default_rules_keep_existing_rules_and_hide_plugin_polls(tmp_path):
+    """保留已有隐藏范围并补齐插件心跳、变更进度和下载查询"""
+    log = ActivityLog(tmp_path / "activity.sqlite")
+    enable_all_categories(log)
+    rules = log.policy.hidden_rules
+    assert {"/api/state", "/api/honors", "workspace.state", "ai:thread.started"} <= set(rules)
+    endpoints = [
+        "POST /api/plugins/windows",
+        "GET /api/plugins/plans/synthetic-plan",
+        "GET /api/plugins/downloads",
+    ]
+    for index, endpoint in enumerate(endpoints):
+        trace = f"poll-{index}"
+        log.write("api", "request", endpoint, trace_id=trace)
+        assert log.page(hide_polling=True)["total"] == 0
+        log.write("api", "response", endpoint + " · 200", trace_id=trace)
+    assert log.page(hide_polling=True)["total"] == 0
+    log.write("api", "response", "POST /api/plugins/downloads · 200", trace_id="download")
+    assert log.page(hide_polling=True)["total"] == 1
+    assert log.page()["total"] == 7
+
+
+@pytest.mark.parametrize(
+    "rules", [["invalid"], ["/api/state?query=1"], ["/api/" + "x" * 4000], [True]]
+)
+def test_file_rules_reject_invalid_input(rules):
+    """无效文件规则不能进入日志实例或被发布给界面"""
+    with pytest.raises(ValueError):
+        ActivityPolicy(hidden_rules=rules)
+
+
 def test_http_activity_captures_success_denial_validation_and_exceptions(tmp_path):
     """所有业务 API 状态可定位到请求，读取日志本身不增加新记录"""
     app = create_logged_app(Config(data_dir=tmp_path, token="instance-secret"))
 
-    @app.get("/api/test-crash")
+    @app.state.dispatch.current.get("/api/test-crash")
     def crash():
         """构造未捕获异常以验证服务故障不会遗漏"""
         raise RuntimeError("synthetic failure")
@@ -112,7 +204,7 @@ def test_activity_cursor_filter_search_export_and_restart(tmp_path):
 
 
 def test_successful_polling_filter_preserves_failures_and_raw_trace(tmp_path):
-    """默认路径只隐藏成功 GET 的普通轨迹，错误请求和关联详情仍可查看"""
+    """统一路径规则隐藏成功读取的普通轨迹，错误请求和关联详情仍可查看"""
     app = create_logged_app(Config(data_dir=tmp_path, token="synthetic-token"))
     with TestClient(app) as client:
         headers = {"x-resume-token": "synthetic-token"}
@@ -120,7 +212,7 @@ def test_successful_polling_filter_preserves_failures_and_raw_trace(tmp_path):
         client.get("/api/state")
         client.get("/api/missing", headers=headers)
         client.get("/api/template-library", headers=headers)
-        query = {"hide_polling": True}
+        query = {"hide_polling": True, "hidden_rules": "/api/state"}
         filtered = client.get("/api/activity", params=query, headers=headers).json()
         assert not any(
             row["trace_id"] == success.headers["x-request-id"] for row in filtered["events"]
@@ -140,10 +232,10 @@ def test_successful_polling_filter_preserves_failures_and_raw_trace(tmp_path):
         ).json()
         assert len(related["events"]) == 4
         raw = client.get("/api/activity", headers=headers).json()
-        assert raw["total"] == filtered["total"] + 4
+        assert raw["total"] == filtered["total"] + 5
         assert (
             client.get(
-                "/api/activity", params={**query, "polling_paths": ""}, headers=headers
+                "/api/activity", params={**query, "hidden_rules": ""}, headers=headers
             ).json()["total"]
             == raw["total"]
         )
@@ -155,8 +247,9 @@ def test_polling_live_retraction_pagination_and_path_rules(tmp_path):
     enable_all_categories(log)
     log.write("api", "request", "GET /api/state", trace_id="pending")
     log.write("service", "started", "workspace.state", trace_id="pending")
-    first = log.page(hide_polling=True)
-    assert len(first["events"]) == 2
+    query = {"hide_polling": True, "hidden_rules": "/api/state\n/api/templates/analyses/*/progress"}
+    first = log.page(**query)
+    assert [row["title"] for row in first["events"]] == ["workspace.state"]
     log.write("api", "response", "GET /api/state · 200", trace_id="pending")
     # 相同链路上的警告和 AI、工具活动不能被过滤规则吞掉
     for category, level in [
@@ -166,25 +259,25 @@ def test_polling_live_retraction_pagination_and_path_rules(tmp_path):
         ("tool", "info"),
     ]:
         log.write(category, "done", "keep", trace_id="pending", level=level)
-    incremental = log.page(after=first["cursor"], hide_polling=True, limit=1)
+    incremental = log.page(after=first["cursor"], **query, limit=1)
     assert incremental["hidden_trace_ids"] == ["pending"]
     assert incremental["total"] == 4 and incremental["has_more"]
     found = incremental["events"]
     while incremental["has_more"]:
-        incremental = log.page(after=incremental["cursor"], hide_polling=True, limit=1)
+        incremental = log.page(after=incremental["cursor"], **query, limit=1)
         found += incremental["events"]
     assert [row["id"] for row in found] == [4, 5, 6, 7]
-    assert len(list(log.export(hide_polling=True))) == 4
-    assert log.page(hide_polling=True, q="workspace.state")["total"] == 0
-    assert log.page(hide_polling=True, category="service")["counts"] == {"service": 1}
-    assert len(log.page(hide_polling=True, before=6)["events"]) == 2
+    assert len(list(log.export(**query))) == 4
+    assert log.page(**query, q="workspace.state")["total"] == 0
+    assert log.page(**query, category="service")["counts"] == {"service": 1}
+    assert len(log.page(**query, before=6)["events"]) == 2
     log.write("api", "response", "GET /api/templates/analyses/one/progress · 200", trace_id="wild")
     log.write("api", "response", "POST /api/state · 200", trace_id="post")
     log.write("api", "response", "GET /api/state · 201", trace_id="created")
     log.write("api", "response", "GET /api/state_extra · 200", trace_id="literal")
     assert log.page(hide_polling=True)["total"] == 7
-    assert log.page(hide_polling=True, polling_paths="/api/state%extra")["total"] == 11
-    assert log.page(hide_polling=True, polling_paths="/api/state_*")["total"] == 10
+    assert log.page(hide_polling=True, hidden_rules="/api/state%extra")["total"] == 11
+    assert log.page(hide_polling=True, hidden_rules="/api/state_*")["total"] == 10
     # 只有被过滤的响应到达时也要推进游标并撤回已显示记录
     cursor = log.page()["cursor"]
     log.write("api", "response", "GET /api/state · 200", trace_id="last")
@@ -262,13 +355,13 @@ def test_filtered_export_keeps_snapshot_when_stream_worker_changes(tmp_path):
         log.write("system", "done", f"event-{index}")
     log.write("api", "request", "GET /api/state", trace_id="pending")
     log.write("service", "started", "workspace.state", trace_id="pending")
-    stream = log.export(hide_polling=True)
+    stream = log.export(hide_polling=True, hidden_rules="/api/state")
     with ThreadPoolExecutor(max_workers=1) as first, ThreadPoolExecutor(max_workers=1) as second:
         head = first.submit(next, stream).result()
         log.write("api", "response", "GET /api/state · 200", trace_id="pending")
         rest = second.submit(list, stream).result()
     exported = [json.loads(line) for line in [head, *rest]]
-    assert len(exported) == 203
+    assert len(exported) == 202
     assert exported[-1]["title"] == "workspace.state"
     assert log.page(hide_polling=True)["total"] == 201
 
@@ -282,14 +375,15 @@ def test_maintenance_filter_covers_existing_and_live_service_records(tmp_path, m
     raw = log.page()
     assert len(raw["events"]) == 4
     trace = raw["events"][0]["trace_id"]
-    hidden = log.page(hide_maintenance=True)
+    query = {"hide_polling": True, "hidden_rules": "template_library.purge_expired"}
+    hidden = log.page(**query)
     assert hidden["total"] == 0 and hidden["events"] == []
     # 过滤只影响视图，历史、单条详情和关联排查均可恢复
-    assert ActivityLog(log.path).page(hide_maintenance=True)["total"] == 0
+    assert ActivityLog(log.path).page(**query)["total"] == 0
     assert log.detail(raw["events"][0]["id"])["source"] == "template_library.purge_expired"
-    assert log.page(hide_maintenance=True, trace_id=trace)["total"] == 4
+    assert log.page(**query, trace_id=trace)["total"] == 4
     library.purge_expired()
-    incremental = log.page(after=hidden["cursor"], hide_maintenance=True)
+    incremental = log.page(after=hidden["cursor"], **query)
     assert incremental["events"] == [] and incremental["cursor"] > hidden["cursor"]
     library.state()
     for event in ("started", "completed"):
@@ -310,13 +404,12 @@ def test_maintenance_filter_covers_existing_and_live_service_records(tmp_path, m
     monkeypatch.setattr(library, "_state", fail_state)
     with pytest.raises(RuntimeError, match="synthetic maintenance failure"):
         library.purge_expired()
-    filtered = log.page(hide_maintenance=True, hide_polling=True)
+    filtered = log.page(**query)
     assert filtered["total"] == 8
     assert filtered["counts"] == {"service": 8}
     assert len([row for row in filtered["events"] if row["event"] == "failed"]) == 2
     headers = {"x-resume-token": "synthetic-token"}
     client = TestClient(app)
-    query = {"hide_maintenance": True, "hide_polling": True}
     assert (
         client.get("/api/activity", params=query, headers=headers).json()["events"]
         == filtered["events"]
@@ -325,14 +418,11 @@ def test_maintenance_filter_covers_existing_and_live_service_records(tmp_path, m
     assert [json.loads(line)["id"] for line in exported.text.splitlines()] == [
         row["id"] for row in filtered["events"]
     ]
-    assert log.page(hide_maintenance=True, q="maintenance failure")["total"] == 2
-    first = log.page(hide_maintenance=True, after=0, limit=3)
-    remaining = log.page(hide_maintenance=True, after=first["cursor"])
+    assert log.page(**query, q="maintenance failure")["total"] == 2
+    first = log.page(**query, after=0, limit=3)
+    remaining = log.page(**query, after=first["cursor"])
     assert first["events"] + remaining["events"] == filtered["events"]
-    assert (
-        log.page(hide_maintenance=True, before=filtered["events"][3]["id"])["events"]
-        == filtered["events"][:3]
-    )
+    assert log.page(**query, before=filtered["events"][3]["id"])["events"] == filtered["events"][:3]
     assert log.page()["total"] == 18
 
 
@@ -545,7 +635,7 @@ def test_cli_trace_records_tool_arguments_result_and_agent_message(tmp_path, mon
     from contextlib import contextmanager
 
     from resume_maker.domain.models import ProviderSettings
-    from resume_maker.integrations.providers import cli
+    from resume_maker.plugin_packages.ext_provider_codex.integrations.providers import cli
 
     @contextmanager
     def credentials(root, env, flag):
@@ -604,7 +694,7 @@ def test_cli_trace_records_tool_arguments_result_and_agent_message(tmp_path, mon
     log = ActivityLog(tmp_path / "log.sqlite")
     enable_all_categories(log)
     with activity_scope(log, trace_id="cli-test"):
-        reply = cli.run_cli(
+        reply = run_cli(
             {"input": "synthetic context", "schema": {}},
             ProviderSettings(),
             {},

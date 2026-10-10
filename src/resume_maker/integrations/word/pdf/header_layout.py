@@ -9,9 +9,9 @@ from resume_maker.core.errors import Problem
 from resume_maker.integrations.word.ooxml import NS, w
 from resume_maker.integrations.word.pdf.geometry import (
     BOX,
+    ROLE,
     SOURCE,
     WP,
-    legacy_asset,
     recovered_layout,
 )
 from resume_maker.integrations.word.pdf.header_items import (
@@ -244,7 +244,7 @@ class PDFHeaderLayout:
         if not roots:
             return
         if not any(
-            node.get(BOX) is not None or legacy_asset(node)
+            node.get(BOX) is not None or node.get(ROLE) is not None
             for root in roots
             for node in root.iter()
         ):

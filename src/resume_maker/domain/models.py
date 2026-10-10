@@ -99,14 +99,14 @@ class Experience(Model):
     @field_validator("body_order")
     @classmethod
     def unique_body_order(cls, value):
-        """正文排序随经历版本保存，旧版缺省值沿用原有简历设置"""
+        """正文排序随经历版本保存，空值继承简历编排"""
         if value is not None and len(value) != len(set(value)):
             raise ValueError("项目内容顺序不能包含重复条目。")
         return value
 
     @model_validator(mode="after")
     def validate_custom_fields(self):
-        """校验项目自定义信息的稳定标识，兼容没有扩展字段的历史版本"""
+        """校验项目自定义信息的稳定标识"""
         validate_custom_field_ids(self.custom_fields)
         return self
 
@@ -152,6 +152,7 @@ class ProviderSettings(AISettings):
     """CLI 连接、全局默认值和各 AI 功能的可保存配置"""
 
     executable: str = "codex"
+    version: int = Field(default=0, ge=0)
     profile: str = ""
     timeout_seconds: int = Field(default=1200, ge=30, le=7200)
     functions: dict[AIFunction, AISettings] = Field(default_factory=dict)

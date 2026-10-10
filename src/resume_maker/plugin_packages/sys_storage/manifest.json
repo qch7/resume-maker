@@ -1,0 +1,43 @@
+{
+  "manifest_version": 1,
+  "id": "sys.storage",
+  "title": "系统存储",
+  "version": "1.0.0",
+  "package": "resume-maker",
+  "entrypoints": {
+    "host": {
+      "mode": "trusted-host",
+      "entry": "resume_maker.plugin_packages.sys_storage.entry:activate"
+    }
+  },
+  "requires": {
+    "host": {
+      "storage.backend": ">=1.0.0 <2.0.0"
+    }
+  },
+  "provides": {
+    "host": {
+      "storage.instances": {
+        "version": "1.0.0",
+        "cardinality": "one"
+      },
+      "db": {
+        "version": "1.0.0",
+        "cardinality": "one"
+      }
+    }
+  },
+  "contributes": {},
+  "permissions": [
+    "system.trusted"
+  ],
+  "data": {
+    "schemas": [
+      "plugin_packages/sys_storage/data/references.sql"
+    ],
+    "tables": [
+      "record_references",
+      "record_operations"
+    ]
+  }
+}

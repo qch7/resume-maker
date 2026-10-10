@@ -37,9 +37,9 @@ def test_source_sandbox_stays_in_project_when_launch_environment_changes(tmp_pat
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("SystemDrive", "Z:")
     monkeypatch.setenv("RESUME_MAKER_DATA_DIR", str(tmp_path / "data"))
-    expected = Path(config.__file__).resolve().parents[3] / "ResumeMakerSandbox"
+    expected = Path(config.__file__).resolve().parents[3] / ".local" / "sandbox"
     assert config.sandbox_directory() == expected
-    assert not (tmp_path / "ResumeMakerSandbox").exists()
+    assert not (tmp_path / ".local").exists()
 
 
 def test_installed_sandbox_avoids_package_and_current_directories(tmp_path, monkeypatch):

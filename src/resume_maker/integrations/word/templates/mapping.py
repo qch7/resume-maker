@@ -112,7 +112,9 @@ class TemplatePackage:
         self.notices = []
         try:
             with ZipFile(path) as archive:
-                if sum(item.file_size for item in archive.infolist()) > 100_000_000:
+                from resume_maker.integrations.document_limits import DOCX_MAX_UNCOMPRESSED_BYTES
+
+                if sum(item.file_size for item in archive.infolist()) > DOCX_MAX_UNCOMPRESSED_BYTES:
                     raise Problem("模板解压后超过 100 MB。")
                 names = archive.namelist()
                 if "word/document.xml" not in names or len(set(names)) != len(names):

@@ -1,0 +1,12 @@
+{
+  "name": "@resume-maker/provider_local_sandbox",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "resumeMaker": {
+    "profiles": [
+      "minimal",
+      "standard"
+    ]
+  }
+}

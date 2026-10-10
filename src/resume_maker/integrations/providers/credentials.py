@@ -7,7 +7,7 @@ import threading
 from contextlib import contextmanager
 from pathlib import Path
 
-from resume_maker.integrations.providers.base import Cancelled, ProviderError
+from resume_maker.sdk.model import Cancelled, ProviderError
 
 LOCK = threading.Lock()
 

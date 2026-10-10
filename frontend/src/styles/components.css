@@ -998,6 +998,20 @@
   gap: 12px;
   padding: 9px 12px;
   border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.preview-toolbar .document-preview-selector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  min-width: 0;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.preview-toolbar .document-preview-selector select {
+  min-width: 0;
+  max-width: 170px;
 }
 .preview-toolbar > strong {
   flex: 1;
@@ -1361,4 +1375,148 @@
   .path-control > button > span {
     display: none;
   }
+}
+
+/* 文件处理方式在模板和证书入口共用，长格式列表允许换行 */
+.importer-select {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 180px;
+  max-width: 340px;
+  font-size: 12px;
+}
+.importer-select select {
+  width: 100%;
+  min-width: 0;
+}
+.importer-select small {
+  color: var(--subtle);
+  overflow-wrap: anywhere;
+}
+.importer-select.compact {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 4px 8px;
+  margin: 0;
+  max-width: none;
+}
+.importer-select.compact select {
+  padding: 5px 8px;
+  font-size: 12px;
+}
+.importer-select.compact small {
+  grid-column: 1 / -1;
+}
+.import-details {
+  margin: 6px 0;
+  font-size: 12px;
+  color: var(--subtle);
+}
+.import-details code {
+  overflow-wrap: anywhere;
+}
+
+.honor-original > .import-details {
+  padding: 0 16px;
+}
+
+.activity-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.activity-settings small {
+  color: var(--subtle);
+}
+.activity-settings label {
+  margin: 0;
+}
+.activity-settings textarea {
+  font:
+    12px/1.5 ui-monospace,
+    Consolas,
+    monospace;
+  resize: vertical;
+  min-height: 150px;
+}
+.activity-settings [role="alert"] {
+  color: var(--danger);
+}
+.activity-settings .row {
+  justify-content: flex-end;
+}
+.activity-capture-settings {
+  margin: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  min-width: 0;
+}
+.activity-capture-settings legend {
+  padding-inline: 4px;
+}
+.activity-capture-categories {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.activity-capture-categories label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+.activity-capture-categories input {
+  width: auto;
+  margin: 0;
+}
+.activity-delete-settings {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.activity-delete-settings select {
+  flex: 1;
+  padding: 5px 7px;
+  font-size: 12px;
+}
+.activity-delete-settings button {
+  color: var(--danger);
+}
+
+.form-draft-recovery:empty {
+  display: none;
+}
+.form-draft-recovery {
+  min-width: 0;
+  max-height: 32vh;
+  overflow: auto;
+  flex-shrink: 0;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  margin-block: 8px;
+}
+.form-draft-recovery p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin-block: 6px;
+}
+.form-draft-recovery pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.form-draft-recovery .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.form-draft-recovery summary {
+  cursor: pointer;
+  padding-block: 4px;
 }

@@ -1,5 +1,6 @@
 {
   "id": "honor:sample",
+  "source": {"provider": "ext.honors/library", "id": "sample", "version": "1"},
   "title": "示例竞赛",
   "subtitle": "示例组委会",
   "period": "2026-06",

@@ -5,23 +5,41 @@ import os
 import re
 import secrets
 import threading
-from collections import deque
+from collections import OrderedDict, deque
 from fnmatch import fnmatchcase
 from itertools import chain
 from pathlib import Path, PurePosixPath
 from tempfile import TemporaryDirectory
 
-from resume_maker.integrations.providers.base import Cancelled, ProviderError
 from resume_maker.integrations.source_context import BINARY, source_paths
 from resume_maker.integrations.sources import EXCLUDED, SECRET_FILE, evidence_file, linked
+from resume_maker.sdk.model import Cancelled, ProviderError
 
 MAX_RESULT = 24000
+MAX_SOURCE_FILE_BYTES = 32 * 1024 * 1024
+MAX_SOURCE_CACHE_BYTES = 128 * 1024 * 1024
+MAX_SOURCE_CACHE_ENTRIES = 256
+MAX_SOURCE_CURSORS = 128
+
+
+class SourceBudgetExceeded(ProviderError):
+    """明确报告无法在本轮预算内提供的文件，不能把结果当成完整来源"""
 
 
 class SourceAccess:
     """本轮来源和脱敏表共用生命周期，分页只限制单次工作量和返回量"""
 
-    def __init__(self, sources, data_dir, redactor, cancelled, audit=None):
+    def __init__(
+        self,
+        sources,
+        data_dir,
+        redactor,
+        cancelled,
+        audit=None,
+        *,
+        max_file_bytes=MAX_SOURCE_FILE_BYTES,
+        max_cache_bytes=MAX_SOURCE_CACHE_BYTES,
+    ):
         """登记授权来源而不提前枚举或读取文件"""
         self.sources = [
             {**row, "path": str(Path(row["path"]).resolve(strict=True))} for row in sources
@@ -35,7 +53,8 @@ class SourceAccess:
         self.stopped = threading.Event()
         self.lock = threading.Lock()
         self.directory = TemporaryDirectory(prefix="resume-private-sources-")
-        self.cache, self.cursors = {}, {}
+        self.cache, self.cursors = OrderedDict(), OrderedDict()
+        self.max_file_bytes, self.max_cache_bytes = max_file_bytes, max_cache_bytes
 
     def __enter__(self):
         """提供请求级资源作用域"""
@@ -45,6 +64,7 @@ class SourceAccess:
         """请求结束即废弃游标并清理本轮脱敏文件"""
         self.stopped.set()
         self.cursors.clear()
+        self.cache.clear()
         self.directory.cleanup()
 
     def check(self):
@@ -119,14 +139,17 @@ class SourceAccess:
             yield row["id"], path
 
     def prepared(self, source, path):
-        """仅在文件被读取或搜索时脱敏，大小不作为拒绝条件"""
+        """预先核验全文内存预算，安全副本按字节和数量淘汰"""
         self.check()
         source, path, file = self.resolve(source, path)
         before = file.stat()
+        if before.st_size > self.max_file_bytes:
+            raise SourceBudgetExceeded("源码全文超过本轮内存预算，请拆分大文件后继续分析。")
         stamp = (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns)
         version = (len(self.redactor.values), len(self.redactor.secrets))
         cached = self.cache.get((source, path))
         if cached and cached[:2] == (stamp, version):
+            self.cache.move_to_end((source, path))
             return cached[2]
         descriptor = os.open(
             file, os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
@@ -135,26 +158,38 @@ class SourceAccess:
             opened = os.fstat(stream.fileno())
             if opened.st_nlink != 1 or (opened.st_dev, opened.st_ino) != stamp[:2]:
                 raise ValueError("读取前文件已变化")
-            chunks = []
+            raw = bytearray()
             while chunk := stream.read(1024 * 1024):
                 self.check()
-                chunks.append(chunk)
+                if len(raw) + len(chunk) > self.max_file_bytes:
+                    raise SourceBudgetExceeded("源码在读取时超过本轮内存预算，请拆分后继续分析。")
+                raw.extend(chunk)
         self.check()
         _, _, current = self.resolve(source, path)
         after = current.stat()
         if stamp != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns):
             raise ValueError("读取期间文件已变化")
-        raw = b"".join(chunks)
         text = raw.decode("utf-16" if raw.startswith((b"\xff\xfe", b"\xfe\xff")) else "utf-8-sig")
         if "\0" in text:
             raise ValueError("文件不是可读源码文字")
         self.redactor.learn(text)
         safe = self.redactor.text(text)
         self.check()
+        size = len(safe.encode("utf-8"))
+        if size > self.max_cache_bytes:
+            raise SourceBudgetExceeded("脱敏源码超过本轮缓存预算，请拆分大文件后继续分析。")
+        if cached:
+            self.cache.pop((source, path))
+            cached[2].unlink(missing_ok=True)
+        while self.cache and (
+            len(self.cache) >= MAX_SOURCE_CACHE_ENTRIES
+            or sum(row[2].stat().st_size for row in self.cache.values()) + size
+            > self.max_cache_bytes
+        ):
+            _, evicted = self.cache.popitem(last=False)
+            evicted[2].unlink(missing_ok=True)
         destination = Path(self.directory.name) / f"{secrets.token_hex(12)}.txt"
         destination.write_text(safe, encoding="utf-8", newline="")
-        if cached:
-            cached[2].unlink(missing_ok=True)
         self.cache[(source, path)] = (
             stamp,
             (len(self.redactor.values), len(self.redactor.secrets)),
@@ -175,6 +210,9 @@ class SourceAccess:
                 continue
             try:
                 file = self.prepared(*entry)
+            except SourceBudgetExceeded as exc:
+                yield {**self.metadata(*entry), "unavailable": str(exc)}
+                continue
             except (OSError, UnicodeError, ValueError, ProviderError):
                 self.check()
                 yield {**self.metadata(*entry), "unavailable": "该文件无法提供可用的脱敏文字"}
@@ -261,6 +299,11 @@ class SourceAccess:
                 break
         next_cursor = None
         if not complete:
+            while len(self.cursors) >= MAX_SOURCE_CURSORS:
+                _, (_key, expired) = self.cursors.popitem(last=False)
+                close = getattr(expired, "close", None)
+                if close:
+                    close()
             next_cursor = secrets.token_hex(16)
             self.cursors[next_cursor] = (key, iterator)
         return {"results": rows, "next_cursor": next_cursor, "complete": complete}
@@ -284,7 +327,9 @@ class SourceAccess:
         result = {**self.metadata(source, path), "lines": [], "next": None, "eof": True}
         with file.open(encoding="utf-8", newline="") as stream:
             for number, line in enumerate(stream, 1):
-                self.check()
+                # 跳过已有安全副本时按小批次检查，实际返回前仍核验最新隐私代次
+                if number >= start or number % 128 == 1:
+                    self.check()
                 if number < start:
                     continue
                 text = line.rstrip("\r\n")

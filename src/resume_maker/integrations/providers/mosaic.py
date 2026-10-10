@@ -6,20 +6,25 @@ from io import BytesIO
 
 from PIL import Image, ImageDraw, ImageOps, UnidentifiedImageError
 
-from resume_maker.integrations.providers.base import Cancelled, ProviderError
+from resume_maker.integrations.document_limits import MOSAIC_SOURCE_MAX_BYTES, SAFE_IMAGE_MAX_PIXELS
+from resume_maker.integrations.privacy_policy import (
+    MAX_TEMPLATE_IMAGES as MAX_IMAGES,
+)
+from resume_maker.integrations.privacy_policy import (
+    MOSAIC_GRID_LONG_EDGE as GRID_SIZE,
+)
+from resume_maker.sdk.model import Cancelled, ProviderError
 
-MAX_IMAGES = 24
-GRID_SIZE = 8
 SHEET_SIZE = (640, 720)
 
 
 def mosaic_tile(data):
     """压缩至最长边八个色块后放大，重新建立 RGB 图像以去除全部原始元数据"""
-    if len(data) > 20 * 1024 * 1024:
+    if len(data) > MOSAIC_SOURCE_MAX_BYTES:
         raise ProviderError("模板图片超过马赛克处理上限，已停止发送。")
     try:
         with Image.open(BytesIO(data)) as source:
-            if source.width * source.height > 20_000_000:
+            if source.width * source.height > SAFE_IMAGE_MAX_PIXELS:
                 raise ProviderError("模板图片像素超过马赛克处理上限，已停止发送。")
             oriented = ImageOps.exif_transpose(source).convert("RGBA")
             flat = Image.new("RGB", oriented.size, "white")

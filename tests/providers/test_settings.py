@@ -9,11 +9,18 @@ from resume_maker.api import create_app
 from resume_maker.core.config import Config
 from resume_maker.domain.models import AIResult, ProviderSettings
 from resume_maker.domain.templates import TemplatePlan
+from resume_maker.infrastructure.assets import Assets
 from resume_maker.infrastructure.database import uid
-from resume_maker.integrations.providers import cli
-from resume_maker.integrations.providers.codex import CodexProvider
-from resume_maker.services.jobs import Jobs
-from resume_maker.services.templates.tasks import Templates
+from resume_maker.integrations.privacy_gateway import PrivacyGateway
+from resume_maker.plugin_packages.ext_ai_conversation.services.conversations import Conversations
+from resume_maker.plugin_packages.ext_ai_conversation.services.jobs import Jobs
+from resume_maker.plugin_packages.ext_provider_codex.integrations.providers import cli
+from resume_maker.plugin_packages.ext_source_code.integrations.source_service import SourceService
+from resume_maker.plugin_packages.ext_template_adapter.services.templates.tasks import Templates
+from resume_maker.plugin_packages.ext_template_ai.services.templates.analysis_driver import (
+    TemplateAnalysis,
+)
+from resume_maker.plugin_packages.sys_resume.services.resumes import Resumes
 from tests.support.jobs import FakeProvider, wait_job
 from tests.support.templates import TemplateProvider, completed, simple_document, simple_template
 
@@ -128,7 +135,13 @@ def test_project_buttons_use_independent_settings_snapshot(
 ):
     """三个经历入口逐字段继承，排队后修改设置不会改变已提交任务"""
     provider = FakeProvider()
-    jobs = Jobs(catalog.db, catalog, tmp_path / "data", provider)
+    jobs = Jobs(
+        catalog.db,
+        catalog,
+        tmp_path / "data",
+        provider,
+        source_service=SourceService(catalog, tmp_path / "data", assets=catalog.assets),
+    )
     settings = ProviderSettings(
         model="default-model",
         reasoning_effort="medium",
@@ -154,7 +167,10 @@ def test_project_buttons_use_independent_settings_snapshot(
         assert provider.calls[-1]["settings"].model == "next-model"
         assert provider.calls[-1]["settings"].reasoning_effort == ""
         assert (
-            provider.calls[-1]["thread"] == catalog.conversation(conv["id"])["provider_thread_id"]
+            provider.calls[-1]["thread"]
+            == Conversations(catalog, storage=catalog.db).conversation(conv["id"])[
+                "provider_thread_id"
+            ]
         )
     finally:
         jobs.stop()
@@ -169,7 +185,7 @@ def test_connection_check_uses_its_override_and_inherits_after_reset(tmp_path, m
         calls.append(kwargs["settings"])
         return AIResult(reply="连接成功", experience=None, changes=[], questions=[])
 
-    monkeypatch.setattr(CodexProvider, "run", run)
+    monkeypatch.setattr(PrivacyGateway, "run", run)
     with TestClient(
         create_app(Config(data_dir=tmp_path, token="test")), headers={"x-resume-token": "test"}
     ) as client:
@@ -182,6 +198,7 @@ def test_connection_check_uses_its_override_and_inherits_after_reset(tmp_path, m
                 "/api/settings/provider",
                 json={
                     **settings,
+                    "version": client.get("/api/settings").json()["provider"]["version"],
                     "functions": {"connection_check": override},
                 },
             ).raise_for_status()
@@ -207,7 +224,14 @@ def test_template_recognition_and_both_repair_buttons_use_selected_settings(cata
     source = tmp_path / "source.docx"
     simple_template(source)
     provider = ThreeRoundProvider(block=True)
-    service = Templates(catalog, tmp_path, provider)
+    service = Templates(
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
+        tmp_path,
+        provider,
+        storage=catalog.db,
+        analysis=TemplateAnalysis(),
+        assets=Assets(catalog.db, tmp_path),
+    )
     catalog.db.set_setting(
         "provider",
         {
@@ -260,7 +284,14 @@ def test_changed_template_settings_do_not_reuse_old_model_cache(catalog, tmp_pat
     source = tmp_path / "source.docx"
     simple_template(source)
     provider = TemplateProvider()
-    service = Templates(catalog, tmp_path, provider)
+    service = Templates(
+        Resumes(catalog, storage=catalog.db, assets=catalog.assets),
+        tmp_path,
+        provider,
+        storage=catalog.db,
+        analysis=TemplateAnalysis(),
+        assets=Assets(catalog.db, tmp_path),
+    )
     try:
         completed(service, service.analyze(source, simple_document())["id"])
         cached = completed(service, service.analyze(source, simple_document())["id"])

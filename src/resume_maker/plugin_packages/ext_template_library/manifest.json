@@ -1,0 +1,88 @@
+{
+  "manifest_version": 1,
+  "id": "ext.template-library",
+  "title": "模板库",
+  "version": "1.0.0",
+  "package": "resume-maker",
+  "entrypoints": {
+    "host": {
+      "mode": "trusted-host",
+      "entry": "resume_maker.plugin_packages.ext_template_library.entry:activate"
+    },
+    "client": {
+      "mode": "trusted-client",
+      "entry": "bundled:plugin.js"
+    }
+  },
+  "requires": {
+    "host": {
+      "config": ">=1.0.0 <2.0.0",
+      "templates": ">=1.0.0 <2.0.0",
+      "resume_previews": ">=1.0.0 <2.0.0",
+      "activity": ">=1.0.0 <2.0.0",
+      "resume": ">=1.0.0 <2.0.0",
+      "document.registry": ">=1.0.0 <2.0.0",
+      "db": ">=1.0.0 <2.0.0",
+      "assets": ">=1.0.0 <2.0.0",
+      "template.records": ">=1.0.0 <2.0.0"
+    }
+  },
+  "provides": {
+    "host": {
+      "template_library": {
+        "version": "1.0.0",
+        "cardinality": "one"
+      }
+    }
+  },
+  "contributes": {
+    "workspace.queries": [
+      "templates"
+    ],
+    "http.routes": [
+      "ext.template-library/templates"
+    ]
+  },
+  "permissions": [
+    "workspace.trusted"
+  ],
+  "data": {
+    "settings": [
+      "template_library"
+    ]
+  },
+  "enhances": [],
+  "consumes": [
+    "documents.importers",
+    "documents.renderers"
+  ],
+  "config": {
+    "trash_retention_days": 30,
+    "trash_sweep_seconds": 60.0
+  },
+  "config_schema": {
+    "additionalProperties": false,
+    "description": "有效保留天数同步展示到界面，清理仍需校验模板引用",
+    "properties": {
+      "trash_retention_days": {
+        "default": 30,
+        "description": "回收站保留天数",
+        "maximum": 3650,
+        "minimum": 1,
+        "title": "Trash Retention Days",
+        "type": "integer"
+      },
+      "trash_sweep_seconds": {
+        "default": 60,
+        "description": "清理检查间隔秒数",
+        "maximum": 86400,
+        "minimum": 10,
+        "title": "Trash Sweep Seconds",
+        "type": "number"
+      }
+    },
+    "title": "Settings",
+    "type": "object",
+    "x-resume-maker-strict": true
+  }
+}
