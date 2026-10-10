@@ -136,6 +136,16 @@
             }
           },
           {
+            "name": "show_starts",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Show Starts"
+            }
+          },
+          {
             "name": "hidden_rules",
             "in": "query",
             "required": false,
@@ -346,6 +356,16 @@
               "type": "boolean",
               "default": false,
               "title": "Hide Polling"
+            }
+          },
+          {
+            "name": "show_starts",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Show Starts"
             }
           },
           {
@@ -4693,6 +4713,11 @@
           "type": "array",
           "maxItems": 7,
           "title": "Categories"
+        },
+        "capture_starts": {
+          "type": "boolean",
+          "title": "Capture Starts",
+          "default": false
         }
       },
       "additionalProperties": false,

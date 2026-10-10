@@ -102,6 +102,7 @@ test("默认过滤开启，保存的开关、独立规则和面板尺寸可恢�
   );
   const saved = {
     hidePolling: false,
+    showStarts: true,
     rulesOverride: "/api/custom/*\ntemplate_library.purge_expired",
     overviewHeight: 70,
     detailWidth: 520,
@@ -111,6 +112,7 @@ test("默认过滤开启，保存的开关、独立规则和面板尺寸可恢�
     restoreActivityPreferences(JSON.parse(JSON.stringify(saved))),
     {
       hidePolling: saved.hidePolling,
+      showStarts: saved.showStarts,
       hiddenRules: saved.rulesOverride,
       overviewHeight: saved.overviewHeight,
       detailWidth: saved.detailWidth,
@@ -124,6 +126,7 @@ test("默认过滤开启，保存的开关、独立规则和面板尺寸可恢�
     detailWidth: -200,
   });
   assert.equal(broken.hidePolling, true);
+  assert.equal(broken.showStarts, false);
   assert.equal(broken.hiddenRules, DEFAULT_ACTIVITY_PREFERENCES.hiddenRules);
   assert.equal(
     broken.overviewHeight,

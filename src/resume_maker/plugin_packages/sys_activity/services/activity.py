@@ -13,18 +13,23 @@ def capture_settings(log: ActivityLog) -> ActivityCaptureSettings:
         return ActivityCaptureSettings(
             categories=[
                 category for category in ACTIVITY_CATEGORIES if category in log.capture_categories
-            ]
+            ],
+            capture_starts=log.capture_starts,
         )
 
 
 def save_capture_settings(log: ActivityLog, settings: ActivityCaptureSettings):
     """配置提交成功后同步切换写入策略，失败时保留原策略"""
     with log.lock, closing(log.connect()) as conn:
-        conn.execute(
-            "INSERT INTO metadata(key,value) VALUES ('capture_categories',?) "
+        conn.executemany(
+            "INSERT INTO metadata(key,value) VALUES (?,?) "
             "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-            (dump(settings.categories),),
+            [
+                ("capture_categories", dump(settings.categories)),
+                ("capture_starts", dump(settings.capture_starts)),
+            ],
         )
         conn.commit()
         log.capture_categories = frozenset(settings.categories)
+        log.capture_starts = settings.capture_starts
     return settings

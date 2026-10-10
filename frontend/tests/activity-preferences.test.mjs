@@ -69,14 +69,20 @@ test("默认规则来自后端，界面保存默认后继续继承文件变化",
       globalThis.activityFixture.defaults.join("\n"),
     );
     assert.equal(state.preferences.hidePolling, false);
+    assert.equal(state.preferences.showStarts, false);
     assert.equal(state.preferences.detailWidth, 520);
-    state.setPreferences((current) => ({ ...current, detailWidth: 600 }));
+    state.setPreferences((current) => ({
+      ...current,
+      detailWidth: 600,
+      showStarts: true,
+    }));
     assert.equal(globalThis.activityFixture.saved.rulesOverride, undefined);
     assert.equal(globalThis.activityFixture.saved.hiddenRules, undefined);
     globalThis.activityFixture.defaults = ["/api/changed"];
     await app.initializeActivityPreferences();
     state = app.useActivityPreferences();
     assert.equal(state.preferences.hiddenRules, "/api/changed");
+    assert.equal(state.preferences.showStarts, true);
     state.setPreferences((current) => ({ ...current, hiddenRules: "" }));
     await app.initializeActivityPreferences();
     assert.equal(app.useActivityPreferences().preferences.hiddenRules, "");

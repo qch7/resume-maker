@@ -101,6 +101,7 @@ export default function Activity({
       q: keyword,
       trace_id: trace,
       hide_polling: String(preferences.hidePolling),
+      show_starts: String(preferences.showStarts),
       hidden_rules: preferences.hiddenRules,
     });
     if (since) params.set("since", activityQueryTime(since));
@@ -114,6 +115,7 @@ export default function Activity({
     since,
     until,
     preferences.hidePolling,
+    preferences.showStarts,
     preferences.hiddenRules,
   ]);
   const feed = useActivity(query, live, refreshVersion);

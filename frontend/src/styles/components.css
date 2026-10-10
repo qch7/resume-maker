@@ -1463,13 +1463,15 @@
   gap: 8px;
   margin-bottom: 10px;
 }
-.activity-capture-categories label {
+.activity-capture-categories label,
+.activity-start-toggle {
   display: flex;
   align-items: center;
   gap: 5px;
   cursor: pointer;
 }
-.activity-capture-categories input {
+.activity-capture-categories input,
+.activity-start-toggle input {
   width: auto;
   margin: 0;
 }

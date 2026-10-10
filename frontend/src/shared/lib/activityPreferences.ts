@@ -1,5 +1,6 @@
 export const DEFAULT_ACTIVITY_PREFERENCES = {
   hidePolling: true,
+  showStarts: false,
   hiddenRules: "",
   overviewHeight: 136,
   detailWidth: 460,
@@ -18,6 +19,8 @@ export function restoreActivityPreferences(
   const result = { ...DEFAULT_ACTIVITY_PREFERENCES, hiddenRules: defaultRules };
   if (typeof value?.hidePolling === "boolean")
     result.hidePolling = value.hidePolling;
+  if (typeof value?.showStarts === "boolean")
+    result.showStarts = value.showStarts;
   if (
     typeof value?.rulesOverride === "string" &&
     !hiddenRuleError(value.rulesOverride)
