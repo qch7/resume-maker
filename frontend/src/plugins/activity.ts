@@ -9,7 +9,10 @@ export const CATEGORIES = {
 } as const;
 
 export type ActivityCategory = keyof typeof CATEGORIES;
-export type ActivityCaptureSettings = { categories: ActivityCategory[] };
+export type ActivityCaptureSettings = {
+  categories: ActivityCategory[];
+  capture_starts: boolean;
+};
 
 export interface ActivityInput {
   id: number;

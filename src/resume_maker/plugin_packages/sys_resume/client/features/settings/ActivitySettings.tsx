@@ -12,17 +12,20 @@ import { localDayRange } from "@resume-maker/plugin-sdk/shared/lib/localTime";
 export default function ActivitySettings({
   rules,
   defaultRules,
+  showStarts,
   onSave,
   onResetLayout,
   onDeleted,
 }: {
   rules: string;
   defaultRules: string;
-  onSave: (rules: string) => void;
+  showStarts: boolean;
+  onSave: (rules: string, showStarts: boolean) => void;
   onResetLayout: () => void;
   onDeleted: () => void;
 }) {
   const [draft, setDraft] = useState(rules);
+  const [showStartsDraft, setShowStartsDraft] = useState(showStarts);
   const [capture, setCapture] = useState<ActivityCaptureSettings | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [loadError, setLoadError] = useState("");
@@ -37,7 +40,7 @@ export default function ActivitySettings({
 
   useEffect(() => {
     setSaved(false);
-  }, [capture, draft]);
+  }, [capture, draft, showStartsDraft]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -74,6 +77,7 @@ export default function ActivitySettings({
               .filter(Boolean),
           ),
         ].join("\n"),
+        showStartsDraft,
       );
       setSaved(true);
     } catch (failure) {
@@ -128,6 +132,7 @@ export default function ActivitySettings({
                   setCapture(
                     (current) =>
                       current && {
+                        ...current,
                         categories: checked
                           ? [...current.categories, category]
                           : current.categories.filter(
@@ -140,16 +145,39 @@ export default function ActivitySettings({
               {CATEGORIES[category]}
             </label>
           ))}
+          <label>
+            <input
+              type="checkbox"
+              checked={capture?.capture_starts ?? false}
+              onChange={(event) => {
+                const capture_starts = event.target.checked;
+                setCapture(
+                  (current) => current && { ...current, capture_starts },
+                );
+              }}
+            />
+            采集开始事件
+          </label>
         </div>
         <div className="row">
-          <button onClick={() => setCapture({ categories: ["ai"] })}>
+          <button
+            onClick={() =>
+              setCapture(
+                (current) => current && { ...current, categories: ["ai"] },
+              )
+            }
+          >
             仅 AI 消息
           </button>
           <button
             onClick={() =>
-              setCapture({
-                categories: Object.keys(CATEGORIES) as ActivityCategory[],
-              })
+              setCapture(
+                (current) =>
+                  current && {
+                    ...current,
+                    categories: Object.keys(CATEGORIES) as ActivityCategory[],
+                  },
+              )
             }
           >
             全选
@@ -170,6 +198,15 @@ export default function ActivitySettings({
         <small role="status">保存后将暂停全部日志采集。</small>
       )}
       <label htmlFor="activity-hidden-rules">隐藏规则</label>
+      <label className="activity-start-toggle">
+        <input
+          type="checkbox"
+          checked={showStartsDraft}
+          disabled={saving}
+          onChange={(event) => setShowStartsDraft(event.target.checked)}
+        />
+        显示开始事件
+      </label>
       <textarea
         id="activity-hidden-rules"
         value={draft}
@@ -188,7 +225,8 @@ export default function ActivitySettings({
           disabled={!capture || saving}
           onClick={() => {
             setDraft(defaultRules);
-            setCapture({ categories: ["ai"] });
+            setShowStartsDraft(false);
+            setCapture({ categories: ["ai"], capture_starts: false });
           }}
         >
           恢复默认

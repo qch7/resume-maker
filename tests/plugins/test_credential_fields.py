@@ -70,6 +70,7 @@ def test_credential_editor_api_keeps_secrets_out_of_configuration_and_backup(tmp
     with TestClient(app) as client:
         # 采集 API 日志也不能记录合法或非法的凭据正文
         host.require(ServiceKey("db")).activity.capture_categories = frozenset({"api"})
+        host.require(ServiceKey("db")).activity.capture_starts = True
         path = "/api/plugins/community.example/credentials/api_key"
         saved = client.put(
             path, headers=HEADERS, json={"generation": host.generation, "secret": secret}

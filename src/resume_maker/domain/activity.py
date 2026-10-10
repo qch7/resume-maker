@@ -7,6 +7,12 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 ActivityCategory = Literal["api", "ai", "tool", "task", "service", "system", "client"]
 ACTIVITY_CATEGORIES = get_args(ActivityCategory)
+START_EVENTS = ("request", "started", "startup")
+
+
+def is_start_event(event: str) -> bool:
+    """统一识别请求、操作、服务启动和带命名空间的开始事件"""
+    return event in START_EVENTS or event.endswith(".started")
 
 
 def normalize_hidden_rules(value: str) -> str:
@@ -38,6 +44,7 @@ class ActivityCaptureSettings(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     categories: list[ActivityCategory] = Field(max_length=len(ACTIVITY_CATEGORIES))
+    capture_starts: bool = Field(default=False, strict=True)
 
     @field_validator("categories")
     @classmethod

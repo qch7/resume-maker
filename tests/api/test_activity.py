@@ -23,7 +23,9 @@ from tests.support.jobs import FakeProvider, wait_job
 
 def enable_all_categories(log):
     """完整轨迹回归显式开启全部类别，生产默认行为另行验证"""
-    save_capture_settings(log, ActivityCaptureSettings(categories=list(ACTIVITY_CATEGORIES)))
+    save_capture_settings(
+        log, ActivityCaptureSettings(categories=list(ACTIVITY_CATEGORIES), capture_starts=True)
+    )
 
 
 def create_logged_app(config, provider=None):

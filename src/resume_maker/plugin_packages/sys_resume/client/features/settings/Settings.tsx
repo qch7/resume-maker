@@ -300,9 +300,14 @@ export default function Settings(props: Props) {
               <ActivitySettings
                 rules={preferences.hiddenRules}
                 defaultRules={defaultRules}
+                showStarts={preferences.showStarts}
                 onDeleted={props.onActivityDeleted}
-                onSave={(hiddenRules) =>
-                  setPreferences((current) => ({ ...current, hiddenRules }))
+                onSave={(hiddenRules, showStarts) =>
+                  setPreferences((current) => ({
+                    ...current,
+                    hiddenRules,
+                    showStarts,
+                  }))
                 }
                 onResetLayout={() =>
                   setPreferences((current) => ({

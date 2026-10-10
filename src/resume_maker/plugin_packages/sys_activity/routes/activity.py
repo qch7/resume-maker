@@ -45,6 +45,7 @@ class ActivityQuery(BaseModel):
     since: str = Field(default="", max_length=40)
     until: str = Field(default="", max_length=40)
     hide_polling: bool = False
+    show_starts: bool = True
     hidden_rules: str | None = Field(default=None, max_length=4000)
     after: int | None = Field(default=None, ge=0)
     before: int = Field(default=0, ge=0)

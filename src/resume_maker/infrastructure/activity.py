@@ -9,7 +9,7 @@ from contextlib import closing
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from resume_maker.domain.activity import ActivityCaptureSettings
+from resume_maker.domain.activity import START_EVENTS, ActivityCaptureSettings, is_start_event
 from resume_maker.infrastructure.activity_policy import (
     HISTORY_BATCH_SIZE,
     MAX_DETAIL_CHARS,
@@ -147,11 +147,18 @@ class ActivityLog:
         with closing(self.connect()) as conn:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.executescript(SCHEMA)
-            row = conn.execute(
-                "SELECT value FROM metadata WHERE key='capture_categories'"
-            ).fetchone()
-            settings = ActivityCaptureSettings(categories=json.loads(row[0]) if row else ["ai"])
+            saved = dict(
+                conn.execute(
+                    "SELECT key,value FROM metadata "
+                    "WHERE key IN ('capture_categories','capture_starts')"
+                ).fetchall()
+            )
+            settings = ActivityCaptureSettings(
+                categories=json.loads(saved.get("capture_categories", '["ai"]')),
+                capture_starts=json.loads(saved.get("capture_starts", "false")),
+            )
             self.capture_categories = frozenset(settings.categories)
+            self.capture_starts = settings.capture_starts
             conn.execute("BEGIN IMMEDIATE")
             self._remember_cursor(conn, self._cursor(conn))
             self._prune(conn)
@@ -200,10 +207,12 @@ class ActivityLog:
         )
 
     def write(self, category, event, title, payload=None, **fields) -> bool:
-        """仅持久化已启用类别，跳过记录视为成功且不推进游标"""
+        """落盘前按类别和开始事件开关跳过，避免序列化及推进游标"""
         try:
             with self.lock:
-                if category not in self.capture_categories:
+                if category not in self.capture_categories or (
+                    not self.capture_starts and is_start_event(event)
+                ):
                     return True
                 values = {
                     "created_at": fields.pop("created_at", None),
@@ -257,12 +266,18 @@ class ActivityLog:
         since="",
         until="",
         hide_polling=False,
+        show_starts=True,
         hidden_rules=None,
         **_,
     ):
         """组合固定列的参数化条件，关键词按字面搜索全部正文和关联标识"""
         hidden_rules = "\n".join(self.policy.hidden_rules) if hidden_rules is None else hidden_rules
         clauses, args = [], []
+        if not show_starts and not trace_id:
+            clauses.append(
+                f"NOT (event IN ({','.join('?' for _ in START_EVENTS)}) OR event GLOB '*.started')"
+            )
+            args.extend(START_EVENTS)
         service_patterns = []
         if hide_polling:
             service_patterns = [
