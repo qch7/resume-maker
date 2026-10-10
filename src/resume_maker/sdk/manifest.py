@@ -47,10 +47,11 @@ class Entry(Contract):
 
 
 class Service(Contract):
-    """唯一能力或集合贡献的协议版本"""
+    """能力的协议版本、基数及可选显示名称"""
 
     version: str = Field(default="1.0.0", pattern=VERSION)
     cardinality: Literal["one", "many"] = "one"
+    title: str | None = Field(default=None, min_length=1, max_length=100)
 
 
 class Dependency(Contract):

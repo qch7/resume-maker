@@ -8,7 +8,7 @@
     "host": {"mode": "trusted-host", "entry": "plugin.py:activate"}
   },
   "requires": {"host": {"credentials": ">=1.0.0 <2.0.0"}},
-  "provides": {"host": {"ocr.backend": {"version": "1.0.0", "cardinality": "one"}}},
+  "provides": {"host": {"ocr.backend": {"version": "1.0.0", "cardinality": "one", "title": "文字识别引擎"}}},
   "permissions": ["workspace.trusted"],
   "config": {"api_key": "", "secret_key": "", "language": "zh", "timeout_seconds": 30},
   "credential_fields": {

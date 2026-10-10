@@ -1,14 +1,71 @@
-"""真实外部 OCR 提供方在同一计划替换，消费者和旧配置保持一致"""
+"""外部能力提供方在同一计划替换，消费者及旧配置保持一致"""
 
 import threading
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from resume_maker.api import create_app
 from resume_maker.core.config import Config
 from resume_maker.sdk.context import ServiceKey
 from tests.support.plugins import bundle
+
+
+@pytest.mark.parametrize(
+    ("capability", "title"),
+    [("speech.backend", "语音合成引擎"), ("translation.backend", "翻译引擎")],
+)
+def test_new_domain_provider_metadata_and_replacement(tmp_path, capability, title):
+    """新增领域的名称通过管理接口发布，替换计划应用后才切换服务"""
+    app = create_app(Config(data_dir=tmp_path / "data", token="test", profile="minimal"))
+    host = app.state.runtime
+    manager = host.require(ServiceKey("plugins"))
+    for identifier, label, metadata in [
+        ("community.original", "original", {}),
+        ("community.example", "candidate", {"title": title}),
+    ]:
+        archive = tmp_path / f"{identifier}.rmp"
+        code = f'''from resume_maker.sdk.context import ServiceKey
+
+def activate(context):
+    """注册合成领域服务，不读取真实材料或访问供应商"""
+    context.provide(ServiceKey("{capability}"), "{label}")
+'''
+        bundle(
+            archive,
+            extra={
+                "id": identifier,
+                "provides": {"host": {capability: metadata}},
+                "contributes": {},
+            },
+            artifacts_extra={"python/plugin.py": code.encode()},
+        )
+        inspected = host.bootstrap["package_store"].inspect(archive)
+        manager.install(archive, inspected["digest"], inspected["trust_modes"])
+    with TestClient(app) as client:
+        original = manager.plan(host.selected | {"community.original"}, host.generation)
+        manager.prepare(original["id"], original["digest"])
+        manager.apply(original["id"], original["digest"])
+        response = client.get("/api/plugins", headers={"x-resume-token": "test"})
+        assert response.status_code == 200, response.text
+        plugins = {item["id"]: item for item in response.json()["plugins"]}
+        assert plugins["community.example"]["provided"]["host"][capability]["title"] == title
+        assert plugins["community.original"]["provided"]["host"][capability]["title"] is None
+        candidate = (host.selected - {"community.original"}) | {"community.example"}
+        response = client.post(
+            "/api/plugins/plans",
+            headers={"x-resume-token": "test"},
+            json={"selected": sorted(candidate), "generation": host.generation},
+        )
+        assert response.status_code == 200, response.text
+        plan = response.json()
+        assert "community.original" in plan["removed"]
+        assert "community.example" in plan["added"]
+        assert host.require(ServiceKey(capability)) == "original"
+        manager.prepare(plan["id"], plan["digest"])
+        manager.apply(plan["id"], plan["digest"])
+        assert host.require(ServiceKey(capability)) == "candidate"
 
 
 def test_package_replacement_plan_preserves_explicit_bindings_and_config_edits(tmp_path):

@@ -1,7 +1,12 @@
+export interface ProviderService {
+  cardinality?: string;
+  title?: string | null;
+}
+
 interface ProviderPlugin {
   id: string;
   required: boolean;
-  provided?: Record<string, Record<string, { cardinality?: string }>>;
+  provided?: Record<string, Record<string, ProviderService>>;
 }
 
 interface ProviderInstance {
@@ -66,24 +71,32 @@ export function replaceProvider(
   };
 }
 
-/** 集合能力保留原有选择，唯一能力才显示替换入口 */
+/** 按声明发现唯一能力，显示名称取首个非空标题或能力名 */
 export function providerChoices(plugins: ProviderPlugin[]) {
   const groups = new Map<
     string,
-    { domain: string; name: string; ids: string[] }
+    { domain: string; name: string; title?: string; ids: string[] }
   >();
   for (const item of plugins) {
     for (const [domain, services] of Object.entries(item.provided ?? {})) {
       for (const [name, spec] of Object.entries(services)) {
         if (spec.cardinality === "many") continue;
         const key = `${domain}/${name}`;
-        const group = groups.get(key) ?? { domain, name, ids: [] };
+        const group = groups.get(key) ?? {
+          domain,
+          name,
+          title: undefined,
+          ids: [],
+        };
+        group.title ??= spec.title?.trim() || undefined;
         group.ids.push(item.id);
         groups.set(key, group);
       }
     }
   }
-  return [...groups.values()].filter((group) => group.ids.length > 1);
+  return [...groups.values()]
+    .filter((group) => group.ids.length > 1)
+    .map((group) => ({ ...group, title: group.title ?? group.name }));
 }
 
 /** 多包候选先拒绝互相冲突，避免按添加顺序选择唯一提供方 */
