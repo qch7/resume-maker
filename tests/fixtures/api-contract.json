@@ -617,6 +617,18 @@
             }
           }
         }
+      },
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
       }
     },
     "/api/projects/{project_id}/branches": {
@@ -4706,6 +4718,121 @@
           }
         }
       }
+    },
+    "/api/backups/{identifier}/download": {
+      "get": {
+        "parameters": [
+          {
+            "name": "identifier",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identifier"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/backups/{identifier}": {
+      "delete": {
+        "parameters": [
+          {
+            "name": "identifier",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identifier"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/backups/{identifier}/restore-plan": {
+      "post": {
+        "parameters": [
+          {
+            "name": "identifier",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identifier"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "schemas": {
@@ -7434,6 +7561,22 @@
       ],
       "title": "CapabilitySelectionInput",
       "description": "当前候选按产品能力批量启停，配置草稿继续由变更计划提交"
+    },
+    "RestoreInput": {
+      "properties": {
+        "generation": {
+          "type": "integer",
+          "minimum": 1.0,
+          "title": "Generation"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "generation"
+      ],
+      "title": "RestoreInput",
+      "description": "恢复请求绑定当前窗口的插件代次"
     }
   }
 }

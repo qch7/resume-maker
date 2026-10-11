@@ -62,6 +62,8 @@ async function application() {
       export function locateWindow() { return true; }
       export const DEFAULT_ACTIVITY_PREFERENCES = {};
       export async function download() {}
+      export const storage = {prepareReload: async () => {}};
+      export const HOST_RECONNECT_MS = 1500;
       export function registerBeforeClose(guard) { guards.push(guard); return () => guards.splice(guards.indexOf(guard), 1); }
       export function Icon() {return null;}
       export const DatabaseBackup = Icon, FolderOpen = Icon, ScrollText = Icon, ShieldCheck = Icon,

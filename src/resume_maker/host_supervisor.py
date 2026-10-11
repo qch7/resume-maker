@@ -19,6 +19,13 @@ from resume_maker.infrastructure.storage import instance_lock
 from resume_maker.integrations.providers.process import execute
 from resume_maker.integrations.providers.sandbox import LocalSandbox
 from resume_maker.plugins.discovery import discover
+from resume_maker.runtime.backup_restore import (
+    apply_restore,
+    read_restore,
+    recover_missing_directory,
+    rollback_restore,
+    save_restore,
+)
 from resume_maker.runtime.packages import PackageStore
 from resume_maker.runtime.state import StateStore
 from resume_maker.runtime.upgrades import transition_digest
@@ -217,8 +224,9 @@ def rollback(directory, transition, reason):
 def supervise(config, args):
     """监督器保持稳定解释器，实际应用总在可替换且受控的子进程运行"""
     directory = config.data_dir.resolve()
-    directory.mkdir(parents=True, exist_ok=True)
     with instance_lock(directory.parent / (directory.name + ".supervisor")):
+        recover_missing_directory(directory)
+        directory.mkdir(parents=True, exist_ok=True)
         execution = Execution(execute)
         sandbox = Sandbox(execution, LocalSandbox())
         python = sys.executable
@@ -230,6 +238,20 @@ def supervise(config, args):
                 raise Problem("保存的宿主解释器已变化，请重新核验安装环境。", 409)
         first = True
         while True:
+            restoring = read_restore(directory)
+            if restoring and restoring["state"] in {"applying", "booting"}:
+                if Path(restoring["previous"]).is_dir():
+                    rollback_restore(
+                        directory, restoring, "上次恢复后的启动中断，已回到恢复前资料。"
+                    )
+                else:
+                    save_restore(directory, restoring, "failed", "上次恢复中断，原资料已保留。")
+                restoring = None
+            if restoring and restoring["state"] == "prepared":
+                if not apply_restore(directory, restoring):
+                    restoring = None
+            else:
+                restoring = None
             transition = read_transition(directory)
             if transition and transition["state"] in {"applying", "booting"}:
                 with instance_lock(directory):
@@ -247,13 +269,15 @@ def supervise(config, args):
                         )
                         continue
                 python = candidate["after"]["python"]
-            command = host_command(python, directory, args, first=first, candidate=candidate)
+            command = host_command(
+                python, directory, args, first=first, candidate=candidate or restoring
+            )
             first = False
             cancelled, completed = threading.Event(), threading.Event()
             state = {"started": time.monotonic(), "health_since": None, "committed": False}
             failure = None
 
-            def event(value, state=state, candidate=candidate, python=python):
+            def event(value, state=state, candidate=candidate, python=python, restoring=restoring):
                 """候选持续健康且尚未开放写入时提交，普通服务消息不充当健康证明"""
                 if value.get("event") != "host-health":
                     return
@@ -262,16 +286,26 @@ def supervise(config, args):
                 state["health_since"] = state["health_since"] or time.monotonic()
                 if candidate and value.get("transition") != candidate["id"]:
                     raise Problem("候选宿主返回的维护身份不匹配。", 409)
+                if restoring and value.get("transition") != restoring["id"]:
+                    raise Problem("恢复宿主返回的维护身份不匹配。", 409)
                 if (
-                    candidate
+                    (candidate or restoring)
                     and not state["committed"]
                     and time.monotonic() - state["health_since"]
                     >= config.supervisor.health_observation_seconds
                 ):
                     save_runtime(directory, python)
-                    save_transition(
-                        directory, candidate, "committed", "新宿主健康检查通过，整组升级已生效。"
-                    )
+                    if restoring:
+                        save_restore(
+                            directory, restoring, "committed", "备份已恢复，服务已重新连接。"
+                        )
+                    else:
+                        save_transition(
+                            directory,
+                            candidate,
+                            "committed",
+                            "新宿主健康检查通过，整组升级已生效。",
+                        )
                     state["committed"] = True
 
             def deadline(state=state, completed=completed, cancelled=cancelled):
@@ -312,6 +346,13 @@ def supervise(config, args):
             finally:
                 completed.set()
                 monitor.join()
+            if restoring and not state["committed"]:
+                rollback_restore(
+                    directory,
+                    restoring,
+                    "恢复后的服务启动失败，已回到恢复前资料：" + (failure or "提前结束"),
+                )
+                continue
             if candidate and not state["committed"]:
                 with instance_lock(directory):
                     python = rollback(
@@ -323,6 +364,9 @@ def supervise(config, args):
             next_transition = read_transition(directory)
             if next_transition and next_transition["state"] == "prepared":
                 continue
+            next_restore = read_restore(directory)
+            if next_restore and next_restore["state"] == "prepared":
+                continue
             if failure:
                 raise Problem("宿主已停止：" + failure, 500)
             return
@@ -332,7 +376,14 @@ def watch_host(app, config, server):
     """子宿主持续检查候选健康，监督器提交之前保持业务维护状态"""
     host, manager = app.state.runtime, app.state.runtime.bootstrap["plugin_manager"]
     transition = read_transition(config.data_dir)
-    candidate = transition if transition and transition["state"] == "booting" else None
+    restoring = read_restore(config.data_dir)
+    candidate = (
+        transition
+        if transition and transition["state"] == "booting"
+        else restoring
+        if restoring and restoring["state"] == "booting"
+        else None
+    )
     if candidate:
         manager.maintenance = True
     host.bootstrap["request_restart"] = lambda: setattr(server, "should_exit", True)
@@ -343,7 +394,11 @@ def watch_host(app, config, server):
         while not stopped.is_set():
             try:
                 host.check_health()
-                if candidate and host.selected != set(candidate["plan"]["selected"]):
+                if (
+                    candidate
+                    and candidate is not restoring
+                    and host.selected != set(candidate["plan"]["selected"])
+                ):
                     raise Problem("候选有未能启动的能力。", 409)
                 print(
                     json.dumps(
@@ -355,7 +410,11 @@ def watch_host(app, config, server):
                     flush=True,
                 )
                 if candidate:
-                    current = read_transition(config.data_dir)
+                    current = (
+                        read_restore(config.data_dir)
+                        if candidate is restoring
+                        else read_transition(config.data_dir)
+                    )
                     if current["state"] == "committed":
                         manager.maintenance = False
                         return

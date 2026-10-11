@@ -8,7 +8,8 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import PathInput from "@resume-maker/plugin-sdk/shared/components/PathInput";
-import { api, download } from "@resume-maker/plugin-sdk/shared/lib/api";
+import { api } from "@resume-maker/plugin-sdk/shared/lib/api";
+import BackupSettings from "./BackupSettings";
 import ActivitySettings from "./ActivitySettings";
 import { DEFAULT_ACTIVITY_PREFERENCES } from "@resume-maker/plugin-sdk/shared/lib/activityPreferences";
 import type { useActivityPreferences } from "@resume-maker/plugin-sdk/shared/hooks/useActivityPreferences";
@@ -248,26 +249,13 @@ export default function Settings(props: Props) {
           <section hidden={tab !== "settings"} aria-label="备份设置">
             <h3>资料目录</h3>
             <code className="path">{dataDir || "读取中…"}</code>
-            <div className="settings-section">
-              <h3>导出备份</h3>
-              <p className="subtle">保存简历、模板和设置。</p>
-              <button
-                className="primary"
-                disabled={busy}
-                onClick={() =>
-                  run(async () => {
-                    await download(
-                      "/backups",
-                      "resume-maker-backup.zip",
-                      "POST",
-                    );
-                    setNotice("备份已下载。");
-                  })
-                }
-              >
-                下载备份
-              </button>
-            </div>
+            {visited.has("settings") && (
+              <BackupSettings
+                active={tab === "settings"}
+                run={run}
+                registerBeforeClose={registerBeforeClose}
+              />
+            )}
             {notice && (
               <p className="settings-feedback" role="status">
                 {notice}

@@ -92,6 +92,12 @@ def test_plugin_migration_keeps_restorable_snapshot_and_namespaced_attachments(t
     plan = coordinator.plan(manifest, location)
     result = coordinator.apply(plan, manifest, location)
     assert result["state"] == "committed"
+    from resume_maker.infrastructure.backup_history import list_backups
+
+    backup = next(
+        item for item in list_backups(coordinator.directory) if item["id"] in result["backup"]
+    )
+    assert backup["kind"] == "automatic" and backup["reason"] == "data-migration"
     assert coordinator.db.one("SELECT * FROM plugin_community_example_items") == {
         "id": "one",
         "value": "after",
