@@ -2,6 +2,12 @@
   "manifest_version": 1,
   "id": "sys.plugins",
   "title": "插件管理",
+  "capability_groups": [
+    {
+      "id": "workbench",
+      "title": "工作台"
+    }
+  ],
   "version": "1.0.0",
   "package": "resume-maker",
   "entrypoints": {

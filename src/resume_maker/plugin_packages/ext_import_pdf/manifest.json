@@ -4,6 +4,12 @@
   "version": "1.0.0",
   "package": "resume-maker",
   "title": "PDF 导入",
+  "capability_groups": [
+    {
+      "id": "documents",
+      "title": "文档处理"
+    }
+  ],
   "entrypoints": {
     "host": {
       "mode": "trusted-host",

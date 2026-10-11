@@ -2,6 +2,12 @@
   "manifest_version": 1,
   "id": "sys.activity",
   "title": "系统日志",
+  "capability_groups": [
+    {
+      "id": "logs",
+      "title": "日志"
+    }
+  ],
   "version": "1.0.0",
   "package": "resume-maker",
   "entrypoints": {

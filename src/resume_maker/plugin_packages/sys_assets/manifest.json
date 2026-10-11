@@ -2,6 +2,12 @@
   "manifest_version": 1,
   "id": "sys.assets",
   "title": "资源目录",
+  "capability_groups": [
+    {
+      "id": "storage",
+      "title": "资料存储"
+    }
+  ],
   "version": "1.0.0",
   "package": "resume-maker",
   "entrypoints": {

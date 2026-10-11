@@ -2,6 +2,12 @@
   "manifest_version": 1,
   "id": "sys.documents",
   "title": "文档流程",
+  "capability_groups": [
+    {
+      "id": "documents",
+      "title": "文档处理"
+    }
+  ],
   "version": "1.0.0",
   "package": "resume-maker",
   "entrypoints": {

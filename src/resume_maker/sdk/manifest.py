@@ -119,6 +119,13 @@ class CredentialField(Contract):
     title: str = Field(min_length=1, max_length=100)
 
 
+class CapabilityGroup(Contract):
+    """插件所属的产品能力分类，不参与服务版本及依赖求解"""
+
+    id: str = Field(pattern=IDENTIFIER)
+    title: str = Field(min_length=1, max_length=100)
+
+
 class Manifest(Contract):
     """安装前可读取的版本化插件定义，系统身份由发行策略判定"""
 
@@ -127,6 +134,7 @@ class Manifest(Contract):
     version: str = Field(pattern=VERSION)
     package: str
     title: str
+    capability_groups: list[CapabilityGroup] = Field(default_factory=list, max_length=20)
     host_api: str = ">=1.0.0 <2.0.0"
     client_api: str = ">=1.0.0 <2.0.0"
     instances: Instances = Field(default_factory=Instances)

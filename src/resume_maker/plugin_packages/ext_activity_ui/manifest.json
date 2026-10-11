@@ -2,6 +2,12 @@
   "manifest_version": 1,
   "id": "ext.activity-ui",
   "title": "日志界面",
+  "capability_groups": [
+    {
+      "id": "logs",
+      "title": "日志"
+    }
+  ],
   "version": "1.0.0",
   "package": "resume-maker",
   "entrypoints": {

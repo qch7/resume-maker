@@ -12,6 +12,7 @@ import PackageDownloads from "./PackageDownloads";
 import { recoverActivePlan } from "./planRecovery";
 import WaitingWindows, { type WindowDetail } from "./WaitingWindows";
 import PluginConfigEditor from "./PluginConfigEditor";
+import { capabilityGroups } from "./capabilityGroups";
 import {
   providerChoices,
   replaceProvider,
@@ -36,6 +37,7 @@ interface Plugin {
   multiple?: boolean;
   scope?: "application" | "workspace" | "task";
   title: string;
+  capability_groups?: { id: string; title: string }[];
   version: string;
   required: boolean;
   enabled: boolean;
@@ -123,6 +125,7 @@ const STATE_LABELS: Record<string, string> = {
 /** 展示完整配置影响，再由用户应用已审查的计划 */
 export default function PluginManager(props: SettingsPanelProps) {
   const [query, setQuery] = useState("");
+  const [grouping, setGrouping] = useState("mode");
   const [loading, setLoading] = useState(true);
   const [plugins, setPlugins] = useState<Plugin[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
@@ -256,6 +259,29 @@ export default function PluginManager(props: SettingsPanelProps) {
         );
     } catch (failure) {
       setError((failure as Error).message);
+    }
+  }
+  /** 整组启停只修改候选，依赖及基础能力由宿主统一校验 */
+  async function toggleCapability(id: string, enabled: boolean) {
+    setBusy(true);
+    setError("");
+    try {
+      const result = await api<{ selected: string[] }>(
+        "/plugins/capability-selection",
+        "POST",
+        {
+          group: id,
+          enabled,
+          selected,
+          instances,
+          generation: capabilities().generation,
+        },
+      );
+      setSelected(result.selected);
+    } catch (failure) {
+      setError((failure as Error).message);
+    } finally {
+      setBusy(false);
     }
   }
   /** 先发出冻结通知，再等待当前及其他窗口确认 */
@@ -654,18 +680,24 @@ export default function PluginManager(props: SettingsPanelProps) {
     ...(minimal ?? []),
     ...plugins.filter((item) => item.required).map((item) => item.id),
   ]);
-  const groups = [
+  const domains = capabilityGroups(plugins, selected, query);
+  const modeGroups = [
     {
+      id: "optional",
+      selection: null,
       title: "可选插件",
       required: false,
       items: matching.filter((item) => !essential.has(item.id)),
     },
     {
+      id: "essential",
+      selection: null,
       title: "基础插件",
       required: true,
       items: matching.filter((item) => essential.has(item.id)),
     },
   ];
+  const groups = grouping === "capability" ? domains : modeGroups;
   const invalidConfiguration = plugins.find((item) =>
     configDraftError(configDrafts[item.id] ?? emptyConfigDraft()),
   );
@@ -944,15 +976,25 @@ export default function PluginManager(props: SettingsPanelProps) {
           })}
         </section>
       )}
-      <label className="plugin-search">
-        <Search size={18} />
-        <input
-          aria-label="搜索插件"
-          placeholder="搜索插件"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
-      </label>
+      <div className="plugin-filter-row">
+        <label className="plugin-search">
+          <Search size={18} />
+          <input
+            aria-label="搜索插件"
+            placeholder="搜索插件"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
+        <select
+          aria-label="插件分类"
+          value={grouping}
+          onChange={(event) => setGrouping(event.target.value)}
+        >
+          <option value="mode">按模式分类</option>
+          <option value="capability">按能力分类</option>
+        </select>
+      </div>
       {Object.entries(pins)
         .filter(([id]) => !packages[id])
         .map(([id, pin]) => (
@@ -973,13 +1015,36 @@ export default function PluginManager(props: SettingsPanelProps) {
           group.items.length > 0 && (
             <details
               className="plugin-group"
-              key={group.title}
+              key={`${grouping}/${group.id}`}
               open={!group.required || !!query}
             >
               <summary>
                 <ChevronDown size={16} />
                 <strong>{group.title}</strong>
                 <span>{group.items.length}</span>
+                {group.selection && (
+                  <button
+                    className="plugin-capability-switch"
+                    role="checkbox"
+                    aria-label={`启用 ${group.title} 能力`}
+                    aria-checked={group.selection.checked}
+                    disabled={
+                      busy ||
+                      !!plan ||
+                      pendingCredential ||
+                      !group.selection.total ||
+                      group.id === "uncategorized"
+                    }
+                    onClick={(event) => {
+                      event.preventDefault();
+                      void toggleCapability(group.id, !group.selection!.count);
+                    }}
+                  >
+                    {group.selection.total
+                      ? `${group.selection.count}/${group.selection.total} · ${group.selection.count ? "整组停用" : "整组启用"}`
+                      : "基础能力"}
+                  </button>
+                )}
               </summary>
               <div className="plugin-grid">
                 {group.items.map((item) => (

@@ -2,6 +2,12 @@
   "manifest_version": 1,
   "id": "sys.execution",
   "title": "系统执行",
+  "capability_groups": [
+    {
+      "id": "execution",
+      "title": "任务执行"
+    }
+  ],
   "version": "1.0.0",
   "package": "resume-maker",
   "entrypoints": {

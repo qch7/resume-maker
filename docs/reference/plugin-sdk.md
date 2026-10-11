@@ -26,6 +26,10 @@ Host 和 Client SDK 当前为 **1.1.0**。使用公开 OCR 类型、凭据字段
 
 “设置 → 插件”用卡片显示选择、活动状态及阻断原因，详情中提供配置和安装操作。极简模式对应 minimal，扩展模式对应 standard，并可按需调整开关；模式选择只改变候选，不立即切换运行能力。查看变更计划后，准备阶段刷新所有窗口草稿，确认后等待请求及后台执行结束，最后应用并刷新客户端。未满足硬依赖的候选被拒绝，不自动猜测供应商。
 
+插件列表可切换按模式分类、按能力分类。能力分类根据清单 `capability_groups` 聚合 OCR、日志等领域，同一插件可属于多个领域。整组停用会逐层停用硬依赖消费者；必需插件仍保留，基础职责需要的提供方不可整组关闭。整组启用保留已选择的供应商，缺少依赖时只补齐明确的提供方；多个唯一提供方需要先单独选择。搜索只筛选展示，整组开关始终作用于全部成员。开关只修改候选，继续通过查看变更、应用计划生效，已有资料保留。
+
+`POST /api/plugins/capability-selection` 接受 `{group, enabled, selected, generation, instances?}`，返回补齐依赖或逐层停用后的 `{selected}`。该接口校验窗口代次，不持久化候选、不改变活动组合；实例绑定继续参与依赖校验，配置草稿仍通过原有计划提交。
+
 ## 清单及依赖
 
 Python 公共入口在 `resume_maker.sdk`，定义见 `sdk/manifest.py`、`context.py`、`model.py` 和 `services.py`。清单拒绝未知字段，插件版本和协议版本使用稳定 SemVer；Python 分发依赖使用 PEP 440。
@@ -35,6 +39,7 @@ Python 公共入口在 `resume_maker.sdk`，定义见 `sdk/manifest.py`、`conte
   "manifest_version": 1,
   "id": "community.example",
   "title": "示例能力",
+  "capability_groups": [{"id": "example", "title": "示例领域"}],
   "version": "1.0.0",
   "package": "community.example",
   "entrypoints": {
@@ -50,6 +55,7 @@ Python 公共入口在 `resume_maker.sdk`，定义见 `sdk/manifest.py`、`conte
 ```
 
 - `requires.host`、`requires.client` 和 `requires.remote` 分域求解；remote 指向 Host 上的服务，但通过 JSON RPC 访问。
+- `capability_groups` 是可选的能力分类列表，每项声明稳定 `id`、显示 `title`。旧提供方省略时沿用相同服务的已声明分类，例如 `ocr.backend` 归入 OCR；其他未声明分类的插件显示在未分类中，不提供整组开关。公共依赖不用于推断领域；分类不改变服务契约、系统必需身份或数据归属。
 - 依赖值可以是版本字符串，或 `{version, cardinality, provider}`。集合基数为 `many`，唯一能力为 `one`；多个候选必须明确选择，不能按装载顺序抢占。
 - `provides.<域>.<能力>.title` 可声明能力显示名称，例如 `speech.backend: {"cardinality": "one", "title": "语音合成引擎"}`。名称仅用于展示，不参与依赖求解；未声明时使用能力名。
 - `optional` 是当前 Host 可选依赖；存在时验证版本并加入激活依赖。
