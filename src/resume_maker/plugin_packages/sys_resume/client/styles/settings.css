@@ -86,6 +86,63 @@
   color: var(--accent);
   font-size: 13px;
 }
+.backup-history {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.backup-history li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+}
+.backup-summary {
+  min-width: 0;
+}
+.backup-summary p {
+  margin: 7px 0;
+  font-size: 12px;
+}
+.backup-summary code,
+.backup-confirm code {
+  overflow-wrap: anywhere;
+  font-size: 11px;
+}
+.backup-source {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 3px 7px;
+  border-radius: 5px;
+  background: var(--muted);
+  color: var(--subtle);
+  font-size: 11px;
+}
+.backup-source-automatic {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.backup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  gap: 8px;
+}
+.backup-actions button {
+  padding: 7px 10px;
+}
+.backup-confirm {
+  margin-top: 20px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--muted);
+}
+.backup-confirm p {
+  line-height: 1.7;
+}
 .settings-close-error {
   flex-shrink: 0;
   margin: 0;
@@ -94,6 +151,10 @@
   border-top: 1px solid var(--line);
 }
 @media (max-width: 700px) {
+  .backup-history li {
+    align-items: flex-start;
+    flex-direction: column;
+  }
   .settings-dialog.workspace-settings {
     width: calc(100vw - 24px);
     height: calc(100dvh - 32px);

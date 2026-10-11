@@ -52,9 +52,15 @@ def instance_lock(directory: Path):
         yield
 
 
-def create_backup(db: Database, directory: Path) -> Path:
+def create_backup(
+    db: Database, directory: Path, *, kind: str = "manual", reason: str = "manual"
+) -> Path:
     """短事务固定读取快照和附件副本，释放写锁后复制数据库及压缩"""
+    if kind not in {"manual", "automatic"}:
+        raise ValueError("备份来源无效。")
     folder = directory / "backups"
+    if folder.is_symlink() or folder.is_junction():
+        raise Problem("备份目录不能包含链接。")
     folder.mkdir(parents=True, exist_ok=True)
     snapshot = folder / f"{uid()}.db"
     output = snapshot.with_suffix(".zip")
@@ -77,7 +83,7 @@ def create_backup(db: Database, directory: Path) -> Path:
             files["resume.db"] = snapshot
             with closing(sqlite3.connect(snapshot)) as frozen:
                 validate_assets(frozen, frozen_root)
-            write_backup_zip(pending, files)
+            write_backup_zip(pending, files, kind=kind, reason=reason)
         pending.replace(output)
         return output
     finally:
@@ -124,7 +130,7 @@ def freeze_backup_files(conn, directory, frozen_root):
     return files
 
 
-def write_backup_zip(pending, files):
+def write_backup_zip(pending, files, *, kind="manual", reason="manual"):
     """压缩只读取固定副本，不再持有业务数据库写锁"""
     checksums = {}
     with ZipFile(pending, "w", ZIP_DEFLATED) as archive:
@@ -138,7 +144,16 @@ def write_backup_zip(pending, files):
                     size += len(chunk)
             checksums[name] = {"sha256": digest.hexdigest(), "size": size}
         archive.writestr(
-            "backup.json", dump({"version": 2, "created_at": now(), "files": checksums})
+            "backup.json",
+            dump(
+                {
+                    "version": 2,
+                    "created_at": now(),
+                    "kind": kind,
+                    "reason": reason,
+                    "files": checksums,
+                }
+            ),
         )
 
 
@@ -271,7 +286,13 @@ def validate_assets(conn, directory):
             raise Problem("资源引用格式无效。")
 
 
-def restore_backup(archive_path: Path, directory: Path) -> Path | None:
+def restore_backup(
+    archive_path: Path,
+    directory: Path,
+    *,
+    preserve_local: tuple[str, ...] = (),
+    previous_directory: Path | None = None,
+) -> Path | None:
     """在隔离目录校验备份，保留旧数据后切换，失败时回退原目录"""
     directory = directory.resolve()
     if directory == Path(directory.anchor) or directory.is_symlink() or directory.is_junction():
@@ -307,7 +328,24 @@ def restore_backup(archive_path: Path, directory: Path) -> Path | None:
         "credential-vault",
         "host-transition.json",
         "host-runtime.json",
+        "host-restore.json",
     }
+    if set(preserve_local) - allowed or set(preserve_local) & {
+        "resume.db",
+        "resume.db-wal",
+        "resume.db-shm",
+        "plugins.json",
+        *FOLDERS,
+    }:
+        raise Problem("恢复时保留的本机目录无效。")
+    if previous_directory is not None and (
+        previous_directory.parent != directory.parent
+        or not previous_directory.name.startswith(directory.name + "-before-restore-")
+        or previous_directory.exists()
+        or previous_directory.is_symlink()
+        or previous_directory.is_junction()
+    ):
+        raise Problem("恢复前目录位置无效或已存在。")
     with instance_lock(directory):
         if directory.exists() and any(p.name not in allowed for p in directory.iterdir()):
             raise Problem("恢复目录包含非应用文件，请使用独立数据目录。")
@@ -387,8 +425,21 @@ def restore_backup(archive_path: Path, directory: Path) -> Path | None:
                 ):
                     raise Problem("凭据目录不能包含符号链接。")
                 shutil.copytree(vault, staging / "credential-vault")
+            for name in preserve_local:
+                source = directory / name
+                if source.is_symlink() or source.is_junction():
+                    raise Problem("恢复时保留的本机目录不能是链接。")
+                if source.is_dir():
+                    for root, folders, _files in os.walk(source, followlinks=False):
+                        if any((Path(root) / folder).is_junction() for folder in folders):
+                            raise Problem("恢复时保留的本机目录不能包含目录联接。")
+                    shutil.copytree(source, staging / name, symlinks=True)
+                elif source.is_file():
+                    shutil.copyfile(source, staging / name)
             if directory.exists():
-                previous = directory.with_name(f"{directory.name}-before-restore-{uid()[:8]}")
+                previous = previous_directory or directory.with_name(
+                    f"{directory.name}-before-restore-{uid()[:8]}"
+                )
                 publish_directory(directory, previous)
             try:
                 publish_directory(staging, directory)

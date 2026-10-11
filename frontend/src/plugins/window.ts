@@ -92,11 +92,14 @@ export async function connectWindow() {
     renderWindowTitle();
     if (result.pending_plan && !result.acknowledged) {
       inform("插件配置正在变更，正在保存各页面的草稿…");
-      const plan = await api<{ affected: string[]; generation: number }>(
-        `/plugins/plans/${result.pending_plan}`,
-      );
+      const plan = await api<{
+        affected: string[];
+        generation: number;
+        restore_backup?: { id: string };
+      }>(`/plugins/plans/${result.pending_plan}`);
       if (plan.generation !== capabilities().generation)
         throw new Error("插件配置已变化，请保留输入并重新协商。");
+      if (plan.restore_backup) inform("正在恢复备份，正在保存各页面的草稿…");
       await flushDrafts();
       await clientExtensions.drainAll();
       await flushDrafts();
@@ -104,7 +107,11 @@ export async function connectWindow() {
         id: windowId,
         generation: capabilities().generation,
       });
-      inform("草稿已保存，等待插件配置切换完成。");
+      inform(
+        plan.restore_backup
+          ? "草稿已保存，等待备份恢复完成。"
+          : "草稿已保存，等待插件配置切换完成。",
+      );
     } else if (!result.pending_plan && !reloading) {
       clientExtensions.resumeAll();
       inform("");
