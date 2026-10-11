@@ -19,7 +19,7 @@ export function clearLocalDrafts(project: string, revision: string) {
     if (key.startsWith(prefix)) storage.removeItem(key);
 }
 
-/** 管理单字段草稿的本机恢复、串行写入、防抖保存和并发冲突处理 */
+/** 管理单字段草稿的本机恢复、串行写入、防抖保存、并发冲突处理 */
 export function useField<T>(
   project: string,
   revision: string,
@@ -41,7 +41,7 @@ export function useField<T>(
     version = useRef(cached?.version ?? initialVersion);
   const chain = useRef(Promise.resolve());
   const mounted = useRef(true);
-  /** 串行刷新最新输入且只有写入成功后才推进已保存值和草稿版本 */
+  /** 串行刷新最新输入且只有写入成功后才推进已保存值、草稿版本 */
   const flush = () => {
     const next = chain.current
       .catch(/* 上次错误已显示，恢复后续写入 */ () => {})
@@ -114,7 +114,7 @@ export function useField<T>(
     );
     return () => clearTimeout(timer);
   }, [value]);
-  /** 立即更新编辑值和本地恢复副本，再由防抖逻辑提交服务器草稿 */
+  /** 立即更新编辑值、本地恢复副本，再由防抖逻辑提交服务器草稿 */
   function update(next: T) {
     current.current = next;
     setValue(next);
@@ -124,7 +124,7 @@ export function useField<T>(
       JSON.stringify({ value: next, version: version.current }),
     );
   }
-  /** 保留本机恢复副本后载入服务器最新草稿，重置冲突状态和版本号 */
+  /** 保留本机恢复副本后载入服务器最新草稿，重置冲突状态、版本号 */
   async function reloadRemote() {
     await chain.current.catch(/* 上次错误已显示，恢复后续写入 */ () => {});
     try {

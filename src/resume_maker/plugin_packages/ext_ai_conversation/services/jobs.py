@@ -1,4 +1,4 @@
-"""持久任务队列、模型上下文组装和建议发布"""
+"""持久任务队列、模型上下文组装、建议发布"""
 
 import threading
 from pathlib import Path
@@ -67,7 +67,7 @@ Scope 写“范围”、fallback 写“回退”、chunk 写“分块”，不�
 
 
 class Jobs:
-    """带持久状态、幂等提交和连接取消的串行任务队列"""
+    """带持久状态、幂等提交、连接取消的串行任务队列"""
 
     def __init__(
         self,
@@ -81,7 +81,7 @@ class Jobs:
         source_service=None,
         settings=None,
     ):
-        """保存任务依赖，创建取消信号和工作线程状态，此时不启动队列"""
+        """保存任务依赖，创建取消信号、工作线程状态，此时不启动队列"""
         self.db, self.catalog, self.data_dir = db, catalog, data_dir
         self.provider = provider
         from resume_maker.plugin_packages.ext_ai_conversation.configuration import Settings
@@ -109,7 +109,7 @@ class Jobs:
             )
 
     def active_tasks(self):
-        """返回尚未结束的任务标识，供宿主排空和取消"""
+        """返回尚未结束的任务标识，供宿主排空、取消"""
         return self.db.all(
             "SELECT id,status AS state FROM jobs WHERE status IN ('queued','running')"
         )
@@ -134,7 +134,7 @@ class Jobs:
         self.worker.start()
 
     def stop(self):
-        """发出停止和取消信号，唤醒队列并等待工作线程回收进程"""
+        """发出停止、取消信号，唤醒队列并等待工作线程回收进程"""
         self.stopped.set()
         for flag in list(self.cancel_flags.values()):
             flag.set()
@@ -155,7 +155,7 @@ class Jobs:
         scope: str,
         request_key: str,
     ) -> dict:
-        """校验会话和编辑范围，以幂等请求标识入队并记录用户消息"""
+        """校验会话、编辑范围，以幂等请求标识入队并记录用户消息"""
         if self.stopped.is_set():
             raise Problem("任务插件正在停止。", 409)
         conversation = self.conversations.conversation(conversation_id)
@@ -281,7 +281,7 @@ class Jobs:
         return self.db.one("SELECT * FROM jobs WHERE id=?", (job_id,))
 
     def cancel(self, job_id: str):
-        """同时更新持久状态和进程取消信号，阻止任务结果继续发布"""
+        """同时更新持久状态、进程取消信号，阻止任务结果继续发布"""
         need(self.db.one("SELECT id FROM jobs WHERE id=?", (job_id,)))
         if flag := self.cancel_flags.get(job_id):
             flag.set()
@@ -336,7 +336,7 @@ class Jobs:
             self.cancel_flags.pop(job["id"], None)
 
     def _execute(self, job: dict):
-        """传递当前来源目录、调用 Provider、验证引用并原子保存消息和结果"""
+        """传递当前来源目录、调用 Provider、验证引用并原子保存消息、结果"""
         job_id, conversation_id = job["id"], job["conversation_id"]
         cancelled = self.cancel_flags.setdefault(job_id, threading.Event())
         if cancelled.is_set():
@@ -440,7 +440,7 @@ class Jobs:
             if payload["experience"] is not None:
                 if job["kind"] != "analysis":
                     raise Problem("普通对话返回了整段覆盖结果，请使用“重新分析”生成整段建议。")
-                # 分析源码只更新经历正文，用户定义的资料和显隐设置沿用当前工作副本
+                # 分析源码只更新经历正文，用户定义的资料、显隐设置沿用当前工作副本
                 for key in ("hidden_fields", "custom_fields"):
                     payload["experience"][key] = request["content"].get(key, [])
                 payload["experience"]["body_order"] = request["content"].get("body_order")

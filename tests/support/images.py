@@ -1,4 +1,4 @@
-"""图片恢复和脱敏页面的合成样本"""
+"""图片恢复、脱敏页面的合成样本"""
 
 from io import BytesIO
 
@@ -12,7 +12,7 @@ from tests.support.privacy import synthetic_image
 
 
 def image_fixture(path, scale=2, left=False, font=None):
-    """生成不同分辨率的独立样例，包含同行联系资料、左右头像和带白字的栏目底块"""
+    """生成不同分辨率的独立样例，包含同行联系资料、左右头像、带白字的栏目底块"""
     texts, assets = [], []
     width, height = 595, 842
     font = font or pymupdf.Font("helv")
@@ -114,7 +114,7 @@ def quiet(*args):
 
 
 def page_fixture(path, monkeypatch):
-    """创建带敏感文字、白字底块和独立人像的合成页面及本地 OCR 结果"""
+    """创建带敏感文字、白字底块、独立人像的合成页面及本地 OCR 结果"""
     layout = image_fixture(path)
     with Image.open(path) as source, Image.open(BytesIO(synthetic_image())) as photo:
         image = source.copy()

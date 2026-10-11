@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { bookmarkDescription, type Bookmark } from "./model";
 
-/** 共用卡片和列表内容，合并重复说明并按需展开备注 */
+/** 共用卡片、列表内容，合并重复说明并按需展开备注 */
 export default function BookmarkCard({
   item,
   group,

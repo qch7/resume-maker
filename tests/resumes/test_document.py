@@ -1,4 +1,4 @@
-"""完整简历资料的持久化、层级校验、完整保存和 Word 排版行为"""
+"""完整简历资料的持久化、层级校验、完整保存、Word 排版行为"""
 
 from copy import deepcopy
 from io import BytesIO
@@ -25,7 +25,7 @@ from tests.support.document_services import Documents
 
 
 def document_data():
-    """生成不含用户真实资料的完整简历，覆盖父栏目、子栏目和空栏目"""
+    """生成不含用户真实资料的完整简历，覆盖父栏目、子栏目、空栏目"""
     return {
         "personal": {
             "name": "测试同学",
@@ -220,7 +220,7 @@ def test_profile_http_roundtrip_and_invalid_updates(tmp_path):
         state = client.get("/api/state", headers=headers).json()
         assert state["resumes"][0]["document"]["personal"]["phone"] == "20000000000"
         assert state["resumes"][0]["document"]["sections"][1]["parent_id"] == "education"
-    # 重启后字段和整条显隐仍在，隐藏的资料原值保持可恢复
+    # 重启后字段、整条显隐仍在，隐藏的资料原值保持可恢复
     with TestClient(create_app(Config(data_dir=tmp_path, token="test-token"))) as client:
         data = client.get("/api/state", headers=headers).json()["resumes"][0]["document"]
         assert data["personal"]["hidden_fields"] == ["phone"]
@@ -285,7 +285,7 @@ def test_project_children_persist_and_export_after_project_content(
 
 @pytest.mark.parametrize("parent_id", ["education", None])
 def test_word_deduplicates_course_titles_at_both_levels(tmp_path, parent_id):
-    """同名条目标题在子栏目和大栏目都不会重复，独立条目名称仍完整显示"""
+    """同名条目标题在子栏目、大栏目都不会重复，独立条目名称仍完整显示"""
     data = document_data()
     courses = data["sections"][1]
     courses["parent_id"] = parent_id
@@ -303,7 +303,7 @@ def test_word_deduplicates_course_titles_at_both_levels(tmp_path, parent_id):
 
 
 def test_word_omits_hidden_fields_rows_photos_and_empty_headings(tmp_path):
-    """真实 Word 文件不含隐藏文字和照片，全部隐藏的栏目不留下空标题"""
+    """真实 Word 文件不含隐藏文字、照片，全部隐藏的栏目不留下空标题"""
     data = document_data()
     personal = data["personal"]
     personal.update(job_title="隐藏的岗位", location="隐藏的城市", website="hidden.example.com")
@@ -387,7 +387,7 @@ def test_word_includes_custom_information_and_omits_empty_hidden_items(tmp_path)
 
 @pytest.mark.parametrize("target", ["personal", "entry"])
 def test_custom_fields_validate_identity_and_limits(target):
-    """拒绝同组重复标识和超量字段以免编辑定位混乱或保存无法恢复"""
+    """拒绝同组重复标识、超量字段以免编辑定位混乱或保存无法恢复"""
     data = document_data()
     item = data["personal"] if target == "personal" else data["sections"][0]["entries"][0]
     item["custom_fields"] = [{"id": "duplicate"}, {"id": "duplicate"}]

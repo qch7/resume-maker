@@ -1,4 +1,4 @@
-"""当前数据库的一次性建库、重开、事务回滚和不支持结构的拒绝行为"""
+"""当前数据库的一次性建库、重开、事务回滚、不支持结构的拒绝行为"""
 
 import sqlite3
 from contextlib import closing
@@ -33,7 +33,7 @@ def test_initialize_complete_schema_and_reopen(tmp_path):
 
 @pytest.mark.parametrize("version", [0, 1, 2, 3, 4, 5, 6, 7, 8, SCHEMA_VERSION + 1])
 def test_unsupported_database_is_rejected_without_modification(tmp_path, version):
-    """未标版本的非空库和不匹配版本均被拒绝，原文件不被升级或重建"""
+    """未标版本的非空库、不匹配版本均被拒绝，原文件不被升级或重建"""
     path = tmp_path / "unsupported.db"
     with closing(sqlite3.connect(path)) as conn, conn:
         conn.execute("CREATE TABLE preserved (value TEXT)")

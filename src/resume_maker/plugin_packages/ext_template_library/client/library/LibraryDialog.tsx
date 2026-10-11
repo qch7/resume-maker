@@ -40,7 +40,7 @@ function initialView(): "cards" | "list" {
   }
 }
 
-/** 使用原生模态窗口限制焦点和 Escape 的作用范围 */
+/** 使用原生模态窗口限制焦点、Escape 的作用范围 */
 export default function LibraryDialog({
   templates,
   value,
@@ -85,7 +85,7 @@ export default function LibraryDialog({
   );
 
   useEffect(
-    /* 原生弹窗处理焦点约束和关闭后的焦点恢复 */ () => {
+    /* 原生弹窗处理焦点约束、关闭后的焦点恢复 */ () => {
       alive.current = true;
       const element = dialog.current!;
       element.showModal();
@@ -98,7 +98,7 @@ export default function LibraryDialog({
     [],
   );
   useEffect(
-    /* 每次打开时从数据库读取最新收藏和分类 */ () => {
+    /* 每次打开时从数据库读取最新收藏、分类 */ () => {
       const controller = new AbortController();
       setLoaded(false);
       setError("");
@@ -126,7 +126,7 @@ export default function LibraryDialog({
     [reload],
   );
 
-  /** 保存成功后更新名称、分类和 Like */
+  /** 保存成功后更新名称、分类、Like */
   async function save(path: string, method: string, body?: unknown) {
     setPending(true);
     setError("");
@@ -145,12 +145,9 @@ export default function LibraryDialog({
       if (alive.current) setPending(false);
     }
   }
-  /** 空标识即未分类，内置模板和导入模板使用相同分类规则 */
+  /** 空标识表示未分类，内置模板、导入模板共用分类规则 */
   function categoryName(id: string) {
-    return (
-      library.categories.find(/* 查找自定义分类名称 */ (item) => item.id === id)
-        ?.name ?? "未分类"
-    );
+    return library.categories.find((item) => item.id === id)?.name ?? "未分类";
   }
   /** 确认当前有效模板，取消或单击浏览不会触发此回调 */
   function confirm(id: string) {
@@ -166,7 +163,7 @@ export default function LibraryDialog({
     onChange(id === "builtin" ? "" : id);
     onClose();
   }
-  /** 切换视图后保留分类、搜索和选中项并记住偏好 */
+  /** 切换视图后保留分类、搜索、选中项并记住偏好 */
   function changeView(next: "cards" | "list") {
     setView(next);
     try {
@@ -213,8 +210,7 @@ export default function LibraryDialog({
     {
       id: "liked",
       name: "我的喜欢",
-      count: activeItems.filter(/* 统计跨分类的收藏总数 */ (item) => item.liked)
-        .length,
+      count: activeItems.filter((item) => item.liked).length,
       icon: Heart,
     },
     {
@@ -596,7 +592,7 @@ export default function LibraryDialog({
                 aria-pressed={selected.liked}
                 disabled={pending || !!selected.deleted_at}
                 onClick={
-                  /* 详情面板和卡片共用同一个 Like 状态 */ () => like(selected)
+                  /* 详情面板、卡片共用同一个 Like 状态 */ () => like(selected)
                 }
               >
                 <Heart

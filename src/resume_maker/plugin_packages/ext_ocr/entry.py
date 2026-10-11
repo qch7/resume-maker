@@ -1,4 +1,4 @@
-"""本地 OCR的注册和生命周期入口"""
+"""本地 OCR的注册、生命周期入口"""
 
 from resume_maker.plugins.support import dependency, publish
 from resume_maker.sdk.ocr import ValidatedOCR

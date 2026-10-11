@@ -17,7 +17,7 @@ let locating = false;
 let locator: BroadcastChannel | undefined;
 const titles = new Map<symbol, { title: string; priority: number }>();
 
-/** 页面按层级提供名称，浏览器标签和窗口提示使用同一份标题 */
+/** 页面按层级提供名称，浏览器标签、窗口提示使用同一份标题 */
 export function registerWindowTitle(title: string, priority = 0) {
   const key = Symbol();
   titles.set(key, { title: title.slice(0, 300), priority });
@@ -54,7 +54,7 @@ export function locateWindow(id: string) {
   return true;
 }
 
-/** 工作台订阅配置变化和草稿刷新失败，不清除本地输入 */
+/** 工作台订阅配置变化、草稿刷新失败，不清除本地输入 */
 export function subscribeWindow(listener: () => void) {
   listeners.add(listener);
   return () => {
@@ -123,7 +123,7 @@ export async function connectWindow() {
   }
 }
 
-/** 所有页面刷新共用一次排空，调用方的保存或冲突处理只能在命令结束后执行 */
+/** 页面刷新共用一次命令排空，命令结束后才执行保存或冲突处理 */
 export function reloadWindow(
   prepare: () => Promise<void> = prepareWindowReload,
 ) {
@@ -151,7 +151,7 @@ async function prepareWindowReload() {
   }
 }
 
-/** 命令停止后保存最终输入，失败保留页面，由后续心跳核验能否解除冻结 */
+/** 命令停止后保存最终输入，失败时保留页面，后续心跳核验解冻条件 */
 async function finishReload(prepare: () => Promise<void>) {
   reloading = true;
   try {
@@ -175,7 +175,7 @@ export function startWindow() {
         locateWindow(windowId);
     };
   }
-  /** 用户开始操作后移除定位标记，不改变草稿和冻结状态 */
+  /** 用户开始操作后移除定位标记，不改变草稿、冻结状态 */
   function clearLocation() {
     locating = false;
     renderWindowTitle();

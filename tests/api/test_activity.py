@@ -1,4 +1,4 @@
-"""统一系统日志的可观测行为、隔离和有界读取回归"""
+"""统一系统日志的可观测行为、隔离、有界读取回归"""
 
 import json
 import sqlite3
@@ -29,7 +29,7 @@ def enable_all_categories(log):
 
 
 def create_logged_app(config, provider=None):
-    """在应用启动前保存全部类别，使历史补录和生命周期轨迹可验证"""
+    """在应用启动前保存全部类别，使历史补录、生命周期轨迹可验证"""
     enable_all_categories(ActivityLog(config.data_dir / "logs" / "activity.sqlite"))
     return create_app(config, provider)
 
@@ -94,7 +94,7 @@ def test_file_rules_reach_page_defaults_filtering_and_restart(tmp_path):
 
 
 def test_default_rules_keep_existing_rules_and_hide_plugin_polls(tmp_path):
-    """保留已有隐藏范围并补齐插件心跳、变更进度和下载查询"""
+    """保留已有隐藏范围并补齐插件心跳、变更进度、下载查询"""
     log = ActivityLog(tmp_path / "activity.sqlite")
     enable_all_categories(log)
     rules = log.policy.hidden_rules
@@ -175,7 +175,7 @@ def test_http_activity_captures_success_denial_validation_and_exceptions(tmp_pat
 
 
 def test_activity_cursor_filter_search_export_and_restart(tmp_path):
-    """分页和筛选在新事件插入后不漏条，字面搜索及重启后详情保持一致"""
+    """分页、筛选在新事件插入后不漏条，字面搜索及重启后详情保持一致"""
     path = tmp_path / "activity.sqlite"
     log = ActivityLog(path)
     enable_all_categories(log)
@@ -206,7 +206,7 @@ def test_activity_cursor_filter_search_export_and_restart(tmp_path):
 
 
 def test_successful_polling_filter_preserves_failures_and_raw_trace(tmp_path):
-    """统一路径规则隐藏成功读取的普通轨迹，错误请求和关联详情仍可查看"""
+    """统一路径规则隐藏成功读取的普通轨迹，错误请求、关联详情仍可查看"""
     app = create_logged_app(Config(data_dir=tmp_path, token="synthetic-token"))
     with TestClient(app) as client:
         headers = {"x-resume-token": "synthetic-token"}
@@ -244,7 +244,7 @@ def test_successful_polling_filter_preserves_failures_and_raw_trace(tmp_path):
 
 
 def test_polling_live_retraction_pagination_and_path_rules(tmp_path):
-    """跨轮询批次撤回先到的开始事件，分页计数和导出保持同一过滤语义"""
+    """跨轮询批次撤回先到的开始事件，分页计数、导出保持同一过滤语义"""
     log = ActivityLog(tmp_path / "log.sqlite")
     enable_all_categories(log)
     log.write("api", "request", "GET /api/state", trace_id="pending")
@@ -253,7 +253,7 @@ def test_polling_live_retraction_pagination_and_path_rules(tmp_path):
     first = log.page(**query)
     assert [row["title"] for row in first["events"]] == ["workspace.state"]
     log.write("api", "response", "GET /api/state · 200", trace_id="pending")
-    # 相同链路上的警告和 AI、工具活动不能被过滤规则吞掉
+    # 过滤时保留同链路的警告、AI 活动及工具活动
     for category, level in [
         ("service", "warning"),
         ("api", "error"),
@@ -289,7 +289,7 @@ def test_polling_live_retraction_pagination_and_path_rules(tmp_path):
 
 
 def test_hidden_rules_hide_every_normal_response_and_keep_diagnostic_events(tmp_path):
-    """统一规则隐藏首条及重复响应，搜索、翻页、增量和导出保持一致"""
+    """统一规则隐藏首条及重复响应，搜索、翻页、增量、导出保持一致"""
     log = ActivityLog(tmp_path / "log.sqlite")
     enable_all_categories(log)
     query = {"hide_polling": True, "hidden_rules": "/api/state\nPOST /api/templates/*/review"}
@@ -369,7 +369,7 @@ def test_filtered_export_keeps_snapshot_when_stream_worker_changes(tmp_path):
 
 
 def test_maintenance_filter_covers_existing_and_live_service_records(tmp_path, monkeypatch):
-    """隐藏例行检查及内部读取，保留独立读取、实际删除和失败链路"""
+    """隐藏例行检查及内部读取，保留独立读取、实际删除、失败链路"""
     app = create_logged_app(Config(data_dir=tmp_path, token="synthetic-token"))
     library = app.state.services.template_library
     log = app.state.services.db.activity
@@ -380,7 +380,7 @@ def test_maintenance_filter_covers_existing_and_live_service_records(tmp_path, m
     query = {"hide_polling": True, "hidden_rules": "template_library.purge_expired"}
     hidden = log.page(**query)
     assert hidden["total"] == 0 and hidden["events"] == []
-    # 过滤只影响视图，历史、单条详情和关联排查均可恢复
+    # 过滤只影响视图，历史、单条详情、关联排查均可恢复
     assert ActivityLog(log.path).page(**query)["total"] == 0
     assert log.detail(raw["events"][0]["id"])["source"] == "template_library.purge_expired"
     assert log.page(**query, trace_id=trace)["total"] == 4
@@ -429,7 +429,7 @@ def test_maintenance_filter_covers_existing_and_live_service_records(tmp_path, m
 
 
 def test_sensitive_values_binary_and_large_details_are_bounded(tmp_path):
-    """嵌套密钥、文本鉴权、编码查询和大型内容不泄漏到列表详情及导出"""
+    """嵌套密钥、文本鉴权、编码查询、大型内容不泄漏到列表详情及导出"""
     log = ActivityLog(tmp_path / "log.sqlite")
     enable_all_categories(log)
     log.write(
@@ -468,13 +468,13 @@ def test_sensitive_values_binary_and_large_details_are_bounded(tmp_path):
 
 
 def test_job_messages_and_tool_events_share_request_trace(tmp_path):
-    """后台模型消息及工具结果保留提交请求、会话和项目的关联"""
+    """后台模型消息及工具结果保留提交请求、会话、项目的关联"""
 
     class Provider(FakeProvider):
         """在可控回复前模拟本机 CLI 的工具活动"""
 
         def run(self, **kwargs):
-            """提供确定的工具参数和结果，避免调用真实供应商"""
+            """提供确定的工具参数、结果，避免调用真实供应商"""
             record("tool", "item.started", "read_source", {"arguments": {"path": "README.md"}})
             record("tool", "item.completed", "read_source", {"result": "synthetic source"})
             return super().run(**kwargs)
@@ -655,7 +655,7 @@ def test_cli_trace_records_tool_arguments_result_and_agent_message(tmp_path, mon
         yield root
 
     def execute(command, **kwargs):
-        """以真实 CLI JSON 结构模拟受限工具调用和回复"""
+        """以真实 CLI JSON 结构模拟受限工具调用、回复"""
         from pathlib import Path
 
         env = kwargs["env"]

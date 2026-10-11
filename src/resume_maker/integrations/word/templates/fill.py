@@ -76,7 +76,7 @@ def empty_entry_range(text, start, end):
 
 
 def empty_field_paragraph(paragraph):
-    """空字段可删除自己的列表段落，图片、文本框、域、引用及固定说明必须保留"""
+    """空字段仅可删除所属列表段落，保留图片、文本框、域、引用及固定说明"""
     if paragraph_text(paragraph).strip():
         return False
     protected = {
@@ -126,7 +126,7 @@ def fill_fields(nodes: dict, fields: list[TextBinding], values: dict):
         colon = binding.quote.find("：")
         replacement_colon = value.find("：")
         if binding.target == "highlights" and 0 < colon < 40 and replacement_colon > 0:
-            # 整条亮点按标题和正文分别继承字重
+            # 整条亮点按标题、正文分别继承字重
             grouped.setdefault(binding.node, []).extend(
                 [
                     (start, start + colon + 1, value[: replacement_colon + 1]),
@@ -146,7 +146,7 @@ def fill_fields(nodes: dict, fields: list[TextBinding], values: dict):
                     run = etree.SubElement(paragraph, w("r"))
                 set_text(etree.SubElement(run, w("t")), value)
                 continue
-            # 清除被整段引文覆盖的旧换行和制表符以免旧样本空行留在新正文中
+            # 清除被整段引文覆盖的旧换行、制表符以免旧样本空行留在新正文中
             position = 0
             for child in list(paragraph.iter()):
                 if next(child.iterancestors(w("p")), None) is not paragraph:
@@ -190,7 +190,7 @@ def fill_fields(nodes: dict, fields: list[TextBinding], values: dict):
 
 
 def region_values(record, fields):
-    """项目综合正文只补充未单独安排的资料以免和技术栈、角色或亮点重复"""
+    """项目综合正文只补充未单独安排的资料以免、技术栈、角色或亮点重复"""
     targets = {field.target for field in fields}
     if "_highlight_items" not in record or "details" not in targets:
         return record
@@ -212,7 +212,7 @@ def region_values(record, fields):
 
 
 def remove_node(node):
-    """删除文字区域或图片容器，保留相邻段落和表格结构"""
+    """删除文字区域或图片容器，保留相邻段落、表格结构"""
     if node.tag in IMAGE_TAGS:
         node = image_container(node)
     node.getparent().remove(node)
@@ -272,7 +272,7 @@ def fill_photo(package: TemplatePackage, identifier: str, photo: str):
 
 
 def clean_resources(package: TemplatePackage):
-    """移除已不再使用的旧照片和链接资源，保留其他部件仍在引用的装饰图片"""
+    """移除已不再使用的旧照片、链接资源，保留其他部件仍在引用的装饰图片"""
     referenced = set()
     for name, data in list(package.files.items()):
         if not name.endswith(".rels"):
@@ -324,7 +324,7 @@ def section_marker(properties):
 
 
 def remove_preserving_sections(node, compact_table=False):
-    """保留被删除内容的分栏和分节边界，空字段所在表格行完全腾空时同时收起"""
+    """保留被删除内容的分栏、分节边界，空字段所在表格行完全腾空时同时收起"""
     parent = node.getparent()
     row = parent.getparent() if parent is not None and parent.tag == w("tc") else None
     if parent is not None:
@@ -371,7 +371,7 @@ def close_empty_tail(package):
 def fill_template(
     source: Path, output: Path, plan: TemplatePlan, content: dict, projects: list[dict]
 ) -> list[str]:
-    """按已核对模板填充，自动扩展个人资料及普通栏目，预览和导出共用排版规则"""
+    """按已核对模板填充，自动扩展个人资料及普通栏目，预览、导出共用排版规则"""
     package = TemplatePackage(source)
     review = package.review(plan)
     if not review["ready"]:
@@ -412,7 +412,7 @@ def fill_template(
             if not has_sections and any(list(node.iter(w("sectPr"))) for node in original)
             else None
         )
-        # 多栏标题和单栏正文同属一条经历，每条复制结束时闭合原有连续分节
+        # 多栏标题、单栏正文同属一条经历，每条复制结束时闭合原有连续分节
         trailing = (
             next(iter(sample[-1].xpath("following::w:sectPr[1]", namespaces=NS)), None)
             if has_sections
@@ -480,7 +480,7 @@ def fill_template(
         for cell in root.iter(w("tc"), w("txbxContent")):
             if not len(cell) or cell[-1].tag != w("p"):
                 etree.SubElement(cell, w("p"))
-        # 组合子图形和外层绘图共享编号空间，单独重编号外层会碰撞并导致 Word 无法打开
+        # 组合子图形、外层绘图共享编号空间，单独重编号外层会碰撞并导致 Word 无法打开
         for drawing in root.xpath(".//*[local-name()='docPr' or local-name()='cNvPr']"):
             drawing_id += 1
             drawing.set("id", str(drawing_id))

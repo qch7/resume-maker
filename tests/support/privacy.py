@@ -1,4 +1,4 @@
-"""隐私出口的合成响应、图片和可控执行器"""
+"""隐私出口的合成响应、图片、可控执行器"""
 
 import json
 import threading
@@ -41,7 +41,7 @@ def run(provider, tmp_path, prompt, **options):
 
 
 def synthetic_image():
-    """生成含细小身份文字和元数据的合成人像，不读取任何真实照片"""
+    """生成含细小身份文字、元数据的合成人像，不读取任何真实照片"""
     image = Image.new("RGB", (240, 320), "#d8edf6")
     draw = ImageDraw.Draw(image)
     draw.ellipse((65, 25, 175, 185), fill="#e8b997")

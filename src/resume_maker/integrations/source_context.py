@@ -28,7 +28,7 @@ BINARY = {
 
 
 def source_paths(root, data_dir, cancelled):
-    """逐个产出候选文件，跳过链接、凭据、应用数据和运行沙箱"""
+    """逐个产出候选文件，跳过链接、凭据、应用数据、运行沙箱"""
     private_roots = (data_dir, sandbox_directory().resolve())
     for directory, dirs, names in os.walk(root, followlinks=False):
         if cancelled.is_set():

@@ -1,4 +1,4 @@
-"""把模板中已识别的栏目作为整体编排，标题、样式和记录始终一起移动"""
+"""把模板中已识别的栏目作为整体编排，标题、样式、记录始终一起移动"""
 
 from collections import defaultdict
 from copy import deepcopy
@@ -48,7 +48,7 @@ def independent_containers(anchors):
 
 
 def child_in(node, parent):
-    """取得节点在指定容器中的直接子块以免把表格行和段落混为同级"""
+    """取得节点在指定容器中的直接子块以免把表格行、段落混为同级"""
     while node.getparent() is not parent:
         node = node.getparent()
         if node is None:
@@ -71,7 +71,7 @@ def inline_drawing(block, following=None):
             or offset is None
             or horizontal.get("relativeFrom") not in {"page", "margin"}
         ):
-            # 字符、分栏、单元格或对齐式定位不能用页面左边距换算，保留原生锚点
+            # 字符、分栏、单元格、对齐式定位沿用原生锚点，禁止按页面左边距换算
             continue
         if block.tag == w("p"):
             properties = block.find(w("pPr"))
@@ -128,7 +128,7 @@ def inline_drawing(block, following=None):
 
 
 def inline_heading(block, following=None):
-    """标题图形保留原字体和装饰并和第一段正文保持同页"""
+    """标题图形保留原字体、装饰并、第一段正文保持同页"""
     inline_drawing(block, following)
     if block.tag == w("p"):
         properties = block.find(w("pPr"))
@@ -143,7 +143,7 @@ class TemplateLayout:
     """在填充前标记栏目区段，填充后按当前层级重排，不改变源模板或正式资料"""
 
     def __init__(self, package, plan, document, records, values):
-        """由标题和完整重复范围确定栏目归属，兼容正文段落及表格行"""
+        """由标题、完整重复范围确定栏目归属，兼容正文段落及表格行"""
         self.parent = None
         self.children = []
         self.notices = []
@@ -172,7 +172,7 @@ class TemplateLayout:
             title = aliases.get(region.section, region.section)
             if package.locations[region.start] == "word/document.xml":
                 anchors[title].extend(package.region(region.start, region.end))
-        # 旧映射把固定栏目标题放在 keep 中时且仅识别和已知栏目完全相同的文字
+        # 旧映射将固定栏目标题放入 keep 时，仅识别名称完全匹配已知栏目的文字
         bound = {field.node for field in plan.fields}
         for identifier in plan.keep:
             node = package.node(identifier)
@@ -270,12 +270,12 @@ class TemplateLayout:
                 title for title, (start, end) in spans.items() if start <= position <= end
             ]
             # 显式栏目范围之外的个人资料单独归属
-            # 特别是模型在页首空段落安排新栏目时，姓名、联系表格及照片仍须留在页首，
+            # 模型在页首空段落安排新栏目时，姓名、联系表格、照片仍留在页首
             # 教育区域内的 GPA 等字段则继续随其真实栏目移动
             if block in personal and (page_positioned(block) or not containing):
                 self.fixed.append(block)
             if containing:
-                # 子栏目和个人字段共用的块保留在外层栏目
+                # 子栏目、个人字段共用的块保留在外层栏目
                 choose = max if block in personal else min
                 owner = choose(containing, key=lambda title: spans[title][1] - spans[title][0])
             else:
@@ -293,7 +293,7 @@ class TemplateLayout:
                 continue
             if records.get(title) or any(owners.get(block) == title for block in personal):
                 self.visible.add(title)
-        # 父栏目没有直接资料但有可见子栏目时仍保留父标题，顺序和栏目编排界面一致
+        # 无直接资料的父栏目含可见子栏目时保留标题，顺序沿用栏目编排界面
         for section in document.sections:
             if section.parent_id or not section.visible:
                 continue
@@ -311,7 +311,7 @@ class TemplateLayout:
             if title in self.visible and owners.get(block) == title:
                 self.headings.append(block)
             elif title in self.visible:
-                # 例如“主修课程”和 GPA 共用一个锚定段落，标题随子栏目移动，GPA 留在教育区
+                # 例如“主修课程”、GPA 共用一个锚定段落，标题随子栏目移动，GPA 留在教育区
                 if any(
                     f.node == binding.node and f.target.startswith("personal.") for f in plan.fields
                 ):
@@ -349,7 +349,7 @@ class TemplateLayout:
             properties = effective_section(blocks[last])
             if properties is not None and not list(blocks[last].iter(w("sectPr"))):
                 self.trailing = (owners[blocks[last]], deepcopy(properties))
-        # 标题仍在原树中时计算横坐标和让位间距，重复样本会继承修正后的段前距离
+        # 标题仍在原树中时计算横坐标、让位间距，重复样本会继承修正后的段前距离
         for block in self.headings:
             following = next(
                 (
@@ -369,7 +369,7 @@ class TemplateLayout:
         if self.parent is None:
             return
         for block in self.fixed:
-            # 组合页首即使借用教育或课程段落锚定，也不随栏目隐藏或移动到下一页
+            # 组合页首借用教育或课程段落锚点时，栏目隐藏、移动仍保留其页首位置
             self.parent.insert(self.parent.index(self.segments[0][1]), block)
         for node in self.empty_labels:
             if node.getparent() is not None:

@@ -14,7 +14,7 @@ import {
 import CommandMenu from "@resume-maker/plugin-sdk/plugins/CommandMenu";
 import PluginBoundary from "@resume-maker/plugin-sdk/plugins/PluginBoundary";
 
-/** 壳只负责页面贡献、插件管理和窗口冻结，简历状态由系统业务插件持有 */
+/** 壳只负责页面贡献、插件管理、窗口冻结，简历状态由系统业务插件持有 */
 export default function App() {
   const Workspace = pluginComponent("workspace");
   const [page, setPage] = useState("");

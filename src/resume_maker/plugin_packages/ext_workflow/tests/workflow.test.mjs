@@ -7,7 +7,7 @@ import {
   newEntry,
 } from "../../../../../frontend/src/shared/resume/document.ts";
 
-/* 构造隔离的项目、组合和导出状态，供制作流程测试复用 */ function fixture() {
+/* 构造隔离的项目、组合、导出状态，供制作流程测试复用 */ function fixture() {
   const content = {
     title: "测试项目",
     description: "已核实的项目描述",
@@ -66,7 +66,7 @@ test("new workspace starts at template recognition", /* 从模板开始统计整
   assert.equal(getWorkflow(state).guides[2].target, "projects");
 });
 
-test("a saved and exported resume without projects completes independent steps", /* 合法无项目方案可完成编排和导出，项目步骤明确可选 */ () => {
+test("a saved and exported resume without projects completes independent steps", /* 合法无项目方案可完成编排、导出，项目步骤明确可选 */ () => {
   const state = fixture();
   state.projectCount = 0;
   state.detail = null;
@@ -94,7 +94,7 @@ test("editing an unrelated project preserves saved composition progress", /* 未
   assert.equal(getWorkflow(state).done[4], true);
 });
 
-test("typing and recovered server drafts both require a saved revision", /* 验证本机编辑和恢复的草稿都不能当作正式保存 */ () => {
+test("typing and recovered server drafts both require a saved revision", /* 验证本机编辑、恢复的草稿都不能当作正式保存 */ () => {
   const state = fixture();
   state.edited = true;
   assert.equal(getWorkflow(state).target, "experience-save");
@@ -227,7 +227,7 @@ test("export in progress has no invented percentage and generated Word needs no 
   assert.match(getWorkflow(state).text, /Word 已生成/);
 });
 
-test("personal guidance locates missing basic, education and skills content", /* 姓名和联系方式就绪后，按具体栏目引导补全资料 */ () => {
+test("personal guidance locates missing basic, education and skills content", /* 姓名、联系方式就绪后，按具体栏目引导补全资料 */ () => {
   const state = fixture();
   state.draft.document = newDocument();
   assert.equal(getWorkflow(state).target, "personal-basic");
@@ -255,7 +255,7 @@ test("personal guidance locates missing basic, education and skills content", /*
   ]);
 });
 
-test("recognized honors must be selected into this resume to complete the honor step", /* 识别完成和用于当前简历是两个独立步骤 */ () => {
+test("recognized honors must be selected into this resume to complete the honor step", /* 识别完成、用于当前简历是两个独立步骤 */ () => {
   const state = fixture();
   const honors = state.draft.document.sections.find(
     (section) => section.id === "honors",
@@ -279,7 +279,7 @@ test("recognized honors must be selected into this resume to complete the honor 
   assert.equal(getWorkflow(state).done[3], true);
 });
 
-test("hidden and empty content cannot falsely complete a visible section", /* 检查字段显隐和父栏目显隐对准备状态的影响 */ () => {
+test("hidden and empty content cannot falsely complete a visible section", /* 检查字段显隐、父栏目显隐对准备状态的影响 */ () => {
   const state = fixture();
   const education = state.draft.document.sections.find(
     (section) => section.id === "education",

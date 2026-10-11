@@ -1,4 +1,4 @@
-"""新增大栏目和普通条目字段自动沿用模板，预览不依赖再次识别"""
+"""新增大栏目、普通条目字段自动沿用模板，预览不依赖再次识别"""
 
 from copy import deepcopy
 
@@ -43,7 +43,7 @@ def new_section(title="实习经历"):
 @pytest.mark.parametrize("table", [False, True])
 @pytest.mark.parametrize("kept", [False, True])
 def test_new_sections_reuse_headings_and_follow_current_order(tmp_path, table, kept):
-    """正文和表格均复制大标题样式，多个新增栏目随顺序、隐藏、恢复及清空同步变化"""
+    """正文、表格均复制大标题样式，多个新增栏目随顺序、隐藏、恢复及清空同步变化"""
     source, output = tmp_path / "source.docx", tmp_path / "filled.docx"
     plan = simple_template(source, table=table)
     if kept:
@@ -99,7 +99,7 @@ def test_new_sections_reuse_headings_and_follow_current_order(tmp_path, table, k
 
 
 def graphic_template(path):
-    """建立含蓝色文本框标题、底纹和独立联系方式的脱敏图形模板"""
+    """建立含蓝色文本框标题、底纹、独立联系方式的脱敏图形模板"""
     doc = Document()
     doc.add_paragraph("邮箱：旧邮箱")
     heading = doc.add_paragraph()
@@ -162,7 +162,7 @@ def test_graphic_heading_and_new_honor_fields_expand_together(tmp_path):
     )
     fill_template(source, output, plan, content.model_dump(), [])
     body = Document(output).element.body
-    # 按可见段落连接文字以保留标签和值各自的字重
+    # 按可见段落连接文字以保留标签、值各自的字重
     text = "\n".join(paragraph_text(node) for node in body.iter(w("p")))
     assert (
         text.index("个人主页：https://example.test")
@@ -208,7 +208,7 @@ def test_new_section_still_requires_a_reusable_heading_and_reviewed_template(tmp
 
 
 def test_empty_added_fields_do_not_leave_blank_table_rows(tmp_path):
-    """表格内已有栏目补出元数据和正文后，记录未填写的新增字段不残留空表格行"""
+    """表格内已有栏目补出元数据、正文后，记录未填写的新增字段不残留空表格行"""
     source, output = tmp_path / "source.docx", tmp_path / "filled.docx"
     plan = simple_template(source, table=True)
     content = layout_content()
@@ -231,7 +231,7 @@ def test_empty_added_fields_do_not_leave_blank_table_rows(tmp_path):
 
 @pytest.mark.parametrize("table", [False, True])
 def test_major_sections_continue_without_inherited_page_breaks(tmp_path, table):
-    """已有和新增栏目连续排版，消除硬分页、样式分页和末节默认分页，保留列宽及区外设置"""
+    """已有、新增栏目连续排版，消除硬分页、样式分页、末节默认分页，保留列宽及区外设置"""
     source, output = tmp_path / "source.docx", tmp_path / "filled.docx"
     doc = Document()
     doc.styles["Heading 1"].paragraph_format.page_break_before = True

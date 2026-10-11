@@ -1,4 +1,4 @@
-"""对模板建议自动校验和有界修正，保留最佳结果供人工核对"""
+"""对模板建议自动校验、有界修正，保留最佳结果供人工核对"""
 
 from importlib.resources import files
 
@@ -33,7 +33,7 @@ INSTRUCTIONS = SKILL_PATH.read_text(encoding="utf-8")
 
 
 def visual_evidence(provider, package, source, workspace, flag):
-    """隐私出口提供马赛克图片，原始像素和整页图留在本机"""
+    """隐私出口提供马赛克图片，原始像素、整页图留在本机"""
     document = private_image_text(package)
     if document is not None:
         provider.register_ocr(document)
@@ -50,7 +50,7 @@ def visual_evidence(provider, package, source, workspace, flag):
 
 
 def compact_inventory(inventory):
-    """以列定义和部件分组压缩清单，完整保留精确文字、同级及祖先约束"""
+    """以列定义、部件分组压缩清单，完整保留精确文字、同级及祖先约束"""
     parts = {}
     for node in inventory["nodes"]:
         parts.setdefault(node["part"], []).append(
@@ -67,7 +67,7 @@ def compact_inventory(inventory):
 
 
 def analysis_context(package, document, projects):
-    """提供模板原文、栏目和所需字段名，用户当前填写的个人资料值不发送给模型"""
+    """提供模板原文、栏目、所需字段名，用户当前填写的个人资料值不发送给模型"""
     requirements = {}
     for section in document.sections:
         records = section_records(document, section.title, projects)
@@ -208,7 +208,7 @@ def analyze_plan(
         if flag.is_set():
             raise Cancelled("模板分析已取消。")
         if source.read_bytes() != evidence_source:
-            # 补充结构后重新发送对应快照的清单和图片并新建识别会话
+            # 补充结构后重新发送对应快照的清单、图片并新建识别会话
             context.update(analysis_context(package, document, projects))
             images, shown, visual, visual_notices = visual_evidence(
                 provider, package, source, workspace, flag
@@ -345,7 +345,7 @@ def analyze_plan(
             break
     if flag.is_set():
         raise Cancelled("模板分析已取消。")
-    # 最佳方案和源快照必须一起恢复，失败轮次新增的节点不能污染此前仍可核对的方案
+    # 最佳方案、源快照必须一起恢复，失败轮次新增的节点不能污染此前仍可核对的方案
     if best_source is not None and source.read_bytes() != best_source:
         temporary = source.with_name("best-source.docx")
         temporary.write_bytes(best_source)

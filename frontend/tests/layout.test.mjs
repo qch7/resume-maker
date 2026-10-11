@@ -51,7 +51,7 @@ test("collapsed sidebar releases its width and narrow screens retain a usable wo
   assert.equal(columnSizes(390, true, DEFAULT_LAYOUT).sidebar, 0);
 });
 
-test("drag boundaries keep settings and preview visible", /* 验证分隔条边界保留设置区和预览区 */ () => {
+test("drag boundaries keep settings and preview visible", /* 验证分隔条边界保留设置区、预览区 */ () => {
   assert.equal(clamp(1000, 80, 420), 420);
   assert.equal(clamp(-500, 80, 420), 80);
   assert.equal(clamp(254, 80, 420), 254);

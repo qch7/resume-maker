@@ -6,7 +6,7 @@ from zipfile import ZipFile
 
 
 def bundle(path, *, worker=False, extra=None, artifacts_extra=None):
-    """构造不需要网络和第三方资料的完整预构建插件包"""
+    """构造不需要网络、第三方资料的完整预构建插件包"""
     identifier = "community.example"
     manifest = {
         "id": identifier,

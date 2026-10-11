@@ -1,10 +1,10 @@
-"""模板库的注册和生命周期入口"""
+"""模板库的注册、生命周期入口"""
 
 from resume_maker.plugins.support import dependency, publish, routes
 
 
 def activate(context):
-    """注册模板组织、回收站和数据清理生命周期"""
+    """注册模板组织、回收站、数据清理生命周期"""
     from resume_maker.plugin_packages.ext_template_library.configuration import Settings
     from resume_maker.plugin_packages.ext_template_library.query import templates as query
     from resume_maker.plugin_packages.ext_template_library.services.templates.library import (

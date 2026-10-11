@@ -1,4 +1,4 @@
-/* 隐私设置以表单为主，规则和历史按需展开 */
+/* 隐私设置以表单为主，规则、历史按需展开 */
 .privacy-settings {
   display: grid;
   gap: 14px;

@@ -16,10 +16,10 @@ export function syncHonorDocument(
   );
   let changed = false;
   const sections = document.sections.map(
-    /* 同步内容不改变栏目和条目的排列 */ (section) => {
+    /* 同步内容不改变栏目、条目的排列 */ (section) => {
       let sectionChanged = false;
       const entries = section.entries.map(
-        /* 手动录入、删除来源和同名荣誉各自保持原内容 */ (entry) => {
+        /* 手动录入、删除来源、同名荣誉各自保持原内容 */ (entry) => {
           const source = sources.get(honorSourceId(entry));
           if (!source) return entry;
           let synced = entry;
@@ -48,7 +48,7 @@ export function syncHonorDocument(
   return changed ? { ...document, sections } : document;
 }
 
-/** 按相同规则同步当前方案和缓存方案 */
+/** 按相同规则同步当前方案、缓存方案 */
 export function syncHonorResume(resume: Resume, honors: HonorSource[]): Resume {
   const document = syncHonorDocument(resume.document, honors);
   return document === resume.document ? resume : { ...resume, document };

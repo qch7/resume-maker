@@ -3,7 +3,7 @@ import test from "node:test";
 import { build } from "esbuild";
 import { fileURLToPath } from "node:url";
 
-/** 运行真实日志设置组件，替换浏览器 hooks 和网络以验证两项开关的保存 */
+/** 运行真实日志设置组件，替换浏览器状态钩子、网络以验证两项开关的保存 */
 async function application() {
   const frontend = fileURLToPath(new URL("../", import.meta.url));
   const result = await build({
@@ -73,7 +73,7 @@ async function application() {
   );
 }
 
-/** 收集组件节点，保留 label 和按钮以模拟用户直接操作 */
+/** 收集组件节点，保留 label、按钮以模拟用户直接操作 */
 function nodes(node) {
   if (Array.isArray(node)) return node.flatMap(nodes);
   if (!node || typeof node !== "object") return [];

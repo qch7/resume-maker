@@ -1,4 +1,4 @@
-/** 文件选择和拖放共用校验，拒绝多文件、非 JSON、超限及空白内容 */
+/** 文件选择、拖放共用校验，拒绝多文件、非 JSON、超限及空白内容 */
 export async function readImportFile(files: File[]) {
   if (!files.length) return null;
   if (files.length !== 1) throw new Error("每次只能导入一个文件。");

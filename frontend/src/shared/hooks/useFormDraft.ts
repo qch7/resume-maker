@@ -9,7 +9,7 @@ import {
 import { recoveryCopies } from "../lib/recoveryCopies";
 import { loadLocal, storage } from "../lib/storage";
 
-/** 管理表单读取基线、冲突恢复和保存期间继续输入的确认 */
+/** 管理表单读取基线、冲突恢复、保存期间继续输入的确认 */
 export function useFormDraft<T>(
   key: string,
   initial: T,
@@ -32,7 +32,7 @@ export function useFormDraft<T>(
   );
   const [notice, setNotice] = useState("");
   const conflict = draft.baseline === null || !equal(draft.baseline, latest);
-  /** 输入和基线一起持久化，父组件刷新前已经有可恢复的新稿 */
+  /** 输入、基线一起持久化，父组件刷新前已经有可恢复的新稿 */
   function replace(next: DraftEnvelope<T>) {
     current.current = next;
     setDraft(next);

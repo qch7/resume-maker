@@ -54,7 +54,7 @@ def sidebar_pdf(path, *, offset=0, swap=False, ruled=False, secondary=True):
 
 @pytest.mark.parametrize("offset,swap", [(0, False), (45, False), (-30, True)])
 def test_sidebar_records_stay_in_one_container_and_can_repeat(tmp_path, offset, swap):
-    """改变栏宽和左右位置后仍可增加项目，长尾学历和通栏页尾不能被拆入其他容器"""
+    """改变栏宽、左右位置后仍可增加项目，长尾学历、通栏页尾不能被拆入其他容器"""
     pdf, source, output = (tmp_path / name for name in ("source.pdf", "source.docx", "filled.docx"))
     sidebar_pdf(pdf, offset=offset, swap=swap)
     rebuild_pdf(pdf, source, Event(), quiet, forbidden_fallback)
@@ -187,7 +187,7 @@ def test_compact_equal_style_records_do_not_merge_into_one_paragraph(tmp_path):
 
 
 def test_photo_is_independent_of_nearby_old_summary(tmp_path):
-    """删除照片附近的旧学历摘要不会和照片替换冲突，不靠模型虚构空自定义字段"""
+    """删除照片附近的旧学历摘要、替换照片互不冲突，映射无需虚构空自定义字段"""
     pdf, source = tmp_path / "photo.pdf", tmp_path / "photo.docx"
     raw = BytesIO()
     Image.new("RGB", (50, 70), "navy").save(raw, format="PNG")

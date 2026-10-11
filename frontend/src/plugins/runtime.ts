@@ -69,7 +69,7 @@ export function pluginNavigation() {
   );
 }
 
-/** 设置页由能力所有者贡献，未安装插件不导入页面和状态 */
+/** 设置页由能力所有者贡献，未安装插件不导入页面、状态 */
 export function pluginSettingsPages() {
   return [...settingsPages.values()].sort(
     (left, right) =>
@@ -77,7 +77,7 @@ export function pluginSettingsPages() {
   );
 }
 
-/** 失败和卸载均逆序等待所有资源真正释放 */
+/** 失败、卸载均逆序等待所有资源真正释放 */
 export async function disposePlugin(id: string) {
   const effects = scopes.get(id) ?? [];
   const failed: typeof effects = [];
@@ -116,7 +116,7 @@ export async function initializePlugins() {
       provide(name, service, version = "1.0.0") {
         effects.push(services.provide(item, name, service, version));
       },
-      /** 依赖已经由宿主验证版本和基数，客户端再核验实际激活结果 */
+      /** 依赖已经由宿主验证版本、基数，客户端再核验实际激活结果 */
       require(name) {
         return services.require(item, name);
       },
@@ -155,7 +155,7 @@ export async function initializePlugins() {
           pages.delete(page.id);
         });
       },
-      /** 普通页面在工作台内显示，设置和草稿协调仍由宿主持有 */
+      /** 普通页面在工作台内显示，设置、草稿协调仍由宿主持有 */
       workbenchPage(page) {
         page = { ...page, id: instanceIdentifier(item, page.id) };
         if (!page.id.startsWith(item.id + "/") || workbenchPages.has(page.id))
@@ -177,7 +177,7 @@ export async function initializePlugins() {
           navigation.delete(value.slot);
         });
       },
-      /** 设置页面使用相同的命名空间和撤销规则 */
+      /** 设置页面使用相同的命名空间、撤销规则 */
       settingsPage(page) {
         page = { ...page, id: instanceIdentifier(item, page.id) };
         if (!page.id.startsWith(item.id + "/") || settingsPages.has(page.id))
@@ -208,7 +208,7 @@ export async function initializePlugins() {
         document.head.append(node);
         effects.push(() => node.remove());
       },
-      /** 订阅和样式等外部资源随作用域统一回收 */
+      /** 订阅、样式等外部资源随作用域统一回收 */
       effect(dispose) {
         effects.push(dispose);
       },

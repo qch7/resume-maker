@@ -10,7 +10,7 @@ import type { MappingReview, TemplateNode, TemplatePlan } from "./types";
 import { targetLabel } from "./visual";
 import { reviewProblems } from "./review";
 
-/** 默认展示资料和栏目摘要并在调整时显示原文范围 */
+/** 默认展示资料、栏目摘要并在调整时显示原文范围 */
 export default function RecognitionSummary({
   plan,
   nodes,
@@ -143,7 +143,7 @@ export default function RecognitionSummary({
         <h3>经历和栏目</h3>
         <div className="template-section-cards">
           {plan.repeats.map(
-            /* 展示栏目的用途和已识别字段 */ (region, index) => (
+            /* 展示栏目的用途、已识别字段 */ (region, index) => (
               <button
                 key={index}
                 onClick={
@@ -161,10 +161,7 @@ export default function RecognitionSummary({
                   <span>
                     {[
                       ...new Set(
-                        region.fields.map(
-                          /* 展示字段中文名称 */ (field) =>
-                            targetLabel(field.target),
-                        ),
+                        region.fields.map((field) => targetLabel(field.target)),
                       ),
                     ].join(" · ")}
                   </span>

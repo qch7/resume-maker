@@ -1,4 +1,4 @@
-"""验证识别阶段自动补齐无空位字段，保留原文件、映射身份和真实试填内容"""
+"""验证识别阶段自动补齐无空位字段，保留原文件、映射身份、真实试填内容"""
 
 import pytest
 from docx import Document
@@ -25,7 +25,7 @@ from tests.support.templates import TemplateProvider, completed, simple_document
 def test_location_uses_contact_column_and_leaves_photo_spacing_empty(
     tmp_path, prebound, explicit_break
 ):
-    """城市缺少位置或被误填进页首留白时，识别阶段即改到邮箱右列且原字体和缩进保留"""
+    """城市缺少位置或被误填进页首留白时，识别阶段即改到邮箱右列且原字体、缩进保留"""
     source = tmp_path / "source.docx"
     doc = Document()
     doc.add_paragraph()
@@ -118,7 +118,7 @@ def test_explicit_location_field_is_not_moved(tmp_path):
 
 
 def test_first_analysis_completes_fields_without_blank_slots(catalog, tmp_path):
-    """仅识别姓名后即可补齐所在地和自定义字段并完成试填"""
+    """仅识别姓名后即可补齐所在地、自定义字段并完成试填"""
     source = tmp_path / "source.docx"
     simple_template(source)
     doc = Document(source)
@@ -190,7 +190,7 @@ def test_repair_of_missing_location_needs_no_more_model_calls(catalog, tmp_path)
 
 
 def test_new_nodes_preserve_all_existing_references_and_are_idempotent(tmp_path):
-    """新增段落后的字段、栏目、照片、页眉页脚和删除引用在重载后仍指向同一原文"""
+    """新增段落后的字段、栏目、照片、页眉页脚、删除引用在重载后仍指向同一原文"""
     source = tmp_path / "source.docx"
     package, plan = make_template(source)
     old_text = {identifier: paragraph_text(node) for identifier, node in package.nodes.items()}
@@ -220,7 +220,7 @@ def test_new_nodes_preserve_all_existing_references_and_are_idempotent(tmp_path)
 
 
 def test_shared_table_does_not_trap_added_fields_in_repeated_rows(tmp_path):
-    """姓名和经历共用表格时将新增资料放在表格前"""
+    """姓名、经历共用表格时将新增资料放在表格前"""
     source = tmp_path / "table.docx"
     doc = Document()
     table = doc.add_table(rows=2, cols=1)

@@ -1,4 +1,4 @@
-"""插件实例的数据接口，提供版本比较和同事务多键更新"""
+"""插件实例的数据接口，提供版本比较、同事务多键更新"""
 
 from collections.abc import Callable
 from contextlib import AbstractContextManager
@@ -13,7 +13,7 @@ def database_query(callback):
 
 
 class Rows(Protocol):
-    """参数化查询的结果，记录支持列名和列序号读取"""
+    """参数化查询的结果，记录支持列名、列序号读取"""
 
     rowcount: int
 
@@ -117,7 +117,7 @@ class InstanceData(Protocol):
         ...
 
     def delete(self, key: str, expected_version: int) -> StoredValue:
-        """独立删除操作保留版本，不混淆空值和删除"""
+        """独立删除操作保留版本，不混淆空值、删除"""
         ...
 
     def transaction(self):

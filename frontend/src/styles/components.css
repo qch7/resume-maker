@@ -1,4 +1,4 @@
-/* 侧栏、经历、会话、简历预览和设置组件 */
+/* 侧栏、经历、会话、简历预览、设置组件 */
 .sidebar {
   display: flex;
   flex-direction: column;
@@ -1377,7 +1377,7 @@
   }
 }
 
-/* 文件处理方式在模板和证书入口共用，长格式列表允许换行 */
+/* 文件处理方式在模板、证书入口共用，长格式列表允许换行 */
 .importer-select {
   display: flex;
   flex-direction: column;

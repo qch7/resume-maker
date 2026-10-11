@@ -80,7 +80,7 @@ interface Options {
   notify: (message: { text: string; error?: boolean }) => void;
 }
 
-/** 维护简历组合草稿、固定版本选择、历史导出和保存导出操作 */
+/** 维护简历组合草稿、固定版本选择、历史导出、保存导出操作 */
 export function useResumeComposition({
   state,
   activeProject,
@@ -96,7 +96,7 @@ export function useResumeComposition({
     loadCurrentResume(NEW_RESUME),
   );
   const draft = useMemo(
-    /* 固定组合和编辑区分别维护顺序以保证取消草稿后预览和导出一致 */ () =>
+    /* 固定组合、编辑区各自维护顺序，撤销草稿后保持预览、导出一致 */ () =>
       orderCompositionHighlights(
         syncHonorResume(
           repairDefaultResume(
@@ -122,7 +122,7 @@ export function useResumeComposition({
   useEffect(
     /* 将最新核对资料保留到草稿，来源删除后仍保留最后看到的内容 */ () => {
       setDraft(
-        /* 只替换荣誉内容，保留期间输入的姓名、编排和显隐 */ (current) =>
+        /* 只替换荣誉内容，保留期间输入的姓名、编排、显隐 */ (current) =>
           syncHonorResume(
             repairDefaultResume(
               current,
@@ -141,7 +141,7 @@ export function useResumeComposition({
   const currentDraft = useRef(draft);
   currentDraft.current = draft;
   const { sources: previewSources, changed: previewChanged } = useMemo(
-    /* 工作副本只覆盖预览层，仍由用户明确提交和更新简历引用 */ () =>
+    /* 工作副本只覆盖预览层，仍由用户明确提交、更新简历引用 */ () =>
       buildLivePreview(
         draft,
         revisionCache,
@@ -326,7 +326,7 @@ export function useResumeComposition({
       }),
     );
   }
-  /** 携带组合版本号保存模板和固定引用并刷新服务器聚合数据 */
+  /** 携带组合版本号保存模板、固定引用并刷新服务器聚合数据 */
   async function saveComposition() {
     if (savingResume.current) throw new Error("简历资料正在保存，请稍候。");
     if (previewChanged)
@@ -368,7 +368,7 @@ export function useResumeComposition({
       const submitted = personalComposition(
         draft,
         state.resumes.find(
-          /* 只读取当前方案已经保存的栏目和项目引用 */ (resume) =>
+          /* 只读取当前方案已经保存的栏目、项目引用 */ (resume) =>
             resume.id === draft.id,
         ),
       );
@@ -385,7 +385,7 @@ export function useResumeComposition({
       );
       retireUnsavedDraft(submitted);
       setDraft(
-        /* 基本信息独立采用保存结果，保留其他栏目和请求后的新输入 */ (
+        /* 基本信息独立采用保存结果，保留其他栏目、请求后的新输入 */ (
           current,
         ) => acceptSavedComposition(current, submitted, saved),
       );
@@ -426,7 +426,7 @@ export function useResumeComposition({
       );
       retireUnsavedDraft(submitted);
       setDraft(
-        /* 模态表单保存成功才应用本条，其他资料和后续输入继续保留 */ (
+        /* 模态表单保存成功才应用本条，其他资料、后续输入继续保留 */ (
           current,
         ) =>
           acceptSavedComposition(

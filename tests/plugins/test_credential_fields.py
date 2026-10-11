@@ -21,7 +21,7 @@ HEADERS = {"x-resume-token": "test"}
 
 
 def test_persistent_credential_is_bound_to_instance_and_purpose(tmp_path):
-    """重启可继续借用，跨实例和用途失败，撤销只影响后续借用"""
+    """重启可继续借用，跨实例、用途失败，撤销只影响后续借用"""
     vault = CredentialVault(tmp_path / "vault")
     reference = vault.save("community.first", "ocr.auth", "synthetic-secret")
     vault.close()

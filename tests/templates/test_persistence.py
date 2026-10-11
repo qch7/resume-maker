@@ -1,4 +1,4 @@
-"""模板原件、分析结果和人工草稿在重启及恢复后保持对应"""
+"""模板原件、分析结果、人工草稿在重启及恢复后保持对应"""
 
 from zipfile import ZipFile
 
@@ -16,7 +16,7 @@ from tests.support.templates import TemplateProvider, completed, simple_document
 
 
 def test_analysis_and_manual_mapping_survive_backup(catalog, tmp_path):
-    """原文件删除和浏览器缓存清空后仍能继续核对，备份不携带模型工作区"""
+    """原文件删除、浏览器缓存清空后仍能继续核对，备份不携带模型工作区"""
     root = catalog.db.path.parent
     source = tmp_path / "template.docx"
     simple_template(source)

@@ -270,14 +270,14 @@ npm --prefix frontend run build
 后端使用 **Python / FastAPI / SQLite**，前端使用 **React / TypeScript / Vite**，文档处理使用 python-docx、PyMuPDF、pdf2docx 和 Word 自动化。
 
 ```text
-src/resume_maker/   # 后端 API、业务逻辑、存储和外部集成
-frontend/src/      # 工作台界面、功能模块和共享组件
+src/resume_maker/   # 后端 API、业务逻辑、存储、外部集成
+frontend/src/      # 工作台界面、功能模块、共享组件
 tests/             # 后端回归测试
 frontend/tests/    # 前端逻辑测试
-scripts/           # 启停、检查、构建和模板评测
-docs/              # 当前使用指南、架构、协议和展示资源
+scripts/           # 启停、检查、构建、模板评测
+docs/              # 当前使用指南、架构、协议、展示资源
 data/              # 本机正式资料，不进入 Git
-.local/            # 沙箱、缓存、锁和构建产物，不进入 Git
+.local/            # 沙箱、缓存、锁、构建产物，不进入 Git
 ```
 
 完成快速开始中的依赖安装后，在仓库根目录运行完整检查：

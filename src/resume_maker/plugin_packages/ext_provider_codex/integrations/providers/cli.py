@@ -137,7 +137,7 @@ def safety_settings(root, values, endpoint=None):
 
 @contextmanager
 def credential_session(vault, root, environment, cancelled):
-    """凭据引用按单轮注册和撤销，临时副本由适配器负责刷新"""
+    """凭据引用按单轮注册、撤销，临时副本由适配器负责刷新"""
     if vault is None:
         with isolated_credentials(root, environment, cancelled) as value:
             yield value
@@ -193,7 +193,7 @@ def run_cli(
             path = root / "control" / f"mosaic-{index + 1}.png"
             path.write_bytes(data)
             attachments.extend(["--image", str(path)])
-        # 临时文件和 CLI home 分开，避免 CLI 将自身辅助程序判定为位于临时目录内
+        # 临时文件、CLI home 分开，避免 CLI 将自身辅助程序判定为位于临时目录内
         temporary = root / "control/tmp"
         temporary.mkdir()
         env.update(dict.fromkeys(("TEMP", "TMP", "TMPDIR"), str(temporary)))
@@ -245,7 +245,7 @@ def run_cli(
         state = {"completed": False, "message": ""}
 
         def event(value):
-            """在本机保存 CLI 消息和工具轨迹，既有进度界面仍使用通用活动摘要"""
+            """在本机保存 CLI 消息、工具轨迹，既有进度界面仍使用通用活动摘要"""
             item = value.get("item", {})
             item_type = item.get("type", "")
             is_tool = item_type in {

@@ -13,7 +13,7 @@ const highlights = [
 ];
 const originalOrder = ["evidence", "tasks", "mcp", "audit"];
 
-test("rechecking any highlight restores its experience position", /* 验证首项、中间项和末项重新勾选后均回到原位 */ () => {
+test("rechecking any highlight restores its experience position", /* 验证首项、中间项、末项重新勾选后均回到原位 */ () => {
   for (const id of originalOrder) {
     const unchecked = toggleHighlightSelection(highlights, originalOrder, id);
     assert.equal(unchecked.includes(id), false);
@@ -23,7 +23,7 @@ test("rechecking any highlight restores its experience position", /* 验证首�
   assert.deepEqual(originalOrder, ["evidence", "tasks", "mcp", "audit"]);
 });
 
-test("partial and empty selections keep experience order regardless of click order", /* 验证任意勾选顺序、部分选择和全部取消不会改变经历顺序 */ () => {
+test("partial and empty selections keep experience order regardless of click order", /* 验证任意勾选顺序、部分选择、全部取消不会改变经历顺序 */ () => {
   let selected = [];
   for (const id of ["audit", "tasks", "evidence"])
     selected = toggleHighlightSelection(highlights, selected, id);

@@ -14,7 +14,7 @@ from resume_maker.sdk.privacy import PrivacyRuleContribution, PrivacyValues
 
 
 def test_extra_rules_protect_material_and_cancel_changed_context(tmp_path):
-    """插件补充词和系统邮箱规则同时生效，规则变化使旧取消句柄失效"""
+    """插件补充词、系统邮箱规则同时生效，规则变化使旧取消句柄失效"""
     db = Database(tmp_path / "resume.db")
     terms = ["合成内部标识"]
     rule = PrivacyRuleContribution(

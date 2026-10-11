@@ -1,4 +1,4 @@
-"""受本机认证保护的日志分页、详情、快照导出和删除"""
+"""受本机认证保护的日志分页、详情、快照导出、删除"""
 
 from datetime import UTC
 from typing import Annotated
@@ -33,7 +33,7 @@ class ClientActivity(BaseModel):
 
 
 class ActivityQuery(BaseModel):
-    """日志列表和导出共用筛选条件"""
+    """日志列表、导出共用筛选条件"""
 
     model_config = ConfigDict(extra="forbid")
     category: str = Field(default="", max_length=200)
@@ -54,7 +54,7 @@ class ActivityQuery(BaseModel):
     @field_validator("hidden_rules")
     @classmethod
     def validate_hidden_rules(cls, value):
-        """限制统一规则的数量和语法，避免无界查询或误填查询参数"""
+        """限制统一规则的数量、语法，避免无界查询或误填查询参数"""
         if value is None:
             return value
         return normalize_hidden_rules(value)
@@ -68,7 +68,7 @@ class ActivityDeletion(BaseModel):
 
 @router.post("/client")
 def client_activity(body: ClientActivity, dep_db: Annotated[Database, Depends(service("db"))]):
-    """持久化浏览器异常和失败请求，写入本身不产生递归 HTTP 日志"""
+    """持久化浏览器异常、失败请求，写入本身不产生递归 HTTP 日志"""
     dep_db.activity.write(
         "client", body.event, body.message, body.model_dump(), source="browser", level="error"
     )
@@ -79,7 +79,7 @@ def client_activity(body: ClientActivity, dep_db: Annotated[Database, Depends(se
 def list_activity(
     dep_db: Annotated[Database, Depends(service("db"))], query: Annotated[ActivityQuery, Query()]
 ):
-    """按时间游标返回事件摘要和当前筛选计数"""
+    """按时间游标返回事件摘要、当前筛选计数"""
     return dep_db.activity.page(**query.model_dump())
 
 
@@ -123,6 +123,6 @@ def activity_detail(identifier: int, dep_db: Annotated[Database, Depends(service
 
 @router.delete("")
 def delete_activity(body: ActivityDeletion, dep_db: Annotated[Database, Depends(service("db"))]):
-    """只删除独立日志库中的记录，保留业务资料和历史补录标记"""
+    """只删除独立日志库中的记录，保留业务资料、历史补录标记"""
     before = body.before.astimezone(UTC).isoformat() if body.before is not None else None
     return {"deleted": dep_db.activity.delete(before=before)}

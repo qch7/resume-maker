@@ -1,4 +1,4 @@
-"""在仅安装系统依赖的解释器内验证实际制作、导出和恢复闭环"""
+"""在仅安装系统依赖的解释器内验证实际制作、导出、恢复闭环"""
 
 import importlib.util
 import json
@@ -20,7 +20,7 @@ from resume_maker.sdk.imports import ImportContext, ImportSource
 
 
 def main():
-    """无图片、PDF、OCR 和测试依赖时使用安装包的真实系统插件"""
+    """无图片、PDF、OCR、测试依赖时使用安装包的真实系统插件"""
     configuration = Path.cwd() / ".env"
     configuration.write_text("RESUME_MAKER_PORT=invalid\n", encoding="utf-8")
     assert default_env_file() is None

@@ -14,7 +14,7 @@ interface Props {
   multiline?: boolean;
 }
 
-/** 支持手动填写路径和 Windows 原生选择 */
+/** 支持手动填写路径、Windows 原生选择 */
 export default function PathInput({
   label,
   value,

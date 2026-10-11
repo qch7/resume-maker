@@ -1,4 +1,4 @@
-"""栏目编排同步控制 Word 标题、记录、层级和显隐"""
+"""栏目编排同步控制 Word 标题、记录、层级、显隐"""
 
 from zipfile import ZipFile
 
@@ -35,7 +35,7 @@ def minimal_projects():
 
 
 def test_move_complete_sections_preserves_templates_and_fixed_content(tmp_path):
-    """把项目移到教育前面时，其标题和全部项目一起移动，模板资源及首尾资料保留"""
+    """把项目移到教育前面时，其标题、全部项目一起移动，模板资源及首尾资料保留"""
     source, output = tmp_path / "source.docx", tmp_path / "result.docx"
     _, plan = make_template(source)
     content = resume_content()
@@ -86,7 +86,7 @@ def test_hidden_or_empty_sections_remove_headings_with_their_records(tmp_path):
 
 
 def test_sections_inside_one_table_move_as_complete_rows(tmp_path):
-    """整张表格中的栏目按行移动，表格结构、记录数量和首尾固定内容保持完整"""
+    """整张表格中的栏目按行移动，表格结构、记录数量、首尾固定内容保持完整"""
     source, output = tmp_path / "source.docx", tmp_path / "result.docx"
     plan = simple_template(source, table=True)
     fill_template(source, output, plan, layout_content().model_dump(), minimal_projects())
@@ -122,7 +122,7 @@ def test_floating_heading_moves_inline_without_losing_its_graphic(tmp_path):
 
 
 def shared_heading_template(path):
-    """模拟课程标题和 GPA 共用段落、课程正文先于标题且位于文本框的模板"""
+    """模拟课程标题、GPA 共用段落、课程正文先于标题且位于文本框的模板"""
     doc = Document()
     opening = doc.add_paragraph("固定开头")
     section = etree.SubElement(opening._p.get_or_add_pPr(), w("sectPr"))
@@ -142,7 +142,7 @@ def shared_heading_template(path):
     doc.add_paragraph("旧学校")
     doc.add_paragraph("项目经历")
     doc.add_paragraph("旧项目")
-    # 正文的分栏属性会被文本框的查找命中，但不能在文本框内生成分节符
+    # 正文分栏属性可能被文本框查找命中，生成分节符时须排除文本框
     final = doc.sections[-1]._sectPr
     etree.SubElement(final, w("type")).set(w("val"), "continuous")
     final.find(w("cols")).set(w("num"), "2")

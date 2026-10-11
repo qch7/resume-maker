@@ -69,7 +69,7 @@ def test_redundant_nested_deletions_are_reduced_without_hiding_real_conflicts(
 
 @pytest.mark.parametrize("layout", ["body", "rows", "columns"])
 def test_missing_child_section_is_inserted_after_parent_and_can_be_hidden(tmp_path, layout):
-    """原稿没有子栏目时程序补齐其标题和记录，父级隐藏也隐藏子栏目"""
+    """原稿没有子栏目时程序补齐其标题、记录，父级隐藏也隐藏子栏目"""
     source, output = tmp_path / "source.docx", tmp_path / "output.docx"
     package, plan = generic_template(source, layout)
     content, projects = generic_content()

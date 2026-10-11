@@ -51,7 +51,7 @@ def test_state_write_preserves_old_record_after_replace_failure(tmp_path, monkey
         error.winerror = code
 
     def denied(source, target):
-        """持续拒绝替换以验证旧记录和暂存文件的保留"""
+        """持续拒绝替换以验证旧记录、暂存文件的保留"""
         attempts.append(source)
         raise error
 

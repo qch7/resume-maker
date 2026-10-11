@@ -1,4 +1,4 @@
-"""插件缺包、停用和失败升级时的数据保护行为"""
+"""插件缺包、停用、失败升级时的数据保护行为"""
 
 import json
 import sqlite3
@@ -42,7 +42,7 @@ def test_incompatible_optional_data_blocks_feature_and_preserves_minimal_host(tm
 
 
 def migration_fixture(tmp_path, statements):
-    """建立命名空间表和附件，迁移只接触合成数据"""
+    """建立命名空间表、附件，迁移只接触合成数据"""
     directory = tmp_path / "data"
     db = Database(directory / "resume.db")
     descriptor = {
@@ -121,7 +121,7 @@ def test_plugin_migration_keeps_restorable_snapshot_and_namespaced_attachments(t
 
 
 def test_failed_or_cross_owner_migration_never_changes_original(tmp_path):
-    """越权 SQL 在副本被拒绝，原库、附件和版本保持可用"""
+    """越权 SQL 在副本被拒绝，原库、附件、版本保持可用"""
     coordinator, manifest, location = migration_fixture(
         tmp_path,
         [
@@ -140,7 +140,7 @@ def test_failed_or_cross_owner_migration_never_changes_original(tmp_path):
 
 
 def test_migration_plan_rejects_data_changed_after_review(tmp_path):
-    """确认的是精确资料和迁移摘要，旧计划不能覆盖后续编辑"""
+    """确认的是精确资料、迁移摘要，旧计划不能覆盖后续编辑"""
     coordinator, manifest, location = migration_fixture(tmp_path, [])
     plan = coordinator.plan(manifest, location)
     coordinator.db.set_setting("community.example:later", {"saved": True})

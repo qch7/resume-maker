@@ -28,14 +28,12 @@ export function expandProjectPath(
   while (current && !visited.has(current)) {
     visited.add(current);
     next[current] = false;
-    current = projects.find(
-      /* 查找当前层级所属的整体项目 */ (p) => p.id === current,
-    )?.parent_id;
+    current = projects.find((p) => p.id === current)?.parent_id;
   }
   return next;
 }
 
-/** 聚合项目和会话活动时间，按最近修改或自然名称稳定排序 */
+/** 聚合项目、会话活动时间，按最近修改或自然名称稳定排序 */
 export function sortSidebar(
   projects: Project[],
   conversations: Conversation[],
@@ -102,7 +100,7 @@ export function sortSidebar(
   return {
     projects: sortedProjects,
     rootProjects: sortedProjects.filter(
-      /* 缺失父项的项目也保留顶层入口，导航和默认选择共用此顺序 */ (p) =>
+      /* 缺失父项的项目也保留顶层入口，导航、默认选择共用此顺序 */ (p) =>
         !p.parent_id || !byId.has(p.parent_id),
     ),
     conversations: [...conversations].sort(

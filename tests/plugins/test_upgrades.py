@@ -36,7 +36,7 @@ def run_candidate(manager, plan):
 
 
 def test_new_candidate_health_failure_leaves_active_packages_and_data(tmp_path):
-    """候选代码在独立 Host 健康检查失败，活动目录和正式资料保持原样"""
+    """候选代码在独立 Host 健康检查失败，活动目录、正式资料保持原样"""
     path = tmp_path / "bad.rmp"
     bundle(
         path,
@@ -139,7 +139,7 @@ def test_code_rollback_refuses_changed_data_version(tmp_path):
 
 
 def test_multiple_packages_resolve_as_one_candidate(tmp_path):
-    """单独更新消费者缺依赖，提供方和消费者联合试运行则完整通过"""
+    """单独更新消费者缺依赖，提供方、消费者联合试运行则完整通过"""
     provider, consumer = tmp_path / "provider.rmp", tmp_path / "consumer.rmp"
     bundle(provider, extra={"version": "2.0.0"})
     bundle(
@@ -452,7 +452,7 @@ def activate(context):
 def test_supervisor_retains_explicit_configuration_but_trial_does_not_inherit_credentials(
     monkeypatch,
 ):
-    """正式启动保持自定义配置和凭据兼容，试运行不继承模型环境密钥"""
+    """正式启动保持自定义配置、凭据兼容，试运行不继承模型环境密钥"""
     from resume_maker.host_supervisor import host_environment
     from resume_maker.runtime.upgrades import process_environment
 

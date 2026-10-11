@@ -11,7 +11,7 @@ import { toggleHighlightSelection } from "../src/shared/resume/composition.ts";
 import { projectBodyOrder } from "../src/shared/resume/bodyOrder.ts";
 import { revisionChanges } from "../../src/resume_maker/plugin_packages/sys_resume/client/features/experiences/history.ts";
 
-/** 创建带隐藏默认值的旧项目版本，测试新覆盖可同时隐藏和恢复 */
+/** 创建带隐藏默认值的旧项目版本，测试新覆盖可同时隐藏、恢复 */
 function fixture() {
   const content = {
     title: "项目",
@@ -38,7 +38,7 @@ function fixture() {
   return { content, revision, draft };
 }
 
-test("项目显隐与亮点选择只改变简历，允许直接保存同一版本", /* 验证无需内容草稿即可隐藏和恢复，保留亮点原始顺序 */ () => {
+test("项目显隐与亮点选择只改变简历，允许直接保存同一版本", /* 验证无需内容草稿即可隐藏、恢复，保留亮点原始顺序 */ () => {
   const { content, revision, draft } = fixture();
   const before = structuredClone({ content, draft });
   const next = structuredClone(draft);
@@ -77,7 +77,7 @@ test("项目显隐与亮点选择只改变简历，允许直接保存同一版�
   assert.deepEqual({ content, draft }, before);
 });
 
-test("旧版简历顺序仍可读取，标题时间固定，新字段自动追加", /* 版本切换忽略缺失项但保留其存储位置，旧设置不自动改变经历 */ () => {
+test("旧版简历顺序仍可读取，标题时间固定，新字段自动追加", /* 切换版本时跳过缺失项，原设置及经历内容保持原样 */ () => {
   const { content, revision, draft } = fixture();
   const settings = {
     order: [

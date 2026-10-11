@@ -10,7 +10,7 @@ import ResumeWorkspace from "./features/resumes/ResumeWorkspace";
 import type { ClientContext } from "@resume-maker/plugin-sdk/plugins/contracts";
 import ContentPreview from "./features/resumes/ContentPreview";
 
-/** 简历系统插件负责经历和固定版本组合的业务协调 */
+/** 简历系统插件负责经历、固定版本组合的业务协调 */
 export function activate(context: ClientContext) {
   context.style(style0);
   context.style(style1);

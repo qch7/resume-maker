@@ -1,4 +1,4 @@
-"""项目来源、版本和草稿操作的 HTTP 入口"""
+"""项目来源、版本、草稿操作的 HTTP 入口"""
 
 from typing import Annotated
 
@@ -22,7 +22,7 @@ router = APIRouter(prefix="/api", tags=["projects"])
 def create_branch(
     dep_catalog: Annotated[Catalog, Depends(service("catalog"))], project_id: str, body: BranchInput
 ):
-    """从保存版本创建独立经历分支，保留来源和原分支草稿"""
+    """从保存版本创建独立经历分支，保留来源、原分支草稿"""
     return dep_catalog.history.create(
         project_id, body.base_revision, body.name, body.include_drafts
     )
@@ -32,7 +32,7 @@ def create_branch(
 def create_project(
     dep_catalog: Annotated[Catalog, Depends(service("catalog"))], body: ProjectInput
 ):
-    """规范化来源并去重登记项目，同时建立初始经历和独立会话"""
+    """规范化来源并去重登记项目，同时建立初始经历、独立会话"""
     return dep_catalog.create_project(body.name, body.roots)
 
 
@@ -42,7 +42,7 @@ def get_project(
     project_id: str,
     revision_id: str | None = None,
 ):
-    """读取选定版本的工作副本、历史修订和来源快照供经历编辑器展示"""
+    """读取选定版本的工作副本、历史修订、来源快照供经历编辑器展示"""
     return dep_projects.get_project(project_id, revision_id)
 
 
@@ -66,7 +66,7 @@ def save_profile(
     project_id: str,
     body: ProjectProfileInput,
 ):
-    """保存用户确认的角色、日期和贡献信息并更新项目活动时间"""
+    """保存用户确认的角色、日期、贡献信息并更新项目活动时间"""
     return dep_projects.save_profile(project_id, body.profile, body.expected_profile)
 
 

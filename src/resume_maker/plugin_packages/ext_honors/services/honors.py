@@ -1,4 +1,4 @@
-"""独立荣誉库：持久条目、证书附件和可取消的串行视觉识别"""
+"""独立荣誉库：持久条目、证书附件、可取消的串行视觉识别"""
 
 import queue
 import re
@@ -158,7 +158,7 @@ class Honors:
         }
 
     def save(self, body: HonorSave, identifier=None):
-        """保存人工填写和核对后的完整字段，识别中和版本过期时拒绝覆盖"""
+        """保存人工填写、核对后的完整字段，识别中、版本过期时拒绝覆盖"""
         if not body.fields.name:
             raise Problem("请填写荣誉或证书名称。")
         with self.lock, self.db.transaction() as conn:
@@ -297,7 +297,7 @@ class Honors:
         return {"deleted": identifier}
 
     def file_reference(self, identifier, page=None):
-        """核验附件归属和页码后返回资源标识，下载期间由调用方持有租约"""
+        """核验附件归属、页码后返回资源标识，下载期间由调用方持有租约"""
         item = self.get(identifier)
         attachment = item["attachment"]
         if not attachment:
@@ -312,7 +312,7 @@ class Honors:
         }
 
     def copy_attachment(self, identifier, page, directory):
-        """在租约内复制到本次识别工作目录，名称和类型保留用于隐私预处理"""
+        """在租约内复制到本次识别工作目录，名称、类型保留用于隐私预处理"""
         reference = self.file_reference(identifier, page)
         target = directory / reference["file"]
         data = self.assets.read_file(f"honors/{identifier}", reference["file"])
@@ -320,7 +320,7 @@ class Honors:
         return target
 
     def _status(self, identifier, status, error="", result=None):
-        """在实例锁内合并任务状态，取消和删除后不发布任何识别结果"""
+        """在实例锁内合并任务状态，取消、删除后不发布任何识别结果"""
         record(
             "task",
             status,
@@ -353,7 +353,7 @@ class Honors:
             self._recognize(identifier, settings)
 
     def _recognize(self, identifier, settings):
-        """处理单份证书并保留独立任务日志和取消状态"""
+        """处理单份证书并保留独立任务日志、取消状态"""
         flag = self.flags[identifier]
         workspace = self.workspaces / f"honor-{identifier}-{uid()}"
         try:
@@ -391,7 +391,7 @@ class Honors:
                 self._cleanup(identifier)
 
     def _cleanup(self, identifier):
-        """附件和临时目录实际回收后才释放识别标识，失败可在停用时重试"""
+        """附件、临时目录实际回收后才释放识别标识，失败可在停用时重试"""
         pending = self.cleanup_pending[identifier]
         while pending:
             root, directory = pending[0]
@@ -401,5 +401,5 @@ class Honors:
         self.flags.pop(identifier, None)
 
     def _emit(self, kind, data):
-        """将证书识别进度和工具活动写入统一时间线"""
+        """将证书识别进度、工具活动写入统一时间线"""
         record_event(kind, data)

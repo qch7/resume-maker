@@ -22,7 +22,7 @@ export function isRecognizing(honor: Honor) {
   return honor.status === "queued" || honor.status === "running";
 }
 
-/** 按名称、单位、获奖人和编号等荣誉资料检索 */
+/** 按名称、单位、获奖人、编号等荣誉资料检索 */
 export function matchesHonor(honor: Honor, query: string) {
   return [...Object.values(honor.fields), honor.attachment?.name ?? ""]
     .join(" ")
@@ -53,7 +53,7 @@ export function removeHonor(
     sections: document.sections.map(
       /* 按来源标识移除条目以支持自定义栏目 */ (section) => {
         const entries = section.entries.filter(
-          /* 同名手动条目和其他来源均保留 */ (entry) =>
+          /* 同名手动条目、其他来源均保留 */ (entry) =>
             honorSourceId(entry) !== id,
         );
         return entries.length === section.entries.length
@@ -79,7 +79,7 @@ export function addHonors(
         !hasHonor(document, honor.id),
     )
     .map(
-      /* 完整保留各项荣誉资料，默认只显示名称和日期 */ (honor) => ({
+      /* 完整保留各项荣誉资料，默认只显示名称、日期 */ (honor) => ({
         ...newHonorEntry(honor.fields, `honor:${honor.id}`),
         source: {
           provider: "ext.honors/library",
@@ -104,7 +104,7 @@ export function addHonors(
     ...document,
     sections: section
       ? document.sections.map(
-          /* 保留其他栏目和当前顺序 */ (item) =>
+          /* 保留其他栏目、当前顺序 */ (item) =>
             item.id === section.id
               ? {
                   ...item,

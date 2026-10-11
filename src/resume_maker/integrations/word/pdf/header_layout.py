@@ -1,4 +1,4 @@
-"""仅对 PDF 恢复模板的顶部资料区按实际字段宽度排版，照片和图标进入真实容器"""
+"""仅对 PDF 恢复模板的顶部资料区按实际字段宽度排版，照片、图标进入真实容器"""
 
 import re
 from copy import deepcopy
@@ -39,7 +39,7 @@ ORDER = {
 
 
 def paragraph_properties(paragraph):
-    """取得段落属性，始终放在文字和绘图之前以生成合法 Word 结构"""
+    """取得段落属性，始终放在文字、绘图之前以生成合法 Word 结构"""
     properties = paragraph.find(w("pPr"))
     if properties is None:
         properties = etree.Element(w("pPr"))
@@ -48,7 +48,7 @@ def paragraph_properties(paragraph):
 
 
 def flowing_paragraph(paragraph, title=False):
-    """清除 PDF 的固定行高、缩进和制表位，保留文字样式并让长内容自然撑高"""
+    """清除 PDF 的固定行高、缩进、制表位，保留文字样式并让长内容自然撑高"""
     alignment = paragraph.find("w:pPr/w:jc", NS)
     align = alignment.get(w("val"), "left") if title and alignment is not None else "left"
     column_paragraph(paragraph, align)
@@ -87,7 +87,7 @@ def empty_paragraph():
 
 
 def table_cells(widths, *, keep_row=False):
-    """创建无边框固定列宽容器，不设固定行高，文字再长也不会覆盖照片或相邻字段"""
+    """使用无边框固定列宽容器，行高随内容增长，防止文字覆盖照片或相邻字段"""
     table = etree.Element(w("tbl"))
     properties = etree.SubElement(table, w("tblPr"))
     etree.SubElement(properties, w("tblW"), {w("w"): str(sum(widths)), w("type"): "dxa"})
@@ -171,7 +171,7 @@ def source_style(items):
 
 
 def prepare_fragment(item, style):
-    """生成资料条目和行内图标，隐藏条目不参加排版，原字段的局部字重保持"""
+    """生成资料条目、行内图标，隐藏条目不参加排版，原字段的局部字重保持"""
     fragment = item["fragment"]
     inherited_fonts = style.find(w("rFonts")) if style is not None else None
     if inherited_fonts is not None:
@@ -201,7 +201,7 @@ def prepare_fragment(item, style):
 
 
 def item_width(item):
-    """保守计算条目需要的宽度，字号和图标计入预算，最终断行仍交给 Word"""
+    """保守计算条目需要的宽度，字号、图标计入预算，最终断行仍交给 Word"""
     paragraph = item["fragment"]
     size = max((int(x) / 2 for x in paragraph.xpath(".//w:sz/@w:val", namespaces=NS)), default=11)
     icon_width = sum(
@@ -226,7 +226,7 @@ def packed_items(items, available):
 
 
 class PDFHeaderLayout:
-    """先捕获已确认资料和图片，再在正式填充结束后重排独立顶部区域"""
+    """先捕获已确认资料、图片，再在正式填充结束后重排独立顶部区域"""
 
     def __init__(self, package, plan, values):
         """普通 Word 立即返回，PDF 只处理不跨栏目的顶部个人资料，保留原模板及映射"""
@@ -273,7 +273,7 @@ class PDFHeaderLayout:
         for item in items:
             box = item["box"]
             if item["field"].target == "personal.name" and box is not None:
-                # 转换器的局部列对齐不能代表页首标题，按来源几何判断左、中、右对齐
+                # 按来源几何判断页首标题对齐方式，忽略转换器的局部列对齐
                 distances = {
                     "left": abs(box[0] - left),
                     "center": abs((box[0] + box[2] - left - right) / 2),

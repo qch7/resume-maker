@@ -1,4 +1,4 @@
-"""项目正文排序的版本保存、显隐和文档输出"""
+"""项目正文排序的版本保存、显隐、文档输出"""
 
 from copy import deepcopy
 
@@ -27,7 +27,7 @@ from tests.support.layouts import (
 
 
 def ordered_settings(hidden=False):
-    """隐藏和恢复不改变排序，亮点由外层组合独立选择"""
+    """隐藏、恢复不改变排序，亮点由外层组合独立选择"""
     return ProjectVisibility(
         order=ORDER,
         fields={"role": not hidden, "stack": True},
@@ -73,7 +73,7 @@ def test_order_normalizes_available_fields_without_mutating_settings():
     "order", [["title"], ["period"], ["role", "role"], ["custom:"], ["unknown"]]
 )
 def test_fixed_or_invalid_order_is_rejected(order):
-    """标题时间不能混入正文，重复和无效字段不能进入持久化数据"""
+    """标题时间不能混入正文，重复、无效字段不能进入持久化数据"""
     with pytest.raises(ValidationError):
         ProjectVisibility(order=order)
 
@@ -84,7 +84,7 @@ def test_fixed_or_invalid_order_is_rejected(order):
 )
 @pytest.mark.parametrize("hidden", [False, True])
 def test_project_body_order_across_layouts(tmp_path, layout, hidden):
-    """自定义字段可夹在元信息和亮点之间，标题时间固定顶部，每份记录独立且无内容重复"""
+    """自定义字段可夹在元信息、亮点之间，标题时间固定顶部，每份记录独立且无内容重复"""
     source, output = tmp_path / "source.docx", tmp_path / "output.docx"
     value = project_info()
     projects = [
@@ -264,13 +264,13 @@ def test_body_order_publishes_new_revision_and_preserves_old_export(
 
 @pytest.mark.parametrize("order", [["title"], ["period"], ["role", "role"], ["custom:"]])
 def test_version_order_validated(order):
-    """版本和旧布局使用相同合法字段集合，禁止重复及固定顶部字段"""
+    """版本、旧布局使用相同合法字段集合，禁止重复及固定顶部字段"""
     with pytest.raises(ValidationError):
         Experience.model_validate({**project_info(), "body_order": order})
 
 
 def test_atomic_discard_clears_only_confirmed_revision(catalog, project, populated):
-    """撤销当前基线的元信息、排序和亮点增删并保留其他版本及简历显隐"""
+    """撤销当前基线的元信息、排序、亮点增删并保留其他版本及简历显隐"""
     identifier, revision = project["id"], populated["id"]
     other = project["head_revision"]
     catalog.put_draft(identifier, other, "meta", {"role": "其他基线"}, 0)

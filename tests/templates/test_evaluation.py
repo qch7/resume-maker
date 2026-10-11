@@ -1,4 +1,4 @@
-"""验收脚本按真实页面核验内容，区分浮动标题导致的抽取乱序和实际漏文"""
+"""验收脚本按真实页面核验内容，区分浮动标题导致的抽取乱序、实际漏文"""
 
 from runpy import run_path
 
@@ -46,7 +46,7 @@ def test_evaluation_finds_cross_page_text_but_still_detects_missing_content(
 def test_evaluation_checks_actual_project_values_without_requiring_generated_labels(
     pytestconfig, tmp_path, missing
 ):
-    """模板可只显示原始字段值，不强制派生正文的标签，但真实角色缺失仍失败"""
+    """模板可仅显示原始字段值，派生标签可省略，真实角色缺失时报告失败"""
     evaluation = run_path(str(pytestconfig.rootpath / "scripts/evaluate_templates.py"))
     source = tmp_path / "result.pdf"
     with pymupdf.open() as pdf:

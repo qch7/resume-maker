@@ -29,7 +29,7 @@ function plan(overrides = {}) {
   };
 }
 
-test("大量空段落不会挤入常用修正入口，同段资料合并而独立位置仍可选", /* 模拟姓名和年龄共用一段、电话有两个位置的模板 */ () => {
+test("大量空段落不会挤入常用修正入口，同段资料合并而独立位置仍可选", /* 模拟姓名、年龄共用一段、电话有两个位置的模板 */ () => {
   const nodes = [
     ...Array.from(
       { length: 1000 },
@@ -94,7 +94,7 @@ test("重复栏目、照片、待确认文字和已映射空位都保留修正�
   assert.deepEqual(
     groups.flatMap(
       /* 检查每类内容都有可用的选择入口 */ (group) =>
-        group.choices.map(/* 读取真实节点 */ (choice) => choice.id),
+        group.choices.map((choice) => choice.id),
     ),
     ["blank", "project", "photo", "unknown"],
   );

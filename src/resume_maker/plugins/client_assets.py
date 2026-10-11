@@ -1,4 +1,4 @@
-"""发行代码包独立构建的客户端资源位置和内容摘要"""
+"""发行代码包独立构建的客户端资源位置、内容摘要"""
 
 import hashlib
 from pathlib import Path

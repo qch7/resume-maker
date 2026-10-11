@@ -25,7 +25,7 @@ from tests.support.templates import RecoveryProvider, completed, simple_document
 
 
 def test_macro_enabled_package_becomes_standard_editable_docx(tmp_path):
-    """宏文档改为标准 DOCX 内容类型并移除宏关系以确保 python-docx 和 Word 都可继续打开"""
+    """宏文档改为标准 DOCX 内容类型，移除宏关系，使 python-docx、Word 均可打开"""
     source = tmp_path / "source.docx"
     doc = Document()
     doc.add_paragraph("原姓名").runs[0].bold = True
@@ -163,7 +163,7 @@ def test_pdf_and_scanned_image_sources_enter_same_mapping_workflow(catalog, tmp_
 
 
 def test_legacy_word_is_converted_in_background(catalog, tmp_path, monkeypatch):
-    """旧版 Word 的转换发生在独立任务中，输入快照和源文件互不覆盖"""
+    """旧版 Word 的转换发生在独立任务中，输入快照、源文件互不覆盖"""
     source = tmp_path / "legacy.doc"
     source.write_bytes(b"legacy-document")
     calls = []
@@ -213,7 +213,7 @@ def test_cancelling_page_recovery_does_not_publish_late_plan(catalog, tmp_path):
 
 
 def test_revisions_and_data_bindings_are_frozen_without_manual_cleanup(tmp_path):
-    """修订保留新增内容并清除删除内容，绑定和编辑锁定自动解除，原文不被改写"""
+    """修订保留新增内容并清除删除内容，绑定、编辑锁定自动解除，原文不被改写"""
     source = tmp_path / "revisions.docx"
     doc = Document()
     paragraph = doc.add_paragraph()
@@ -249,7 +249,7 @@ def test_long_templates_are_not_rejected_by_node_count(tmp_path):
 
 @pytest.mark.parametrize("kind", ["docx", "pdf"])
 def test_empty_source_builds_editable_framework(catalog, tmp_path, kind):
-    """为空白 DOCX 和未识别到内容的 PDF 自动生成资料框架"""
+    """为空白 DOCX、未识别到内容的 PDF 自动生成资料框架"""
     source = tmp_path / f"empty.{kind}"
     if kind == "docx":
         Document().save(source)
@@ -283,7 +283,7 @@ def test_empty_source_builds_editable_framework(catalog, tmp_path, kind):
 
 
 def test_blank_framework_uses_photo_placeholder_without_user_image(tmp_path):
-    """空白框架支持照片映射，但发送识别的占位图不复制真实用户照片"""
+    """空白框架支持照片映射，识别占位图排除真实用户照片"""
     content = simple_document()
     content.personal.photo = "data:image/png;base64,cHJpdmF0ZS1waG90bw=="
     output = tmp_path / "blank.docx"
@@ -368,7 +368,7 @@ def test_trial_layout_conflict_keeps_native_table_and_reports_error(
         """首轮按真实共用表格映射，恢复后使用普通段落映射"""
 
         def run_structured(self, **kwargs):
-            """首轮结果能通过节点检查，但实际栏目编排无法独立移动同一行"""
+            """构造节点检查通过、同一行栏目无法独立移动的首轮方案"""
             if issubclass(kwargs["result_model"], TemplatePlan) and not self.pages:
                 self.calls.append(kwargs)
                 rows = TemplatePackage(kwargs["workspace"] / "original.docx").inventory()["nodes"]

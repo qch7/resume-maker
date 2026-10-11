@@ -57,7 +57,7 @@ VERIFICATION = re.compile(r"(?<![a-z0-9])[a-z0-9]{4}(?:[ \t-]+[a-z0-9]{4}){3,7}(
 
 
 def identifier_spans(value):
-    """覆盖长数字、明确标签和分组校验串，避免把独立成绩及日期拼成编号"""
+    """覆盖长数字、明确标签、分组校验串，避免把独立成绩及日期拼成编号"""
     text, positions = normalized_text(value)
     spans = []
     for pattern in (LONG_NUMBER, GROUPED, WRAPPED, VERIFICATION, LABELED):

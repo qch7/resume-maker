@@ -13,7 +13,7 @@ $DataDir = $configuration.data_dir
 $instancePath = Join-Path $DataDir 'instance.json'
 if (-not (Test-Path -LiteralPath $instancePath)) { Write-Host 'No running instance recorded.'; exit 0 }
 $instance = Get-Content -LiteralPath $instancePath -Raw | ConvertFrom-Json
-# 先核对进程和随机实例标识，防止旧记录误关闭复用同一端口的其他服务
+# 先核对进程、随机实例标识，防止旧记录误关闭复用同一端口的其他服务
 $process = Get-CimInstance Win32_Process -Filter "ProcessId = $($instance.pid)"
 if ($null -eq $process) { Write-Host 'Resume Maker is already stopped.'; exit 0 }
 $health = Invoke-RestMethod -Uri "http://127.0.0.1:$($instance.port)/api/health" -TimeoutSec 3

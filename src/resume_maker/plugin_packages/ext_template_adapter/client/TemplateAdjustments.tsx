@@ -6,7 +6,7 @@ import AdvancedMapping from "./AdvancedMapping";
 import TemplateCanvas from "./TemplateCanvas";
 import TemplateInspector from "./TemplateInspector";
 
-/** 把常用修正放在 Word 试填旁，完整原文和范围操作按需展开 */
+/** 把常用修正放在 Word 试填旁，完整原文、范围操作按需展开 */
 export default function TemplateAdjustments({
   nodes,
   plan,
@@ -38,9 +38,7 @@ export default function TemplateAdjustments({
   );
   const known = groups.some(
     /* 高级选区可能对应自定义位置 */ (group) =>
-      group.choices.some(
-        /* 查找选中位置 */ (choice) => choice.id === selected[0],
-      ),
+      group.choices.some((choice) => choice.id === selected[0]),
   );
   const inspector = (
     <TemplateInspector

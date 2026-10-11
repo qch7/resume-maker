@@ -11,7 +11,7 @@ from resume_maker.integrations.word.pdf.geometry import BOX, ROLE
 
 
 def page_background(drawing, page):
-    """独立识别大面积矩形底色以免它把所有图标和照片合并为一张不可替换的大图"""
+    """独立识别大面积矩形底色以免它把所有图标、照片合并为一张不可替换的大图"""
     box = pymupdf.Rect(drawing["rect"]) & page.rect
     return (
         drawing.get("fill") is not None
@@ -42,13 +42,14 @@ def background_assets(page):
 
 
 def asset_regions(page):
-    """合并相交的局部绘制和图片，忽略整页白底但保留裁剪、透明和图形组合"""
+    """合并相交的局部绘制、图片，忽略整页白底，保留裁剪、透明、图形组合"""
     regions = []
     for drawing in page.get_drawings():
         if page_background(drawing, page):
             continue
         padding = max(0.5, (drawing.get("width") or 0) / 2)
-        # 路径矩形不含笔画宽度，纯水平或垂直线的面积为零，必须先扩到可见笔画再裁切
+        # 路径矩形不含笔画宽度，裁切前按可见笔画扩展
+        # 纯水平或垂直路径的矩形面积为零
         box = (pymupdf.Rect(drawing["rect"]) + (-padding, -padding, padding, padding)) & page.rect
         fill = drawing.get("fill")
         if box.is_empty or (
@@ -62,7 +63,7 @@ def asset_regions(page):
             regions.append([box, True])
     merged = []
     for box, photo in regions:
-        # 细长横线不能把整排图标、照片和标题连接成一张大图
+        # 细长横线不能把整排图标、照片、标题连接成一张大图
         thin = min(box.width, box.height) < 2
         index = 0
         while index < len(merged):
@@ -104,7 +105,7 @@ def extract_assets(page):
 
 
 def separate_bullets(page, assets):
-    """重复出现且紧邻文字左侧的小图形转为列表文字以免空条目留下孤立图片"""
+    """将紧邻文字左侧的重复小图形转为列表文字，避免空条目残留孤立图片"""
     lines = [
         line
         for block in page.get_text("dict")["blocks"]
@@ -134,7 +135,7 @@ def separate_bullets(page, assets):
 
 
 def attach_asset(paragraph, raw, box, top, column_left, label, layer):
-    """把素材放在文字后方，纵坐标相对段落，使栏目重排和重复条目保持图文关联"""
+    """把素材放在文字后方，纵坐标相对段落，使栏目重排、重复条目保持图文关联"""
     inline = paragraph.add_run().add_picture(
         BytesIO(raw), width=Pt(box.width), height=Pt(box.height)
     )
@@ -148,7 +149,7 @@ def attach_asset(paragraph, raw, box, top, column_left, label, layer):
         "distL": "0",
         "distR": "0",
         "simplePos": "0",
-        # Word 会把接近零的层级重新排序，使用其正常绘图层级区间保持底色、图标和照片顺序
+        # Word 会把接近零的层级重新排序，使用其正常绘图层级区间保持底色、图标、照片顺序
         "relativeHeight": str(251658240 + layer * 1000),
         "behindDoc": "1",
         "locked": "0",
@@ -183,7 +184,7 @@ def attach_asset(paragraph, raw, box, top, column_left, label, layer):
 
 
 def place_assets(assets, paragraphs):
-    """把底色关联覆盖的文字，把图标、照片和分隔线关联最近的段落"""
+    """把底色关联覆盖的文字，把图标、照片、分隔线关联最近的段落"""
     for box, photo, raw in assets:
 
         def distance(item, area=box):
@@ -196,7 +197,7 @@ def place_assets(assets, paragraphs):
         paragraph, rect, column_left = min(paragraphs, key=distance)
         top = rect.y0
         if photo:
-            # 照片只借用几何位置，不属于附近的旧文字，给它独立锚点以允许删除旧摘要
+            # 照片使用独立几何锚点，允许删除附近旧摘要
             before = paragraph.paragraph_format.space_before
             top -= before.pt if before is not None else 0
             holder = OxmlElement("w:p")

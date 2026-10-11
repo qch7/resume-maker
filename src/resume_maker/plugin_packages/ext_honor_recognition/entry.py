@@ -1,4 +1,4 @@
-"""荣誉识别的注册和生命周期入口"""
+"""荣誉识别的注册、生命周期入口"""
 
 from resume_maker.plugin_packages.ext_honor_recognition.recognition import recognize
 from resume_maker.plugins.support import dependency, routes, task_queue

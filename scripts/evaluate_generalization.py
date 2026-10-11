@@ -31,7 +31,7 @@ def portrait(color):
 
 
 def headings(chinese):
-    """栏目名和原测试简历不同，验证结构处理不依赖固定中文名称"""
+    """使用不同于原测试简历的栏目名，验证结构处理支持任意中文名称"""
     return (
         ["学习轨迹", "实践记录", "竞赛与认证", "能力清单", "补充学习"]
         if chinese
@@ -40,7 +40,7 @@ def headings(chinese):
 
 
 def trial_profile(chinese, with_photo=True):
-    """生成不同于样本的资料以验证字段和栏目补全"""
+    """生成不同于样本的资料以验证字段、栏目补全"""
     education, projects_title, awards, skills, courses = headings(chinese)
     document = ResumeDocument(
         personal={
@@ -129,7 +129,7 @@ def trial_profile(chinese, with_photo=True):
 
 
 def add_text(area, text, *, heading=False, fragment=False):
-    """拆分同段文字的运行节点并保留原有显示效果和字段含义"""
+    """拆分同段文字的运行节点并保留原有显示效果、字段含义"""
     paragraph = area.add_paragraph()
     pieces = [text[i : i + 3] for i in range(0, len(text), 3)] if fragment else [text]
     for piece in pieces:
@@ -145,7 +145,7 @@ def add_text(area, text, *, heading=False, fragment=False):
 
 
 def sample_blocks(title, kind, sparse):
-    """源样本和试填资料使用不同标记，支持检查旧内容是否残留"""
+    """源样本、试填资料使用不同标记，支持检查旧内容是否残留"""
     if kind == "education":
         return (
             [["SAMPLE-University"]]
@@ -163,7 +163,7 @@ def sample_blocks(title, kind, sparse):
 
 
 def build_source(path, layout, chinese, sparse=False):
-    """分别建立段落、整行表格和左右独立容器，不借用用户模板"""
+    """分别建立段落、整行表格、左右独立容器，不借用用户模板"""
     doc = Document()
     doc.sections[0].top_margin = Inches(0.45)
     doc.sections[0].bottom_margin = Inches(0.45)
@@ -277,7 +277,7 @@ def main():
         parser.error("实际评测需要指定供应商及 CC Switch 数据库。")
 
     def run(supplier, case):
-        """调用同一生产识别流程，并补充和模型映射无关的验证"""
+        """沿用生产识别流程，补充独立于模型映射的验证"""
         source, document, projects = case
         report = evaluate(args, supplier, source, document, projects)
         directory = args.output / supplier / source.stem

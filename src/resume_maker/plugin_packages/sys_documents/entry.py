@@ -1,11 +1,11 @@
-"""文档流程的注册和生命周期入口"""
+"""文档流程的注册、生命周期入口"""
 
 from resume_maker.plugin_packages.sys_documents.configuration import Settings
 from resume_maker.plugins.support import dependency, publish, routes
 
 
 def activate(context):
-    """组装文档流程，内置引擎独立于 Word 和模板扩展"""
+    """组装文档流程，内置引擎独立于 Word、模板扩展"""
     from resume_maker.plugin_packages.sys_documents.services.document_registry import (
         DocumentRegistry,
     )
@@ -17,7 +17,7 @@ def activate(context):
     engine = dependency(context, "docx")
 
     def provenance(owner):
-        """重试绑定插件版本、已安装产物摘要和配置摘要，配置原文不进入业务记录"""
+        """重试绑定插件版本、已安装产物摘要、配置摘要，配置原文不进入业务记录"""
         from resume_maker.runtime.state import fingerprint
 
         location = context.host.package_location(owner)

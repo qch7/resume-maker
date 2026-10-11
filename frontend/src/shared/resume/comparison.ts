@@ -35,7 +35,7 @@ export function samePersonalInfo(a?: PersonalInfo, b?: PersonalInfo) {
   return JSON.stringify(infoSnapshot(a)) === JSON.stringify(infoSnapshot(b));
 }
 
-/** 比较完整资料，保留栏目、条目和自定义信息的顺序 */
+/** 比较完整资料，保留栏目、条目、自定义信息的顺序 */
 function documentSnapshot(document?: ResumeDocument | null) {
   if (!document) return null;
   return [
@@ -43,7 +43,7 @@ function documentSnapshot(document?: ResumeDocument | null) {
     extensionSnapshot(document.extensions ?? {}),
     Object.entries(document.project_visibility ?? {})
       .sort(
-        /* 项目标识和设置键的排列不代表实际修改 */ ([a], [b]) =>
+        /* 项目标识、设置键的排列不代表实际修改 */ ([a], [b]) =>
           a.localeCompare(b),
       )
       .map(
@@ -59,7 +59,7 @@ function documentSnapshot(document?: ResumeDocument | null) {
         ],
       ),
     document.sections.map(
-      /* 比较时保留栏目顺序和归属以识别编排修改 */ (section) => [
+      /* 比较时保留栏目顺序、归属以识别编排修改 */ (section) => [
         section.id,
         section.title,
         section.kind,
@@ -72,7 +72,7 @@ function documentSnapshot(document?: ResumeDocument | null) {
   ];
 }
 
-/** 扩展字段按 JSON 内容比较，键序无关但数组顺序保留 */
+/** 扩展字段按 JSON 内容比较，忽略对象键序，保留数组顺序 */
 function extensionSnapshot(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(extensionSnapshot);
   if (value && typeof value === "object")
@@ -84,7 +84,7 @@ function extensionSnapshot(value: unknown): unknown {
   return value;
 }
 
-/** 保存标记和导出状态共用相同的资料比较规则 */
+/** 保存标记、导出状态共用相同的资料比较规则 */
 export function sameResumeDocument(
   a?: ResumeDocument | null,
   b?: ResumeDocument | null,

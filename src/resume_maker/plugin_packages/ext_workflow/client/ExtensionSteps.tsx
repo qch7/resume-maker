@@ -3,7 +3,7 @@ import type { WorkflowInput } from "@resume-maker/plugin-sdk/plugins/slots";
 import { clientExtensions } from "@resume-maker/plugin-sdk/plugins/extensions";
 import { runPluginCommand } from "@resume-maker/plugin-sdk/plugins/commands";
 
-/** 额外制作步骤通过公开状态贡献和命令显示，单项失败不影响内置流程 */
+/** 额外制作步骤通过公开状态贡献、命令显示，单项失败不影响内置流程 */
 export default function ExtensionSteps({ input }: { input: WorkflowInput }) {
   const steps = clientExtensions.workflow(input);
   const [error, setError] = useState("");

@@ -30,11 +30,11 @@ class PrivacyContributions:
     """仅向系统引擎追加资料，规则代码不持有脱敏器及还原表"""
 
     def __init__(self, db, contributions):
-        """持有独立工作区数据库和可撤销的规则集合"""
+        """持有独立工作区数据库、可撤销的规则集合"""
         self.db, self.contributions = db, contributions
 
     def entries(self):
-        """校验规则身份、版本和说明，不执行规则代码"""
+        """校验规则身份、版本、说明，不执行规则代码"""
         entries = []
         for item in self.contributions("privacy.rule_contributions"):
             rule = item.value
@@ -53,7 +53,7 @@ class PrivacyContributions:
         return entries
 
     def describe(self):
-        """公开规则用途和版本，敏感词及结构化资料不离开本机出口"""
+        """公开规则用途、版本，敏感词及结构化资料不离开本机出口"""
         return [
             {
                 "id": item.identifier,

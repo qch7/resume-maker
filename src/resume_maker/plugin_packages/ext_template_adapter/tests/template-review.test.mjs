@@ -71,7 +71,7 @@ test("空定位列表不会隐藏试填错误，重复错误保留调整入口",
   );
 });
 
-test("未归类原文和图片全部计入问题数量并可定位", /* 默认展开重复原文和图片问题 */ () => {
+test("未归类原文和图片全部计入问题数量并可定位", /* 默认展开重复原文、图片问题 */ () => {
   const problems = reviewProblems(
     review({
       missing: ["personal.custom:语言"],
@@ -91,7 +91,7 @@ test("未归类原文和图片全部计入问题数量并可定位", /* 默认�
   );
 });
 
-test("普通排版提醒不会阻止已通过的模板，没有原因时仍解释状态", /* 分别显示检查进度和阻止使用的问题 */ () => {
+test("普通排版提醒不会阻止已通过的模板，没有原因时仍解释状态", /* 分别显示检查进度、阻止使用的问题 */ () => {
   assert.deepEqual(reviewProblems(null), []);
   assert.deepEqual(
     reviewProblems(review({ ready: true, notices: ["字体按原文估计"] })),

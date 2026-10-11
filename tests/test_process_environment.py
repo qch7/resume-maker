@@ -1,4 +1,4 @@
-"""验证启动配置冻结和不同子进程职责的环境继承边界"""
+"""验证启动配置冻结、不同子进程职责的环境继承边界"""
 
 import argparse
 import sys
@@ -51,7 +51,7 @@ def test_unbounded_process_execution_still_observes_cancellation(tmp_path):
     ],
 )
 def test_restricted_processes_do_not_inherit_credentials(policy):
-    """候选、worker、Word 和连接的基础环境均排除应用配置及任意供应商凭据"""
+    """候选、worker、Word、连接的基础环境均排除应用配置及任意供应商凭据"""
     source = {
         "Path": "/synthetic/bin",
         "SystemRoot": "/synthetic/windows",
@@ -94,7 +94,7 @@ def test_host_preserves_arbitrary_provider_inputs_but_clears_launch_values():
 def test_supervised_children_freeze_launch_values_and_keep_persisted_selection(
     tmp_path, monkeypatch
 ):
-    """文件和环境变更不影响子宿主，重启只恢复已保存组合，前端覆盖继续生效"""
+    """文件、环境变更不影响子宿主，重启只恢复已保存组合，前端覆盖继续生效"""
     path = tmp_path / ".env"
     path.write_text(
         "RESUME_MAKER_PORT=8011\nRESUME_MAKER_PROFILE=minimal\n"
@@ -152,7 +152,7 @@ def test_upgrade_uses_new_wheel_frontend_when_no_override(tmp_path):
 
 
 def test_actual_process_callers_use_role_environment(tmp_path, monkeypatch):
-    """Git、桌面定位和受管 Word 的真实调用入口均使用职责环境，不传供应商密钥"""
+    """Git、桌面定位、受管 Word 的真实调用入口均使用职责环境，不传供应商密钥"""
     monkeypatch.setenv("SYNTHETIC_PROVIDER_KEY", "secret-value")
     monkeypatch.setenv("DISPLAY", ":synthetic")
     captured = []

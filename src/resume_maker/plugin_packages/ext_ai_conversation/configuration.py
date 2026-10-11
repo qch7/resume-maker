@@ -1,4 +1,4 @@
-"""经历 AI 队列和进度流的等待配置"""
+"""经历 AI 队列、进度流的等待配置"""
 
 from pydantic import Field
 
@@ -6,7 +6,7 @@ from resume_maker.sdk.configuration import PluginSettings
 
 
 class Settings(PluginSettings):
-    """独立调用和宿主调度均使用同一份队列策略"""
+    """独立调用、宿主调度均使用同一份队列策略"""
 
     close_timeout_seconds: float = Field(
         default=8, ge=1, le=300, description="经历任务关闭等待秒数"

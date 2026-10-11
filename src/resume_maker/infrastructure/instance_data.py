@@ -23,7 +23,7 @@ class InstanceDataStore:
         self.lock = threading.RLock()
 
     def close(self):
-        """旧句柄立即失效，持久内容保留供重新启用和备份恢复"""
+        """旧句柄立即失效，持久内容保留供重新启用、备份恢复"""
         with self.lock:
             self.closed = True
             if self.temporary is not None:
@@ -52,7 +52,7 @@ class InstanceDataStore:
                         session.closed = True
 
     def get(self, key):
-        """按当前键读取独立值和版本，返回对象不引用存储内部状态"""
+        """按当前键读取独立值、版本，返回对象不引用存储内部状态"""
         with self.transaction() as transaction:
             return transaction.get(key)
 
@@ -71,7 +71,7 @@ class InstanceTransaction:
     """只提供当前实例的 JSON 键操作，事务退出后对象不可复用"""
 
     def __init__(self, prefix, connection=None, values=None):
-        """临时和持久后端使用相同的版本协议"""
+        """临时、持久后端使用相同的版本协议"""
         self.prefix, self.connection, self.values = prefix, connection, values
         self.closed = False
 
@@ -84,7 +84,7 @@ class InstanceTransaction:
         return self.prefix + key
 
     def get(self, key):
-        """不存在的键和删除标记保持不同语义"""
+        """不存在的键、删除标记保持不同语义"""
         identity = self.identity(key)
         if self.connection is not None:
             row = self.connection.execute(
@@ -96,7 +96,7 @@ class InstanceTransaction:
         return StoredValue(**value) if value else StoredValue(0)
 
     def write(self, key, value, expected_version, deleted):
-        """先校验完整 JSON 和版本，再更新同一事务中的键"""
+        """先校验完整 JSON、版本，再更新同一事务中的键"""
         identity = self.identity(key)
         if type(expected_version) is not int or expected_version < 0:
             raise Problem("插件资料版本无效。", 422)

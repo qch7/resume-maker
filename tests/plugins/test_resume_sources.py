@@ -1,4 +1,4 @@
-"""通用资料来源的边界、同事务快照和缺包保留"""
+"""通用资料来源的边界、同事务快照、缺包保留"""
 
 import sqlite3
 from copy import deepcopy
@@ -14,7 +14,7 @@ from resume_maker.sdk.sources import ResumeSource, SourceField, SourceItem, Sour
 
 
 def test_sources_share_read_transaction_and_keep_local_layout(tmp_path):
-    """来源只改所属内容，未知来源和本地编排保留，旧读取句柄不能继续调用"""
+    """来源只改所属内容，未知来源、本地编排保留，旧读取句柄不能继续调用"""
     db = Database(tmp_path / "data.db")
     db.set_setting("community.example:item", "已核对")
     readers = []

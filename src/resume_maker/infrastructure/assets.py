@@ -16,7 +16,7 @@ from resume_maker.infrastructure.filesystem import remove_owned_directory
 
 
 class Assets:
-    """文件和数据库分阶段提交，孤立产物留有维护记录"""
+    """文件、数据库分阶段提交，孤立产物留有维护记录"""
 
     def __init__(self, db, directory: Path):
         """资源统一保存在资料目录，租约仅属于当前应用实例"""
@@ -78,7 +78,7 @@ class Assets:
         return loads(row[0]) if row else None
 
     def _logical_path(self, name):
-        """逻辑目录和文件必须为规范相对路径且不包含特殊路径分量"""
+        """逻辑目录、文件必须为规范相对路径且不包含特殊路径分量"""
         path = PurePosixPath(name)
         if (
             not name
@@ -195,7 +195,7 @@ class Assets:
 
     @contextmanager
     def lease(self, identifier: str):
-        """读取前核验状态和摘要，释放前阻止清理文件"""
+        """读取前核验状态、摘要，释放前阻止清理文件"""
         with self.lock:
             record = self.db.setting(f"asset:{identifier}")
             if not record or record["state"] != "published":
@@ -280,7 +280,7 @@ class Assets:
         return result
 
     def collection_plan(self, grace_hours: int = 24) -> dict:
-        """列出超过保留期的失败暂存、墓碑和无登记目录，已发布资源永不自动回收"""
+        """列出超过保留期的失败暂存、墓碑、无登记目录，已发布资源永不自动回收"""
         if grace_hours < 1:
             raise Problem("资源回收保留期至少为一小时。")
         cutoff = datetime.now(UTC) - timedelta(hours=grace_hours)

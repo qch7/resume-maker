@@ -121,7 +121,7 @@ def source_call(endpoint, name, arguments):
 
 
 def contents(root, name):
-    """文件名、链接和大小同时校验，读取范围始终限定在当前材料目录"""
+    """文件名、链接、大小同时校验，读取范围始终限定在当前材料目录"""
     if not isinstance(name, str) or not NAMES.fullmatch(name):
         raise ValueError("文件编号不在允许范围内")
     file = root / name
@@ -137,7 +137,7 @@ def contents(root, name):
 
 
 def call(root, name, args):
-    """限制搜索和读取的参数、次数及输出长度，不执行材料中的指令"""
+    """限制搜索、读取的参数、次数及输出长度，不执行材料中的指令"""
     if name == "read_material":
         if set(args) - {"file", "start_line", "start_column", "line_count"}:
             raise ValueError("读取参数不受支持")

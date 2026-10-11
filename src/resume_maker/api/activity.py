@@ -1,4 +1,4 @@
-"""在 ASGI 边界观测请求和响应，不缓存或重放上传及流式正文"""
+"""在 ASGI 边界观测请求、响应，不缓存或重放上传及流式正文"""
 
 import hashlib
 import json
@@ -13,7 +13,7 @@ BODY_LIMIT = 32_768
 
 
 def body_detail(body, size, content_type, checksum=""):
-    """JSON 和文字提供有界正文，上传及下载只记录类型和字节数"""
+    """JSON、文字提供有界正文，上传及下载只记录类型、字节数"""
     value = {"content_type": content_type, "bytes": size}
     if checksum:
         value["sha256"] = checksum
@@ -28,14 +28,14 @@ def body_detail(body, size, content_type, checksum=""):
 
 
 class ActivityMiddleware:
-    """覆盖认证失败和未捕获异常，日志查询自身不产生递归活动"""
+    """覆盖认证失败、未捕获异常，日志查询自身不产生递归活动"""
 
     def __init__(self, app, log):
         """保存当前应用的独立日志出口"""
         self.app, self.log = app, log
 
     async def __call__(self, scope, receive, send):
-        """透传协议消息并在响应结束后记录状态、正文摘要和总耗时"""
+        """透传协议消息并在响应结束后记录状态、正文摘要、总耗时"""
         path = scope.get("path", "")
         credential_request = "/credentials/" in path and path.startswith("/api/plugins/")
         if (

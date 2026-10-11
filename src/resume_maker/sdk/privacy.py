@@ -10,7 +10,7 @@ from resume_maker.sdk.sources import SourceReader
 
 
 class PrivacyValues(Contract):
-    """仅在本机隐私出口消费的敏感词和结构化资料"""
+    """仅在本机隐私出口消费的敏感词、结构化资料"""
 
     terms: tuple[str, ...] = Field(default=(), max_length=10000)
     private_data: tuple[JsonValue, ...] = Field(default=(), max_length=10000)
@@ -18,7 +18,7 @@ class PrivacyValues(Contract):
 
 @dataclass(frozen=True)
 class PrivacyRuleContribution:
-    """规则有独立版本和本地解释，返回资料继续经过系统脱敏引擎"""
+    """规则有独立版本、本地解释，返回资料继续经过系统脱敏引擎"""
 
     title: str
     description: str

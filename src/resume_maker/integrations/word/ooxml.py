@@ -1,4 +1,4 @@
-"""WordprocessingML 的共享命名空间和标签构造"""
+"""WordprocessingML 的共享命名空间、标签构造"""
 
 NS = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
 

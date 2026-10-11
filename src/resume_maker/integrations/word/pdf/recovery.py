@@ -1,4 +1,4 @@
-"""仅用于 PDF 输入的逐页版面恢复，Word 和图片来源拥有独立的识别入口"""
+"""仅用于 PDF 输入的逐页版面恢复，Word、图片来源拥有独立的识别入口"""
 
 from threading import RLock
 
@@ -37,7 +37,7 @@ def native_text(page):
 
 
 def normalized_page(document, number):
-    """在独立单页副本里统一旋转和裁切坐标，保留源文件的实际可见页面"""
+    """在独立单页副本里统一旋转、裁切坐标，保留源文件的实际可见页面"""
     result = pymupdf.open()
     source = document[number]
     page = result.new_page(width=source.rect.width, height=source.rect.height)
@@ -45,7 +45,8 @@ def normalized_page(document, number):
         with pymupdf.open() as copy:
             copy.insert_pdf(document, from_page=number, to_page=number)
             copy[0].set_rotation(0)
-            # show_pdf_page 的角度方向和 PDF 页 rotation 相反，先复位避免裁切框被旋转两次
+            # 页面拷贝角度方向同 PDF 页旋转方向相反
+            # 拷贝前复位页面旋转，避免裁切框重复旋转
             page.show_pdf_page(page.rect, copy, 0, rotate=-source.rotation)
     for link in source.get_links():
         if link["kind"] == pymupdf.LINK_URI:

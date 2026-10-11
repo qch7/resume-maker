@@ -1,4 +1,4 @@
-"""记录 PDF 恢复来源和局部坐标，供填入真实资料时关联图标和字段"""
+"""记录 PDF 恢复来源、局部坐标，供填入真实资料时关联图标、字段"""
 
 import json
 
@@ -34,7 +34,7 @@ def recovered_layout(root):
 
 
 def clear_pdf_metadata(root):
-    """成品不携带旧模板文字和坐标，原始模板快照仍保留证据供下次重新填充"""
+    """成品不携带旧模板文字、坐标，原始模板快照仍保留证据供下次重新填充"""
     for node in root.iter():
         for key in list(node.attrib):
             if key.startswith(f"{{{PDF}}}"):

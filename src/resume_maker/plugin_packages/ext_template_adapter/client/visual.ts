@@ -49,14 +49,13 @@ export function siblingRange(
     .map(/* 保持文档原顺序 */ (node) => node.id);
 }
 
-/** 展开选区包含的内层段落、图片和表格，用于分色及清理重叠分类 */
+/** 展开选区包含的内层段落、图片、表格，用于分色及清理重叠分类 */
 export function descendants(nodes: TemplateNode[], ids: string[]) {
   const selected = new Set(ids);
   return nodes
     .filter(
       /* 祖先在选区内的节点也属于操作范围 */ (node) =>
-        selected.has(node.id) ||
-        node.ancestors.some(/* 查找被选择的容器 */ (id) => selected.has(id)),
+        selected.has(node.id) || node.ancestors.some((id) => selected.has(id)),
     )
     .map(/* 返回稳定节点标识 */ (node) => node.id);
 }
@@ -101,7 +100,7 @@ export function mappingIndex(nodes: TemplateNode[], plan: TemplatePlan) {
     photos = new Set(plan.photos);
   return new Map(
     nodes.map(
-      /* 为每个结构位置计算用途和精确字段 */ (node) => {
+      /* 为每个结构位置计算用途、精确字段 */ (node) => {
         const region = regions.get(node.id) ?? -1;
         const bindings = fields.get(node.id) ?? [];
         let kind: RegionKind =
@@ -123,7 +122,7 @@ export function mappingIndex(nodes: TemplateNode[], plan: TemplatePlan) {
   );
 }
 
-/** 给单个选区读取和画布一致的用途 */
+/** 读取单个选区的用途，沿用画布规则 */
 export function nodeMapping(
   nodes: TemplateNode[],
   plan: TemplatePlan,
@@ -145,7 +144,7 @@ export function targetLabel(target: string) {
   return PERSONAL_LABELS[target] ?? ENTRY_LABELS[target] ?? target;
 }
 
-/** 按引文及出现次数拆分原文并保留字段之间的标签和标点 */
+/** 按引文及出现次数拆分原文并保留字段之间的标签、标点 */
 export function highlightedText(text: string, fields: TextBinding[]) {
   const ranges = fields
     .flatMap(
@@ -178,7 +177,7 @@ export function highlightedText(text: string, fields: TextBinding[]) {
   return chunks;
 }
 
-/** 移除选中位置的独立映射和处置 */
+/** 移除选中位置的独立映射、处置 */
 export function clearNodes(
   plan: TemplatePlan,
   nodes: TemplateNode[],

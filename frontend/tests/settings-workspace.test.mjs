@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { build } from "esbuild";
 import { fileURLToPath } from "node:url";
 
-/** 编译实际设置和插件面板，只替换浏览器 hooks、网络及无关子组件 */
+/** 编译实际设置、插件面板，只替换浏览器状态钩子、网络及无关子组件 */
 async function application() {
   const fixtures = {
     react: `let values = [], index = 0, effects = [], cleanups = [];

@@ -1,4 +1,4 @@
-"""使用不同语言、列数和容器构造模板以验证适配规则"""
+"""使用不同语言、列数、容器构造模板以验证适配规则"""
 
 import json
 from copy import deepcopy
@@ -58,7 +58,7 @@ def mapping(package, fields=(), repeats=(), keep=()):
 def test_explicit_columns_do_not_depend_on_email_order_or_node_numbers(
     tmp_path, columns, padding, language
 ):
-    """不同语言和列数的模板仅复用明确空列并允许任意字段顺序"""
+    """不同语言、列数的模板仅复用明确空列并允许任意字段顺序"""
     source, snapshot, output = [
         tmp_path / name for name in ("source.docx", "snapshot.docx", "output.docx")
     ]
@@ -97,7 +97,7 @@ def test_explicit_columns_do_not_depend_on_email_order_or_node_numbers(
 
 @pytest.mark.parametrize("fixed_height", [False, True])
 def test_contact_supplement_respects_table_growth_constraints(tmp_path, fixed_height):
-    """可扩展单元格内补齐资料，固定行高时移到表格后，既不裁切新字段也不改表格宽高"""
+    """可扩展单元格内补齐资料，固定行高时移到表格后，保留表格宽高及完整字段"""
     source, output = tmp_path / "source.docx", tmp_path / "filled.docx"
     doc = Document()
     table = doc.add_table(rows=1, cols=2)
@@ -159,7 +159,7 @@ def test_icon_labelled_blank_contact_is_not_relocated(tmp_path):
 def test_independent_sidebar_sections_preserve_columns_and_clear_only_their_own_content(
     tmp_path, columns, hide_first
 ):
-    """左右栏各自重复和隐藏，跨栏排序不拆散容器，长正文、装饰和不同列宽继续保留"""
+    """左右栏各自重复、隐藏，跨栏排序不拆散容器，长正文、装饰、不同列宽继续保留"""
     source, output = tmp_path / "source.docx", tmp_path / "filled.docx"
     doc = Document()
     table = doc.add_table(rows=1, cols=columns)
@@ -239,7 +239,7 @@ def test_independent_sidebar_sections_preserve_columns_and_clear_only_their_own_
 
 @pytest.mark.parametrize("relative", ["paragraph", "line"])
 def test_relative_drawing_stays_with_its_text_anchor(tmp_path, relative):
-    """相对段落或行的图形不能迁到新空段落，否则同样的坐标会产生不同的实际位置"""
+    """相对段落或行的图形保留原锚点，防止迁移后实际位置改变"""
     wp = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
     source, output = tmp_path / "source.docx", tmp_path / "filled.docx"
     doc = Document()
@@ -267,12 +267,12 @@ def test_relative_drawing_stays_with_its_text_anchor(tmp_path, relative):
 def test_source_pages_and_structural_controls_reach_the_model_without_current_values(
     catalog, tmp_path, monkeypatch
 ):
-    """整页版式、换行和容器证据一起送入识别，附件数量有界，当前资料值不被发送"""
+    """整页版式、换行、容器证据一起送入识别，附件数量有界，当前资料值不被发送"""
     source = tmp_path / "source.docx"
     simple_template(source)
 
     def render(document, pdf):
-        """生成八页独立模板图，用来核验附件顺序和未展示页说明"""
+        """生成八页独立模板图，用来核验附件顺序、未展示页说明"""
         with pymupdf.open() as output:
             for number in range(8):
                 output.new_page().insert_text((40, 40), f"Template page {number + 1}")
@@ -319,10 +319,10 @@ def test_failed_structural_repair_restores_matching_best_snapshot_and_resets_mod
     original_inventory = TemplatePackage(source).inventory()["nodes"]
 
     class ChangingProvider(TemplateProvider):
-        """先遗漏整段标题，再补齐但留下真实栏目冲突，最后一次修正模拟服务失败"""
+        """先遗漏标题，再补齐标题并留下栏目冲突，最后一轮模拟服务失败"""
 
         def run_structured(self, **kwargs):
-            """记录新会话收到的映射和节点关系以确保模型不会混用旧节点编号"""
+            """记录新会话收到的映射、节点关系以确保模型不会混用旧节点编号"""
             plan = super().run_structured(**kwargs)
             kwargs["emit"]("thread", {"id": f"session-{len(self.calls)}"})
             package = TemplatePackage(kwargs["workspace"] / "original.docx")
@@ -406,7 +406,7 @@ def test_cached_mapping_reenters_repair_when_current_trial_fails(catalog, tmp_pa
 
 @pytest.mark.parametrize("layout", ["body", "rows", "cells"])
 def test_project_title_alias_uses_actual_name_and_visibility(tmp_path, layout):
-    """项目区和标题共用别名时按实际栏目处理改名和显隐"""
+    """项目区、标题共用别名时按实际栏目处理改名、显隐"""
     source, output = tmp_path / "source.docx", tmp_path / "result.docx"
     _, plan = generic_template(source, layout)
     document, projects = generic_content()
@@ -483,7 +483,7 @@ def test_mapping_survives_run_fragmentation_renaming_and_record_changes(tmp_path
     for project in projects:
         for key in ("title", "description", "role"):
             assert text.count(project["content"][key]) == 1
-    # 同一映射再次用于隐藏栏目和空记录，不能泄漏上一份输出的内容
+    # 同一映射再次用于隐藏栏目、空记录，不能泄漏上一份输出的内容
     document.sections[1].visible = False
     fill_template(source, output, plan, document.model_dump(), [])
     text = visible_text(output)

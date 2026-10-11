@@ -23,7 +23,7 @@ class History(Protocol):
         ...
 
     def initialize(self, conn, project_id: str, revision_id: str, stamp: str) -> None:
-        """为新项目的初始修订登记 main，和项目创建原子完成"""
+        """在创建项目的同一事务中为初始修订登记 main"""
         ...
 
     def advance(self, conn, branch: dict, revision_id: str, stamp: str) -> None:
@@ -31,7 +31,7 @@ class History(Protocol):
         ...
 
     def create(self, project_id: str, revision_id: str, name: str, include_drafts: bool) -> dict:
-        """从任意保存版本创建分支起点，可复制草稿但不会把草稿隐式发布"""
+        """从保存版本创建分支起点，可复制草稿，草稿继续保持未发布状态"""
         ...
 
 
@@ -53,11 +53,11 @@ class Catalog(Protocol):
         ...
 
     def apply_suggestion(self, conn, project_id, revision_id, field, before, after, snapshot_id):
-        """在同一写事务核验分支和原文后应用建议草稿"""
+        """在同一写事务核验分支、原文后应用建议草稿"""
         ...
 
     def publish_evidence(self, project_id, identifier, fingerprint, manifest, files):
-        """原子发布固定证据和不可变资源引用"""
+        """原子发布固定证据、不可变资源引用"""
         ...
 
     def project(self, project_id: str, conn=None) -> dict:
@@ -69,7 +69,7 @@ class Catalog(Protocol):
         ...
 
     def create_project(self, name: str, roots: list[str]) -> dict:
-        """规范化来源并去重登记项目，同时建立初始经历和已注册的扩展资料"""
+        """规范化来源并去重登记项目，同时建立初始经历、已注册的扩展资料"""
         ...
 
     def sync_subprojects(self, project_id: str) -> None:
@@ -89,11 +89,11 @@ class Catalog(Protocol):
         ...
 
     def discard_drafts(self, project_id: str, revision_id: str, versions: dict[str, int]):
-        """在同一事务中核对并撤销当前项目和基线的完整草稿集合"""
+        """在同一事务中核对并撤销当前项目、基线的完整草稿集合"""
         ...
 
     def save_revision(self, project_id: str, revision_id: str, expected_head: str) -> dict:
-        """校验分支头和草稿版本后发布整个工作副本，原子清理已提交草稿"""
+        """校验分支头、草稿版本后发布整个工作副本，原子清理已提交草稿"""
         ...
 
     def restore(self, project_id: str, revision_id: str, expected_head: str) -> dict:
@@ -105,11 +105,11 @@ class Projects(Protocol):
     """Projects 的公开业务操作，插件消费者不依赖具体实现"""
 
     def get_project(self, project_id: str, revision_id: str | None = None):
-        """读取选定版本的工作副本、历史修订和来源快照供经历编辑器展示"""
+        """读取选定版本的工作副本、历史修订、来源快照供经历编辑器展示"""
         ...
 
     def delete(self, project_id: str) -> list[str]:
-        """同一事务内检查简历引用和运行任务后删除项目组，不访问源码或历史导出文件"""
+        """同一事务内检查简历引用、运行任务后删除项目组，不访问源码或历史导出文件"""
         ...
 
     def uncommitted(self, project_id: str) -> list[dict]:
@@ -134,7 +134,7 @@ class Projects(Protocol):
         ...
 
     def source_path(self, project_id: str, snapshot_id: str, source: str, path: str) -> Path:
-        """按历史快照解析来源，拒绝越界路径和已移走的文件以免打开错误仓库"""
+        """按历史快照解析来源，拒绝越界路径、已移走的文件以免打开错误仓库"""
         ...
 
 
@@ -150,7 +150,7 @@ class Resumes(Protocol):
         ...
 
     def freeze_export(self, directory, identifier, expected_version=None):
-        """固定同一事务快照中的简历、修订和模板输入"""
+        """固定同一事务快照中的简历、修订、模板输入"""
         ...
 
     def freeze_preview(self, directory, template_id, document, items):
@@ -194,7 +194,7 @@ class Resumes(Protocol):
         version: int = 0,
         document: ResumeDocument | None = None,
     ) -> dict:
-        """校验项目、版本和亮点归属并以乐观锁保存固定版本组合"""
+        """校验项目、版本、亮点归属并以乐观锁保存固定版本组合"""
         ...
 
     def delete_resume(self, resume_id: str, version: int) -> None:
@@ -210,7 +210,7 @@ class Conversations(Protocol):
         ...
 
     def get_conversation(self, conversation_id: str):
-        """聚合单个会话的消息、建议和任务，保持不同会话上下文隔离"""
+        """聚合单个会话的消息、建议、任务，保持不同会话上下文隔离"""
         ...
 
     def patch_conversation(self, conversation_id: str, values: dict):
@@ -222,7 +222,7 @@ class Conversations(Protocol):
         ...
 
     def create_conversation(self, project_id: str, title: str) -> dict:
-        """为指定项目创建具有独立历史和输入草稿的会话"""
+        """为指定项目创建具有独立历史、输入草稿的会话"""
         ...
 
     def conversation(self, conversation_id: str) -> dict:
@@ -230,7 +230,7 @@ class Conversations(Protocol):
         ...
 
     def adopt(self, proposal_id: str):
-        """检查建议原文和当前内容一致后写入草稿以免覆盖后续人工编辑"""
+        """建议原文匹配当前内容后写入草稿，防止覆盖后续人工编辑"""
         ...
 
     def initialize_project(self, conn, project_id, stamp):
@@ -255,11 +255,11 @@ class Jobs(Protocol):
         scope: str,
         request_key: str,
     ) -> dict:
-        """校验会话和编辑范围，以幂等请求标识入队并记录用户消息"""
+        """校验会话、编辑范围，以幂等请求标识入队并记录用户消息"""
         ...
 
     def cancel(self, job_id: str):
-        """同时更新持久状态和进程取消信号，阻止任务结果继续发布"""
+        """同时更新持久状态、进程取消信号，阻止任务结果继续发布"""
         ...
 
 
@@ -267,11 +267,11 @@ class Honors(Protocol):
     """Honors 的公开业务操作，插件消费者不依赖具体实现"""
 
     def attach_recognition(self, provider, execution_queue, recognition):
-        """附接识别处理器，撤销等待实际任务和资源清理结束"""
+        """附接识别处理器，撤销等待实际任务、资源清理结束"""
         ...
 
     def file_reference(self, identifier, page=None):
-        """返回登记的资源标识和文件名，读取者须持有资源租约"""
+        """返回登记的资源标识、文件名，读取者须持有资源租约"""
         ...
 
     def list(self):
@@ -283,7 +283,7 @@ class Honors(Protocol):
         ...
 
     def save(self, body: HonorSave, identifier=None):
-        """保存人工填写和核对后的完整字段，识别中和版本过期时拒绝覆盖"""
+        """保存人工填写、核对后的完整字段，识别中、版本过期时拒绝覆盖"""
         ...
 
     def upload(self, raw, filename, importer_id=None):
@@ -311,13 +311,13 @@ class Documents(Protocol):
         ...
 
     def importers(self, purpose) -> list[dict]:
-        """列出当前可选的文件处理器和支持格式"""
+        """列出当前可选的文件处理器、支持格式"""
         ...
 
     def export(
         self, resume_id: str, *, expected_version=None, engine_id=None, renderer_id=None
     ) -> dict:
-        """读取固定资料及项目引用，按所选完整模板或内置版式生成文件和清单"""
+        """读取固定资料及项目引用，按所选完整模板或内置版式生成文件、清单"""
         ...
 
 
@@ -352,11 +352,11 @@ class ResumePreviews(Protocol):
         force=False,
         timeout=None,
     ):
-        """核验固定版本归属后使用当前资料和可选工作副本试填"""
+        """核验固定版本归属后使用当前资料、可选工作副本试填"""
         ...
 
     def file(self, identifier, filename):
-        """只提供当前实例已生成的预览文件，模板源文件和任意路径均不可下载"""
+        """只提供当前实例已生成的预览文件，模板源文件、任意路径均不可下载"""
         ...
 
     def lease(self, identifier, filename):
@@ -372,7 +372,7 @@ class Settings(Protocol):
         ...
 
     def get(self):
-        """返回完整 Provider 配置和当前数据目录"""
+        """返回完整 Provider 配置、当前数据目录"""
         ...
 
     def save_provider(self, settings: ProviderSettings):
@@ -392,7 +392,7 @@ class Settings(Protocol):
         ...
 
     def save_resume_defaults(self, defaults: ResumeDefaults):
-        """在同一事务内校验版本和保存默认栏目，防止多窗口覆盖"""
+        """在同一事务内校验版本、保存默认栏目，防止多窗口覆盖"""
         ...
 
     def attach_provider(self, provider):
@@ -408,19 +408,19 @@ class Privacy(Protocol):
     """Privacy 的公开业务操作，插件消费者不依赖具体实现"""
 
     def get(self):
-        """返回强制隐私策略和用户可补充的敏感词"""
+        """返回强制隐私策略、用户可补充的敏感词"""
         ...
 
     def save_terms(self, terms: list[str], expected_version: int):
-        """同一事务内保存规范化敏感词和版本，冲突时保留原有设置"""
+        """同一事务内保存规范化敏感词、版本，冲突时保留原有设置"""
         ...
 
     def preview(self, text: str):
-        """只在内存中预览脱敏结果，不保存原文和还原表"""
+        """只在内存中预览脱敏结果，不保存原文、还原表"""
         ...
 
     def requests(self):
-        """读取已脱敏的发送记录，不包含响应原文和真实值映射"""
+        """读取已脱敏的发送记录，不包含响应原文、真实值映射"""
         ...
 
     def clear_requests(self):
@@ -436,7 +436,7 @@ class Recruitment(Protocol):
         ...
 
     def save(self, revision: int, data: RecruitmentFile):
-        """保存用户编辑后的完整收藏夹，版本核验和写入处于同一事务"""
+        """保存用户编辑后的完整收藏夹，版本核验、写入处于同一事务"""
         ...
 
     def import_file(self, revision: int, content: str, policy, *, preview: bool):
@@ -448,11 +448,11 @@ class Workspace(Protocol):
     """Workspace 的公开业务操作，插件消费者不依赖具体实现"""
 
     def state(self):
-        """保持经历活动时间、简历来源和各插件摘要的事务一致性"""
+        """保持经历活动时间、简历来源、各插件摘要的事务一致性"""
         ...
 
     def poll(self, previous):
-        """根据提交和贡献版本返回完整正文或未变化标识"""
+        """根据提交、贡献版本返回完整正文或未变化标识"""
         ...
 
 
@@ -476,7 +476,7 @@ class TemplateLibrary(Protocol):
         ...
 
     def update(self, template_id, changes):
-        """原子修改名称和组织信息，保持模板标识、映射、文件及简历引用不变"""
+        """原子修改名称、组织信息，保持模板标识、映射、文件及简历引用不变"""
         ...
 
     def delete(self, template_id, permanent=False, cutoff=None):
@@ -496,7 +496,7 @@ class TemplateLibrary(Protocol):
         ...
 
     def delete_category(self, category_id):
-        """移除分类时将其中模板归回未分类，保留模板、收藏和简历引用"""
+        """移除分类时将其中模板归回未分类，保留模板、收藏、简历引用"""
         ...
 
     def thumbnail(self, template_id):
@@ -508,7 +508,7 @@ class Templates(Protocol):
     """Templates 的公开业务操作，插件消费者不依赖具体实现"""
 
     def maintenance(self):
-        """返回阻止新任务和保存交错的维护屏障"""
+        """返回阻止新任务、保存交错的维护屏障"""
         ...
 
     def cleanup_paths(self, template_id, shared):
@@ -516,7 +516,7 @@ class Templates(Protocol):
         ...
 
     def invalidate_artifacts(self, conn, paths):
-        """同事务撤销已清理任务和资源引用"""
+        """同事务撤销已清理任务、资源引用"""
         ...
 
     def list_tasks(self):
@@ -551,7 +551,7 @@ class Templates(Protocol):
         ...
 
     def progress(self, identifier, after=0):
-        """仅返回任务进度和游标之后的活动"""
+        """仅返回任务进度、游标之后的活动"""
         ...
 
     def open(self, template_id: str, document=None, items=None) -> dict:
@@ -584,17 +584,17 @@ class Templates(Protocol):
         document: ResumeDocument,
         items: list[ResumeItem],
     ) -> dict:
-        """登记核对过的完整模板，原文件和映射一并保留供重复导出和备份"""
+        """登记核对过的完整模板，原文件、映射一并保留供重复导出、备份"""
         ...
 
     def preview(
         self, identifier: str, plan: TemplatePlan, document: ResumeDocument, items: list[ResumeItem]
     ) -> dict:
-        """使用当前资料试填，校验固定引用和选择后生成 Word 和可用的分页预览"""
+        """使用当前资料试填，校验固定引用、选择后生成 Word、可用的分页预览"""
         ...
 
     def projects(self, items: list[ResumeItem]) -> list[dict]:
-        """校验固定项目和亮点引用，保存和试填使用同一份资料覆盖规则"""
+        """校验固定项目、亮点引用，保存、试填使用同一份资料覆盖规则"""
         ...
 
     def preview_lease(self, identifier, preview_id, filename):
@@ -622,5 +622,5 @@ class SourceAccess(Protocol):
         ...
 
     def check(self, snapshot, evidence):
-        """依据保留原件校验行号和引文"""
+        """依据保留原件校验行号、引文"""
         ...

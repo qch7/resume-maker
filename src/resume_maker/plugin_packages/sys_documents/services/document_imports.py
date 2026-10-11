@@ -1,4 +1,4 @@
-"""统一选择和校验导入器，冲突、版本变化和残缺输出都不能静默发布"""
+"""统一选择、校验导入器，冲突、版本变化、残缺输出都不能静默发布"""
 
 from dataclasses import dataclass, replace
 from io import BytesIO
@@ -20,7 +20,7 @@ from resume_maker.sdk.model import Cancelled
 
 @dataclass(frozen=True)
 class SelectedImport:
-    """固定当前贡献和原件，持久记录可在重试时精确核对"""
+    """固定当前贡献、原件，持久记录可在重试时精确核对"""
 
     source: ImportSource
     importer: DocumentImporter
@@ -162,7 +162,7 @@ class ImporterRegistry:
 
 
 def validate_page(page):
-    """限制 PNG 页面大小并用基础安装已有的图片解析器检查结构和像素"""
+    """限制 PNG 页面大小并用基础安装已有的图片解析器检查结构、像素"""
     if (
         type(page) is not bytes
         or len(page) > SAFE_PAGE_MAX_BYTES

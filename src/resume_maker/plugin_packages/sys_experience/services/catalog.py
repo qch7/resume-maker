@@ -1,4 +1,4 @@
-"""经历修订和草稿冲突的独立事务服务"""
+"""经历修订、草稿冲突的独立事务服务"""
 
 from pathlib import Path, PurePosixPath
 
@@ -12,7 +12,7 @@ from resume_maker.sdk.storage import RelationalStore
 
 
 class Catalog:
-    """经历版本和草稿的核心事务服务"""
+    """经历版本、草稿的核心事务服务"""
 
     def __init__(self, db: RelationalStore, *, assets):
         """保存当前模块所需依赖，供后续业务操作共享使用"""
@@ -43,7 +43,7 @@ class Catalog:
         return result
 
     def publish_evidence(self, project_id, identifier, fingerprint, manifest, files):
-        """经历插件在同一事务发布来源快照和不可变原件引用"""
+        """经历插件在同一事务发布来源快照、不可变原件引用"""
         staged = self.assets.stage_bundle("sys.experience", files)
         with self.db.transaction() as conn:
             need(
@@ -72,7 +72,7 @@ class Catalog:
         return detach
 
     def project(self, project_id: str, conn=None) -> dict:
-        """按需在调用方事务读取项目和分支头"""
+        """按需在调用方事务读取项目、分支头"""
         query = (
             "SELECT p.*, h.parent_id, b.head_revision FROM projects p "
             "JOIN experience_branches b ON b.project_id=p.id AND b.is_default=1 "
@@ -113,7 +113,7 @@ class Catalog:
         return self.history.for_revision(project_id, revision_id)
 
     def apply_suggestion(self, conn, project_id, revision_id, field, before, after, snapshot_id):
-        """在调用方写事务中核对当前分支和原文，再原子更新经历草稿"""
+        """在调用方写事务中核对当前分支、原文，再原子更新经历草稿"""
         revision = self.revision(revision_id, project_id, conn)
         head = conn.execute(
             "SELECT head_revision FROM experience_branches WHERE id=?", (revision["branch_id"],)
@@ -154,7 +154,7 @@ class Catalog:
         )
 
     def create_project(self, name: str, roots: list[str]) -> dict:
-        """规范化来源并去重登记项目，同时建立初始经历和已注册的扩展资料"""
+        """规范化来源并去重登记项目，同时建立初始经历、已注册的扩展资料"""
         roots = list(dict.fromkeys(str(Path(p).expanduser().resolve(strict=True)) for p in roots))
         if not name.strip() or any(not Path(p).is_dir() for p in roots):
             raise Problem("请填写项目名称和有效目录。")
@@ -258,7 +258,7 @@ class Catalog:
             return self._working(conn, project_id, revision_id)
 
     def _working(self, conn, project_id, revision_id):
-        """使用调用方快照读取正文和草稿，写入确认不会借用后续提交的版本"""
+        """使用调用方快照读取正文、草稿，写入确认不会借用后续提交的版本"""
         content = self._revision(conn, revision_id, project_id)["content"]
         drafts = [
             unpack(row)
@@ -316,7 +316,7 @@ class Catalog:
             )
 
     def discard_drafts(self, project_id: str, revision_id: str, versions: dict[str, int]):
-        """在同一事务中核对并撤销当前项目和基线的完整草稿集合"""
+        """在同一事务中核对并撤销当前项目、基线的完整草稿集合"""
         self.revision(revision_id, project_id)
         with self.db.transaction() as conn:
             rows = conn.execute(
@@ -331,7 +331,7 @@ class Catalog:
             )
 
     def save_revision(self, project_id: str, revision_id: str, expected_head: str) -> dict:
-        """校验分支头和草稿版本后发布整个工作副本，原子清理已提交草稿"""
+        """校验分支头、草稿版本后发布整个工作副本，原子清理已提交草稿"""
         base = self.revision(revision_id, project_id)
         branch = self.history.for_revision(project_id, revision_id)
         working = self.working(project_id, revision_id)

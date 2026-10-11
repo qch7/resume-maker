@@ -1,4 +1,4 @@
-"""源码插件公开服务，扫描、只读材料和证据核对统一随插件启停"""
+"""源码插件公开服务，扫描、只读材料、证据核对统一随插件启停"""
 
 from resume_maker.integrations.source_context import source_context
 from resume_maker.integrations.source_policy import SourcePolicy
@@ -11,7 +11,7 @@ from resume_maker.integrations.sources import (
 
 
 class SourceService:
-    """只持有公开经历接口和资源服务，不读取其他业务对象内部状态"""
+    """只持有公开经历接口、资源服务，不读取其他业务对象内部状态"""
 
     def __init__(self, catalog, directory, *, assets, policy=None):
         """经历服务负责发布证据，资源服务负责读取不可变原件"""

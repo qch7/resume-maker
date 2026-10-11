@@ -1,4 +1,4 @@
-"""荣誉条目、受鉴权保护的文件上传和证书预览入口"""
+"""荣誉条目、受鉴权保护的文件上传、证书预览入口"""
 
 from typing import Annotated
 
@@ -46,7 +46,7 @@ async def upload_honor(
     filename: str = Query(min_length=1, max_length=240),
     importer_id: str | None = None,
 ):
-    """流式接收一个原件，先限制实际字节数，再在工作线程解码和入队"""
+    """流式接收一个原件，先限制实际字节数，再在工作线程解码、入队"""
     content = bytearray()
     async for chunk in request.stream():
         if len(content) + len(chunk) > MAX_BYTES:
@@ -69,7 +69,7 @@ def delete_honor(
     honor_id: str,
     version: int = Query(ge=1),
 ):
-    """删除荣誉库记录和原件并保留已保存的简历"""
+    """删除荣誉库记录、原件并保留已保存的简历"""
     return dep_honors.delete(honor_id, version)
 
 
@@ -103,7 +103,7 @@ def honor_page(
     honor_id: str,
     page: int,
 ):
-    """提供由本机解码生成的 PNG 页面，PDF 和图片共用预览"""
+    """提供由本机解码生成的 PNG 页面，PDF、图片共用预览"""
     reference = dep_honors.file_reference(honor_id, page)
     return AssetResponse(
         dep_assets,

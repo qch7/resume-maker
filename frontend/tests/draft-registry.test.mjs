@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { flushDrafts, registerDraft } from "../src/shared/lib/draftRegistry.ts";
 
 test("navigation flush awaits drafts from independent features", /* 验证导航等待所有业务草稿完成写入 */ async () => {
-  // 用受控 Promise 验证会话和经历草稿全部完成前不能继续导航
+  // 用受控 Promise 验证会话、经历草稿全部完成前不能继续导航
   let finishChat;
   const chat = new Promise(
     /* 提供可控的完成信号 */ (resolve) => {

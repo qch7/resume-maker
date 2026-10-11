@@ -1,4 +1,4 @@
-"""将个人资料的标签和值作为完整条目隐藏并按原列数补齐空位"""
+"""将个人资料的标签、值作为完整条目隐藏并按原列数补齐空位"""
 
 import re
 from collections import defaultdict
@@ -14,7 +14,7 @@ TEXT_TAGS = {w("t"), w("tab"), w("br"), w("cr")}
 
 
 def paragraph_stream(paragraph):
-    """保留制表位和换行的字符位置，同时建立原引文到可见行列的索引"""
+    """保留制表位、换行的字符位置，同时建立原引文到可见行列的索引"""
     text, positions = "", []
     for node in paragraph.iter():
         if next(node.iterancestors(w("p")), None) is not paragraph:
@@ -40,7 +40,7 @@ def slice_paragraph(paragraph, start, end):
         else:
             node.getparent().remove(node)
         position += length
-    # 片段重组后不复制原书签和修订身份以防同一条信息出现多个 Word 锚点
+    # 片段重组后不复制原书签、修订身份以防同一条信息出现多个 Word 锚点
     for node in list(clone.iter(w("bookmarkStart"), w("bookmarkEnd"))):
         node.getparent().remove(node)
     return clone
@@ -114,7 +114,7 @@ def personal_items(paragraph, fields):
 
 
 def paragraph_style(paragraph):
-    """按显式段落样式和列坐标分组以防把页首姓名和联系方式混排"""
+    """按显式段落样式、列坐标分组以防把页首姓名、联系方式混排"""
     result = []
     for tag in ("pStyle", "ind", "tabs", "spacing", "jc", "framePr"):
         node = paragraph.find(f"w:pPr/w:{tag}", NS)
@@ -130,7 +130,7 @@ def paragraph_style(paragraph):
 
 
 def append_separator(paragraph, value):
-    """用原生制表符或换行连接条目，保留模板的列坐标和行距"""
+    """用原生制表符或换行连接条目，保留模板的列坐标、行距"""
     run = etree.SubElement(paragraph, w("r"))
     if value in {"\t", "\n"}:
         etree.SubElement(run, w("tab" if value == "\t" else "br"))
@@ -144,7 +144,7 @@ class PersonalLayout:
     """先保留完整个人条目片段，填值后只重排含隐藏或空条目的连续资料区域"""
 
     def __init__(self, package, fields, values):
-        """根据原映射的行列和样式生成独立填充片段"""
+        """根据原映射的行列、样式生成独立填充片段"""
         self.nodes, self.fields, self.groups, self.tables = {}, [], [], []
         bindings = defaultdict(list)
         for field in fields:
@@ -193,7 +193,7 @@ class PersonalLayout:
             self.groups.append((group, self.add_fragments(items, values), columns, separator))
 
     def add_fragments(self, items, values):
-        """登记仍可见的条目，交给正式填充器替换以保留跨运行字体和链接处理"""
+        """登记仍可见的条目，交给正式填充器替换以保留跨运行字体、链接处理"""
         visible = []
         for fragment, field, column in items:
             if not values.get(field.target):
@@ -205,7 +205,7 @@ class PersonalLayout:
         return visible
 
     def apply(self):
-        """移除整条隐藏信息，后面的可见条目依原顺序补齐，整区为空时不留段落"""
+        """移除隐藏信息，后续可见条目按原顺序补齐，整区为空时删除段落"""
         for rows, visible, columns in self.tables:
             parent = rows[0].getparent()
             if parent is None:

@@ -19,7 +19,7 @@ interface Props {
   onStatus(message: string): void;
 }
 
-/** 按页面名称和标签序号辨认窗口，断连时说明恢复副本的处理方式 */
+/** 按页面名称、标签序号辨认窗口，断连时说明恢复副本的处理方式 */
 export default function WaitingWindows(props: Props) {
   return props.ids.map((id, index) => {
     const detail = props.details?.[id];

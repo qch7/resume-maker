@@ -41,7 +41,7 @@ const PROFILE_LABELS = [
   ["notes", "补充说明"],
 ] as const;
 
-/** 编辑经历元信息、来源和亮点，内容草稿和简历展示设置独立保存 */
+/** 编辑经历元信息、来源、亮点，内容草稿、简历展示设置独立保存 */
 export default function Editor(props: EditorProps) {
   const { detail, revisionId, run } = props;
   const current = detail.revisions.find((r) => r.id === revisionId)!;
@@ -76,7 +76,7 @@ export default function Editor(props: EditorProps) {
     "meta",
     meta,
     detail.working.drafts.find((d) => d.field === "meta")?.version ?? 0,
-    /* 基本信息和正式版本比较，排序改回原位后立即清除待提交提示 */ (value) =>
+    /* 比较基本信息是否匹配正式版本，排序恢复原位后清除待提交提示 */ (value) =>
       fieldChanged(value, current.content, "meta", props.visibility),
   );
   const order = useField(
@@ -116,7 +116,7 @@ export default function Editor(props: EditorProps) {
     [content.highlights, order.value],
   );
   const previewContent = useMemo(
-    /* 合并元信息、亮点输入和排序，右侧始终使用编辑区的当前值 */ () => ({
+    /* 合并元信息、亮点输入、排序，右侧始终使用编辑区的当前值 */ () => ({
       ...editor.value,
       highlights: orderedHighlights.map(
         /* 尚未挂载的条目使用已恢复的工作副本 */ (point) =>

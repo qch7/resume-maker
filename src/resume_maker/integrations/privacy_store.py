@@ -8,7 +8,7 @@ from resume_maker.integrations.privacy import Redactor
 
 
 class PrivacyStore:
-    """原始资料和敏感词保留在本机数据库，外发记录不保存还原表"""
+    """原始资料、敏感词保留在本机数据库，外发记录不保存还原表"""
 
     def __init__(self, db=None, contributions=None):
         """允许独立脚本只使用格式规则，应用实例额外加载本机已知资料"""
@@ -16,7 +16,7 @@ class PrivacyStore:
         self.contributions = contributions
 
     def redactor(self):
-        """每轮重新读取保存资料和自定义词，避免多用户实例共享敏感值"""
+        """每轮重新读取保存资料、自定义词，避免多用户实例共享敏感值"""
         redactor = Redactor(self.db.setting("privacy_terms", []) if self.db else [])
         if self.db:
             for row in self.db.all("SELECT document_json FROM resumes"):
@@ -41,7 +41,7 @@ class PrivacyStore:
         return version
 
     def record(self, payload, count):
-        """原子保存最多十条已脱敏请求，单次请求内容和数量都有上限"""
+        """原子保存最多十条已脱敏请求，单次请求内容、数量都有上限"""
         identifier = uid()
         if self.db:
             entry = {

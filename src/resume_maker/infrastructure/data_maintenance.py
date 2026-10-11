@@ -45,7 +45,7 @@ class DataMaintenance:
         self.db, self.directory = db, directory
 
     def plan(self, manifest, location):
-        """列出版本路径、包摘要和数据库基线，缺少任何一步均拒绝升级"""
+        """列出版本路径、包摘要、数据库基线，缺少任何一步均拒绝升级"""
         if manifest.data is None:
             raise Problem("插件没有持久资料声明。", 409)
         descriptor = manifest.data.model_dump()
@@ -113,7 +113,7 @@ class DataMaintenance:
         return path
 
     def apply(self, approved, manifest, location):
-        """先完整备份，再于独立数据库迁移，失败保留原库和可查询记录"""
+        """先完整备份，再于独立数据库迁移，失败保留原库、可查询记录"""
         current = self.plan(manifest, location)
         if current != approved:
             raise Problem("资料或插件已改变，请停止应用后重新生成迁移计划。", 409)
@@ -200,7 +200,7 @@ class DataMaintenance:
         tables = set(manifest.data.tables)
 
         def authorize(action, first, second, _database, _trigger):
-            """SQLite 自身校验每项表操作，禁止附加数据库、扩展和任意 PRAGMA"""
+            """SQLite 自身校验每项表操作，禁止附加数据库、扩展、任意 PRAGMA"""
             if action in {
                 sqlite3.SQLITE_ATTACH,
                 sqlite3.SQLITE_DETACH,

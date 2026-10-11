@@ -1,4 +1,4 @@
-"""插件共享异步连接池，同步入口等待取消和传输清理实际完成"""
+"""插件共享异步连接池，同步入口等待取消、传输清理实际完成"""
 
 import asyncio
 import math
@@ -14,7 +14,7 @@ from resume_maker.sdk.model import Cancelled
 
 
 class PluginHTTP:
-    """每个宿主最多接收 128 个请求，同配额键最多 4 个执行和 32 个等待"""
+    """每个宿主最多接收 128 个请求，同配额键最多 4 个执行、32 个等待"""
 
     def __init__(self, *, transport=None):
         """测试传输可注入，生产连接不继承环境代理或自动跟随重定向"""
@@ -67,7 +67,7 @@ class PluginHTTP:
         body=None,
         max_bytes=4 * 1024 * 1024,
     ):
-        """截止预算涵盖排队和传输，返回前异步请求及取消观察均已结束"""
+        """截止预算涵盖排队、传输，返回前异步请求及取消观察均已结束"""
         target = urlsplit(url)
         if (
             target.scheme != "https"
@@ -120,7 +120,7 @@ class PluginHTTP:
         bucket["pending"] += 1
 
         async def observe():
-            """取消观察覆盖排队和实际传输，取消只影响当前请求"""
+            """取消观察覆盖排队、实际传输，取消只影响当前请求"""
             while not cancelled.is_set():
                 await asyncio.sleep(0.05)
             current.cancel()

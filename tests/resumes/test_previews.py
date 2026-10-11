@@ -1,4 +1,4 @@
-"""当前模板预览的草稿隔离、缓存、重试和文件访问边界"""
+"""当前模板预览的草稿隔离、缓存、重试、文件访问边界"""
 
 from copy import deepcopy
 from io import BytesIO
@@ -47,7 +47,7 @@ def preview(catalog, tmp_path, monkeypatch):
 def test_current_template_uses_unsaved_content_without_publishing(
     preview, catalog, project, populated, tmp_path
 ):
-    """未保存的个人资料和经历进入模板，正式版本、草稿、方案和导出记录均不被改写"""
+    """未保存的个人资料、经历进入模板，正式版本、草稿、方案、导出记录均不被改写"""
     service, calls = preview
     document = resume_content().model_dump()
     document["personal"]["name"] = "尚未保存的姓名"
@@ -106,7 +106,7 @@ def test_current_template_uses_unsaved_content_without_publishing(
 def test_complete_template_preview_matches_formal_export(
     preview, catalog, project, populated, tmp_path, monkeypatch, template_id
 ):
-    """完整模板的预览和正式导出具有相同内容和版式，关闭只回收临时预览"""
+    """完整模板的预览、正式导出具有相同内容、版式，关闭只回收临时预览"""
     service, _ = preview
     documents = Documents(
         Resumes(catalog, storage=catalog.db, assets=catalog.assets),
@@ -115,7 +115,7 @@ def test_complete_template_preview_matches_formal_export(
         assets=Assets(catalog.db, tmp_path / "data"),
     )
     document = resume_content()
-    # 预览和正式导出均须自动补齐模板缺少的字段
+    # 预览、正式导出均须自动补齐模板缺少的字段
     document.personal.website = "https://example.test/new-profile"
     document.personal.age = "23"
     document.personal.hidden_fields = ["phone"]
@@ -184,7 +184,7 @@ def test_complete_template_preview_matches_formal_export(
 
 
 def test_failed_render_can_download_word_and_retry(preview, monkeypatch):
-    """Word 不可用时仍提供试填文件，但失败不能缓存成永久结果"""
+    """Word 不可用时提供试填文件，禁止永久缓存失败结果"""
     service, _ = preview
     renderer = resume_previews.render_word
     monkeypatch.setattr(
@@ -201,7 +201,7 @@ def test_failed_render_can_download_word_and_retry(preview, monkeypatch):
 
 
 def test_rejects_invalid_references_and_changed_template(preview, project, populated):
-    """缓存不能绕过模板哈希、项目归属和选中亮点的核验"""
+    """缓存不能绕过模板哈希、项目归属、选中亮点的核验"""
     service, calls = preview
     doc = resume_content().model_dump()
     item = {"project_id": project["id"], "revision_id": populated["id"], "highlight_ids": ["one"]}
@@ -226,7 +226,7 @@ def test_rejects_invalid_references_and_changed_template(preview, project, popul
 
 
 def test_preview_routes_enforce_auth_instance_and_file_scope(tmp_path, monkeypatch):
-    """预览接口要求令牌和正确来源且只能读取本实例公布的预览文件"""
+    """预览接口要求令牌、正确来源且只能读取本实例公布的预览文件"""
     monkeypatch.setattr(
         "resume_maker.plugin_packages.ext_word.integrations.word.controlled.ControlledWord.render",
         lambda *_: (None, "No renderer"),
@@ -271,7 +271,7 @@ def test_preview_routes_enforce_auth_instance_and_file_scope(tmp_path, monkeypat
 
 
 def test_resume_results_and_cache_are_bounded(preview):
-    """连续不同输入超过上限后索引和目录均回收，旧输入能重新生成"""
+    """连续不同输入超过上限后索引、目录均回收，旧输入能重新生成"""
     service, calls = preview
     first = None
     for index in range(30):

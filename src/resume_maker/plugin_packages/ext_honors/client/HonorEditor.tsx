@@ -38,14 +38,14 @@ import { VisibilityButton } from "@resume-maker/plugin-sdk/shared/components/Vis
 import CopyButton from "@resume-maker/plugin-sdk/shared/components/CopyButton";
 
 const FIELDS = HONOR_FIELDS.filter(
-  /* 分类和多行说明使用各自的专用控件 */ (field) =>
+  /* 分类、多行说明使用各自的专用控件 */ (field) =>
     field.key !== "category" && field.key !== "description",
 );
 const CATEGORY = HONOR_FIELDS.find(
-  /* 分类和个人信息使用同一份字段标签 */ (field) => field.key === "category",
+  /* 分类、个人信息使用同一份字段标签 */ (field) => field.key === "category",
 )!;
 const DESCRIPTION = HONOR_FIELDS.find(
-  /* 多行说明的限制和提示保持一致 */ (field) => field.key === "description",
+  /* 多行说明沿用统一的限制及提示 */ (field) => field.key === "description",
 )!;
 
 /** 对照原件核对识别结果，保留未保存表单并用版本号防止并发覆盖 */
@@ -101,7 +101,7 @@ export default function HonorEditor({
     contentDirty || JSON.stringify(entry) !== JSON.stringify(resumeEntry);
   const recognizing = honor ? isRecognizing(honor) : false;
   const saving = useRef(false);
-  /** 更新荣誉正文时保留其读取版本和来源基线 */
+  /** 更新荣誉正文时保留其读取版本、来源基线 */
   function setFields(value: HonorFields) {
     form.update({ ...form.value, fields: value });
   }
@@ -114,7 +114,7 @@ export default function HonorEditor({
     else storage.removeItem(draftKey);
   }, [draftKey, fields, baseline, version, entry, sourceSaved, dirty]);
   useEffect(
-    /* 原生模态框提供焦点约束和 Escape 关闭 */ () => {
+    /* 原生模态框提供焦点约束、Escape 关闭 */ () => {
       const element = dialog.current;
       element?.showModal();
       return /* 卸载时退出顶层模态状态 */ () => element?.close();
@@ -142,7 +142,7 @@ export default function HonorEditor({
       onClose();
     }
   }
-  /** 显隐和自定义字段只留在本次简历表单，正文沿用荣誉库字段 */
+  /** 显隐、自定义字段只留在本次简历表单，正文沿用荣誉库字段 */
   function changeEntry(value: SectionEntry) {
     setEntry(value);
     setFields(honorFieldsFromEntry(value));
@@ -156,7 +156,7 @@ export default function HonorEditor({
     setError("");
     let savedSource = sourceSaved;
     try {
-      // 本地条目和单独的显示设置不写来源，保存失败后重试使用已确认的新版本
+      // 本地条目、单独的显示设置不写来源，保存失败后重试使用已确认的新版本
       if (!resumeEntry || (honor && contentDirty)) {
         const saved = await api<Honor>(
           honor ? `/honors/${honor.id}` : "/honors",
@@ -374,7 +374,7 @@ export default function HonorEditor({
                       hidden={entry.visible === false}
                       disabled={busy || recognizing}
                       onToggle={
-                        /* 整条隐藏和各个字段的显示选择互不覆盖 */ () =>
+                        /* 整条隐藏、各个字段的显示选择互不覆盖 */ () =>
                           setEntry({
                             ...entry,
                             visible: entry.visible === false,
@@ -409,7 +409,7 @@ export default function HonorEditor({
             ) : (
               <div className="honor-fields">
                 {FIELDS.map(
-                  /* 每个字段都有固定标签和明确的长度限制 */ (field) => (
+                  /* 每个字段都有固定标签、明确的长度限制 */ (field) => (
                     <div
                       key={field.key}
                       className={
@@ -453,7 +453,7 @@ export default function HonorEditor({
                       id="honor-library-category"
                       value={fields.category}
                       onChange={
-                        /* 分类和原件内容分开维护 */ (event) =>
+                        /* 分类、原件内容分开维护 */ (event) =>
                           setFields({
                             ...fields,
                             category: event.target

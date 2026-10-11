@@ -1,4 +1,4 @@
-"""验证启动配置优先级、文件边界和不包含凭据的诊断"""
+"""验证启动配置优先级、文件边界、不包含凭据的诊断"""
 
 import json
 import os
@@ -22,7 +22,7 @@ def test_supervisor_duration_rejects_invalid_or_unbounded_values(value):
 
 
 def test_precedence_paths_and_empty_overrides(tmp_path):
-    """各字段独立覆盖，文件路径相对文件位置，环境和参数相对启动位置"""
+    """各字段独立覆盖，文件路径相对文件位置，环境、参数相对启动位置"""
     directory = tmp_path / "configuration"
     directory.mkdir()
     env_file = directory / ".env"
@@ -51,7 +51,7 @@ def test_precedence_paths_and_empty_overrides(tmp_path):
 
 @pytest.mark.parametrize("value", ["0", "65536", "2.5", "secret-value", True, 2.5, ""])
 def test_invalid_port_has_safe_diagnostic(value):
-    """启动前拒绝端口范围和类型错误，诊断不回显输入"""
+    """启动前拒绝端口范围、类型错误，诊断不回显输入"""
     with pytest.raises(LaunchConfigurationError) as caught:
         resolve_launch(environment={}, overrides={"port": value})
     assert "RESUME_MAKER_PORT (cli)" in str(caught.value)
@@ -71,13 +71,13 @@ def test_browser_values(value, expected):
 
 @pytest.mark.parametrize("field, value", [("OPEN_BROWSER", "maybe"), ("PROFILE", "typo")])
 def test_invalid_choices(field, value):
-    """布尔和组合拼写错误在读取资料前报告"""
+    """布尔、组合拼写错误在读取资料前报告"""
     with pytest.raises(LaunchConfigurationError, match=field):
         resolve_launch(environment={"RESUME_MAKER_" + field: value})
 
 
 def test_dotenv_syntax_does_not_mutate_environment(tmp_path):
-    """接受 BOM、export、引号和注释，保持所有进程环境值不变"""
+    """接受 BOM、export、引号、注释，保持所有进程环境值不变"""
     path = tmp_path / ".env"
     path.write_text(
         '\ufeff# local configuration\nexport RESUME_MAKER_PORT="8012" # comment\n'
@@ -104,7 +104,7 @@ def test_dotenv_syntax_does_not_mutate_environment(tmp_path):
     ],
 )
 def test_invalid_file_is_rejected_without_values(tmp_path, source):
-    """错误语法、未知变量、重复项和插值均给出不含凭据的行号诊断"""
+    """错误语法、未知变量、重复项、插值均给出不含凭据的行号诊断"""
     path = tmp_path / ".env"
     path.write_text(source, encoding="utf-8")
     with pytest.raises(LaunchConfigurationError) as caught:
@@ -124,7 +124,7 @@ def test_missing_or_non_utf8_file(tmp_path):
 
 
 def test_unknown_and_conflicting_environment_names():
-    """系统及供应商变量可保留，应用前缀错拼和冲突的大小写定义须拒绝"""
+    """系统及供应商变量可保留，应用前缀错拼、冲突的大小写定义须拒绝"""
     assert resolve_launch(environment={"OPENAI_API_KEY": "secret-value"}).settings.port == 8765
     with pytest.raises(LaunchConfigurationError, match="未知启动变量"):
         resolve_launch(environment={"RESUME_MAKER_POTR": "8001"})
@@ -197,7 +197,7 @@ def test_high_priority_value_replaces_invalid_lower_value(tmp_path):
 
 
 def test_example_and_documentation_cover_the_declared_variables(pytestconfig):
-    """示例和公开文档覆盖全部声明字段，默认示例可以直接解析"""
+    """示例、公开文档覆盖全部声明字段，默认示例可以直接解析"""
     root = pytestconfig.rootpath
     example = root / ".env.example"
     declared = {

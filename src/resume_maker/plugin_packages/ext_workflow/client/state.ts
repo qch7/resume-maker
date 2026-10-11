@@ -119,7 +119,7 @@ export function getWorkflow(
     /* 下一步按整份简历流程推荐，用户仍可自由跳转 */ (ready) => !ready,
   );
   const step = pending < 0 ? WORKFLOW_STEPS.length - 1 : pending;
-  // 已保存的组合仍需提示旧版本引用和未加入的项目
+  // 已保存的组合仍需提示旧版本引用、未加入的项目
   const recommendation =
     step === 5 && project.step === 2 ? project : guides[step];
   return {

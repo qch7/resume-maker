@@ -79,7 +79,7 @@ export type DefaultSearchResult = {
   sectionTitle: string;
 };
 
-/** 按导航顺序匹配栏目和信息项中的多个关键词 */
+/** 按导航顺序匹配栏目、信息项中的多个关键词 */
 export function searchDefaultFields(
   defaults: ResumeDefaults,
   query: string,

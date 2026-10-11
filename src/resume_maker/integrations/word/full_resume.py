@@ -1,4 +1,4 @@
-"""将顶部个人信息、分层栏目和固定项目版本排成完整的蓝色主题简历"""
+"""将顶部个人信息、分层栏目、固定项目版本排成完整的蓝色主题简历"""
 
 import base64
 from io import BytesIO
@@ -20,7 +20,7 @@ BLUE = "718DB5"
 
 
 def shade(element, color):
-    """向段落或单元格属性追加背景色，形成蓝色抬头和灰色栏目条"""
+    """向段落或单元格属性追加背景色，形成蓝色抬头、灰色栏目条"""
     fill = OxmlElement("w:shd")
     fill.set(qn("w:fill"), color)
     element.append(fill)
@@ -38,7 +38,7 @@ def add_text(paragraph, text, *, bold=False, size=10.5, color="343637"):
 
 
 def heading(document, title, child=False):
-    """大栏目使用色带，小栏目使用蓝色标题并和首条内容保持同页"""
+    """大栏目使用色带，小栏目使用蓝色标题并、首条内容保持同页"""
     paragraph = document.add_paragraph()
     paragraph.paragraph_format.keep_with_next = True
     paragraph.paragraph_format.space_before = Pt(9 if not child else 5)
@@ -71,7 +71,7 @@ def visible_custom_fields(fields: list[CustomInfoField]):
 
 
 def write_header(document, personal):
-    """用蓝色横幅展示照片、姓名、意向和年龄性别，在下方排列联系方式"""
+    """用蓝色横幅展示照片、姓名、意向、年龄性别，在下方排列联系方式"""
     personal = personal.model_copy(update={field: "" for field in personal.hidden_fields})
     table = document.add_table(rows=1, cols=3 if personal.photo else 2)
     table.autofit = False
@@ -123,7 +123,7 @@ def write_header(document, personal):
 
 
 def displayed_entries(section: ResumeSection):
-    """只排版可见资料副本并消除和文本栏目名称相同的条目标题"""
+    """仅排版可见资料副本，移除名称等于文本栏目名的条目标题"""
     entries = []
     for original in section.entries:
         if not original.visible:

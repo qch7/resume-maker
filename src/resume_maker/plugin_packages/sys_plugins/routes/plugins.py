@@ -1,4 +1,4 @@
-"""插件运行状态和客户端能力协商"""
+"""插件运行状态、客户端能力协商"""
 
 from pathlib import Path
 from typing import Annotated
@@ -22,7 +22,7 @@ router = APIRouter(prefix="/api", tags=["plugins"])
 
 
 class SelectionInput(Contract):
-    """完整候选选择和用于并发校验的配置代次"""
+    """完整候选选择、用于并发校验的配置代次"""
 
     selected: list[str] = Field(max_length=500)
     generation: int = Field(ge=1)
@@ -48,7 +48,7 @@ class CapabilitySelectionInput(Contract):
 
 
 class WindowInput(Contract):
-    """窗口身份独立于实体和工作区恢复代次"""
+    """窗口身份独立于实体、工作区恢复代次"""
 
     id: str = Field(min_length=1, max_length=100)
     generation: int = Field(ge=1)
@@ -75,7 +75,7 @@ class PackageInstallInput(PackageInspectInput):
 
 
 class PackageBatchInput(Contract):
-    """多插件更新固定为一组候选，整组依赖和权限一起审查"""
+    """多插件更新固定为一组候选，整组依赖、权限一起审查"""
 
     packages: list[PackageInstallInput] = Field(min_length=1, max_length=100)
     generation: int = Field(ge=1)
@@ -140,7 +140,7 @@ def save_plugin_credential(
 def plan_package_batch(
     dep_plugins: Annotated[PluginManager, Depends(service("plugins"))], body: PackageBatchInput
 ):
-    """暂存所有候选包但保持活动索引，返回同一窗口确认协议的变更计划"""
+    """暂存全部候选包，保留活动索引，返回统一窗口确认协议的变更计划"""
     return dep_plugins.upgrades.plan(
         [item.model_dump() for item in body.packages],
         body.generation,
@@ -163,7 +163,7 @@ def cancel_package_validation(
 
 @router.get("/plugins/downloads")
 def list_downloads(dep_plugins: Annotated[PluginManager, Depends(service("plugins"))]):
-    """重开管理页可恢复此前下载的进度和实际结果"""
+    """重开管理页可恢复此前下载的进度、实际结果"""
     return dep_plugins.downloads.list()
 
 
@@ -178,7 +178,7 @@ def plugin_operations(dep_plugins: Annotated[PluginManager, Depends(service("plu
 def download_package(
     dep_plugins: Annotated[PluginManager, Depends(service("plugins"))], body: DownloadInput
 ):
-    """取得完整来源和摘要后开始下载，不执行或自动信任代码"""
+    """取得完整来源、摘要后开始下载，不执行或自动信任代码"""
     return dep_plugins.downloads.start(body.id, body.url, body.sha256)
 
 
@@ -194,7 +194,7 @@ def download_progress(
 def cancel_download(
     dep_plugins: Annotated[PluginManager, Depends(service("plugins"))], identifier: str
 ):
-    """取消记录区分已发出请求和实际下载线程退出"""
+    """取消记录区分已发出请求、实际下载线程退出"""
     return dep_plugins.downloads.cancel(identifier)
 
 
@@ -204,7 +204,7 @@ def pin_package(
     plugin_id: str,
     body: PinInput,
 ):
-    """串行处理版本锁定和配置计划，拒绝正在进行的变更"""
+    """串行处理版本锁定、配置计划，拒绝正在进行的变更"""
     with dep_plugins.lock:
         if dep_plugins.pending_plan or dep_plugins.maintenance:
             raise Problem("请先完成当前插件变更。", 409)
@@ -241,7 +241,7 @@ def installed_plugins(
     dep_plugins: Annotated[PluginManager, Depends(service("plugins"))],
     dep_tasks: Annotated[TaskSupervisor, Depends(service("tasks"))],
 ):
-    """区分包安装、组合选择和实例运行状态"""
+    """区分包安装、组合选择、实例运行状态"""
     host = dep_plugins.host
     return {
         "generation": host.generation,
@@ -261,7 +261,7 @@ def capabilities(
     dep_plugins: Annotated[PluginManager, Depends(service("plugins"))],
     dep_sandbox: Annotated[Sandbox, Depends(service("sandbox"))],
 ):
-    """客户端按同一代次协商可用能力和插件资源"""
+    """客户端按同一代次协商可用能力、插件资源"""
     host = dep_plugins.host
     return {
         "generation": host.generation,
@@ -325,7 +325,7 @@ def client_entry(host, identifier, manifest):
 def inspect_package(
     dep_plugins: Annotated[PluginManager, Depends(service("plugins"))], body: PackageInspectInput
 ):
-    """读取包、摘要和依赖，检查期间不执行任何插件代码"""
+    """读取包、摘要、依赖，检查期间不执行任何插件代码"""
     return dep_plugins.host.bootstrap["package_store"].inspect(Path(body.path))
 
 
@@ -333,7 +333,7 @@ def inspect_package(
 def install_package(
     dep_plugins: Annotated[PluginManager, Depends(service("plugins"))], body: PackageInstallInput
 ):
-    """安装和启用分开，权限及包内容变化时旧确认失效"""
+    """安装、启用分开，权限及包内容变化时旧确认失效"""
     return dep_plugins.install(Path(body.path), body.digest, body.trusted_modes)
 
 
@@ -341,7 +341,7 @@ def install_package(
 def uninstall_package(
     dep_plugins: Annotated[PluginManager, Depends(service("plugins"))], plugin_id: str
 ):
-    """只卸载已停止代码包，草稿、资料和资源仍随备份保留"""
+    """只卸载已停止代码包，草稿、资料、资源仍随备份保留"""
     return dep_plugins.uninstall(plugin_id)
 
 
@@ -392,7 +392,7 @@ def prepare_plugins(
 def plugin_plan_progress(
     dep_plugins: Annotated[PluginManager, Depends(service("plugins"))], plan_id: str
 ):
-    """查询未确认窗口和在途请求，不将等待超时当作用户确认"""
+    """查询未确认窗口、在途请求，不将等待超时当作用户确认"""
     return dep_plugins.progress(plan_id)
 
 
@@ -402,7 +402,7 @@ def apply_plugins(
     plan_id: str,
     body: PlanInput,
 ):
-    """仅在窗口和请求排空后切换候选组合"""
+    """仅在窗口、请求排空后切换候选组合"""
     return dep_plugins.apply(plan_id, body.digest)
 
 

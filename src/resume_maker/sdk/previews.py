@@ -15,12 +15,12 @@ MAX_PREVIEW_BYTES = 128 * 1024 * 1024
 
 
 class PreviewCache:
-    """只清理本实例创建的目录，数量和总字节均受固定资源预算约束"""
+    """只清理本实例创建的目录，数量、总字节均受固定资源预算约束"""
 
     def __init__(
         self, workspace, *, prefix, max_entries=MAX_PREVIEW_ENTRIES, max_bytes=MAX_PREVIEW_BYTES
     ):
-        """缓存锁与渲染锁独立，旧页下载无需等待下一次 Word 渲染"""
+        """缓存锁、渲染锁独立，旧页下载无需等待下一次 Word 渲染"""
         self.workspace, self.prefix = Path(workspace), prefix
         self.max_entries, self.max_bytes = max_entries, max_bytes
         self.directory = None
@@ -82,7 +82,7 @@ class PreviewCache:
             return True
 
     def file(self, identifier, filename, *, owner=None):
-        """核对发布清单、归属和存在性，拒绝已失效预览及任意路径"""
+        """核对发布清单、归属、存在性，拒绝已失效预览及任意路径"""
         with self.lock:
             entry = self.entries.get(identifier)
             if not entry or (owner is not None and entry["owner"] != owner):
@@ -97,7 +97,7 @@ class PreviewCache:
 
     @contextmanager
     def lease(self, identifier, filename, *, owner=None):
-        """在完整响应期间持有文件，异常和断开也归还租约"""
+        """在完整响应期间持有文件，异常、断开也归还租约"""
         with self.lock:
             path = self.file(identifier, filename, owner=owner)
             entry = self.entries[identifier]

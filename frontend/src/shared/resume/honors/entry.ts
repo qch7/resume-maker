@@ -35,7 +35,7 @@ export function honorSourceId(entry: SectionEntry) {
   return entry.source?.provider === "ext.honors/library" ? entry.source.id : "";
 }
 
-/** 固定荣誉信息使用独立标识，用户自行添加的信息仍可命名和删除 */
+/** 固定荣誉信息使用独立标识，用户自行添加的信息仍可命名、删除 */
 export function isHonorCustomField(field: CustomInfoField) {
   return HONOR_FIELDS.some(
     /* 按固定标识匹配荣誉字段 */ (item) =>
@@ -43,7 +43,7 @@ export function isHonorCustomField(field: CustomInfoField) {
   );
 }
 
-/** 读取同名荣誉资料，固定文本和可选信息各自只有一个保存位置 */
+/** 读取同名荣誉资料，固定文本、可选信息各自只有一个保存位置 */
 export function honorFieldValue(entry: SectionEntry, key: keyof HonorFields) {
   const field = ENTRY_FIELDS[key];
   return field
@@ -84,7 +84,7 @@ export function honorFieldHidden(entry: SectionEntry, key: keyof HonorFields) {
       )?.visible;
 }
 
-/** 单独修改荣誉字段或显隐，保留同条记录的其他内容和自定义信息 */
+/** 单独修改荣誉字段或显隐，保留同条记录的其他内容、自定义信息 */
 export function updateHonorField(
   entry: SectionEntry,
   key: keyof HonorFields,
@@ -108,7 +108,7 @@ export function updateHonorField(
   )!;
   const id = `honor-field:${key}`;
   const existing = entry.custom_fields.find(
-    /* 已有值和显隐独立保留 */ (item) => item.id === id,
+    /* 已有值、显隐独立保留 */ (item) => item.id === id,
   );
   if (!existing && entry.custom_fields.length >= 25)
     throw new Error("此条资料的信息项已满，请先删除不需要的自定义信息。");
@@ -135,7 +135,7 @@ export function updateHonorField(
   };
 }
 
-/** 只显示证书名和日期，资料值及整条记录的显隐保持不变 */
+/** 只显示证书名、日期，资料值及整条记录的显隐保持不变 */
 export function nameAndDateOnly(entry: SectionEntry): SectionEntry {
   return {
     ...entry,
@@ -149,7 +149,7 @@ export function nameAndDateOnly(entry: SectionEntry): SectionEntry {
   };
 }
 
-/** 新竞赛荣誉默认展示奖项和级别，既有条目的显隐由用户继续控制 */
+/** 新竞赛荣誉默认展示奖项、级别，既有条目的显隐由用户继续控制 */
 export function newHonorEntry(
   fields: HonorFields = emptyHonor(),
   id = `honor:manual:${crypto.randomUUID()}`,

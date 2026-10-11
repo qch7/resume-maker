@@ -57,7 +57,7 @@ test("all three honor sort buttons reverse their own order", /* 三种维度各�
   assert.deepEqual(honors, before);
 });
 
-test("missing and invalid dates stay last while equal dates retain manual order", /* 中文日期和不同精度日期按日历比较，空值不随倒序跑到最前面 */ () => {
+test("missing and invalid dates stay last while equal dates retain manual order", /* 中文日期、不同精度日期按日历比较，空值不随倒序跑到最前面 */ () => {
   const rows = [
     { ...honors[0], id: "blank", fields: { ...honors[0].fields, date: "" } },
     {
@@ -95,7 +95,7 @@ test("missing and invalid dates stay last while equal dates retain manual order"
 
 test("organizer sorting preserves complete entries and unrelated positions", /* 调整实际简历顺序时保留来源引用、隐藏资料、自定义字段及混合栏目中的普通条目 */ () => {
   const entries = honors.map(
-    /* 和库来源关联，日期和名称由当前简历提供 */ (honor) => ({
+    /* 关联库来源，日期、名称取自当前简历 */ (honor) => ({
       ...newHonorEntry(honor.fields, `honor:${honor.id}`),
       source: { provider: "ext.honors/library", id: honor.id, version: "1" },
     }),

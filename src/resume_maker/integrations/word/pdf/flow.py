@@ -33,7 +33,7 @@ def text_blocks(blocks):
 
 
 def font_family(name):
-    """去除 PDF 子集和字体样式后缀以免把错误的子集族名当作系统字体"""
+    """去除 PDF 子集、字体样式后缀以免把错误的子集族名当作系统字体"""
     name = re.sub(r"^[A-Z]{6}\+", "", name)
     return re.sub(
         r"[ -](?:Thin|ExtraLight|Light|Regular|Medium|SemiBold|Bold|Black|Italic|Oblique)$",
@@ -44,7 +44,7 @@ def font_family(name):
 
 
 def merge_bullet_table(block, column_left):
-    """将误识别为两列表格的列表还原为文字块以免多行正文和符号各自排版后错位"""
+    """将误识别为两列表格的列表还原为文字块以免多行正文、符号各自排版后错位"""
     from pdf2docx.text.TextBlock import TextBlock
 
     if not block.is_stream_table_block or block.num_cols != 2:
@@ -77,7 +77,7 @@ def merge_bullet_table(block, column_left):
 
 
 def separate_blocks(blocks, column_left, *, split_lines=False):
-    """大间隔、颜色变化和列表首行建立段落边界以免标题和条目被合并后无法单独排序"""
+    """大间隔、颜色变化、列表首行建立段落边界以免标题、条目被合并后无法单独排序"""
     from pdf2docx.text.TextBlock import TextBlock
 
     output = []
@@ -126,7 +126,7 @@ def separate_blocks(blocks, column_left, *, split_lines=False):
             )
             chunk.after_space = block.after_space if index == len(groups) - 1 else 0
             chunk.left_space += chunk.bbox.x0 - block.bbox.x0
-            # 原块的制表位相对旧起点，拆段后重算以免左缩进和旧制表位叠加挤窄正文
+            # 原块的制表位相对旧起点，拆段后重算以免左缩进、旧制表位叠加挤窄正文
             for line in chunk.lines:
                 line.tab_stop = 0
             chunk.lines.parse_tab_stop(5.0)
@@ -156,7 +156,7 @@ def repair_hyperlinks(paragraph):
 
 
 def capture_block(block, captured, column_left):
-    """包装当前解析块的输出以记录生成段落和源坐标"""
+    """包装当前解析块的输出以记录生成段落、源坐标"""
     for line in block.lines:
         for span in line.spans:
             span.font = "Arial" if span.text == "•" else font_family(span.font)
@@ -165,7 +165,7 @@ def capture_block(block, captured, column_left):
     original = block.make_docx
 
     def make(paragraph):
-        """保留原字号的行距并用悬挂缩进和制表符维持列表符号和正文间距"""
+        """保留原字号的行距并用悬挂缩进、制表符维持列表符号、正文间距"""
         original(paragraph)
         repair_hyperlinks(paragraph)
         align_bullet(paragraph, block, column_left)
@@ -202,7 +202,7 @@ def align_bullet(paragraph, block, column_left):
 
 def convert_flow(page, bullets=(), symbols=(), *, split_lines=True):
     """在去图的 PDF 副本中保留物理行边界，防止多个样本被合成无法重复的单段"""
-    # 延迟导入，普通 DOCX 识别不加载 PDF 转换器，也不受其字体和日志初始化影响
+    # 延迟导入，普通 DOCX 识别不加载 PDF 转换器，也不受其字体、日志初始化影响
     from docx import Document
     from pdf2docx import Converter
 
@@ -215,7 +215,8 @@ def convert_flow(page, bullets=(), symbols=(), *, split_lines=True):
             clean.add_redact_annot(box, fill=None)
         if symbols:
             clean.apply_redactions(images=0, graphics=0, text=0)
-        # Redaction 会移除相交链接，即使选择保留文字，恢复原 URI 关系供后续字段替换处理
+        # 删除相交区域时会移除链接，保留文字也会如此
+        # 恢复原 URI 关系，供后续字段替换使用
         for link in links:
             if link["kind"] == pymupdf.LINK_URI:
                 clean.insert_link(
@@ -265,7 +266,7 @@ def convert_flow(page, bullets=(), symbols=(), *, split_lines=True):
 
 
 def append_document(target, source):
-    """合并本次生成的单页文档，重建图片关系并保留各页分节、表格和页边距"""
+    """合并本次生成的单页文档，重建图片关系并保留各页分节、表格、页边距"""
     from docx.enum.section import WD_SECTION_START
     from docx.opc.constants import RELATIONSHIP_TYPE as RT
 

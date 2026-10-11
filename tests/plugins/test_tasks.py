@@ -1,4 +1,4 @@
-"""任务真实结束、排队取消和重启恢复的可见保证"""
+"""任务真实结束、排队取消、重启恢复的可见保证"""
 
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -111,7 +111,7 @@ def test_executor_rejection_releases_lease_and_records_failure(tmp_path, monkeyp
 
 
 def test_terminal_write_failure_releases_actual_work_and_can_be_retried(tmp_path, monkeypatch):
-    """磁盘失败不伪造在途执行，诊断和后续重试保留真实终态"""
+    """磁盘失败不伪造在途执行，诊断、后续重试保留真实终态"""
     supervisor = TaskSupervisor(Database(tmp_path / "resume.db"))
     supervisor.start()
     original = supervisor.db.set_setting

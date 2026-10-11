@@ -1,4 +1,4 @@
-/** 通用发现发行插件目录，构建和测试都不维护具体插件列表 */
+/** 通用发现发行插件目录，构建、测试都不维护具体插件列表 */
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";

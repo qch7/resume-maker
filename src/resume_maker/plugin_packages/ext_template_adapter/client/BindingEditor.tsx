@@ -2,7 +2,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { newBinding, nodeLabel } from "./mapping";
 import type { TemplateNode, TextBinding } from "./types";
 
-/** 核对原文和目标资料并在详情中调整位置 */
+/** 核对原文、目标资料并在详情中调整位置 */
 export default function BindingEditor({
   fields,
   nodes,
@@ -22,7 +22,7 @@ export default function BindingEditor({
     /* 只允许在没有照片等对象的空段落中补字段 */ (node) =>
       node.kind === "p" && (node.text || node.can_insert),
   );
-  /** 原位更新一条映射，保持其余字段的引文和顺序 */
+  /** 原位更新一条映射，保持其余字段的引文、顺序 */
   function update(index: number, value: TextBinding) {
     onChange(
       fields.map(
@@ -33,7 +33,7 @@ export default function BindingEditor({
   return (
     <div className="template-bindings">
       {fields.map(
-        /* 每条映射独立核对原文和资料含义 */ (field, index) => (
+        /* 每条映射独立核对原文、资料含义 */ (field, index) => (
           <div className="template-binding" key={index}>
             <label>
               模板原文
@@ -113,7 +113,7 @@ export default function BindingEditor({
                     }
                   >
                     {paragraphs.map(
-                      /* 以位置和摘要列出段落 */ (node) => (
+                      /* 以位置、摘要列出段落 */ (node) => (
                         <option key={node.id} value={node.id}>
                           {nodeLabel(node)}
                         </option>

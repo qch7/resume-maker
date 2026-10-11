@@ -21,7 +21,7 @@ const labels: Record<string, string> = {
   interrupted: "下载中断",
 };
 
-/** 显式提供地址和摘要，下载结束后交回原有包检查入口 */
+/** 显式提供地址、摘要，下载结束后交回原有包检查入口 */
 export default function PackageDownloads({
   onChoose,
 }: {

@@ -44,7 +44,7 @@ def test_cancelled_waiter_never_starts_renderer_and_failure_can_be_forced(catalo
     document = resume_content().model_dump()
 
     def render(flag):
-        """记录线程退出原因，确认取消效果而非仅检查取消字段"""
+        """记录线程退出原因，确认取消已实际生效"""
         try:
             service.render(None, document, [], cancelled=flag)
         except Exception as exc:
@@ -188,7 +188,7 @@ def test_preview_route_disconnect_waits_for_actual_cleanup():
             raise Cancelled("synthetic disconnect")
 
     async def scenario():
-        """用异步请求边界验证取消和结果发布的先后顺序"""
+        """用异步请求边界验证取消、结果发布的先后顺序"""
 
         async def is_disconnected():
             """工作已经启动后模拟消费者断开"""
@@ -283,7 +283,7 @@ def test_authorization_revocation_cancels_active_word_execution(tmp_path):
     word = ControlledWord(execution, sandbox, 1)
 
     def run():
-        """使用真实授权和执行层，不创建进程"""
+        """使用真实授权、执行层，不创建进程"""
         try:
             word.execute(["synthetic"], cwd=tmp_path, timeout=2)
         except Exception as exc:

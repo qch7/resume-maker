@@ -1,4 +1,4 @@
-"""OCR 提供方的公开字典契约和资源边界"""
+"""OCR 提供方的公开字典契约、资源边界"""
 
 import math
 import threading
@@ -34,7 +34,7 @@ class OCRPage(TypedDict):
 
 
 class OCRDocument(TypedDict):
-    """有效文字按行换行和页面双换行汇总，空文档通过 ProviderError 报告"""
+    """有效文字按行换行、页面双换行汇总，空文档通过 ProviderError 报告"""
 
     pages: list[OCRPage]
     text: str
@@ -56,7 +56,7 @@ class OCRBackend(Protocol):
 
 
 def validate_ocr_document(value: object) -> OCRDocument:
-    """在公共能力边界拒绝无效坐标、非有限数字和超限文字"""
+    """在公共能力边界拒绝无效坐标、非有限数字、超限文字"""
 
     def number(item, *, minimum=0, maximum=None):
         """布尔值不能充当坐标或置信度"""

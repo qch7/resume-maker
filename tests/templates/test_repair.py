@@ -1,4 +1,4 @@
-"""自动修正、错误隔离和人工方案保护的行为回归"""
+"""自动修正、错误隔离、人工方案保护的行为回归"""
 
 import json
 import threading
@@ -87,7 +87,7 @@ def test_one_bad_region_does_not_mark_other_mappings_unresolved(tmp_path):
 
 
 def test_only_known_empty_labels_are_completed(tmp_path):
-    """自动补齐固定标签，未知人名、经历和电话号码仍交给 AI 或用户判断"""
+    """自动补齐固定标签，未知人名、经历、电话号码仍交给 AI 或用户判断"""
     source = tmp_path / "source.docx"
     doc = Document()
     for text in ("项目名称：", "张测试", "13800000000", "独立完成研发工作"):
@@ -104,7 +104,7 @@ def test_only_known_empty_labels_are_completed(tmp_path):
 
 
 def test_user_feedback_repair_preserves_original_and_validates_current_profile(tmp_path):
-    """文字调整创建独立任务并将人工方案和当前缺少字段反馈给模型"""
+    """文字调整创建独立任务并将人工方案、当前缺少字段反馈给模型"""
     source = tmp_path / "source.docx"
     simple_template(source)
     provider = TemplateProvider()
@@ -145,7 +145,7 @@ def test_schema_failures_have_bounded_field_feedback(tmp_path, failure_count, re
         """模拟任意供应商忽略输出候选或返回错误字段类型"""
 
         def run_structured(self, **kwargs):
-            """先返回结构错误，再返回真实方案，检查续聊和全量上下文都支持纠错"""
+            """先返回结构错误，再返回真实方案，检查续聊、全量上下文都支持纠错"""
             if self.calls:
                 request = json.loads(kwargs["prompt"].splitlines()[-1])
                 assert request["format_validation"][0]["path"] == "photos.0"
@@ -189,7 +189,7 @@ def test_schema_failures_have_bounded_field_feedback(tmp_path, failure_count, re
 
 
 def test_cancellation_after_invalid_response_does_not_start_repair(tmp_path):
-    """格式错误和取消同时发生时优先响应取消"""
+    """格式错误、取消同时发生时优先响应取消"""
     source = tmp_path / "original.docx"
     simple_template(source)
     flag = threading.Event()

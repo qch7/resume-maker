@@ -9,9 +9,9 @@ import {
   repeatNodes,
 } from "../client/visual.ts";
 
-/** 构造包含多个单元格、图片和页眉的脱敏模板结构 */
+/** 构造包含多个单元格、图片、页眉的脱敏模板结构 */
 function fixture() {
-  /** 为每个位置明确记录其直接容器和可见祖先 */
+  /** 为每个位置明确记录其直接容器、可见祖先 */
   function node(
     id,
     kind,
@@ -44,7 +44,7 @@ function fixture() {
   ];
 }
 
-/** 生成包含一条教育样本和两行原文的模板映射 */
+/** 生成包含一条教育样本、两行原文的模板映射 */
 function plan() {
   return {
     summary: "测试",
@@ -105,7 +105,7 @@ test("选择表格行或图片容器时包含全部后代，单条样本不包�
   ]);
 });
 
-test("字段、重复示例、照片和删除容器呈现不同用途", /* 删除优先级必须覆盖内部字段和照片，容器不误报待处理 */ () => {
+test("字段、重复示例、照片和删除容器呈现不同用途", /* 删除优先级必须覆盖内部字段、照片，容器不误报待处理 */ () => {
   const nodes = fixture(),
     value = plan();
   const index = mappingIndex(nodes, value);

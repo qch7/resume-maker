@@ -1,4 +1,4 @@
-"""不同模板容器和任意栏目名共用补位流程，检查、保存及输出不会相互矛盾"""
+"""不同模板容器、任意栏目名共用补位流程，检查、保存及输出不会相互矛盾"""
 
 import base64
 import threading
@@ -36,7 +36,7 @@ from tests.support.templates import TemplateProvider, completed
 @pytest.mark.parametrize("layout", ["body", "rows", "cells"])
 @pytest.mark.parametrize("padding", [0, 11])
 def test_mixed_fields_complete_in_unrelated_layouts(tmp_path, layout, padding):
-    """不同节点编号和容器均补齐混合缺项，反复运行不增行，显隐变化不泄露资料"""
+    """不同节点编号、容器均补齐混合缺项，反复运行不增行，显隐变化不泄露资料"""
     source, snapshot, output = [
         tmp_path / name for name in ("source.docx", "snapshot.docx", "output.docx")
     ]
@@ -144,7 +144,7 @@ def test_renamed_project_heading_can_supply_new_section_style(tmp_path):
 
 
 def test_first_analysis_completes_all_supported_missing_fields(tmp_path, monkeypatch):
-    """首轮识别完整原文后即补齐混合缺项，最终清单、源快照和方案使用同一套编号"""
+    """首轮识别完整原文后即补齐混合缺项，最终清单、源快照、方案使用同一套编号"""
     source = tmp_path / "original.docx"
     package, plan = generic_template(source, "cells", 8)
     document, projects = generic_content()
@@ -162,7 +162,7 @@ def test_first_analysis_completes_all_supported_missing_fields(tmp_path, monkeyp
             return plan.model_copy(deep=True)
 
     def emit(*_):
-        """测试忽略公开进度且只核验结果和实际文件"""
+        """测试忽略公开进度且只核验结果、实际文件"""
 
     provider = MappedProvider()
     mapping, review, attempts, error = analyze_plan(
@@ -178,7 +178,7 @@ def test_first_analysis_completes_all_supported_missing_fields(tmp_path, monkeyp
 
 
 def test_library_review_save_and_reopen_share_completion(tmp_path, monkeypatch):
-    """真实接口打开旧模板、资料新增后的检查、试填及保存均补齐，原版本和任务源文件不变"""
+    """真实接口打开旧模板、资料新增后的检查、试填及保存均补齐，原版本、任务源文件不变"""
     config = Config(data_dir=tmp_path / "data", token="test")
     provider = TemplateProvider(failure=True)
     app = create_app(config, provider)
@@ -227,7 +227,7 @@ def test_library_review_save_and_reopen_share_completion(tmp_path, monkeypatch):
         assert not provider.calls
         task_source = app.state.services.templates.source(opened["id"])
         assert opened["inventory"]["nodes"] == TemplatePackage(task_source).inventory()["nodes"]
-        # 打开后继续新增字段，检查和保存必须和预览使用相同的自动补位规则
+        # 打开后新增字段，检查、保存、预览共用自动补位规则
         body["document"]["personal"]["phone"] = "123456789"
         body["document"]["sections"][1]["entries"][0]["subtitle"] = "New subtitle"
         body["plan"] = opened["plan"]

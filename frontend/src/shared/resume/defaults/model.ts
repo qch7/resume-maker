@@ -11,7 +11,7 @@ import type {
 } from "../../types/index.ts";
 import { matchDefaultSections, repairDefaultDuplicates } from "./sections.ts";
 
-/** 判断删除默认项是否涉及已填写内容，隐藏但有值的字段也必须确认 */
+/** 删除默认项前核对已填写内容，隐藏且有值的字段也须确认 */
 export function defaultHasContent(
   document: ResumeDocument | null,
   sectionId: string,
@@ -52,7 +52,7 @@ export function defaultHasContent(
           : typeof value === "string" && !!value.trim();
       }
       return Object.entries(record).some(
-        /* 排除标识和配置且只检查正文 */ ([key, value]) =>
+        /* 排除标识、配置且只检查正文 */ ([key, value]) =>
           !["id", "hidden_fields", "field_definitions", "body_order"].includes(
             key,
           ) &&
@@ -70,7 +70,7 @@ export function defaultHasContent(
   );
 }
 
-/** 将内置字段标识和名称转为可编辑定义 */
+/** 将内置字段标识、名称转为可编辑定义 */
 function fields(items: [string, string][]): DefaultField[] {
   return items.map(
     /* 每次复制独立定义供表单编辑 */ ([id, label]) => ({
@@ -122,7 +122,7 @@ export const HONOR_DEFAULT_FIELDS = fields([
   ["honor-field:certificate_number", "证书编号"],
   ["honor-field:category", "分类"],
 ]).map(
-  /* 荣誉最初仅名称和日期参与排版 */ (field) => ({
+  /* 荣誉最初仅名称、日期参与排版 */ (field) => ({
     ...field,
     visible: ["title", "period"].includes(field.id),
   }),
@@ -268,7 +268,7 @@ export function applyCustomDefaults(
   return result;
 }
 
-/** 应用字段结构时只调整显隐和定义，保留所有已填写内容 */
+/** 应用字段结构时只调整显隐、定义，保留所有已填写内容 */
 export function applyInfoDefaults<T extends PersonalInfo | SectionEntry>(
   info: T,
   definitions: DefaultField[],
@@ -277,9 +277,7 @@ export function applyInfoDefaults<T extends PersonalInfo | SectionEntry>(
   const keys = "name" in info ? PERSONAL_FIELDS : TEXT_FIELDS;
   const hidden = new Set<string>(info.hidden_fields);
   for (const key of keys) {
-    const definition = definitions.find(
-      /* 查找仍启用的固定字段 */ (field) => field.id === key.id,
-    );
+    const definition = definitions.find((field) => field.id === key.id);
     const previous = info.field_definitions?.find(
       /* 识别本次改变的默认显隐 */ (field) => field.id === key.id,
     );
@@ -304,9 +302,8 @@ export function applyInfoDefaults<T extends PersonalInfo | SectionEntry>(
             /* 新条目使用配置的初始显隐 */ (field) => ({
               ...field,
               visible:
-                definitions.find(
-                  /* 匹配默认定义 */ (item) => item.id === field.id,
-                )?.visible ?? field.visible,
+                definitions.find((item) => item.id === field.id)?.visible ??
+                field.visible,
             }),
           )
         : info.custom_fields,

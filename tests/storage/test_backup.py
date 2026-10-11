@@ -15,7 +15,7 @@ from tests.support.templates import register_template
 
 
 def test_restore_preserves_previous_data_and_drafts(catalog, project, populated, tmp_path):
-    """验证备份恢复保留旧数据副本和已保存的输入草稿"""
+    """验证备份恢复保留旧数据副本、已保存的输入草稿"""
     p, revision = project["id"], populated["id"]
     point = populated["content"]["highlights"][0]
     catalog.put_draft(p, revision, "highlight:one", {**point, "text": "pending text"}, 0)
@@ -53,7 +53,7 @@ def test_running_instance_blocks_restore(tmp_path):
 
 @pytest.mark.parametrize("name", ["data", "data.supervisor"])
 def test_repository_lock_survives_data_directory_replacement(tmp_path, name):
-    """源码实例和监督器锁集中在资料目录外，替换资料目录后仍拒绝第二个持有者"""
+    """源码实例、监督器锁集中在资料目录外，替换资料目录后仍拒绝第二个持有者"""
     project = tmp_path / "project"
     target = project / name
     target.mkdir(parents=True)
@@ -102,7 +102,7 @@ def test_backup_pins_concurrent_attachment_deletion(catalog, tmp_path, monkeypat
         """在数据库快照完成后启动附件删除"""
 
         def __enter__(self):
-            """删除已发起但不能在 ZIP 完成前拿到数据库写锁"""
+            """打开 ZIP 后等待附件删除完成，验证已固定的备份快照仍完整"""
             result = super().__enter__()
             worker.start()
             assert attempted.wait(2)
@@ -121,7 +121,7 @@ def test_backup_pins_concurrent_attachment_deletion(catalog, tmp_path, monkeypat
 
 
 def test_corrupted_attachment_is_rejected_without_replacing_data(catalog, tmp_path):
-    """ZIP 自身有效但附件正文被修改时，校验和阻止覆盖原数据"""
+    """ZIP 有效且附件正文被改动时，拒绝恢复并保留原数据"""
     register_template(catalog, catalog.db.path.parent)
     archive = create_backup(catalog.db, catalog.db.path.parent)
     corrupt = tmp_path / "corrupt.zip"

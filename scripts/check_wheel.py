@@ -1,4 +1,4 @@
-"""在仓库外验证 wheel 的导入、数据库和静态资源"""
+"""在仓库外验证 wheel 的导入、数据库、静态资源"""
 
 import shutil
 import subprocess
@@ -18,7 +18,7 @@ def modified_at(path: Path) -> float:
 
 
 def main() -> None:
-    """在临时目录验证最新 wheel，隔离个人数据和源码导入"""
+    """在临时目录验证最新 wheel，隔离个人数据、源码导入"""
     wheels = sorted((ROOT / ".local" / "artifacts").glob("*.whl"), key=modified_at)
     if not wheels:
         raise SystemExit("请先运行 uv build --wheel --out-dir .local/artifacts。")

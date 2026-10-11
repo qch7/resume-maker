@@ -1,4 +1,4 @@
-"""草稿在服务重启和备份恢复后仍可继续，冲突及删除不能覆盖新输入"""
+"""草稿在服务重启、备份恢复后仍可继续，冲突及删除不能覆盖新输入"""
 
 import json
 
@@ -14,7 +14,7 @@ from resume_maker.plugin_packages.sys_drafts.services.workspace_storage import W
 
 
 def test_drafts_survive_restart_backup_without_publishing(catalog, tmp_path):
-    """照片、简历、模板和荣誉输入独立备份，不提前生成任何正式资料"""
+    """照片、简历、模板、荣誉输入独立备份，不提前生成任何正式资料"""
     directory = catalog.db.path.parent
     service = WorkspaceStorage(catalog.db)
     values = {
@@ -54,7 +54,7 @@ def test_conflicts_deletions_and_lost_acknowledgement(catalog):
 
 
 def test_recruitment_display_preferences_use_latest_choice(catalog):
-    """多个窗口切换招聘视图和排序时保留最新选择，不触发草稿冲突"""
+    """多个窗口切换招聘视图、排序时保留最新选择，不触发草稿冲突"""
     storage = WorkspaceStorage(catalog.db)
     storage.save("rm.recruitment.display", '{"view":"cards","sort":"default"}', 0)
     selection = '{"view":"list","sort":"asc"}'
@@ -64,7 +64,7 @@ def test_recruitment_display_preferences_use_latest_choice(catalog):
 
 
 def test_storage_http_auth_bounds_and_isolation(tmp_path):
-    """草稿接口保留本机鉴权，拒绝越界键和过大内容，实例不共享恢复空间"""
+    """草稿接口保留本机鉴权，拒绝越界键、过大内容，实例不共享恢复空间"""
     app = create_app(Config(data_dir=tmp_path / "left", token="test"))
     with TestClient(app) as client:
         assert client.get("/api/workspace-storage").status_code == 401

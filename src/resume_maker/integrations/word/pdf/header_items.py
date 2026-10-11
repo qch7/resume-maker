@@ -53,7 +53,7 @@ def header_region(package, plan):
 
 
 def without_drawings(paragraph):
-    """复制可编辑文字样式，图标和照片另行关联以免复制片段时带入其他字段的图片"""
+    """复制可编辑文字样式，图标、照片另行关联以免复制片段时带入其他字段的图片"""
     fragment = deepcopy(paragraph)
     for node in fragment.xpath(".//w:drawing | .//w:pict | .//w:object", namespaces=NS):
         node.getparent().remove(node)
@@ -84,7 +84,7 @@ def field_box(paragraph, field):
 
 
 def extract_items(package, roots, fields):
-    """按映射提取完整标签和值，无法划分的混合文字明确报错以免静默丢失原文"""
+    """按映射提取完整标签、值，无法划分的混合文字明确报错以免静默丢失原文"""
     bindings = defaultdict(list)
     for field in fields:
         bindings[package.node(field.node)].append(field)
@@ -128,7 +128,7 @@ def extract_items(package, roots, fields):
 
 
 def drawing_box(anchor):
-    """读取来源坐标，缺省时用同栏局部偏移定位图标和照片"""
+    """读取来源坐标，缺省时用同栏局部偏移定位图标、照片"""
     box = rectangle(anchor)
     if box is not None:
         return box
@@ -168,7 +168,7 @@ def icon_owner(anchor, items):
 
 
 def attach_header_assets(package, plan, roots, items):
-    """分开处理照片、分隔线和局部图标，隐藏字段不会留下孤立图标"""
+    """分开处理照片、分隔线、局部图标，隐藏字段不会留下孤立图标"""
     photos, lines, backgrounds = [], [], []
     photo_nodes = [package.node(key) for key in plan.photos]
     for root in roots:
@@ -208,7 +208,7 @@ def attach_header_assets(package, plan, roots, items):
 
 
 def contains(outer, inner):
-    """组合裁图已包含内部小路径时只保留整图以防一个电话图标被重复画两次"""
+    """组合裁图已含内部小路径时仅保留整图，避免重复绘制同一图标"""
     return (
         outer is not None
         and inner is not None

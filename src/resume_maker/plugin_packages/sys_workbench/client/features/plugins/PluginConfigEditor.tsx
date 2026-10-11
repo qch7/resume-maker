@@ -46,7 +46,7 @@ interface ControlProps {
   onChange: (input: FieldInput) => void;
 }
 
-/** 字段类型决定控件，空值始终独立于空字符串和缺失值 */
+/** 字段类型决定控件，空值始终独立于空字符串、缺失值 */
 function ConfigControl({
   id,
   label,
@@ -117,7 +117,7 @@ function ConfigControl({
   );
 }
 
-/** 配置值、来源和恢复操作在同一字段内显示，复杂结构保留高级编辑 */
+/** 配置值、来源、恢复操作在同一字段内显示，复杂结构保留高级编辑 */
 export default function PluginConfigEditor({
   plugin,
   credentialFields = {},

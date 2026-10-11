@@ -1,4 +1,4 @@
-"""物理最小数据结构和动态启用"""
+"""物理最小数据结构、动态启用"""
 
 import sqlite3
 
@@ -9,7 +9,7 @@ from resume_maker.plugins.discovery import selection
 
 
 def test_minimal_has_no_optional_tables_and_enable_preserves_rows(tmp_path):
-    """最小库不创建会话和模板表，启用时按所有者补建且重复启用保留资料"""
+    """最小库不创建会话、模板表，启用时按所有者补建且重复启用保留资料"""
     selected = selection("minimal")[1]
     db = Database(tmp_path / "resume.db", plugins=selected)
     tables = {row["name"] for row in db.all("SELECT name FROM sqlite_master WHERE type='table'")}
@@ -25,7 +25,7 @@ def test_minimal_has_no_optional_tables_and_enable_preserves_rows(tmp_path):
 
 
 def test_enable_failure_rolls_back_tables_and_reference_rules(tmp_path, monkeypatch):
-    """引用规则安装失败不能留下半套插件表，旧资料和提交后回调均受事务保护"""
+    """引用规则安装失败不能留下半套插件表，旧资料、提交后回调均受事务保护"""
     from resume_maker.infrastructure import database
 
     selected = selection("minimal")[1]

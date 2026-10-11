@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import HistoryDialog from "./HistoryDialog";
 import type { EditorProps } from "./types";
 
-/** 将分支切换、历史树入口和版本发布放在紧凑工具栏中 */
+/** 将分支切换、历史树入口、版本发布放在紧凑工具栏中 */
 export default function VersionControl({ props }: { props: EditorProps }) {
   const { detail, revisionId, run } = props;
   const [dialog, setDialog] = useState<"history" | "create" | null>(null);
@@ -25,8 +25,7 @@ export default function VersionControl({ props }: { props: EditorProps }) {
             onChange={
               /* 切到指定分支最新版本，原分支草稿先落盘 */ (event) => {
                 const branch = detail.branches.find(
-                  /* 查找用户选定的分支指针 */ (item) =>
-                    item.id === event.target.value,
+                  (item) => item.id === event.target.value,
                 );
                 if (branch) props.onRevision(branch.head_revision);
               }

@@ -1,4 +1,4 @@
-"""运行目录、实例令牌和前端资源位置配置"""
+"""运行目录、实例令牌、前端资源位置配置"""
 
 import secrets
 from dataclasses import dataclass, field
@@ -56,7 +56,7 @@ def default_env_file() -> Path | None:
 
 @dataclass
 class Config:
-    """运行配置：目录和令牌按实例生成，个人数据目录不纳入 Git"""
+    """运行配置：目录、令牌按实例生成，个人数据目录不纳入 Git"""
 
     data_dir: Path = field(default_factory=data_directory)
     token: str = field(default_factory=lambda: secrets.token_urlsafe(32))
@@ -76,7 +76,7 @@ class Config:
         self.port = LaunchSettings(port=self.port).port
 
     def prepare(self) -> None:
-        """规范化数据目录并创建工作副本和缓存目录"""
+        """规范化数据目录并创建工作副本、缓存目录"""
         self.data_dir = self.data_dir.resolve()
         for name in ("workspaces", "templates"):
             (self.data_dir / name).mkdir(parents=True, exist_ok=True)

@@ -266,7 +266,7 @@ def test_restore_endpoint_requires_supervision_and_current_generation(tmp_path):
 
 
 def test_interrupted_directory_switch_recovers_original_data(tmp_path):
-    """旧目录已移走但新目录尚未发布时，重新启动不会建立空资料库"""
+    """旧目录移走且新目录尚未发布时，重启禁止创建空资料库"""
     root = tmp_path / "data"
     app = create_app(Config(data_dir=root, profile="minimal"))
     with TestClient(app):

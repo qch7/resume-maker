@@ -2,7 +2,7 @@ import { Check, FileText, Heart } from "lucide-react";
 import Thumbnail from "./Thumbnail";
 import { templateDate, type LibraryTemplate } from "./library";
 
-/** 列表和卡片共用支持键盘操作的选择及 Like 按钮 */
+/** 列表、卡片共用支持键盘操作的选择及 Like 按钮 */
 export default function TemplateEntries({
   items,
   view,
@@ -66,8 +66,7 @@ export default function TemplateEntries({
               aria-pressed={selected === item.id}
               onClick={/* 列表名称支持键盘选择 */ () => onSelect(item.id)}
               onDoubleClick={
-                /* 和资源管理器的双击打开行为保持一致 */ () =>
-                  onConfirm(item.id)
+                /* 沿用资源管理器的双击打开行为 */ () => onConfirm(item.id)
               }
             >
               <FileText size={17} />

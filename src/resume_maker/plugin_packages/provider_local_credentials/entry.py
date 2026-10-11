@@ -1,4 +1,4 @@
-"""本地凭据后端的注册和生命周期入口"""
+"""本地凭据后端的注册、生命周期入口"""
 
 from resume_maker.plugins.support import dependency, publish
 

@@ -1,4 +1,4 @@
-"""按产品能力批量选择，保留基础职责、实例绑定和已存资料"""
+"""按产品能力批量选择，保留基础职责、实例绑定、已存资料"""
 
 import pytest
 from fastapi.testclient import TestClient
@@ -17,12 +17,12 @@ HEADERS = {"x-resume-token": "test"}
 
 
 def manifest(identifier, **fields):
-    """构造没有代码入口的领域插件，覆盖供应商和消费约束"""
+    """构造没有代码入口的领域插件，覆盖供应商、消费约束"""
     return Manifest(id=identifier, title=identifier, version="1.0.0", package="test", **fields)
 
 
 def test_ocr_shutdown_keeps_manual_honors_and_optional_ai():
-    """整组关闭 OCR 后手工荣誉库、AI 会话和基础保护仍可用"""
+    """整组关闭 OCR 后手工荣誉库、AI 会话、基础保护仍可用"""
     manifests, selected, required = selection("standard")
     candidate = set(select_capability_group(manifests, selected, required, "ocr", False))
     assert {"ext.ocr", "provider.rapidocr", "ext.honor-recognition"}.isdisjoint(candidate)
@@ -32,7 +32,7 @@ def test_ocr_shutdown_keeps_manual_honors_and_optional_ai():
 
 
 def test_ai_shutdown_removes_transitive_consumers():
-    """跨分组硬依赖逐层停用，模板库和 OCR 仍保留"""
+    """跨分组硬依赖逐层停用，模板库、OCR 仍保留"""
     manifests, selected, required = selection("standard")
     candidate = set(select_capability_group(manifests, selected, required, "ai", False))
     assert {"ext.ai-runtime", "ext.ai-conversation", "ext.template-ai"}.isdisjoint(candidate)

@@ -1,11 +1,11 @@
-"""定义业务异常和记录存在性校验"""
+"""定义业务异常、记录存在性校验"""
 
 
 class Problem(Exception):
     """携带可展示消息及状态码的业务错误"""
 
     def __init__(self, message: str, status: int = 400):
-        """保存错误消息和状态，供接口层统一转换为响应"""
+        """保存错误消息、状态，供接口层统一转换为响应"""
         self.message, self.status = message, status
         super().__init__(message)
 

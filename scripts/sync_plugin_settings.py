@@ -1,4 +1,4 @@
-"""从插件的纯配置模型生成清单 schema、示例和配置目录"""
+"""从插件的纯配置模型生成清单 schema、示例、配置目录"""
 
 import argparse
 import importlib
@@ -12,7 +12,7 @@ END = "<!-- END GENERATED SETTINGS -->"
 
 
 def json_text(value):
-    """固定 JSON 编码和换行以便检查生成产物"""
+    """固定 JSON 编码、换行以便检查生成产物"""
     return json.dumps(value, ensure_ascii=False, indent=2) + "\n"
 
 
@@ -64,7 +64,7 @@ def generated_files():
 
 
 def main():
-    """检查模式拒绝模型和清单漂移，写入模式同步全部生成产物"""
+    """检查模式拒绝模型、清单漂移，写入模式同步全部生成产物"""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()

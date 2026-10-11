@@ -181,7 +181,7 @@ def validate_path(schema, path):
 
 
 def read_path(value, path):
-    """区分属性缺失和业务 null"""
+    """区分属性缺失、业务 null"""
     for key in path:
         if not isinstance(value, dict) or key not in value:
             return False, None
@@ -233,7 +233,7 @@ def startup_configuration(saved, path=None, bundles=()):
     from resume_maker.sdk.manifest import Contract
 
     class Input(Contract):
-        """配置文件只能定义有序默认组合和本次启动覆盖"""
+        """配置文件只能定义有序默认组合、本次启动覆盖"""
 
         bundles: tuple[ConfigurationLayer, ...] = Field(default=(), max_length=100)
         startup: tuple[ConfigurationEdit, ...] = Field(default=(), max_length=10000)

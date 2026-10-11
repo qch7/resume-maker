@@ -38,7 +38,7 @@ import { activityQueryTime, useActivityTime } from "./useActivityTime";
 
 const ROW_HEIGHT = 32;
 
-/** 在独立全宽区域展示统一活动轨道、实时列表和单条详情 */
+/** 在独立全宽区域展示统一活动轨道、实时列表、单条详情 */
 export default function Activity({
   preferencesState,
   onOpenSettings,

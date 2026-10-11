@@ -1,4 +1,4 @@
-"""合成经历、项目来源和正文读取辅助函数"""
+"""合成经历、项目来源、正文读取辅助函数"""
 
 from docx import Document
 
@@ -29,7 +29,7 @@ def record_source_files(db, data_dir, project, paths=("README.md",)):
 
 
 def experience(title="Example"):
-    """构造含两条亮点的最小经历，用于测试保存、排序和固定引用"""
+    """构造含两条亮点的最小经历，用于测试保存、排序、固定引用"""
     return {
         "title": title,
         "period": "",
@@ -45,12 +45,12 @@ def experience(title="Example"):
 
 
 def body_text(path):
-    """按段落拼接文字，标签和内容允许分属不同字重的文字运行"""
+    """按段落拼接文字，标签、内容允许分属不同字重的文字运行"""
     return "\n".join(paragraph_text(node) for node in Document(path).element.body.iter(w("p")))
 
 
 def project_info():
-    """固定项和自定义项各含可见和隐藏内容，便于验证恢复不丢原值"""
+    """固定项、自定义项各含可见、隐藏内容，便于验证恢复不丢原值"""
     return {
         **experience("项目标题原值"),
         "period": "2025.01–2026.02",

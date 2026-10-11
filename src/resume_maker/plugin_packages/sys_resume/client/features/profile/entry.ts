@@ -6,7 +6,7 @@ import type {
 } from "@resume-maker/plugin-sdk/shared/types/index";
 import { newDocument } from "@resume-maker/plugin-sdk/shared/resume/document";
 
-/** 按栏目和条目标识读取资料以免排序后保存到其他经历 */
+/** 按栏目、条目标识读取资料以免排序后保存到其他经历 */
 export function findEntry(
   document: ResumeDocument | null | undefined,
   sectionId: string,
@@ -30,13 +30,13 @@ export function replaceEntry(
     document: {
       ...draft.document!,
       sections: draft.document!.sections.map(
-        /* 稳定标识定位目标栏目和条目 */ (section) =>
+        /* 稳定标识定位目标栏目、条目 */ (section) =>
           section.id !== sectionId
             ? section
             : {
                 ...section,
                 entries: section.entries.map(
-                  /* 其他条目的草稿和排列保持原样 */ (item) =>
+                  /* 其他条目的草稿、排列保持原样 */ (item) =>
                     item.id === entry.id ? entry : item,
                 ),
               },
@@ -73,7 +73,7 @@ export function entryComposition(
       return;
     if (section.parent_id) {
       const parent = draft.document?.sections.find(
-        /* 读取新栏目的父级 */ (item) => item.id === section.parent_id,
+        (item) => item.id === section.parent_id,
       );
       if (!parent || parent.parent_id)
         throw new Error("栏目层级无效，请先调整栏目。");

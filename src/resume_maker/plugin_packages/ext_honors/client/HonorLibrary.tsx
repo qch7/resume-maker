@@ -37,7 +37,7 @@ import {
 const ACTIVE_POLL_MS = 2000;
 const IDLE_POLL_MS = 10000;
 
-/** 提供跨简历复用的荣誉库、批量上传、识别核对和筛选管理 */
+/** 提供跨简历复用的荣誉库、批量上传、识别核对、筛选管理 */
 export default function HonorLibrary({
   active,
   document,
@@ -114,7 +114,7 @@ export default function HonorLibrary({
     [active, refresh, reload],
   );
 
-  /** 合并最新条目并使旧查询失效后保留当前筛选和选择 */
+  /** 合并最新条目并使旧查询失效后保留当前筛选、选择 */
   function saved(honor: Honor) {
     ++fetchSerial.current;
     setItems(
@@ -151,7 +151,7 @@ export default function HonorLibrary({
         const item = (await response.json()) as Honor;
         ++fetchSerial.current;
         setItems(
-          /* 成功上传后立即显示条目和排队状态 */ (current) => [
+          /* 成功上传后立即显示条目、排队状态 */ (current) => [
             item,
             ...current.filter(
               /* 跳过轮询已读取的条目 */ (existing) => existing.id !== item.id,
@@ -161,7 +161,7 @@ export default function HonorLibrary({
         success++;
       } catch (reason) {
         setUploadErrors(
-          /* 保留每个失败文件的名称和原因 */ (current) => [
+          /* 保留每个失败文件的名称、原因 */ (current) => [
             ...current,
             `${file.name}：${(reason as Error).message}`,
           ],
@@ -211,7 +211,7 @@ export default function HonorLibrary({
       setBusy("");
     }
   }
-  /** 将选定荣誉复制到当前简历，失败时保留库和选择状态 */
+  /** 将选定荣誉复制到当前简历，失败时保留库、选择状态 */
   function add(values: Honor[]) {
     try {
       onAdd(values, target);
@@ -229,7 +229,7 @@ export default function HonorLibrary({
   }
   const filtered = sortHonors(
     items.filter(
-      /* 综合分类、核对状态和搜索词 */ (item) =>
+      /* 综合分类、核对状态、搜索词 */ (item) =>
         (!category || item.fields.category === category) &&
         (!status ||
           (status === "ready"
@@ -239,9 +239,7 @@ export default function HonorLibrary({
     ),
     sort,
   );
-  const ready = items.filter(
-    /* 统计已核对条目 */ (item) => item.status === "ready",
-  ).length;
+  const ready = items.filter((item) => item.status === "ready").length;
   const processing = items.filter(isRecognizing).length;
   const chosen = items.filter(
     /* 只将当前仍可用的已核对选择加入简历 */ (item) =>
@@ -326,7 +324,7 @@ export default function HonorLibrary({
               }
             }
             onDrop={
-              /* 批量拖入和文件选择使用同一上传流程 */ (event) => {
+              /* 批量拖入、文件选择使用同一上传流程 */ (event) => {
                 event.preventDefault();
                 setDragging(false);
                 void upload(Array.from(event.dataTransfer.files));
@@ -500,7 +498,7 @@ export default function HonorLibrary({
           ) : (
             <div className="honor-grid">
               {filtered.map(
-                /* 每个证书卡片呈现原件、核心信息和处理入口 */ (item) => {
+                /* 每个证书卡片呈现原件、核心信息、处理入口 */ (item) => {
                   const recognizing = isRecognizing(item);
                   const included = hasHonor(document, item.id);
                   return (
@@ -537,7 +535,7 @@ export default function HonorLibrary({
                         className="honor-cover"
                         aria-label={`查看 ${item.fields.name || item.attachment?.name}`}
                         onClick={
-                          /* 打开原件和字段的并排核对窗口 */ () =>
+                          /* 打开原件、字段的并排核对窗口 */ () =>
                             setEditing(item.id)
                         }
                       >
@@ -599,7 +597,7 @@ export default function HonorLibrary({
                                 : "关联到当前简历，资料随荣誉库同步"
                           }
                           onClick={
-                            /* 根据当前简历引用状态切换加入和移除 */ () =>
+                            /* 根据当前简历引用状态切换加入、移除 */ () =>
                               included ? remove(item.id) : add([item])
                           }
                         >
@@ -647,7 +645,7 @@ export default function HonorLibrary({
         <HonorEditor
           key={editing}
           honor={editingItem ?? null}
-          onClose={/* 关闭后保留列表的筛选和滚动位置 */ () => setEditing(null)}
+          onClose={/* 关闭后保留列表的筛选、滚动位置 */ () => setEditing(null)}
           onSaved={saved}
         />
       )}
@@ -659,7 +657,7 @@ export default function HonorLibrary({
           </div>
           <button
             disabled={!!busy}
-            onClick={/* 放弃删除，保留原件和条目 */ () => setDeleting(null)}
+            onClick={/* 放弃删除，保留原件、条目 */ () => setDeleting(null)}
           >
             保留
           </button>

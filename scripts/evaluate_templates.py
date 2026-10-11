@@ -1,8 +1,8 @@
-"""显式授权后用 CC Switch 中指定供应商评测模板
+"""显式授权后用 CC Switch 指定的供应商评测模板
 
-配置、会话和产物完全隔离
-密钥只传入 CLI 子进程环境，不保存到报告、命令行或测试配置
-正式 SQLite 数据库以只读方式打开，模型不共享会话或映射缓存
+隔离本次评测的配置、会话及产物
+密钥仅传入 CLI 子进程环境，报告、命令行、测试配置均排除密钥
+正式 SQLite 数据库只读，模型各自使用独立会话及映射缓存
 """
 
 import argparse
@@ -118,7 +118,7 @@ def isolated_provider(database, name, directory):
         reasoning_effort=config.get("model_reasoning_effort", ""),
         timeout_seconds=600,
     )
-    # JSON 字符串的引号和转义可用于此处的 TOML 基本字符串，不经过 shell
+    # JSON 字符串的引号、转义可用于此处的 TOML 基本字符串，不经过 shell
     quote = json.dumps
     lines = [
         'model_provider = "evaluation"',
@@ -151,10 +151,10 @@ def isolated_provider(database, name, directory):
 
 
 class RecordedProvider(PrivacyGateway):
-    """记录实际发给模型的证据和原始映射，便于区分模型错误和程序补全"""
+    """记录实际发给模型的证据、原始映射，便于区分模型错误、程序补全"""
 
     def __init__(self, environment, directory):
-        """配置仅属于本次模型和模板的独立会话目录"""
+        """配置仅属于本次模型、模板的独立会话目录"""
         from resume_maker.plugin_packages.provider_rapidocr.local_ocr import read_document
 
         super().__init__(runner=run_cli, environment=environment, ocr=read_document, images=True)
@@ -190,14 +190,14 @@ class RecordedProvider(PrivacyGateway):
 
 
 def normalized(text):
-    """去除排版换行和空格以核验真实文本"""
+    """去除排版换行、空格以核验真实文本"""
     return "".join(text.split())
 
 
 def inspect_output(pdf, document, projects):
-    """独立检查试填内容并记录页码、姓名和栏目位置"""
+    """独立检查试填内容并记录页码、姓名、栏目位置"""
     with pymupdf.open(pdf) as rendered:
-        # 原生浮动标题可能最后写入 PDF 内容流，跨页正文须同时按页面阅读顺序检查
+        # 浮动标题可能最后写入 PDF 内容流，跨页正文同时按页面阅读顺序检查
         combined = [
             normalized("\n".join(page.get_text(sort=sort) for page in rendered))
             for sort in (False, True)
@@ -261,7 +261,7 @@ def inspect_output(pdf, document, projects):
 
 
 def inspect_record_counts(path, document, projects):
-    """按资料允许的总出现次数检查记录标识，不同条目共用同一值不属于多填"""
+    """按资料允许的总出现次数核对记录标识，允许不同条目共用同一值"""
     values = [
         value
         for key, value in personal_values(document).items()
@@ -328,7 +328,7 @@ def accepted_output(report):
 
 
 def evaluate(args, supplier, source, document, projects):
-    """完成单份模板的真实识别、生成、渲染和独立内容检查"""
+    """完成单份模板的真实识别、生成、渲染、独立内容检查"""
     directory = args.output / supplier / source.stem
     directory.mkdir(parents=True, exist_ok=False)
     environment, settings = isolated_provider(args.cc_switch_db, supplier, directory)
@@ -399,7 +399,7 @@ def evaluate(args, supplier, source, document, projects):
 
 
 def main():
-    """显式指定输入、供应商和产物目录后启动评测矩阵"""
+    """显式指定输入、供应商、产物目录后启动评测矩阵"""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cc-switch-db", type=Path, required=True)
     parser.add_argument("--data-db", type=Path, required=True)

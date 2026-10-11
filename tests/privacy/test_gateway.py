@@ -28,7 +28,7 @@ from tests.support.providers import privacy_provider
 
 
 def test_actual_request_masks_context_schema_and_restores_locally(tmp_path, catalog):
-    """模拟供应商只看到占位符，输出和本地发送审计各自符合隐私边界"""
+    """模拟供应商只看到占位符，输出、本地发送审计各自符合隐私边界"""
     values = ["测试甲", "13812345678", "person@example.invalid", "测试住宅甲"]
     catalog.db.set_setting("privacy_terms", values)
     seen = []
@@ -56,7 +56,7 @@ def test_actual_request_masks_context_schema_and_restores_locally(tmp_path, cata
 
 
 def test_saved_and_unsaved_documents_supply_sensitive_values(tmp_path, catalog):
-    """尚未保存的表单和已保存的荣誉隐藏字段仍能保护自由聊天中的真实值"""
+    """尚未保存的表单、已保存的荣誉隐藏字段仍能保护自由聊天中的真实值"""
     catalog.db.set_setting(
         "honor:test", {"fields": {"recipient": "合成获奖人", "certificate_number": "HONOR-PRIVATE"}}
     )
@@ -87,7 +87,7 @@ def test_saved_and_unsaved_documents_supply_sensitive_values(tmp_path, catalog):
 
 @pytest.mark.parametrize("origin", ["private_data", "ocr"])
 def test_task_secrets_survive_copying_and_are_never_restored(tmp_path, origin):
-    """任务登记的裸凭据在提示词和契约中移除，还原姓名时也不能还原凭据"""
+    """任务登记的裸凭据在提示词、契约中移除，还原姓名时也不能还原凭据"""
     first, second = "synthetic-credential-one", "synthetic-credential-two"
     seen = []
 
@@ -149,7 +149,7 @@ def test_unknown_common_identity_patterns_are_masked(value):
 
 
 def test_escaped_values_secrets_and_structured_keys():
-    """JSON 转义、字典键和凭据不能绕过脱敏，凭据永不通过占位符还原"""
+    """JSON 转义、字典键、凭据不能绕过脱敏，凭据永不通过占位符还原"""
     redactor = Redactor(["测试甲", "example-secret"])
     value = {
         "测试甲": "测试甲",
@@ -166,7 +166,7 @@ def test_escaped_values_secrets_and_structured_keys():
 
 
 def test_structured_names_and_multiline_values(tmp_path):
-    """无标签结构字段和跨行自定义值脱敏后仍能准确还原"""
+    """无标签结构字段、跨行自定义值脱敏后仍能准确还原"""
     redactor = Redactor(["第一行\n第二行"])
     safe = redactor.prompt(
         json.dumps({"personal": {"Name": "Synthetic Person"}, "notes": "第一行\n第二行"})
@@ -201,7 +201,7 @@ def test_connection_inherits_profile_effort_and_overrides_without_executing_tool
 def test_custom_provider_requires_responses_in_all_configuration_sources(
     tmp_path, profile, wire_api
 ):
-    """主配置和两种配置档均限制 Responses，省略协议时显式采用同一默认值"""
+    """主配置、两种配置档均限制 Responses，省略协议时显式采用同一默认值"""
     provider = (
         'model_provider="custom"\n[model_providers.custom]\n'
         'name="Synthetic"\nbase_url="https://example.invalid/v1"\n'
@@ -230,7 +230,7 @@ def test_custom_provider_requires_responses_in_all_configuration_sources(
 
 @pytest.mark.parametrize("input_text", ["data:image/png;base64,AAAA", "A" * 600, "[[RM_fake]]"])
 def test_encoded_payloads_and_forged_tokens_fail_closed(input_text):
-    """图片编码和手工伪造的占位符不能伪装成普通文本外发"""
+    """图片编码、手工伪造的占位符不能伪装成普通文本外发"""
     with pytest.raises(ProviderError):
         Redactor().prompt(input_text)
 
@@ -296,7 +296,7 @@ def test_subscription_login_is_preserved_and_credentials_are_not_arguments(tmp_p
 def test_source_bundle_excludes_private_files_and_preserves_line_numbers(
     tmp_path, catalog, project
 ):
-    """本地采集不读取密钥或自身数据库，引用路径和行号仍对应原始源码"""
+    """本地采集不读取密钥或自身数据库，引用路径、行号仍对应原始源码"""
     root = Path(project["roots"][0])
     (root / ".env").write_text("SECRET=private")
     (root / "private.pem").write_text("private")
@@ -372,7 +372,7 @@ def test_source_password_annotation_keeps_output_schema_valid(tmp_path, annotati
     """源码中的密码类型声明不会改坏模型输出的 JSON Schema 类型"""
 
     def handle(payload):
-        """检查供应商实际收到的类型和引用仍是有效契约"""
+        """检查供应商实际收到的类型、引用仍是有效契约"""
         assert payload["schema"]["properties"]["reply"]["type"] == "string"
         assert payload["schema"]["type"] == "object"
         return reply()
@@ -384,7 +384,7 @@ def test_source_password_annotation_keeps_output_schema_valid(tmp_path, annotati
 
 
 def test_schema_private_enum_restores_without_changing_protocol(tmp_path):
-    """自定义栏目候选仍脱敏并还原，固定字段名和类型不被敏感词改写"""
+    """自定义栏目候选仍脱敏并还原，固定字段名、类型不被敏感词改写"""
 
     class Answer(Model):
         """模拟带有私人栏目名称的动态模板契约"""
@@ -415,10 +415,10 @@ def test_schema_private_enum_restores_without_changing_protocol(tmp_path):
 
 @pytest.mark.parametrize("identity", ["source", "text"])
 def test_identity_matching_material_keys_keeps_sources_readable(tmp_path, identity):
-    """敏感词和材料字段同名时仍可生成沙箱副本，正文及文件名继续脱敏"""
+    """敏感词、材料字段同名时仍可生成沙箱副本，正文及文件名继续脱敏"""
 
     def handle(payload):
-        """通过真实副本写入和读取验证固定路由未被敏感词破坏"""
+        """通过真实副本写入、读取验证固定路由未被敏感词破坏"""
         (tmp_path / "materials").mkdir()
         context = json.loads(
             materials(tmp_path, payload["input"], payload["schema"]).splitlines()[-1]

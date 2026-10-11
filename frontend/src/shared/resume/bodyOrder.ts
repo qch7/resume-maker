@@ -4,7 +4,7 @@ import type {
   ProjectVisibility,
 } from "../types/index.ts";
 
-/** 标题和时间固定在顶部，版本未指定正文顺序时采用简历编排 */
+/** 标题、时间固定在顶部，版本未指定正文顺序时采用简历编排 */
 export function projectBodyOrder(
   value: Meta,
   settings: ProjectVisibility,
@@ -23,7 +23,7 @@ export function projectBodyOrder(
   return [
     ...new Set([...(value.body_order ?? settings.order ?? []), ...defaults]),
   ].filter(
-    /* 删除和切换版本后忽略不存在的条目，但不修改保存的其他版本位置 */ (key) =>
+    /* 删除条目或切换版本后跳过缺失项，保留其他版本已保存的位置 */ (key) =>
       available.has(key),
   );
 }

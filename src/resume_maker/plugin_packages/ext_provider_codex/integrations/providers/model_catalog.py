@@ -6,7 +6,7 @@ from resume_maker.sdk.model import ProviderError
 
 
 def write_catalog(root, settings, *, images=False):
-    """保留选定模型名称，通过受控目录固定标准工具协议和只读能力"""
+    """保留选定模型名称，通过受控目录固定标准工具协议、只读能力"""
     model = settings.get("model")
     if not model:
         raise ProviderError("隐私工具模式需要明确的模型名称，请在模型设置或 CLI 配置中填写。")

@@ -27,7 +27,7 @@ export function restoreSources(
   );
 }
 
-/** 仅在正式提交时去除空行和路径两端空格 */
+/** 仅在正式提交时去除空行、路径两端空格 */
 export function sourcePaths(paths: string) {
   return paths
     .split("\n")

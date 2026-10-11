@@ -1,4 +1,4 @@
-"""共享 HTTP 服务的绝对预算、真实取消清理和供应商队列边界"""
+"""共享 HTTP 服务的绝对预算、真实取消清理、供应商队列边界"""
 
 import asyncio
 import threading

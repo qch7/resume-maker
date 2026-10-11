@@ -103,7 +103,7 @@ def test_delete_child_preserves_parent_sibling_and_their_resume(catalog, tmp_pat
 
 
 def test_delete_refuses_active_job_and_cleans_completed_history(catalog, project, tmp_path):
-    """运行任务不能被删除，完成后经历、分支、草稿和会话依赖能在外键约束下清理"""
+    """运行任务不能被删除，完成后经历、分支、草稿、会话依赖能在外键约束下清理"""
     conversation = catalog.db.one(
         "SELECT * FROM conversations WHERE project_id=?", (project["id"],)
     )
@@ -172,7 +172,7 @@ def test_delete_cancelled_project_keeps_job_worker_alive(catalog, project, tmp_p
     started, release = Event(), Event()
 
     class DelayedProvider(FakeProvider):
-        """固定首个任务退出时机以覆盖取消和项目删除交错"""
+        """固定首个任务退出时机以覆盖取消、项目删除交错"""
 
         def run(self, **kw):
             """首个任务等待项目被删除，后续任务正常响应"""

@@ -1,4 +1,4 @@
-"""模板库分类、收藏和真实首屏缩略图，组织信息独立于不可变模板映射"""
+"""模板库分类、收藏、真实首屏缩略图，组织信息独立于不可变模板映射"""
 
 import logging
 import threading
@@ -20,7 +20,7 @@ from resume_maker.sdk.records import dump, now, uid, unpack
 
 
 class TemplateLibrary:
-    """以数据库配置保存分类和 Like，缩略图按模板内容复用"""
+    """以数据库配置保存分类、Like，缩略图按模板内容复用"""
 
     def __init__(
         self,
@@ -54,7 +54,7 @@ class TemplateLibrary:
             return self._state(conn)
 
     def _state(self, conn):
-        """同一数据库快照返回组织信息、实时列表和全部简历引用数"""
+        """同一数据库快照返回组织信息、实时列表、全部简历引用数"""
         state = self._read(conn)
         state["trash_retention_days"] = self.settings.trash_retention_days
         state["templates"] = [
@@ -70,7 +70,7 @@ class TemplateLibrary:
         return state
 
     def update(self, template_id, changes):
-        """原子修改名称和组织信息，保持模板标识、映射、文件及简历引用不变"""
+        """原子修改名称、组织信息，保持模板标识、映射、文件及简历引用不变"""
         changes = dict(changes)
         name = changes.pop("name", None)
         if name is not None:
@@ -189,7 +189,7 @@ class TemplateLibrary:
             return self._state(conn)
 
     def delete_category(self, category_id):
-        """移除分类时将其中模板归回未分类，保留模板、收藏和简历引用"""
+        """移除分类时将其中模板归回未分类，保留模板、收藏、简历引用"""
         with self.db.transaction() as conn:
             state = self._read(conn)
             state["categories"] = [c for c in state["categories"] if c["id"] != category_id]

@@ -1,4 +1,4 @@
-"""任务授权和平台执行的独立职责"""
+"""任务授权、平台执行的独立职责"""
 
 import hashlib
 import json
@@ -28,7 +28,7 @@ class Grant:
 
 
 def environment_digest(environment):
-    """只持有规范环境摘要，不把凭据原文写入授权对象和日志"""
+    """只持有规范环境摘要，不把凭据原文写入授权对象、日志"""
     if environment is None:
         return None
     return hashlib.sha256(json.dumps(environment, sort_keys=True).encode()).hexdigest()
@@ -38,7 +38,7 @@ class Execution:
     """只有登记过的有效授权能够进入平台执行入口"""
 
     def __init__(self, backend):
-        """平台进程管理和应用授权分别保存"""
+        """平台进程管理、应用授权分别保存"""
         self.backend, self.grants = backend, {}
         self.lock = threading.RLock()
         self.epochs, self.active = {}, {}
@@ -114,11 +114,11 @@ class Sandbox:
     """报告实际保证，所需 OS 隔离无法提供时明确拒绝"""
 
     def __init__(self, execution, backend):
-        """消费执行服务和本地材料会话提供方"""
+        """消费执行服务、本地材料会话提供方"""
         self.execution, self.backend = execution, backend
 
     def capabilities(self):
-        """应用材料限制和进程回收不等同于文件及网络强制隔离"""
+        """应用材料限制、进程回收不等同于文件及网络强制隔离"""
         return dict(self.backend.capabilities)
 
     def session(self):

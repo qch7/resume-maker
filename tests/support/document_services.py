@@ -19,7 +19,7 @@ render_word = native_render
 
 
 def use_renderer(app, monkeypatch, render):
-    """替换实际注册的渲染贡献，本机和 CI 均使用同一合成渲染器"""
+    """替换实际注册的渲染贡献，本机、CI 均使用同一合成渲染器"""
     contributions = app.state.runtime.contributions
     key = ("documents.renderers", "ext.word/default")
     monkeypatch.setitem(
@@ -33,7 +33,7 @@ def renderer(*args):
 
 
 def options(values):
-    """测试明确选择内置、模板和 Word 能力，不依赖服务私自加载其他插件"""
+    """测试明确选择内置、模板、Word 能力，不依赖服务私自加载其他插件"""
     return {
         "engine": write_full_resume,
         "template_engine": fill_template,
@@ -44,10 +44,10 @@ def options(values):
 
 
 def Documents(*args, **kwargs):
-    """用真实领域服务和测试指定的文档能力构造导出器"""
+    """用真实领域服务、测试指定的文档能力构造导出器"""
     return DocumentService(*args, **options(kwargs))
 
 
 def ResumePreviews(*args, **kwargs):
-    """用相同装配构造预览器，正式输入冻结和取消逻辑保持真实实现"""
+    """用相同装配构造预览器，正式输入冻结、取消逻辑保持真实实现"""
     return PreviewService(*args, **options(kwargs))

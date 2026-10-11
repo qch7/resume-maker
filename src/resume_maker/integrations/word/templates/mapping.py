@@ -1,4 +1,4 @@
-"""提取模板的稳定节点清单，校验精确引文、重复区域和完整覆盖"""
+"""提取模板的稳定节点清单，校验精确引文、重复区域、完整覆盖"""
 
 import posixpath
 from io import BytesIO
@@ -42,7 +42,7 @@ ENTRY_TARGETS = {
 
 
 def paragraph_texts(paragraph):
-    """仅读取本段文字，文本框中的内层段落独立编号和替换"""
+    """仅读取本段文字，文本框中的内层段落独立编号、替换"""
     return [
         node
         for node in paragraph.iter(w("t"))
@@ -51,12 +51,12 @@ def paragraph_texts(paragraph):
 
 
 def paragraph_text(paragraph) -> str:
-    """合并可跨样式片段的段落文字，保持和 AI 引文定位一致"""
+    """合并跨样式片段的段落文字，沿用 AI 引文定位规则"""
     return "".join(node.text or "" for node in paragraph_texts(paragraph))
 
 
 def image_container(node):
-    """定位单张图片的叶子图形，组合中的背景和文字不属于照片操作范围"""
+    """定位单张图片的叶子图形，组合中的背景、文字不属于照片操作范围"""
     leaf = None
     grouped = False
     for parent in node.iterancestors():
@@ -104,10 +104,10 @@ def quote_range(text: str, binding: TextBinding) -> tuple[int, int]:
 
 
 class TemplatePackage:
-    """读取所有可排版文字部件，保留未修改的包资源和 XML 属性"""
+    """读取所有可排版文字部件，保留未修改的包资源、XML 属性"""
 
     def __init__(self, path: Path | BytesIO):
-        """限制包大小并禁用 XML 外部实体，给结构和图片分配稳定标识"""
+        """限制包大小并禁用 XML 外部实体，给结构、图片分配稳定标识"""
         self.parts, self.nodes, self.locations, self.ids = {}, {}, {}, {}
         self.notices = []
         try:
@@ -136,7 +136,7 @@ class TemplatePackage:
             raise Problem("文件不是有效的 Word DOCX 模板。") from exc
 
     def reindex(self):
-        """结构变动后按序重建编号，顺序和写回后重新读取完全一致"""
+        """结构变动后按序重建编号，使顺序匹配写回后重新读取的结果"""
         self.nodes, self.locations, self.ids = {}, {}, {}
         for name, root in sorted(self.parts.items()):
             for node in root.iter():
@@ -244,7 +244,7 @@ class TemplatePackage:
         return self.files[target]
 
     def region(self, start: str, end: str) -> list:
-        """重复区使用同一父节点的闭区间，支持段落、完整表格和表格行"""
+        """重复区使用同一父节点的闭区间，支持段落、完整表格、表格行"""
         first, last = self.node(start), self.node(end)
         parent = first.getparent()
         if parent is None or parent is not last.getparent():
@@ -264,11 +264,11 @@ class TemplatePackage:
         return nodes
 
     def descendants(self, nodes: list) -> set[str]:
-        """收集区域内全部节点标识，供嵌套冲突和覆盖检查使用"""
+        """收集区域内全部节点标识，供嵌套冲突、覆盖检查使用"""
         return {self.ids[child] for node in nodes for child in node.iter()}
 
     def validate_fields(self, fields: list[TextBinding], *, local: bool = False) -> set[str]:
-        """核验目标字段、引文和重叠范围以防替换相邻字段或跨区域写入"""
+        """核验目标字段、引文、重叠范围以防替换相邻字段或跨区域写入"""
         intervals, targets = {}, set()
         for binding in fields:
             node = self.node(binding.node)
@@ -304,7 +304,7 @@ class TemplatePackage:
         return set(intervals)
 
     def review(self, plan: TemplatePlan) -> dict:
-        """逐项检查全部映射，单处错误不影响其他区域的覆盖统计和定位"""
+        """逐项检查全部映射，单处错误不影响其他区域的覆盖统计、定位"""
         inventory = self.inventory()
         errors = list(inventory["warnings"])
         issues = [{"message": message, "nodes": []} for message in errors]
@@ -323,7 +323,7 @@ class TemplatePackage:
         conflicts = set(plan.keep) & (set(plan.photos) | set(plan.remove))
         if conflicts:
             report("同一位置不能同时保留和替换或删除。", conflicts)
-        # 已声明的区域即使需要修正，也不重复统计为尚未识别，错误仍会阻止导出
+        # 已声明区域继续校验，省去未识别项的重复统计，错误仍阻止导出
         covered.update(field.node for field in plan.fields if field.node in self.nodes)
         try:
             self.validate_fields(plan.fields)
@@ -408,7 +408,7 @@ class TemplatePackage:
         }
 
     def write(self, output: Path):
-        """重写已修改的 XML 部件，其他样式、页设置和资源保持原样"""
+        """重写已修改的 XML 部件，其他样式、页设置、资源保持原样"""
         files = dict(self.files)
         for name, root in self.parts.items():
             files[name] = etree.tostring(
@@ -426,5 +426,5 @@ def relationship_part(part: str) -> str:
 
 
 def relationship_target(part: str, target: str) -> str:
-    """按 OPC 包内 URI 解析图片位置，支持绝对部件名和带空格的编码文件名"""
+    """按 OPC 包内 URI 解析图片位置，支持绝对部件名、带空格的编码文件名"""
     return posixpath.normpath(posixpath.join(posixpath.dirname(part), unquote(target))).lstrip("/")

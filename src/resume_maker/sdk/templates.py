@@ -4,7 +4,7 @@ from typing import Protocol
 
 
 class TemplateRecords(Protocol):
-    """模板库使用所有者的公开仓库，共享调用方事务但不查询私有表"""
+    """通过所有者的公开仓库访问模板，共用调用方事务，禁止直接查询私有表"""
 
     def list(self, conn, excluding=None):
         """列出固定快照中的模板记录"""
@@ -24,7 +24,7 @@ class TemplateRecords(Protocol):
 
 
 class TemplateAnalysis(Protocol):
-    """拥有分析算法及相应缓存，任务调度和结果发布由模板服务负责"""
+    """拥有分析算法及相应缓存，任务调度、结果发布由模板服务负责"""
 
     def analyze(
         self,

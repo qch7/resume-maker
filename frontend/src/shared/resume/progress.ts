@@ -5,7 +5,7 @@ import type {
 } from "../types/index.ts";
 import { isHonorEntry, isHonorSection } from "./honors/entry.ts";
 
-/** 技能栏目允许改名，默认标识和常见名称共用同一定位规则 */
+/** 技能栏目允许改名，默认标识、常见名称共用同一定位规则 */
 export function isSkillsSection(section: ResumeSection) {
   return (
     section.kind === "text" &&
@@ -39,9 +39,7 @@ export function visibleSections(document?: ResumeDocument | null) {
         if (!current.visible || visited.has(current.id)) return false;
         visited.add(current.id);
         const parent: string | null = current.parent_id;
-        current = sections.find(
-          /* 查找当前栏目的父级 */ (item) => item.id === parent,
-        );
+        current = sections.find((item) => item.id === parent);
       }
       return true;
     },
@@ -71,7 +69,7 @@ export function getProfileProgress(document?: ResumeDocument | null) {
   const selectedHonor = sections.some(
     /* 荣誉即使移动到自定义栏目，仍按来源标识识别 */ (section) =>
       section.entries.some(
-        /* 手动录入和荣誉库引用都属于有效简历内容 */ (entry) =>
+        /* 手动录入、荣誉库引用都属于有效简历内容 */ (entry) =>
           isHonorEntry(entry, section) && hasEntryContent(entry),
       ),
   );

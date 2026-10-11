@@ -8,7 +8,7 @@ import {
 import { hiddenRuleError } from "@resume-maker/plugin-sdk/shared/lib/activityPreferences";
 import { localDayRange } from "@resume-maker/plugin-sdk/shared/lib/localTime";
 
-/** 保存后端采集类别和页面过滤规则，并提供日志删除入口 */
+/** 保存后端采集类别、页面过滤规则，并提供日志删除入口 */
 export default function ActivitySettings({
   rules,
   defaultRules,
@@ -87,7 +87,7 @@ export default function ActivitySettings({
     }
   }
 
-  /** 确认删除范围后清理日志，成功时刷新列表和详情 */
+  /** 确认删除范围后清理日志，成功时刷新列表、详情 */
   async function deleteLogs() {
     if (deleting) return;
     const before =

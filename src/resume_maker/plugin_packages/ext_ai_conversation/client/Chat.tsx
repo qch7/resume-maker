@@ -20,7 +20,7 @@ import {
 import JobProgress from "./JobProgress";
 import ProposalCard from "./ProposalCard";
 
-/** 展示独立会话历史，维护输入草稿、讨论范围和防重复发送状态 */
+/** 展示独立会话历史，维护输入草稿、讨论范围、防重复发送状态 */
 export default function Chat(props: ConversationProps) {
   const { detail, project, run, activeJob } = props;
   const pane = useRef<HTMLDivElement>(null);
@@ -60,7 +60,7 @@ export default function Chat(props: ConversationProps) {
   const alive = useRef(true);
   const [sending, setSending] = useState(false);
   const sendingRef = useRef(false);
-  /** 串行刷新最新输入且只有写入成功后才推进已保存值和草稿版本 */
+  /** 串行刷新最新输入且只有写入成功后才推进已保存值、草稿版本 */
   function flush() {
     const promise = chain.current
       .catch(/* 上次错误已显示，恢复后续写入 */ () => {})
@@ -97,7 +97,7 @@ export default function Chat(props: ConversationProps) {
     chain.current = promise;
     return promise;
   }
-  /** 核对共享输入后显式采用新基线，本页原稿仍可查看和复制 */
+  /** 核对共享输入后显式采用新基线，本页原稿仍可查看、复制 */
   async function resolveInput(merge: boolean) {
     setResolving(true);
     try {
@@ -161,7 +161,7 @@ export default function Chat(props: ConversationProps) {
     latest && ["failed", "interrupted"].includes(latest.status)
       ? latest
       : undefined;
-  /** 提交绑定经历版本和范围的消息，以唯一请求标识防止重复入队 */
+  /** 提交绑定经历版本、范围的消息，以唯一请求标识防止重复入队 */
   async function send() {
     const value = current.current.trim();
     if (!value || activeJob || sendingRef.current) return;
@@ -201,7 +201,7 @@ export default function Chat(props: ConversationProps) {
               }
             }
             onKeyDown={
-              /* 处理方向键和边界快捷键，提供无鼠标的尺寸调整 */ (e) => {
+              /* 处理方向键、边界快捷键，提供无鼠标的尺寸调整 */ (e) => {
                 if (e.key === "Enter") e.currentTarget.blur();
               }
             }
@@ -331,7 +331,7 @@ export default function Chat(props: ConversationProps) {
             );
           }}
           onKeyDown={
-            /* 处理方向键和边界快捷键，提供无鼠标的尺寸调整 */ (e) => {
+            /* 处理方向键、边界快捷键，提供无鼠标的尺寸调整 */ (e) => {
               if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
                 e.preventDefault();
                 run(send);

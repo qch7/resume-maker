@@ -1,4 +1,4 @@
-"""定义由节点和字段组成的 Word 模板映射"""
+"""定义由节点、字段组成的 Word 模板映射"""
 
 from typing import Literal
 
@@ -30,7 +30,7 @@ class RepeatBinding(Model):
 
 
 class TemplatePlan(Model):
-    """待用户核对的字段、重复区、照片、固定文字和删除项"""
+    """待用户核对的字段、重复区、照片、固定文字、删除项"""
 
     summary: str = Field(max_length=2000)
     fields: list[TextBinding] = Field(max_length=150)
@@ -61,7 +61,7 @@ class RecoveredBlock(Model):
 
 
 class RecoveredPage(Model):
-    """保存按页面阅读顺序恢复的原文和照片"""
+    """保存按页面阅读顺序恢复的原文、照片"""
 
     blocks: list[RecoveredBlock] = Field(max_length=1000)
     notes: list[str] = Field(default_factory=list, max_length=30)

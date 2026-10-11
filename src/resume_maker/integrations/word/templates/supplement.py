@@ -1,4 +1,4 @@
-"""为已识别完整、但缺少个人文字资料位置的模板补出可复用填写段落"""
+"""为已完成识别且缺少个人资料位置的模板补充可复用填写段落"""
 
 from copy import deepcopy
 from io import BytesIO
@@ -110,7 +110,7 @@ def personal_insertion(package, plan, document):
 
 
 def remap_plan(plan, previous, package):
-    """按原 XML 节点身份更新全部引用，新增段落不能让照片、栏目或引文指向别处"""
+    """按原 XML 节点身份更新全部引用，新增段落后仍指向原节点"""
     updated = plan.model_copy(deep=True)
     for field in updated.fields:
         field.node = package.ids[previous[field.node]]
@@ -180,7 +180,7 @@ def loose_contact_fields(package, plan, body, donor):
 
 
 def vacant_contact_column(paragraph) -> bool:
-    """仅复用显式换行和完整前行共同证明的空列，支持任意列数和字段顺序"""
+    """仅复用显式换行、完整前行共同证明的空列，支持任意列数、字段顺序"""
     if paragraph is None:
         return False
     stops = paragraph.findall("w:pPr/w:tabs/w:tab", NS)
@@ -225,7 +225,7 @@ def append_personal_slot(body, position, donor, label, style_donor=None):
         donor.extend(paragraph.findall(w("r")))
         return donor, position
     if donor is not None and donor.getparent() is body:
-        # 新行只继承同一区域样本的缩进、制表位和行距
+        # 新行只继承同一区域样本的缩进、制表位、行距
         properties = paragraph.find(w("pPr"))
         for tag in ("ind", "tabs", "spacing", "jc"):
             original = donor.find(f"w:pPr/w:{tag}", NS)
@@ -239,7 +239,7 @@ def append_personal_slot(body, position, donor, label, style_donor=None):
 
 
 def supplement_personal_fields(package, plan, document, projects, source=None):
-    """在独立副本补齐个人文字位置，识别阶段可保存快照，填充时仅在内存扩展"""
+    """在独立副本补齐个人文字位置，识别时可保存快照，填充时仅扩展内存副本"""
     if not package.review(plan)["ready"]:
         return package, plan, []
     body, _, donor = personal_insertion(package, plan, document)
@@ -263,7 +263,7 @@ def supplement_personal_fields(package, plan, document, projects, source=None):
     if not missing:
         return package, plan, []
     labels = [PERSONAL_LABELS.get(target, target.partition(":")[2]) for target in missing]
-    # 先在完整副本中新增并校验，预览和导出不能修改已保存的模板及映射
+    # 先在完整副本中新增并校验，预览、导出不能修改已保存的模板及映射
     buffer = BytesIO()
     package.write(buffer)
     working = TemplatePackage(buffer)

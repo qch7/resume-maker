@@ -1,4 +1,4 @@
-"""经历、来源证据、AI 建议和固定版本简历的数据契约"""
+"""经历、来源证据、AI 建议、固定版本简历的数据契约"""
 
 from typing import Annotated, Literal
 
@@ -13,13 +13,13 @@ from pydantic import (
 
 
 class Model(BaseModel):
-    """拒绝未知字段的基础模型，约束客户端和 AI 输入"""
+    """拒绝未知字段的基础模型，约束客户端、AI 输入"""
 
     model_config = ConfigDict(extra="forbid")
 
 
 class DefaultField(Model):
-    """默认表单字段的稳定标识、名称和初始显隐"""
+    """默认表单字段的稳定标识、名称、初始显隐"""
 
     id: str = Field(min_length=1, max_length=100)
     label: str = Field(min_length=1, max_length=50)
@@ -27,7 +27,7 @@ class DefaultField(Model):
 
 
 class CustomInfoField(Model):
-    """用户自行命名的信息项，可隐藏，空项保留为草稿但不参与排版"""
+    """用户命名的可隐藏信息项，空项仅保存在草稿中"""
 
     id: str = Field(min_length=1, max_length=100)
     label: str = Field(default="", max_length=50)
@@ -42,7 +42,7 @@ def validate_custom_field_ids(fields: list[CustomInfoField]):
 
 
 class Evidence(Model):
-    """来源文件、行号和引文组成的证据及其核验状态"""
+    """来源文件、行号、引文组成的证据及其核验状态"""
 
     source: str = ""
     path: str = ""
@@ -53,7 +53,7 @@ class Evidence(Model):
 
 
 class Highlight(Model):
-    """具有稳定标识的经历亮点，包含标题、正文和证据"""
+    """具有稳定标识的经历亮点，包含标题、正文、证据"""
 
     id: str = Field(min_length=1, max_length=100)
     title: str = Field(max_length=200)
@@ -77,7 +77,7 @@ class ProjectVisibility(Model):
     @field_validator("order")
     @classmethod
     def unique_order(cls, value):
-        """标题和时间不参与正文排序，重复位置会导致内容重复，必须拒绝"""
+        """标题、时间不参与正文排序，重复位置会导致内容重复，必须拒绝"""
         if len(value) != len(set(value)):
             raise ValueError("项目内容顺序不能包含重复条目。")
         return value
@@ -112,7 +112,7 @@ class Experience(Model):
 
 
 class ProjectProfile(Model):
-    """由用户本人补充和确认的角色、日期、贡献及成果"""
+    """由用户本人补充、确认的角色、日期、贡献及成果"""
 
     role: str = ""
     period: str = ""
@@ -136,7 +136,7 @@ AIFunction = Literal[
 
 
 class AISettings(Model):
-    """模型和思考强度覆盖，空值表示继承上一级配置"""
+    """模型、思考强度覆盖，空值表示继承上一级配置"""
 
     model: str = ""
     reasoning_effort: ReasoningEffort = ""
@@ -149,7 +149,7 @@ class AISettings(Model):
 
 
 class ProviderSettings(AISettings):
-    """CLI 连接、全局默认值和各 AI 功能的可保存配置"""
+    """CLI 连接、全局默认值、各 AI 功能的可保存配置"""
 
     executable: str = "codex"
     version: int = Field(default=0, ge=0)
@@ -158,7 +158,7 @@ class ProviderSettings(AISettings):
     functions: dict[AIFunction, AISettings] = Field(default_factory=dict)
 
     def for_function(self, function: AIFunction) -> "ProviderSettings":
-        """逐字段合并功能覆盖和全局默认，返回独立的本次任务配置快照"""
+        """逐字段合并功能覆盖、全局默认，返回独立的本次任务配置快照"""
         override = self.functions.get(function, AISettings())
         return self.model_copy(
             update={

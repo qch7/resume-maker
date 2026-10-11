@@ -1,4 +1,4 @@
-"""显式来源和摘要的插件下载，进度和中断记录可跨请求查询"""
+"""显式来源、摘要的插件下载，进度、中断记录可跨请求查询"""
 
 import hashlib
 import json
@@ -45,7 +45,7 @@ class Redirects(HTTPRedirectHandler):
 
 
 def open_source(url, *, timeout=None):
-    """使用系统 TLS 信任和有界网络等待，不携带应用凭据"""
+    """使用系统 TLS 信任、有界网络等待，不携带应用凭据"""
     return build_opener(Redirects()).open(
         Request(
             url, headers={"User-Agent": "ResumeMaker-Plugins/1", "Accept-Encoding": "identity"}
@@ -55,7 +55,7 @@ def open_source(url, *, timeout=None):
 
 
 class Downloads:
-    """取消信号和实际下载结束分开，只有摘要通过后才发布可检查文件"""
+    """取消信号、实际下载结束分开，只有摘要通过后才发布可检查文件"""
 
     def __init__(self, directory, *, opener=None, policy=None):
         """重启仅标记未完成下载，不自动重发网络请求"""
@@ -102,7 +102,7 @@ class Downloads:
             return [self.get(path.parent.name) for path in self.root.glob("*/operation.json")]
 
     def start(self, identifier, url, sha256):
-        """开始下载前固定来源和摘要，相同请求身份可安全重试"""
+        """开始下载前固定来源、摘要，相同请求身份可安全重试"""
         validate_source(url)
         if not re.fullmatch(r"[a-f0-9]{64}", sha256):
             raise Problem("请填写发布者提供的完整 SHA-256 文件摘要。")
@@ -133,7 +133,7 @@ class Downloads:
             return dict(value)
 
     def _run(self, value, cancel):
-        """实际读取字节决定进度，文件落盘和摘要核验完成后才报告就绪"""
+        """实际读取字节决定进度，文件落盘、摘要核验完成后才报告就绪"""
         import os
 
         folder = self._folder(value["id"])

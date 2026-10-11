@@ -86,7 +86,7 @@ def test_http_deadline_and_admission_include_threadpool_queue(
         assert release.wait(2)
 
     async def scenario():
-        """使用实际 AnyIO 池和路由测量准入、超时及恢复"""
+        """使用实际 AnyIO 池、路由测量准入、超时及恢复"""
         limiter = anyio.to_thread.current_default_thread_limiter()
         previous = limiter.total_tokens
         limiter.total_tokens = 1
@@ -97,7 +97,7 @@ def test_http_deadline_and_admission_include_threadpool_queue(
         )
 
         async def invoke():
-            """HTTP 分支执行真实依赖解析、鉴权和路由，不访问网络"""
+            """HTTP 分支执行真实依赖解析、鉴权、路由，不访问网络"""
             if entrypoint == "direct":
                 return await preview_resume(service, body, request)
             response = await client.post("/api/resume-previews", json=body.model_dump())

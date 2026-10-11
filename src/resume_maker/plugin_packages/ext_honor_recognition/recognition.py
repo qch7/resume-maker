@@ -1,4 +1,4 @@
-"""荣誉识别插件拥有的模型输入、附件选择和结果校验"""
+"""荣誉识别插件拥有的模型输入、附件选择、结果校验"""
 
 from resume_maker.core.errors import Problem
 from resume_maker.domain.honors import HonorRecognition
@@ -6,7 +6,7 @@ from resume_maker.sdk.records import dump
 
 
 def recognize(provider, item, settings, workspace, flag, copy_attachment, emit):
-    """只消费本次不可变附件快照及注入能力，发布和清理交给资料库事务"""
+    """只消费本次不可变附件快照及注入能力，发布、清理交给资料库事务"""
     images = []
     allow_images = provider.supports_images
     local_ocr = provider.preprocess_images

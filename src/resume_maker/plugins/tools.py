@@ -37,7 +37,7 @@ def source_manifest(source):
 
 
 def package_source(source: Path, output: Path, includes=()):
-    """只打包必需入口和明确发布文件，拒绝链接及未授权目录遍历"""
+    """只打包必需入口、明确发布文件，拒绝链接及未授权目录遍历"""
     source = source.resolve()
     manifest = source_manifest(source)
     names = {"manifest.json", "LICENSE", *includes}

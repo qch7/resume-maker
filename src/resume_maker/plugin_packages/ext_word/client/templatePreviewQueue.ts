@@ -76,7 +76,7 @@ export function createPreviewQueue<T>(
           delay,
         );
     },
-    /** 仅卸载时取消网络读取并阻止迟到结果和后续任务 */
+    /** 仅卸载时取消网络读取并阻止迟到结果、后续任务 */
     dispose() {
       disposed = true;
       clearTimeout(timer);

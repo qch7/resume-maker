@@ -14,7 +14,7 @@ export function adjustmentChoices(
   const available = new Set(
     nodes.map(/* 收集仍然存在的位置 */ (node) => node.id),
   );
-  /** 同段的姓名、性别和年龄共用一个调整入口 */
+  /** 同段的姓名、性别、年龄共用一个调整入口 */
   function fields(fields: TextBinding[]) {
     const grouped = new Map<string, Set<string>>();
     for (const field of fields) {

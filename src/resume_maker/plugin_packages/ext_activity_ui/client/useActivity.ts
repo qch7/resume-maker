@@ -70,7 +70,7 @@ export function useActivity(query: string, live: boolean, refreshVersion = 0) {
     };
   }, [query, refresh, refreshVersion]);
 
-  /** 向前加载较早记录，后端过滤和当前筛选保持一致 */
+  /** 向前加载较早记录，后端沿用当前筛选条件 */
   async function loadOlder() {
     const controller = session.current;
     if (!controller || historyRequest.current || !events.length) return;

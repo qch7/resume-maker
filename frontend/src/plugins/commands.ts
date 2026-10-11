@@ -8,7 +8,7 @@ export async function runPluginCommand(id: string) {
   await clientExtensions.execute(id);
 }
 
-/** 输入框、组合输入和长按不会触发插件命令 */
+/** 输入框、组合输入、长按不会触发插件命令 */
 export function shortcutCommand(event: KeyboardEvent): string | undefined {
   const target = event.target;
   if (

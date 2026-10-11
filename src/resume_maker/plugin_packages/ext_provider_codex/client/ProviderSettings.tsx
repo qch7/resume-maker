@@ -43,7 +43,7 @@ export default function ProviderSettingsPanel(props: SettingsPanelProps) {
       })
       .catch((error) => setNotice(error.message));
   }, []);
-  /** 先刷新工作区草稿再提交设置，异常和进度保留在当前页面 */
+  /** 先刷新工作区草稿再提交设置，异常、进度保留在当前页面 */
   function run(work: () => Promise<void>) {
     props.run(async () => {
       setBusy(true);

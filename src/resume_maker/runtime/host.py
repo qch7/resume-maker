@@ -1,4 +1,4 @@
-"""注册事务、依赖授权和可回收插件实例"""
+"""注册事务、依赖授权、可回收插件实例"""
 
 import importlib
 import importlib.util
@@ -36,7 +36,7 @@ class Scope:
     closed: bool = False
 
     def stop(self) -> None:
-        """完成执行停止屏障，保留全部资源和失败的停止步骤"""
+        """完成执行停止屏障，保留全部资源、失败的停止步骤"""
         pending, errors = [], []
         for stop in reversed(self.barriers):
             try:
@@ -66,7 +66,7 @@ class Scope:
 
 @dataclass(frozen=True)
 class Contribution:
-    """具有唯一身份和顺序的可撤销扩展项"""
+    """具有唯一身份、顺序的可撤销扩展项"""
 
     owner: str
     point: str
@@ -76,7 +76,7 @@ class Contribution:
 
 
 class PluginContext:
-    """按清单限制注册和消费范围，资源归属当前实例"""
+    """按清单限制注册、消费范围，资源归属当前实例"""
 
     def __init__(self, host: "Host", manifest: Manifest):
         """创建尚未对请求发布的候选注册作用域"""
@@ -106,7 +106,7 @@ class PluginContext:
         return self._data
 
     def require(self, key: ServiceKey[T]) -> T:
-        """仅允许清单声明的硬依赖、可选依赖和本插件能力"""
+        """仅允许清单声明的硬依赖、可选依赖、本插件能力"""
         allowed = (
             self.manifest.requires.get("host", {}).keys()
             | self.manifest.optional.keys()
@@ -134,7 +134,7 @@ class PluginContext:
         return self.host.require(key)
 
     def provide(self, key: ServiceKey[T], value: T) -> None:
-        """注册清单承诺的能力，拒绝隐式和重复服务"""
+        """注册清单承诺的能力，拒绝隐式、重复服务"""
         spec = self.manifest.provides.get("host", {}).get(key.name)
         if spec is None or spec.version != key.version:
             raise PluginError(f"{self.instance_id} 未声明唯一能力 {key.name}@{key.version}")
@@ -170,7 +170,7 @@ class PluginContext:
         self.scope.disposers.append(dispose)
 
     def rpc(self, method: str, handler: Callable) -> None:
-        """登记清单声明的远程操作，HTTP 和隔离界面均经过同一 DTO 校验"""
+        """登记清单声明的远程操作，HTTP、隔离界面均经过同一 DTO 校验"""
         key = (self.instance_id, method)
         if method not in self.manifest.rpc or key in self.host.rpc_handlers:
             raise PluginError(f"未声明或重复的远程操作：{key}")
@@ -306,7 +306,7 @@ class Host:
         leased=False,
         generation=None,
     ):
-        """候选子作用域健康后登记，关闭失败保留父能力和子作用域诊断"""
+        """候选子作用域健康后登记，关闭失败保留父能力、子作用域诊断"""
         if kind not in {"workspace", "task"} or self.scope_kind == "task":
             raise PluginError("只能由应用或工作区创建工作区和任务作用域")
         with self.scope_lock:
@@ -347,7 +347,7 @@ class Host:
                     for owner in owners
                 ):
                     raise PluginError("独立工作区必须使用不同数据目录")
-            # 协调器和数据同步回调归当前工作区，不能沿用父对象
+            # 当前工作区持有协调器、数据同步回调，避免沿用父对象
             values.pop("plugin_manager", None)
             values.pop("synchronize_data", None)
             child = Host(
@@ -397,7 +397,7 @@ class Host:
 
     @contextmanager
     def task_context(self, record):
-        """执行和回收共同持有任务作用域，失败清理继续作为切换阻断条件"""
+        """执行、回收共同持有任务作用域，失败清理继续作为切换阻断条件"""
         from resume_maker.sdk.tasks import TaskContext, active_task
 
         metadata = record.get("metadata", {})
@@ -435,7 +435,7 @@ class Host:
                 self.close_scope("task", identifier)
 
     def task_lock(self, instances):
-        """记录实例代码和清单摘要，执行前不能悄悄切换已排队的实现"""
+        """记录实例代码、清单摘要，执行前不能悄悄切换已排队的实现"""
         from resume_maker.runtime.state import fingerprint
 
         return {
@@ -449,7 +449,7 @@ class Host:
         }
 
     def prepare_task(self, metadata, owner):
-        """持久化调度意图前验证任务组合、配置和授权，不执行插件入口"""
+        """持久化调度意图前验证任务组合、配置、授权，不执行插件入口"""
         from resume_maker.runtime.configuration import configurations
 
         specs = metadata.get("plugin_instances", [])
@@ -500,7 +500,7 @@ class Host:
                     check()
 
     def block_unavailable(self, reasons):
-        """启动期间保留不可写扩展的资料和期望选择，仅阻断其依赖闭包"""
+        """启动期间保留不可写扩展的资料、期望选择，仅阻断其依赖闭包"""
         if not reasons:
             return
         if not self.initializing:
@@ -525,7 +525,7 @@ class Host:
         return cast(T, self.services[key.name])
 
     def collection(self, point: str) -> tuple[Contribution, ...]:
-        """按显式顺序和稳定标识返回当前集合快照"""
+        """按显式顺序、稳定标识返回当前集合快照"""
         return tuple(
             sorted(
                 (item for item in self.contributions.values() if item.point == point),
@@ -667,7 +667,7 @@ class Host:
                 self.started = False
 
     def status(self) -> list[dict]:
-        """分别报告已安装、所选和实际运行状态"""
+        """分别报告已安装、所选、实际运行状态"""
         return [
             {
                 "id": identifier,

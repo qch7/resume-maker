@@ -1,4 +1,4 @@
-"""验证 CLI 工具事件、公开进度、失败诊断和结构化回复包装"""
+"""验证 CLI 工具事件、公开进度、失败诊断、结构化回复包装"""
 
 import json
 import os
@@ -24,7 +24,7 @@ def cli_stream(tmp_path, monkeypatch):
 
     @contextmanager
     def workspace():
-        """在测试临时目录准备隔离材料和控制文件"""
+        """在测试临时目录准备隔离材料、控制文件"""
         (tmp_path / "control").mkdir()
         (tmp_path / "materials").mkdir()
         yield tmp_path
@@ -37,7 +37,7 @@ def cli_stream(tmp_path, monkeypatch):
         yield {**env, "CODEX_HOME": str(home)}
 
     def execute_stream(command, **kwargs):
-        """模拟版本检查和 CLI 逐行事件，异常立即终止后续事件"""
+        """模拟版本检查、CLI 逐行事件，异常立即终止后续事件"""
         if "--version" in command:
             return version_output
         for value in stream:
@@ -101,7 +101,7 @@ def test_wrong_executable_is_rejected_before_model_call(cli_stream, version):
 
 
 def test_unsupported_strict_configuration_never_retries_unrestricted(cli_stream, monkeypatch):
-    """版本可识别但严格配置不兼容时保留具体错误，不降级或重试宽松配置"""
+    """版本可识别且严格配置不兼容时报告具体错误，禁止降级或重试宽松配置"""
     commands = []
 
     def reject_configuration(command, **kwargs):
@@ -142,7 +142,7 @@ def test_unsupported_strict_configuration_never_retries_unrestricted(cli_stream,
     ],
 )
 def test_forbidden_tools_stop_on_every_item_phase(cli_stream, kind, item):
-    """外部工具、未知材料工具和未启用的源码工具在更新阶段也必须停止"""
+    """外部工具、未知材料工具、未启用的源码工具在更新阶段也必须停止"""
     with pytest.raises(ProviderError, match="不允许|未登记"):
         cli_stream([{"type": kind, "item": item}])
 
@@ -286,5 +286,5 @@ def test_structured_message_cannot_hide_extra_text_or_multiple_results(message):
     "prefix,suffix", [("说明如下：\n", ""), ("", "\n映射完成。"), ("已检查 `n1`。\n", "\n结束。")]
 )
 def test_unique_json_fence_allows_prose_wrapper(prefix, suffix):
-    """唯一完整代码块可以忽略非数据说明，字段和节点仍须通过同一严格模型校验"""
+    """唯一完整代码块可以忽略非数据说明，字段、节点仍须通过同一严格模型校验"""
     assert json.loads(structured_text(prefix + '```json\n{"x":1}\n```' + suffix)) == {"x": 1}

@@ -8,14 +8,14 @@ from resume_maker.sdk.sources import ResumeSource, SourceItem, SourcePage
 
 
 class ResumeSources:
-    """来源拥有内容，简历拥有编排、显隐和最后确认快照"""
+    """来源拥有内容，简历拥有编排、显隐、最后确认快照"""
 
     def __init__(self, db, contributions):
-        """注入事务提供方和可撤销集合，不依赖具体资料库"""
+        """注入事务提供方、可撤销集合，不依赖具体资料库"""
         self.db, self.contributions = db, contributions
 
     def entries(self):
-        """拒绝无效接口、重复标识和不兼容版本"""
+        """拒绝无效接口、重复标识、不兼容版本"""
         entries = {}
         for item in self.contributions("resume.sources"):
             value = item.value
@@ -46,7 +46,7 @@ class ResumeSources:
         ]
 
     def browse(self, identifier, cursor=None, query="", limit=50):
-        """验证游标和单页内容后返回独立副本"""
+        """验证游标、单页内容后返回独立副本"""
         item = self.entries().get(identifier)
         if item is None:
             raise Problem("资料来源未启用，已经采用的内容仍保留。", 409)
@@ -67,7 +67,7 @@ class ResumeSources:
                 reader.close()
 
     def resolve(self, document, conn=None):
-        """仅刷新明确关联的来源字段，来源缺失和未核对时保留原值"""
+        """仅刷新明确关联的来源字段，来源缺失、未核对时保留原值"""
         if not document:
             return document
         if conn is None:

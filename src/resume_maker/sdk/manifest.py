@@ -1,4 +1,4 @@
-"""无执行副作用的插件清单和明确版本区间"""
+"""无执行副作用的插件清单、明确版本区间"""
 
 import re
 from typing import Literal
@@ -10,13 +10,13 @@ VERSION = r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$"
 
 
 class Contract(BaseModel):
-    """拒绝拼写错误和无法解释的清单字段"""
+    """拒绝拼写错误、无法解释的清单字段"""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
 def compatible(version: str, constraint: str) -> bool:
-    """比较稳定 SemVer 的精确值和空格分隔区间，不混用 Python 包版本"""
+    """比较稳定 SemVer 的精确值、空格分隔区间，独立于 Python 包版本"""
     if not re.fullmatch(VERSION, version):
         raise ValueError(f"非法协议版本：{version}")
     actual = tuple(int(part) for part in version.split("."))
@@ -55,7 +55,7 @@ class Service(Contract):
 
 
 class Dependency(Contract):
-    """依赖可以约束版本、集合基数和明确提供方，避免隐式抢占"""
+    """依赖可以约束版本、集合基数、明确提供方，避免隐式抢占"""
 
     version: str = ">=1.0.0 <2.0.0"
     cardinality: Literal["one", "many"] = "one"
@@ -63,14 +63,14 @@ class Dependency(Contract):
 
 
 class Instances(Contract):
-    """实例身份和可用范围"""
+    """实例身份、可用范围"""
 
     scope: Literal["application", "workspace", "task"] = "workspace"
     multiple: bool = False
 
 
 class InstanceSpec(Contract):
-    """实例使用稳定身份，提供方绑定按执行域和能力逐项声明"""
+    """实例使用稳定身份，提供方绑定按执行域、能力逐项声明"""
 
     id: str = Field(pattern=IDENTIFIER)
     plugin: str = Field(pattern=IDENTIFIER)
@@ -166,7 +166,7 @@ class Manifest(Contract):
 
     @model_validator(mode="after")
     def validate_protocol(self):
-        """入口域和版本区间必须能在导入代码前得到确定解释"""
+        """入口域、版本区间必须能在导入代码前得到确定解释"""
         compatible("1.0.0", self.host_api)
         compatible("1.0.0", self.client_api)
         for group in self.requires.values():

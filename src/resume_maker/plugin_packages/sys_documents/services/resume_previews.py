@@ -52,7 +52,7 @@ class ResumePreviews:
     @internal
     @contextmanager
     def request_work(self, cancelled=None, *, timeout=None):
-        """在线程池排队前固定准入和截止，实际工作结束后才释放"""
+        """在线程池排队前固定准入、截止，实际工作结束后才释放"""
         flag = cancelled if cancelled is not None else threading.Event()
         request_key = object()
         with self.admission:
@@ -217,7 +217,7 @@ class ResumePreviews:
             return dict(result)
 
     def file(self, identifier, filename):
-        """只提供当前实例已生成的预览文件，模板源文件和任意路径均不可下载"""
+        """只提供当前实例已生成的预览文件，模板源文件、任意路径均不可下载"""
         return self.pool.file(identifier, filename)
 
     def lease(self, identifier, filename):
@@ -236,7 +236,7 @@ class ResumePreviews:
         return self.pool.artifacts(template_id)
 
     def invalidate_template(self, template_id):
-        """在维护屏障内撤销已清理的预览和缓存"""
+        """在维护屏障内撤销已清理的预览、缓存"""
         self.pool.discard(template_id)
         identifiers = {key for key, value in self.templates.items() if value == template_id}
         for key in identifiers:
@@ -248,7 +248,7 @@ class ResumePreviews:
         self.failures.clear()
 
     def stop(self):
-        """请求结束后回收本实例创建的预览目录，正式简历和导出文件不受影响"""
+        """请求结束后回收本实例创建的预览目录，正式简历、导出文件不受影响"""
         with self.admission:
             self.stopped = True
             for flag in self.requests.values():

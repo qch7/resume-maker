@@ -1,4 +1,4 @@
-"""模型出口的图片和不确定文字保护规则"""
+"""模型出口的图片、不确定文字保护规则"""
 
 from resume_maker.sdk.ocr import OCR_REVIEW_CONFIDENCE as OCR_REVIEW_CONFIDENCE
 

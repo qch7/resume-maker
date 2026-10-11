@@ -1,4 +1,4 @@
-"""工作台的注册和生命周期入口"""
+"""工作台的注册、生命周期入口"""
 
 from resume_maker.plugins.support import dependency, publish, routes
 

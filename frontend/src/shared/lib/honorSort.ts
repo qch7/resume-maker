@@ -35,7 +35,7 @@ export function nextHonorSort(
   };
 }
 
-/** 将年月日、中文日期及斜杠日期按日历解析，空白和无效值保持未知 */
+/** 将年月日、中文日期及斜杠日期按日历解析，空白、无效值保持未知 */
 function awardDate(value: string): number | null {
   const parts = value
     .replace(/\s/g, "")
@@ -58,7 +58,7 @@ interface SortValues {
   updatedAt?: string;
 }
 
-/** 比较实际日期和自然名称，缺失值始终置后，同值条目保留原有顺序 */
+/** 比较实际日期、自然名称，缺失值始终置后，同值条目保留原有顺序 */
 function sortItems<T>(
   items: T[],
   sort: HonorSort,
@@ -73,12 +73,10 @@ function sortItems<T>(
     return Number.isFinite(stamp) ? stamp : null;
   }
   return items
-    .map(
-      /* 为原条目附加排序键 */ (item) => ({
-        item,
-        key: key(item),
-      }),
-    )
+    .map((item) => ({
+      item,
+      key: key(item),
+    }))
     .sort(
       /* 正倒序只影响有效值，未知值以及同值的相对顺序保持稳定 */ (a, b) => {
         if (a.key === null || b.key === null)
@@ -90,10 +88,10 @@ function sortItems<T>(
         return sort.direction === "asc" ? order : -order;
       },
     )
-    .map(/* 排序只重排引用，完整资料和勾选身份保持不变 */ ({ item }) => item);
+    .map(/* 排序只重排引用，完整资料、勾选身份保持不变 */ ({ item }) => item);
 }
 
-/** 荣誉库筛选后的卡片使用和栏目编排一致的比较规则 */
+/** 筛选后的荣誉库卡片沿用栏目编排的比较规则 */
 export function sortHonors(items: Honor[], sort: HonorSort): Honor[] {
   return sortItems(
     items,
@@ -122,7 +120,7 @@ export function sortHonorEntries(
       /* 自定义栏目只排序其中的荣誉 */ (entry) => isHonorEntry(entry, section),
     ),
     sort,
-    /* 日期和名称读取当前简历资料，更新时间来自关联荣誉库 */ (entry) => ({
+    /* 日期、名称读取当前简历资料，更新时间来自关联荣誉库 */ (entry) => ({
       name: entry.title,
       date: entry.period,
       updatedAt: sources.get(honorSourceId(entry))?.updated_at,

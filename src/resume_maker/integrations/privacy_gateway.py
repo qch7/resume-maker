@@ -24,7 +24,7 @@ from resume_maker.sdk.model import (
 
 
 def structured_text(message: str) -> str:
-    """只解开唯一完整 JSON 代码块，多个结果、块外数据和截断回复仍交由严格校验拒绝"""
+    """只解开唯一完整 JSON 代码块，多个结果、块外数据、截断回复仍交由严格校验拒绝"""
     if message.count("```") != 2:
         return message
     fenced = re.search(r"```(?:json)?[ \t]*\r?\n(.*?)\r?\n```", message, flags=re.DOTALL)
@@ -63,7 +63,7 @@ class PrivacyCancellation:
         self.version = store.policy_version()
 
     def is_set(self):
-        """每次受控读取和执行轮询都检查保护规则是否改变"""
+        """每次受控读取、执行轮询都检查保护规则是否改变"""
         if self.version != self.store.policy_version():
             self.event.set()
         return self.event.is_set()
@@ -87,7 +87,7 @@ class PrivacyCancellation:
 
 
 class PrivacyGateway:
-    """所有模型传输共用的任务隐私上下文和结构校验"""
+    """所有模型传输共用的任务隐私上下文、结构校验"""
 
     supports_images = False
     supports_mosaic_images = True
@@ -97,7 +97,7 @@ class PrivacyGateway:
     def __init__(
         self, *, runner, environment=None, privacy=None, ocr=None, images=False, capacity=None
     ):
-        """测试注入 CLI 替身，生产通过严格配置和受限材料工具调用"""
+        """测试注入 CLI 替身，生产通过严格配置、受限材料工具调用"""
         self.environment = dict(environment or {})
         self.privacy = privacy or PrivacyStore()
         self.runner = runner
@@ -126,7 +126,7 @@ class PrivacyGateway:
         return self.ocr(path, cancelled)
 
     def register_ocr(self, document):
-        """在模板任务的独立 Provider 中登记 OCR 原文和需要整体遮盖的片段"""
+        """在模板任务的独立 Provider 中登记 OCR 原文、需要整体遮盖的片段"""
         redactor = self.privacy.redactor()
         redactor.learn(document["text"])
         self.sensitive_secrets = self.sensitive_secrets | redactor.secrets
@@ -161,7 +161,7 @@ class PrivacyGateway:
         sources=None,
         data_dir=None,
     ):
-        """普通原图只供本机 OCR，模板图片和整页版面处理后进入独立 CLI 沙箱"""
+        """普通原图只供本机 OCR，模板图片、整页版面处理后进入独立 CLI 沙箱"""
         cancelled = PrivacyCancellation(cancelled, self.privacy)
         if cancelled.is_set():
             raise Cancelled("请求已取消。")
@@ -216,7 +216,7 @@ class PrivacyGateway:
                 budget=page_inputs[0].budget,
                 reader=self.page_ocr,
             )
-            # 图片恢复后还会识别 DOCX 映射，后续轮次继续保护当前页学到的身份和凭据
+            # 图片恢复后还会识别 DOCX 映射，后续轮次继续保护当前页学到的身份、凭据
             self.sensitive_values = self.sensitive_values | redactor.values
             self.sensitive_secrets = self.sensitive_secrets | redactor.secrets
             safe_images.append(data)
@@ -243,7 +243,7 @@ class PrivacyGateway:
         try:
 
             def audit(name, result, count):
-                """记录有界的脱敏工具结果，原始路径和还原表始终留在内存"""
+                """记录有界的脱敏工具结果，原始路径、还原表始终留在内存"""
                 self.privacy.material(identifier, name, result, count)
 
             with (
@@ -283,7 +283,7 @@ class PrivacyGateway:
 
 
 class ModelCapacity:
-    """一个模型出口的任务副本和连接检查共用有限的真实传输容量"""
+    """一个模型出口的任务副本、连接检查共用有限的真实传输容量"""
 
     def __init__(self, parallel=4, waiting=32, wait_seconds=1200):
         """容量属于提供方实例，独立资料目录不共享配额"""
@@ -293,7 +293,7 @@ class ModelCapacity:
 
     @contextmanager
     def enter(self, cancelled):
-        """等待期间响应取消，失败和取消均归还容量且不重发请求"""
+        """等待期间响应取消，失败、取消均归还容量且不重发请求"""
         deadline = time.monotonic() + self.wait_seconds
         with self.condition:
             if self.active >= self.parallel and self.pending >= self.waiting:

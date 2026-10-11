@@ -1,4 +1,4 @@
-"""隐私保护的注册和生命周期入口"""
+"""隐私保护的注册、生命周期入口"""
 
 from resume_maker.plugins.support import dependency, publish, routes
 
@@ -16,7 +16,7 @@ def activate(context):
     context.health(rules.entries)
 
     def gateway(runner, *, ocr=None, images=False, capacity=None):
-        """绑定选定传输，任务副本和脱敏还原保持归系统所有"""
+        """绑定选定传输，任务副本、脱敏还原保持归系统所有"""
         return PrivacyGateway(
             privacy=store, runner=runner, ocr=ocr, images=images, capacity=capacity
         )

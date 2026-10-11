@@ -1,4 +1,4 @@
-"""识别提示和实际资料覆盖一致，混合缺项修复不能遗漏仍未安排的内容"""
+"""识别提示按实际资料覆盖生成，混合缺项修复继续校验全部未安排内容"""
 
 import pytest
 
@@ -16,7 +16,7 @@ from tests.support.documents import make_template, project_content, resume_conte
 
 @pytest.mark.parametrize("visible", [True, False])
 def test_project_custom_information_is_requested_and_checked(tmp_path, visible):
-    """可见项目自定义信息进入 AI 要求和漏填校验，综合正文能覆盖它且隐藏项不强制输出"""
+    """可见项目自定义信息进入 AI 要求、漏填校验，综合正文能覆盖它且隐藏项不强制输出"""
     package, plan = make_template(tmp_path / "source.docx")
     document, projects = resume_content(), project_content()
     projects[0]["content"]["custom_fields"] = [
@@ -82,7 +82,7 @@ def test_personal_fields_are_supplemented_while_other_fields_remain_missing(tmp_
 
 
 def test_honor_body_does_not_cover_name_or_period(tmp_path):
-    """荣誉正文不能代表名称和时间，模型和校验均要求这两项独立映射"""
+    """荣誉正文不能代表名称、时间，模型、校验均要求这两项独立映射"""
     package, plan = make_template(tmp_path / "source.docx")
     document = resume_content()
     document.sections[0] = ResumeSection(

@@ -39,13 +39,13 @@ def save_terms(dep_privacy: Annotated[Privacy, Depends(service("privacy"))], bod
 
 @router.post("/preview")
 def preview(dep_privacy: Annotated[Privacy, Depends(service("privacy"))], body: PrivacyPreview):
-    """预览和发送共用脱敏引擎，预览正文及映射不保存"""
+    """预览、发送共用脱敏引擎，预览正文及映射不保存"""
     return dep_privacy.preview(body.text)
 
 
 @router.get("/requests")
 def requests(dep_privacy: Annotated[Privacy, Depends(service("privacy"))]):
-    """只返回已脱敏的请求体，响应正文和真实值映射不会进入记录"""
+    """只返回已脱敏的请求体，响应正文、真实值映射不会进入记录"""
     return dep_privacy.requests()
 
 

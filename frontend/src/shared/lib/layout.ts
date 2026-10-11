@@ -64,7 +64,7 @@ export function columnSizes(width: number, visible: boolean, layout: Layout) {
   };
 }
 
-/** 缩窗时限制模块尺寸并保留预览空间和已保存的尺寸偏好 */
+/** 缩窗时限制模块尺寸并保留预览空间、已保存的尺寸偏好 */
 export function templateSizes(width: number, height: number, layout: Layout) {
   const inspectorMax = Math.max(260, width - 368);
   const progressMax = Math.max(72, Math.min(420, height - 360));

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { clientExtensions } from "./extensions";
 import { runPluginCommand, shortcutCommand } from "./commands";
 
-/** 命令菜单和快捷键共用执行入口，失败显示在本窗口 */
+/** 命令菜单、快捷键共用执行入口，失败显示在本窗口 */
 export default function CommandMenu({
   disabled,
   hidden = false,

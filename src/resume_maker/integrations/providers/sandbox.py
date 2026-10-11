@@ -1,4 +1,4 @@
-"""创建脱敏材料和控制文件分离的临时目录并限制其他账户访问"""
+"""创建脱敏材料、控制文件分离的临时目录并限制其他账户访问"""
 
 import json
 import os
@@ -39,7 +39,7 @@ def native_executable(name):
 
 
 def windows_parent(path):
-    """核对目录归属后设置当前账户为所有者，仅保留账户、系统和管理员权限"""
+    """核对目录归属后设置当前账户为所有者，仅保留账户、系统、管理员权限"""
     import win32api
     import win32security
 
@@ -163,5 +163,5 @@ class LocalSandbox:
     }
 
     def session(self):
-        """使用独立控制目录和材料目录创建本轮会话"""
+        """使用独立控制目录、材料目录创建本轮会话"""
         return workspace()

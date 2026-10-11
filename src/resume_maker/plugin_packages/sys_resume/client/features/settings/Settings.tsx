@@ -122,7 +122,7 @@ export default function Settings(props: Props) {
       setClosing(false);
     }
   }
-  /** 切换分类时保留已经访问的表单和草稿 */
+  /** 切换分类时保留已经访问的表单、草稿 */
   function selectSection(id: string) {
     setTab(id);
     setVisited((current) => new Set([...current, id]));

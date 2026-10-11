@@ -135,7 +135,7 @@ export default function TemplateProgress({
             )}
             <ol className="template-live-events" aria-label="执行记录">
               {[...data.events].reverse().map(
-                /* 最新活动优先展示，编号和原识别时的耗时保持不变 */ (
+                /* 最新活动优先展示，编号、原识别时的耗时保持不变 */ (
                   event,
                 ) => (
                   <li key={event.id}>

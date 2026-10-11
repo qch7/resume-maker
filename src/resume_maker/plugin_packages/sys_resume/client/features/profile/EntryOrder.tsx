@@ -31,7 +31,7 @@ export default function EntryOrder({
   onChange: (section: ResumeSection) => void;
   onEditHonor: (sectionId: string, entry: SectionEntry) => void;
 }) {
-  /** 只移动同一栏目中的完整条目，来源标识、显隐和草稿内容均保留 */
+  /** 只移动同一栏目中的完整条目，来源标识、显隐、草稿内容均保留 */
   function move(from: number, to: number) {
     onChange({ ...section, entries: arrayMove(section.entries, from, to) });
   }
@@ -44,7 +44,7 @@ export default function EntryOrder({
     >
       <SortableList
         items={section.entries.map(
-          /* 名称仅用于呈现和辅助播报，排序始终使用稳定标识 */ (
+          /* 名称仅用于呈现、辅助播报，排序始终使用稳定标识 */ (
             entry,
             index,
           ) => ({ id: entry.id, label: entryLabel(entry, index) }),
@@ -52,7 +52,7 @@ export default function EntryOrder({
         onMove={move}
       >
         {section.entries.map(
-          /* 每个文本或教育条目都具有和项目相同的上下移动和拖动手柄 */ (
+          /* 文本条目、教育条目沿用项目的上下移动按钮及拖动手柄 */ (
             entry,
             index,
           ) => {
@@ -112,7 +112,7 @@ export default function EntryOrder({
                                 onChange({
                                   ...section,
                                   entries: section.entries.filter(
-                                    /* 保留其他条目的资料和顺序 */ (item) =>
+                                    /* 保留其他条目的资料、顺序 */ (item) =>
                                       item.id !== entry.id,
                                   ),
                                 })

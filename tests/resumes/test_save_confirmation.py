@@ -1,4 +1,4 @@
-"""多窗口交错时确认结果和导出内容必须属于提交方"""
+"""多窗口交错时确认结果、导出内容必须属于提交方"""
 
 from contextlib import contextmanager
 
@@ -38,7 +38,7 @@ def test_draft_confirmation_precedes_another_windows_write(catalog, project, mon
 
 
 def test_export_rejects_changed_version_without_publishing(catalog, tmp_path):
-    """保存与导出之间方案变化时不生成他人内容、不发布记录或文件"""
+    """保存、导出之间方案变化时不生成他人内容、不发布记录或文件"""
     resumes = Resumes(catalog, storage=catalog.db, assets=catalog.assets)
     content = resume_content()
     first = resumes.save_resume("窗口甲", None, [], document=content)

@@ -4,12 +4,10 @@ import { newDocument } from "@resume-maker/plugin-sdk/shared/resume/document";
 import type { ResumeLibraryProps } from "./ResumeLibrary";
 import { hasPlugin } from "@resume-maker/plugin-sdk/shared/lib/capabilities";
 
-/** 编辑当前方案的名称和模板并提供保存和导出操作 */
+/** 编辑当前方案的名称、模板并提供保存、导出操作 */
 export default function ResumeSettings(props: ResumeLibraryProps) {
   const { draft, state } = props;
-  const saved = state.resumes.find(
-    /* 查找当前方案对应的持久化版本 */ (item) => item.id === draft.id,
-  );
+  const saved = state.resumes.find((item) => item.id === draft.id);
   const templateUnavailable =
     !!draft.template_id &&
     !state.templates.some(

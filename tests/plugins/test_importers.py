@@ -1,4 +1,4 @@
-"""导入选择、取消、损坏输出和格式隔离的公开行为"""
+"""导入选择、取消、损坏输出、格式隔离的公开行为"""
 
 from dataclasses import replace
 from io import BytesIO
@@ -78,7 +78,7 @@ def test_selection_conflict_disablement_and_changed_history(tmp_path):
 
 @pytest.mark.parametrize("failure", ["partial", "bad-png", "path", "cancelled", "bad-docx"])
 def test_invalid_or_cancelled_results_never_publish(tmp_path, failure):
-    """残缺页面、文件路径冒充内容和取消后的迟到输出均被拒绝"""
+    """残缺页面、文件路径冒充内容、取消后的迟到输出均被拒绝"""
     base = synthetic_importer()
     context = ImportContext(tmp_path, Event())
 

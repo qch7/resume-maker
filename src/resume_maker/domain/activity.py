@@ -11,12 +11,12 @@ START_EVENTS = ("request", "started", "startup")
 
 
 def is_start_event(event: str) -> bool:
-    """统一识别请求、操作、服务启动和带命名空间的开始事件"""
+    """统一识别请求、操作、服务启动、带命名空间的开始事件"""
     return event in START_EVENTS or event.endswith(".started")
 
 
 def normalize_hidden_rules(value: str) -> str:
-    """限制隐藏规则的长度、数量和语法，按顺序去重"""
+    """限制隐藏规则的长度、数量、语法，按顺序去重"""
     if len(value) > 4000:
         raise ValueError("规则总长度不能超过 4,000 字符")
     lines = list(dict.fromkeys(line.strip() for line in value.splitlines() if line.strip()))
@@ -49,5 +49,5 @@ class ActivityCaptureSettings(BaseModel):
     @field_validator("categories")
     @classmethod
     def normalize_categories(cls, value):
-        """按固定顺序去重，保存和读取使用相同类别顺序"""
+        """按固定顺序去重，保存、读取使用相同类别顺序"""
         return [category for category in ACTIVITY_CATEGORIES if category in value]

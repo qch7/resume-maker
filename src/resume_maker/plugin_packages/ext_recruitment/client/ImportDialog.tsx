@@ -7,7 +7,7 @@ import { readImportFile } from "./importFile";
 
 const ACTIONS = { added: "新增", updated: "更新", skipped: "跳过" };
 
-/** 先检查文件和冲突策略，用户确认后才将有效条目合并到本机 */
+/** 先检查文件、冲突策略，用户确认后才将有效条目合并到本机 */
 export default function ImportDialog({
   snapshot,
   onImported,
@@ -105,7 +105,7 @@ export default function ImportDialog({
       setBusy(false);
     }
   }
-  /** 文件选择和拖放走同一读取流程，处理期间拒绝新文件避免预览串位 */
+  /** 文件选择、拖放走同一读取流程，处理期间拒绝新文件避免预览串位 */
   async function readFile(files: File[]) {
     if (!files.length || working.current || busy || checking || !policy) return;
     working.current = true;
@@ -127,7 +127,7 @@ export default function ImportDialog({
       setBusy(false);
     }
   }
-  /** 使用已经预览的版本和策略确认导入，失败时保留文件供重试 */
+  /** 使用已经预览的版本、策略确认导入，失败时保留文件供重试 */
   async function confirm() {
     if (!preview || !policy || working.current) return;
     working.current = true;

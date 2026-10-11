@@ -22,7 +22,7 @@ import { useRef, type ReactNode } from "react";
 /** 锁定横向位移以保证拖拽条目只沿列表纵向移动 */
 const verticalOnly: Modifier = ({ transform }) => ({ ...transform, x: 0 });
 
-/** 提供带键盘辅助和越界取消行为的纵向排序上下文 */
+/** 提供带键盘辅助、越界取消行为的纵向排序上下文 */
 export function SortableList({
   items,
   disabled = false,
@@ -69,7 +69,7 @@ export function SortableList({
     }
     return closestCenter(args);
   };
-  /** 按稳定条目标识查找列表位置，供拖拽和辅助播报使用 */
+  /** 按稳定条目标识查找列表位置，供拖拽、辅助播报使用 */
   const position = (id: string | number) =>
     items.findIndex((item) => item.id === id);
   /** 读取条目的可读名称，缺失时使用通用名称 */
@@ -80,7 +80,7 @@ export function SortableList({
       modifiers={[verticalOnly]}
       collisionDetection={collisionDetection}
       onDragEnd={
-        /* 只在有效落点和不同位置之间提交排序 */ ({ active, over }) => {
+        /* 落点有效且位置改变时才提交排序 */ ({ active, over }) => {
           const from = position(active.id);
           const to = over ? position(over.id) : -1;
           if (!disabled && from >= 0 && to >= 0 && from !== to)
@@ -92,16 +92,16 @@ export function SortableList({
           draggable: "按空格开始排序，上下方向键移动，再按空格放下，Esc 取消。",
         },
         announcements: {
-          onDragStart: /* 生成当前拖拽阶段的辅助播报，便于键盘和读屏操作 */ ({
+          onDragStart: /* 生成当前拖拽阶段的辅助播报，便于键盘、读屏操作 */ ({
             active,
           }) => `正在拖动${label(active.id)}。`,
-          onDragOver: /* 生成当前拖拽阶段的辅助播报，便于键盘和读屏操作 */ ({
+          onDragOver: /* 生成当前拖拽阶段的辅助播报，便于键盘、读屏操作 */ ({
             over,
           }) =>
             over
               ? `放到第 ${position(over.id) + 1} 位。`
               : "移出列表，松手取消。",
-          onDragEnd: /* 生成当前拖拽阶段的辅助播报，便于键盘和读屏操作 */ ({
+          onDragEnd: /* 生成当前拖拽阶段的辅助播报，便于键盘、读屏操作 */ ({
             active,
             over,
           }) =>
@@ -109,7 +109,7 @@ export function SortableList({
               ? `${label(active.id)}已放到第 ${position(over.id) + 1} 位。`
               : "已取消排序。",
           onDragCancel:
-            /* 生成当前拖拽阶段的辅助播报，便于键盘和读屏操作 */ () =>
+            /* 生成当前拖拽阶段的辅助播报，便于键盘、读屏操作 */ () =>
               "已取消排序。",
         },
       }}
@@ -127,7 +127,7 @@ export function SortableList({
   );
 }
 
-/** 连接条目和拖拽手柄，呈现移动变换及落点位置 */
+/** 连接条目、拖拽手柄，呈现移动变换及落点位置 */
 export function SortableItem({
   id,
   label,

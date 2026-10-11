@@ -1,4 +1,4 @@
-"""任务执行器的并发和停止策略"""
+"""任务执行器的并发、停止策略"""
 
 from pydantic import Field
 

@@ -20,7 +20,7 @@ from tests.support.documents import header_content, photo_bytes
 
 
 def header_source(directory, left=False):
-    """生成带同排联系方式、独立图标、头像和正文边界的 PDF，再按原文建立完整映射"""
+    """生成带同排联系方式、独立图标、头像、正文边界的 PDF，再按原文建立完整映射"""
     pdf, source = directory / "source.pdf", directory / "source.docx"
     with pymupdf.open() as document:
         page = document.new_page(width=540, height=700)
@@ -128,7 +128,7 @@ def test_header_respects_validated_deletions_but_rejects_unknown_text(tmp_path, 
     "hidden", [[], ["email", "job_title"], ["photo"], ["phone", "email", "job_title", "photo"]]
 )
 def test_fields_icons_and_photo_reflow_together(tmp_path, left, hidden):
-    """左右照片、隐藏联系方式和新增资料在独立容器中排版并清理旧占位"""
+    """左右照片、隐藏联系方式、新增资料在独立容器中排版并清理旧占位"""
     source, plan = header_source(tmp_path, left)
     original, original_plan = source.read_bytes(), deepcopy(plan)
     content = header_content(hidden_fields=hidden)
@@ -163,7 +163,7 @@ def test_fields_icons_and_photo_reflow_together(tmp_path, left, hidden):
 
 
 def test_long_values_use_wrapping_cells_and_never_fixed_height(tmp_path):
-    """超长姓名、意向、邮箱、网址和新增自定义字段都不超出分配宽度或挤入照片列"""
+    """超长姓名、意向、邮箱、网址、新增自定义字段都不超出分配宽度或挤入照片列"""
     source, plan = header_source(tmp_path)
     content = header_content(
         name="A much longer bilingual name 中英文姓名",
@@ -197,7 +197,7 @@ def test_long_values_use_wrapping_cells_and_never_fixed_height(tmp_path):
 
 
 def test_same_source_reacts_to_value_and_visibility_changes_without_persisting_layout(tmp_path):
-    """重复试填重新按当前值计算，长短字段和显隐切换不会复用旧行宽或永久删除图标"""
+    """重复试填重新按当前值计算，长短字段、显隐切换不会复用旧行宽或永久删除图标"""
     source, plan = header_source(tmp_path)
     output = tmp_path / "result.docx"
     fill_template(
@@ -212,7 +212,7 @@ def test_same_source_reacts_to_value_and_visibility_changes_without_persisting_l
 
 
 def test_unrelated_word_layout_is_not_rewritten(tmp_path):
-    """普通 Word 即使同样有姓名、电话和表格，也不触发任何 PDF 顶部重排"""
+    """普通 Word 即使同样有姓名、电话、表格，也不触发任何 PDF 顶部重排"""
     path = tmp_path / "native.docx"
     doc = Document()
     doc.add_paragraph("Old name")

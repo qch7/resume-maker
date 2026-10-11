@@ -4,7 +4,7 @@
 @import "./motion.css";
 @import "./plugins.css";
 
-/* 隐藏的已访问页面保留草稿，但不能被布局样式重新显示 */
+/* 隐藏的已访问页面保留草稿，布局样式须保持其隐藏状态 */
 [hidden] {
   display: none !important;
 }

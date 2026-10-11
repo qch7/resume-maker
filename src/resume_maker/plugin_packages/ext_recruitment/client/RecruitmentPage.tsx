@@ -38,7 +38,7 @@ import {
   type Snapshot,
 } from "./model";
 
-/** 按用户创建或导入的领域和分类组织招聘网址 */
+/** 按用户创建或导入的领域、分类组织招聘网址 */
 export default function RecruitmentPage({ active }: { active: boolean }) {
   const body = useRef<HTMLDivElement>(null);
   const size = useElementSize(body);
@@ -117,7 +117,7 @@ export default function RecruitmentPage({ active }: { active: boolean }) {
   useEffect(() => {
     if (category !== selectedCategory) setCategory(selectedCategory);
   }, [category, selectedCategory]);
-  /** 刷新服务器版本，供并发冲突恢复和用户主动同步 */
+  /** 刷新服务器版本，供并发冲突恢复、用户主动同步 */
   async function refresh() {
     if (locked.current) throw new Error("另一个操作仍在处理中，请稍后重试。");
     locked.current = true;
@@ -164,7 +164,7 @@ export default function RecruitmentPage({ active }: { active: boolean }) {
       setError((failure as Error).message);
     }
   }
-  /** 保存一个条目，其他领域和收藏均保留最新列表内容 */
+  /** 保存一个条目，其他领域、收藏均保留最新列表内容 */
   async function saveItem(item: Bookmark) {
     if (!snapshot) return;
     const exists = snapshot.data.bookmarks.some(
@@ -179,7 +179,7 @@ export default function RecruitmentPage({ active }: { active: boolean }) {
         : [...snapshot.data.bookmarks, item],
     });
   }
-  /** 创建收藏时优先使用当前筛选领域和分类 */
+  /** 创建收藏时优先使用当前筛选领域、分类 */
   function add() {
     if (!snapshot) return;
     const item = newBookmark(domain);

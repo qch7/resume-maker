@@ -1,4 +1,4 @@
-"""本机 Word 模板检查和登记的 HTTP 入口"""
+"""本机 Word 模板检查、登记的 HTTP 入口"""
 
 from typing import Annotated
 
@@ -62,7 +62,7 @@ def analysis_progress(
     analysis_id: str,
     after: int = Query(0, ge=0),
 ):
-    """读取轻量状态和新增公开活动以免轮询时重复传输整份模板"""
+    """读取轻量状态、新增公开活动以免轮询时重复传输整份模板"""
     return dep_templates.progress(analysis_id, after)
 
 
@@ -80,7 +80,7 @@ def review_mapping(
     analysis_id: str,
     body: TemplatePreviewInput,
 ):
-    """重新验证修改后的字段和区域，返回仍需处理的具体内容"""
+    """重新验证修改后的字段、区域，返回仍需处理的具体内容"""
     return dep_templates.review(analysis_id, body.plan, body.document, body.items)
 
 
@@ -90,7 +90,7 @@ def repair_mapping(
     analysis_id: str,
     body: TemplateRepairInput,
 ):
-    """让 AI 根据当前方案、校验问题和用户文字说明继续完善"""
+    """让 AI 根据当前方案、校验问题、用户文字说明继续完善"""
     return dep_templates.repair(analysis_id, body.plan, body.document, body.items, body.feedback)
 
 
@@ -140,7 +140,7 @@ def preview_file(
     preview_id: str,
     file_name: str,
 ):
-    """仅提供当前分析目录中的 Word、PDF 和分页图"""
+    """仅提供当前分析目录中的 Word、PDF、分页图"""
     return LeasedFileResponse(
         lambda: dep_templates.preview_lease(analysis_id, preview_id, file_name), file_name
     )

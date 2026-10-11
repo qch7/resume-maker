@@ -42,7 +42,7 @@ def test_five_model_calls_do_not_exceed_shared_capacity(tmp_path):
     gateway = PrivacyGateway(runner=runner)
 
     def call():
-        """连接检查和独立任务均使用同一个隐私出口"""
+        """连接检查、独立任务均使用同一个隐私出口"""
         try:
             gateway.with_private_data({}).run(
                 workspace=tmp_path,

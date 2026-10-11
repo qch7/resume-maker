@@ -42,7 +42,7 @@ export interface ActivityPresenter {
   present(event: Readonly<ActivityInput>): ActivityPresentation | null;
 }
 
-/** 检查日志展示的纯文本边界，拒绝过大输出和隐式 HTML */
+/** 检查日志展示的纯文本边界，拒绝过大输出、隐式 HTML */
 export function activityPresentation(value: ActivityPresentation) {
   if (
     !value ||

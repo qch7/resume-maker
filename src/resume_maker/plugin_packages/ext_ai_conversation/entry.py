@@ -1,10 +1,10 @@
-"""AI 会话的注册和生命周期入口"""
+"""AI 会话的注册、生命周期入口"""
 
 from resume_maker.plugins.support import dependency, publish, routes, task_queue
 
 
 def activate(context):
-    """注册 AI 会话和经历分析任务，停用后保留已存历史及草稿"""
+    """注册 AI 会话、经历分析任务，停用后保留已存历史及草稿"""
     from resume_maker.plugin_packages.ext_ai_conversation.configuration import Settings
     from resume_maker.plugin_packages.ext_ai_conversation.query import conversations as query
     from resume_maker.plugin_packages.ext_ai_conversation.services.conversations import (

@@ -1,6 +1,6 @@
 import { ChevronDown, ChevronUp } from "lucide-react";
 
-/** 在一个图标宽度内竖排上下移动按钮，分别保留键盘焦点和边界禁用 */
+/** 在一个图标宽度内竖排上下移动按钮，分别保留键盘焦点、边界禁用 */
 export default function MoveButtons({
   label,
   upDisabled,

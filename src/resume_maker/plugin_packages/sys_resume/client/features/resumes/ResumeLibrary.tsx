@@ -33,7 +33,7 @@ export interface ResumeLibraryProps {
   onDismissNotice: () => void;
 }
 
-/** 管理简历方案、排版选择和历史导出文件 */
+/** 管理简历方案、排版选择、历史导出文件 */
 export default function ResumeLibrary(props: ResumeLibraryProps) {
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -56,7 +56,7 @@ export default function ResumeLibrary(props: ResumeLibraryProps) {
       ]
     : [draft, ...state.resumes];
   const visible = resumes.filter(
-    /* 方案搜索忽略大小写和首尾空格 */ (item) =>
+    /* 方案搜索忽略大小写、首尾空格 */ (item) =>
       item.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()),
   );
   useEffect(
@@ -78,7 +78,7 @@ export default function ResumeLibrary(props: ResumeLibraryProps) {
       className="resume-library-dialog"
       aria-labelledby={titleId}
       onCancel={
-        /* 子模板库和删除确认通过 Portal 冒泡取消事件时且只关闭对应子窗口 */ (
+        /* 子模板库、删除确认的取消事件经 Portal 冒泡时，仅关闭对应子窗口 */ (
           event,
         ) => {
           event.stopPropagation();

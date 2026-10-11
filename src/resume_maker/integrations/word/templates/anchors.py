@@ -1,4 +1,4 @@
-"""分离共用文字段落的浮动绘图锚点，保留图形、坐标和组合关系"""
+"""分离共用文字段落的浮动绘图锚点，保留图形、坐标、组合关系"""
 
 from lxml import etree
 
@@ -49,7 +49,7 @@ def separate_anchors(root, *, paragraph_relative=False) -> bool:
             run.append(drawing)
             paragraph.addprevious(anchor_paragraph)
             changed = True
-        # 空运行不影响版式，保留可能存在的分节、书签和其他原生控制节点
+        # 空运行不影响版式，保留可能存在的分节、书签、其他原生控制节点
     return changed
 
 

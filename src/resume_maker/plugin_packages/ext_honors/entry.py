@@ -1,4 +1,4 @@
-"""荣誉库的注册和生命周期入口"""
+"""荣誉库的注册、生命周期入口"""
 
 from resume_maker.plugins.support import dependency, publish, routes
 
@@ -12,7 +12,7 @@ def activate(context):
     from resume_maker.sdk.privacy import PrivacyRuleContribution, PrivacyValues
 
     def private_honors(reader):
-        """本机证书资料登记身份和凭据，不把正文交给规则展示界面"""
+        """本机证书资料登记身份、凭据，不把正文交给规则展示界面"""
         return PrivacyValues(
             private_data=tuple(
                 row["value"]

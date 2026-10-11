@@ -72,7 +72,7 @@ export function newDocument(defaults?: ResumeDefaults | null): ResumeDocument {
   return defaults ? applyResumeDefaults(document, defaults) : document;
 }
 
-/** 创建独立的空条目，输入内容后自动参与预览和导出 */
+/** 创建独立的空条目，输入内容后自动参与预览、导出 */
 export function newEntry(definitions?: DefaultField[] | null): SectionEntry {
   const entry: SectionEntry = {
     id: crypto.randomUUID(),
@@ -137,7 +137,7 @@ export function displayedPersonal(personal: PersonalInfo): PersonalInfo {
   return displayed;
 }
 
-/** 创建可命名的独立信息项，空名称和空内容不会进入成品 */
+/** 创建可命名的独立信息项，空名称、空内容不会进入成品 */
 export function newCustomField(): CustomInfoField {
   return { id: crypto.randomUUID(), label: "", value: "", visible: true };
 }
@@ -146,7 +146,7 @@ export function newCustomField(): CustomInfoField {
 export function visibleCustomFields(fields: CustomInfoField[]) {
   return fields
     .filter(
-      /* 空白和隐藏的信息项不占用排版位置 */ (field) =>
+      /* 空白、隐藏的信息项不占用排版位置 */ (field) =>
         field.visible && field.label.trim() && field.value.trim(),
     )
     .map(
@@ -168,12 +168,14 @@ export function toggleHiddenField<T extends string>(
     : [...hidden, field];
 }
 
-/** 生成可见条目副本，去掉和栏目重名的文本标题和没有正文的空条目 */
+/** 生成可见条目副本，移除名称等于栏目名的文本标题、无正文条目 */
 export function filledEntries(section: ResumeSection) {
   return section.entries
-    .filter(/* 隐藏整条资料时保留原文但不参与排版 */ (entry) => entry.visible)
+    .filter(
+      /* 隐藏整条资料时保留原文，排版时跳过该条资料 */ (entry) => entry.visible,
+    )
     .map(
-      /* 字段显隐和标题去重只作用于排版副本 */ (entry) => {
+      /* 字段显隐、标题去重只作用于排版副本 */ (entry) => {
         const displayed = { ...entry };
         for (const field of entry.hidden_fields) displayed[field] = "";
         displayed.custom_fields = visibleCustomFields(entry.custom_fields);
@@ -188,7 +190,7 @@ export function filledEntries(section: ResumeSection) {
     .filter(
       /* 至少有一项实际内容 */ (entry) =>
         [entry.title, entry.subtitle, entry.period, entry.details].some(
-          /* 忽略空格 */ (value) => value.trim(),
+          (value) => value.trim(),
         ) || entry.custom_fields.length > 0,
     );
 }

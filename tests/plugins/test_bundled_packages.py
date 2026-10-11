@@ -1,4 +1,4 @@
-"""发行插件的目录发现、客户端资源和私有边界回归"""
+"""发行插件的目录发现、客户端资源、私有边界回归"""
 
 import hashlib
 import json
@@ -59,7 +59,7 @@ def test_missing_required_package_is_reported_before_code_import(tmp_path, monke
 
 
 def test_bundled_client_resources_are_selected_indexed_and_verified(tmp_path, monkeypatch):
-    """资源仅限活动插件构建索引，摘要变化和源码下载均被拒绝"""
+    """资源仅限活动插件构建索引，摘要变化、源码下载均被拒绝"""
     output = tmp_path / "output"
     output.mkdir()
     content = b"export function activate(context) {}"

@@ -17,7 +17,7 @@ def fingerprint(value: object) -> str:
 
 
 class StateStore:
-    """配置快照和维护日志均不包含凭据或可执行代码"""
+    """配置快照、维护日志均不包含凭据或可执行代码"""
 
     def __init__(self, directory: Path):
         """启动只读取持久配置，不执行插件代码"""

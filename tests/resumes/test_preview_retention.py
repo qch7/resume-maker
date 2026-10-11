@@ -1,4 +1,4 @@
-"""预览预算、使用顺序、下载租约和失败产物回收"""
+"""预览预算、使用顺序、下载租约、失败产物回收"""
 
 import asyncio
 
@@ -18,7 +18,7 @@ def publish(cache, content=b"preview", owner="test"):
 
 
 def test_preview_lru_and_bytes_preserve_active_downloads(tmp_path):
-    """条目和字节限制同时生效，传输中的旧页保持可读且不阻塞发布"""
+    """条目、字节限制同时生效，传输中的旧页保持可读且不阻塞发布"""
     cache = PreviewCache(tmp_path, prefix="test-", max_entries=2, max_bytes=14)
     try:
         first, second = publish(cache), publish(cache)

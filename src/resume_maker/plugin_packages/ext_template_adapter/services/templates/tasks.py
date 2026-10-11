@@ -1,4 +1,4 @@
-"""模板分析、映射核对、试填和登记，复用现有 Provider 并支持取消"""
+"""模板分析、映射核对、试填、登记，复用现有 Provider 并支持取消"""
 
 import threading
 import time
@@ -52,7 +52,7 @@ class Templates:
         analysis=None,
         settings=None,
     ):
-        """初始化实例依赖和受锁保护的任务状态"""
+        """初始化实例依赖、受锁保护的任务状态"""
         self.catalog, self.db, self.data_dir, self.provider = (
             catalog,
             storage,
@@ -112,7 +112,7 @@ class Templates:
         self.provider, self.execution_queue, self.analysis = provider, execution_queue, analysis
 
         def detach():
-            """任务和工作线程全部退出后撤销分析依赖"""
+            """任务、工作线程全部退出后撤销分析依赖"""
             execution_queue.close()
             self.stop()
             self.provider, self.execution_queue, self.analysis = None, None, None
@@ -305,7 +305,7 @@ class Templates:
         importer_id=None,
         expected_importer=None,
     ):
-        """固定导入器和原件后准备异步任务，校验项目引用后才调用模型"""
+        """固定导入器、原件后准备异步任务，校验项目引用后才调用模型"""
         if self.provider is None or self.analysis is None:
             raise Problem("模板 AI 插件未启用。", 409)
         trace = expected_importer
@@ -327,7 +327,7 @@ class Templates:
             identifier = uid()
             directory = self.data_dir / "workspaces" / f"template-{identifier}"
             directory.mkdir(parents=True)
-            # 保存刚解析的同一字节快照以防分析和确认时读到不同文档
+            # 保存刚解析的同一字节快照以防分析、确认时读到不同文档
             source = directory / "original.docx"
             if package is not None:
                 package.write(source)
@@ -405,7 +405,7 @@ class Templates:
         """执行一次受超时控制的模型分析，取消或失败均不能登记模板"""
 
         def emit(kind, data):
-            """记录有界的公开活动和计量，取消后不再接受迟到事件"""
+            """记录有界的公开活动、计量，取消后不再接受迟到事件"""
             record_event(kind, data)
             with self.lock:
                 task = self.tasks[identifier]
@@ -601,7 +601,7 @@ class Templates:
         )
 
     def progress(self, identifier, after=0):
-        """仅返回任务进度和游标之后的活动"""
+        """仅返回任务进度、游标之后的活动"""
         with self.lock:
             task = need(self.tasks.get(identifier), "模板分析已不存在，请重新分析。")
             value = {
@@ -630,7 +630,7 @@ class Templates:
             return self._open(template_id, document, items)
 
     def _open(self, template_id, document, items):
-        """持有产物锁时打开模板以免永久清理和编辑副本创建交错"""
+        """持有产物锁时打开模板以免永久清理、编辑副本创建交错"""
         template = self.catalog.template(template_id)
         mapping = template["mapping"]
         data = self.catalog.template_bytes(template)
@@ -741,12 +741,12 @@ class Templates:
         document: ResumeDocument,
         items: list[ResumeItem],
     ) -> dict:
-        """登记核对过的完整模板，原文件和映射一并保留供重复导出和备份"""
+        """登记核对过的完整模板，原文件、映射一并保留供重复导出、备份"""
         with self.lock:
             return self._save(identifier, name, plan, document, items)
 
     def _save(self, identifier, name, plan, document, items):
-        """保存期间持有产物锁并登记识别缓存和工作目录供回收站精确清理"""
+        """保存期间持有产物锁并登记识别缓存、工作目录供回收站精确清理"""
         source = self.source(identifier)
         projects = self.projects(items)
         package, plan, _ = complete_template(TemplatePackage(source), plan, document, projects)
@@ -788,12 +788,12 @@ class Templates:
     def preview(
         self, identifier: str, plan: TemplatePlan, document: ResumeDocument, items: list[ResumeItem]
     ) -> dict:
-        """使用当前资料试填，校验固定引用和选择后生成 Word 和可用的分页预览"""
+        """使用当前资料试填，校验固定引用、选择后生成 Word、可用的分页预览"""
         with self.lock:
             return self._preview(identifier, plan, document, items)
 
     def _preview(self, identifier, plan, document, items):
-        """试填和永久清理串行以防删除后迟到的预览重新创建产物"""
+        """试填、永久清理串行以防删除后迟到的预览重新创建产物"""
         source = self.source(identifier)
         projects = self.projects(items)
         with self.previews.allocate() as (preview_id, directory):
@@ -827,7 +827,7 @@ class Templates:
         return self.previews.lease(preview_id, filename, owner=identifier)
 
     def projects(self, items: list[ResumeItem]) -> list[dict]:
-        """校验固定项目和亮点引用，保存和试填使用同一份资料覆盖规则"""
+        """校验固定项目、亮点引用，保存、试填使用同一份资料覆盖规则"""
         if len({item.project_id for item in items}) != len(items):
             raise Problem("项目引用不能重复。")
         projects = []
@@ -855,7 +855,7 @@ class Templates:
 
 
 def new_progress():
-    """为每个任务分配独立进度容器以免共享活动列表和统计"""
+    """为每个任务分配独立进度容器以免共享活动列表、统计"""
     return {
         "phase": "prepare",
         "round": 0,
@@ -870,7 +870,7 @@ def new_progress():
 
 
 def analysis_record(task):
-    """限量保存公开活动和识别统计"""
+    """限量保存公开活动、识别统计"""
     return {
         key: deepcopy(task[key])
         for key in (*new_progress(), "attempts", "repair_error")

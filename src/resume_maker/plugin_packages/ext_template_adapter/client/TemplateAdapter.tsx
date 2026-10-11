@@ -55,7 +55,7 @@ import type {
   TemplateTrialPreview,
 } from "./types";
 
-/** 在独立工作区识别、可视化调整、试填和保存完整 Word 模板 */
+/** 在独立工作区识别、可视化调整、试填、保存完整 Word 模板 */
 export default function TemplateAdapter({
   active,
   layout,
@@ -271,7 +271,7 @@ export default function TemplateAdapter({
             );
             cursor = progress.cursor;
             setAnalysis(
-              /* 合并增量活动，保留已加载的清单和方案 */ (previous) =>
+              /* 合并增量活动，保留已加载的清单、方案 */ (previous) =>
                 previous?.id === taskId
                   ? {
                       ...previous,
@@ -410,7 +410,7 @@ export default function TemplateAdapter({
     },
     [active, plan, review, busy, loading, running, pluginNotice],
   );
-  /** 将人工修改和补充说明交给 AI 生成独立调整结果 */
+  /** 将人工修改、补充说明交给 AI 生成独立调整结果 */
   async function repair(instructions = feedback) {
     const value = await api<TemplateAnalysis>(
       `/templates/analyses/${taskId}/repair`,
@@ -423,7 +423,7 @@ export default function TemplateAdapter({
       if (instructions === feedback) setFeedback("");
     }
   }
-  /** 检查短操作是否仍对应当前模板和当前简历的同一份资料 */
+  /** 检查短操作是否仍对应当前模板、当前简历的同一份资料 */
   function isCurrent() {
     const current = latest.current;
     return (
@@ -441,7 +441,7 @@ export default function TemplateAdapter({
     setPreviewStale(true);
     setView("preview");
   }
-  /** 将读取和保存的失败原因显示在工作区，保持用户已编辑的映射 */
+  /** 将读取、保存的失败原因显示在工作区，保持用户已编辑的映射 */
   async function perform(work: () => Promise<void>) {
     setBusy(true);
     setNotice("");
@@ -514,7 +514,7 @@ export default function TemplateAdapter({
       if (!controller.signal.aborted) setLoading(false);
     }
   }
-  /** 接入新分析或已保存模板快照，清除上一份模板的选区和试填 */
+  /** 接入新分析或已保存模板快照，清除上一份模板的选区、试填 */
   function openTask(value: TemplateAnalysis, templateId = "") {
     setSourceExpanded(false);
     autoPreview.current = true;
@@ -564,7 +564,7 @@ export default function TemplateAdapter({
     setNotice("");
     setView("preview");
   }
-  /** 从固定操作区返回完整问题列表并将键盘焦点和滚动位置移到原因 */
+  /** 从固定操作区返回完整问题列表并将键盘焦点、滚动位置移到原因 */
   function showProblems() {
     setView("summary");
     requestAnimationFrame(
@@ -574,7 +574,7 @@ export default function TemplateAdapter({
           ?.focus(),
     );
   }
-  /** 用当前简历生成 Word 和分页图并丢弃过时结果 */
+  /** 用当前简历生成 Word、分页图并丢弃过时结果 */
   async function trial() {
     const value = await api<TemplateTrialPreview>(
       `/templates/analyses/${taskId}/preview`,
@@ -724,7 +724,7 @@ export default function TemplateAdapter({
                 !importers.available
               }
               onClick={
-                /* 将所选文件交给 AI 识别，失败信息和当前模板分开呈现 */ () =>
+                /* 将所选文件交给 AI 识别，失败信息、当前模板分开呈现 */ () =>
                   void recognize()
               }
             >
@@ -847,7 +847,7 @@ export default function TemplateAdapter({
                 <button
                   disabled={busy || running}
                   onClick={
-                    /* 加载失败时保留重试入口和已打开的人工调整 */ () =>
+                    /* 加载失败时保留重试入口、已打开的人工调整 */ () =>
                       void loadSaved(savedId)
                   }
                 >

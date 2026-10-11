@@ -1,4 +1,4 @@
-"""验证源码和独立安装的数据目录选择以免更换启动位置后读到另一份数据"""
+"""验证源码、独立安装的数据目录选择以免更换启动位置后读到另一份数据"""
 
 from pathlib import Path
 
@@ -33,7 +33,7 @@ def test_installed_package_keeps_user_data_directory(tmp_path, monkeypatch):
 
 
 def test_source_sandbox_stays_in_project_when_launch_environment_changes(tmp_path, monkeypatch):
-    """沙箱固定在源码项目内，启动位置、系统盘和数据目录设置均不改变位置"""
+    """沙箱固定在源码项目内，启动位置、系统盘、数据目录设置均不改变位置"""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("SystemDrive", "Z:")
     monkeypatch.setenv("RESUME_MAKER_DATA_DIR", str(tmp_path / "data"))

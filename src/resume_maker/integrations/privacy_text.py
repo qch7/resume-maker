@@ -1,4 +1,4 @@
-"""将 OCR 字宽和间隔归一化后定位原文，替换仍保留原始引文"""
+"""将 OCR 字宽、间隔归一化后定位原文，替换仍保留原始引文"""
 
 import re
 import unicodedata
@@ -19,7 +19,7 @@ def normalized_text(value, *, compact=False):
 
 
 def known_variants(value, known):
-    """定位已登记身份的 OCR 空白和字宽变体，返回可准确还原的原始片段"""
+    """定位已登记身份的 OCR 空白、字宽变体，返回可准确还原的原始片段"""
     candidates = {
         normalized_text(candidate, compact=True)[0]
         for candidate in known

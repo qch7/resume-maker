@@ -18,7 +18,7 @@ def retire(assets, record):
 
 
 def test_collection_retains_published_references_and_removes_failed_staging(tmp_path):
-    """发布失败及进程崩溃目录可回收，已发布资料和备份恢复仍完整"""
+    """发布失败及进程崩溃目录可回收，已发布资料、备份恢复仍完整"""
     directory = tmp_path / "data"
     assets = Assets(Database(directory / "resume.db"), directory)
     staged = assets.stage("example", b"failed", "text/plain")

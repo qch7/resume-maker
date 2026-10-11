@@ -1,4 +1,4 @@
-"""招聘收藏夹的本机存储、并发保存和原子导入"""
+"""招聘收藏夹的本机存储、并发保存、原子导入"""
 
 from pydantic import ValidationError
 
@@ -25,7 +25,7 @@ def parse_recruitment(content: str) -> RecruitmentFile:
 
 
 class Recruitment:
-    """使用现有设置表保存收藏夹，随业务数据库备份和恢复"""
+    """使用现有设置表保存收藏夹，随业务数据库备份、恢复"""
 
     def __init__(self, db: RelationalStore):
         """持有当前实例的数据库，不连接外部招聘网站"""
@@ -53,7 +53,7 @@ class Recruitment:
         return saved
 
     def save(self, revision: int, data: RecruitmentFile):
-        """保存用户编辑后的完整收藏夹，版本核验和写入处于同一事务"""
+        """保存用户编辑后的完整收藏夹，版本核验、写入处于同一事务"""
         with self.db.transaction() as conn:
             return self._write(conn, self._current(conn, revision), data)
 

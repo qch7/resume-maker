@@ -83,7 +83,7 @@ export default function MetaEditor({
   const [error, setError] = useState("");
   const [stackText, setStackText] = useState(value.stack.join("、"));
   const custom = value.custom_fields ?? [];
-  /** 保存当前草稿成功后退出编辑，失败时仍保留输入和错误提示 */
+  /** 保存当前草稿成功后退出编辑，失败时仍保留输入、错误提示 */
   async function finish() {
     setSaving(true);
     setError("");
@@ -96,7 +96,7 @@ export default function MetaEditor({
       setSaving(false);
     }
   }
-  /** 固定字段共用同一编辑和显隐控件，移动只改变外层条目位置 */
+  /** 固定字段共用同一编辑、显隐控件，移动只改变外层条目位置 */
   function renderField(field: (typeof FIELDS)[number]) {
     const id = `project-meta-${field.key}`;
     const props = {
@@ -129,7 +129,7 @@ export default function MetaEditor({
         label={defaultLabel(definitions, field.key, field.label)}
         hidden={!fieldVisible(value, visibility, field.key)}
         onToggle={
-          /* 隐藏只改变排版，保留原文供恢复和版本对照 */ () =>
+          /* 隐藏只改变排版，保留原文供恢复、版本对照 */ () =>
             onVisibility({
               fields: {
                 [field.key]: !fieldVisible(value, visibility, field.key),
@@ -153,7 +153,7 @@ export default function MetaEditor({
           hasDefault(definitions, key.slice(7))
         : hasDefault(definitions, key)),
   );
-  /** 正文顺序进入元信息草稿，项目标题和参与时间不进入移动列表 */
+  /** 正文顺序进入元信息草稿，项目标题、参与时间不进入移动列表 */
   function move(from: number, to: number) {
     if (from === to || to < 0 || to >= order.length) return;
     onChange({ ...value, body_order: arrayMove(order, from, to) });
@@ -168,9 +168,7 @@ export default function MetaEditor({
             `custom:${field.id}` === key,
         )?.label || "自定义条目"
       );
-    return FIELDS.find(
-      /* 读取固定字段的中文名称 */ (field) => field.key === key,
-    )!.label;
+    return FIELDS.find((field) => field.key === key)!.label;
   }
   return (
     <section
@@ -201,7 +199,7 @@ export default function MetaEditor({
           <button
             disabled={saving || custom.length >= 20}
             onClick={
-              /* 添加条目时自动进入编辑，新条目沿用个人信息的命名和显隐规则 */ () => {
+              /* 添加条目时自动进入编辑，新条目沿用个人信息的命名、显隐规则 */ () => {
                 setEditing(true);
                 onChange({
                   ...value,
@@ -218,7 +216,7 @@ export default function MetaEditor({
       <div className="profile-fields compact-fields project-info-fixed">
         {FIELDS.slice(0, 2)
           .filter(
-            /* 标题和时间同样遵循默认项设置 */ (field) =>
+            /* 标题、时间同样遵循默认项设置 */ (field) =>
               hasDefault(definitions, field.key),
           )
           .map(renderField)}
@@ -239,7 +237,7 @@ export default function MetaEditor({
               index,
             ) => {
               const field = FIELDS.find(
-                /* 区分固定资料和自定义条目 */ (item) => item.key === key,
+                /* 区分固定资料、自定义条目 */ (item) => item.key === key,
               );
               const customIndex = custom.findIndex(
                 /* 定位对应的原始内容，排序不改写版本 */ (item) =>
@@ -255,7 +253,7 @@ export default function MetaEditor({
                   className="project-info-row"
                 >
                   {
-                    /* 将拖拽手柄和上下移动按钮放在字段右侧 */ (handle) => (
+                    /* 将拖拽手柄、上下移动按钮放在字段右侧 */ (handle) => (
                       <>
                         <div className="project-info-field">
                           {field ? (

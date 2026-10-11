@@ -1,4 +1,4 @@
-"""经历历史树和分支指针，在数据库事务内维护不可变版本和独立草稿"""
+"""经历历史树、分支指针，在数据库事务内维护不可变版本、独立草稿"""
 
 import unicodedata
 
@@ -11,7 +11,7 @@ class History:
     """维护命名分支，每个修订只有一个所属分支，简历继续引用修订 ID"""
 
     def __init__(self, db: RelationalStore):
-        """复用业务数据库，分支移动和版本、草稿写入共享事务"""
+        """复用业务数据库，分支移动、版本、草稿写入共享事务"""
         self.db = db
 
     def branches(self, project_id: str) -> list[dict]:
@@ -35,7 +35,7 @@ class History:
         )
 
     def initialize(self, conn, project_id: str, revision_id: str, stamp: str) -> None:
-        """为新项目的初始修订登记 main，和项目创建原子完成"""
+        """在创建项目的同一事务中为初始修订登记 main"""
         branch_id = f"main:{project_id}"
         conn.execute(
             "INSERT INTO experience_branches VALUES (?,?,?, ?,1,?,?)",
@@ -56,7 +56,7 @@ class History:
         )
 
     def create(self, project_id: str, revision_id: str, name: str, include_drafts: bool) -> dict:
-        """从任意保存版本创建分支起点，可复制草稿但不会把草稿隐式发布"""
+        """从保存版本创建分支起点，可复制草稿，草稿继续保持未发布状态"""
         name = unicodedata.normalize("NFC", name.strip())
         if not name or len(name) > 80 or any(unicodedata.category(c).startswith("C") for c in name):
             raise Problem("分支名称须为 1 至 80 个可见字符。")

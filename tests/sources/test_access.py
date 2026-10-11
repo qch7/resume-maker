@@ -1,4 +1,4 @@
-"""验证源码按需访问恢复大项目能力，同时保持原件和身份隔离"""
+"""验证源码按需访问恢复大项目能力，同时保持原件、身份隔离"""
 
 import json
 import os
@@ -61,7 +61,7 @@ def test_model_start_does_not_collect_source(tmp_path, monkeypatch):
 
 
 def test_more_than_200_files_and_350000_characters_remain_accessible(tmp_path):
-    """后续来源和文件超过旧总量限制后仍能列出、搜索和读取"""
+    """后续来源、文件超过旧总量限制后仍能列出、搜索、读取"""
     with access_at(tmp_path) as access:
         for number in range(230):
             (tmp_path / "first" / f"part-{number:04}.py").write_text(
@@ -207,7 +207,7 @@ def test_project_sandbox_never_becomes_source_material(tmp_path, monkeypatch, se
 
 
 def test_cursor_scope_changes_and_cancellation(tmp_path):
-    """游标绑定请求和查询条件，取消后不得继续返回材料"""
+    """游标绑定请求、查询条件，取消后不得继续返回材料"""
     with access_at(tmp_path) as access, access_at(tmp_path) as other:
         for i in range(110):
             (tmp_path / "first" / f"part-{i}.py").write_text("pass")
@@ -320,7 +320,7 @@ def test_mcp_subprocess_remains_available_after_500_requests(tmp_path):
 
 
 def test_replaced_directory_is_rejected_after_listing(tmp_path):
-    """列出文件后将目录替换为外部链接，读取和后续搜索仍拒绝外部内容"""
+    """列出文件后将目录替换为外部链接，读取、后续搜索仍拒绝外部内容"""
     with access_at(tmp_path) as access:
         root = tmp_path / "first"
         folder = root / "ordinary"

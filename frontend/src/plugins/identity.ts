@@ -1,7 +1,7 @@
 import type { ClientDescriptor } from "../shared/lib/capabilities";
 import type { ClientExtensionPoints, WorkflowStep } from "./extensions";
 
-/** 隔离页面共用定义的代码资源，实例身份只用于消息和 RPC */
+/** 隔离页面共用定义的代码资源，实例身份只用于消息、RPC */
 export function isolatedPageSource(entry: string, origin: string): string {
   const url = new URL(entry, origin);
   const match = /^\/plugin-assets\/([^/]+)\/([a-f0-9]{64})\//.exec(
@@ -23,7 +23,7 @@ export function instanceIdentifier(
     : id;
 }
 
-/** 清单和注册调用使用同一身份规则，两个实例不能占用彼此的页面和字段 */
+/** 清单、注册调用使用同一身份规则，两个实例不能占用彼此的页面、字段 */
 export function instanceDescriptor(item: ClientDescriptor): ClientDescriptor {
   return {
     ...item,
@@ -36,7 +36,7 @@ export function instanceDescriptor(item: ClientDescriptor): ClientDescriptor {
   };
 }
 
-/** 工作流步骤引用本插件的命令和状态时一起切换到当前实例 */
+/** 工作流步骤引用本插件的命令、状态时一起切换到当前实例 */
 export function instanceContribution<K extends keyof ClientExtensionPoints>(
   item: ClientDescriptor,
   point: K,

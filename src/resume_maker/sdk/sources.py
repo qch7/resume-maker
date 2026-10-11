@@ -10,7 +10,7 @@ from resume_maker.sdk.manifest import Contract
 
 
 class SourceField(Contract):
-    """来源拥有字段值，简历保留自己的标签和显隐"""
+    """来源拥有字段值，简历保留自己的标签、显隐"""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
     id: str = Field(min_length=1, max_length=100)
@@ -54,7 +54,7 @@ class SourceReader(Protocol):
 
 @dataclass(frozen=True)
 class ResumeSource:
-    """非代码资料通过同一来源契约供简历选择和同步"""
+    """非代码资料通过同一来源契约供简历选择、同步"""
 
     title: str
     version: str

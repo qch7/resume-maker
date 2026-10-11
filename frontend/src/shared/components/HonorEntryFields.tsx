@@ -16,7 +16,7 @@ import {
 } from "@resume-maker/plugin-sdk/shared/resume/honors/fields";
 
 const PRIMARY = HONOR_FIELDS.filter(
-  /* 默认界面只展示名称和日期 */ (field) =>
+  /* 默认界面只展示名称、日期 */ (field) =>
     field.key === "name" || field.key === "date",
 );
 const OPTIONAL = HONOR_FIELDS.filter(
@@ -24,7 +24,7 @@ const OPTIONAL = HONOR_FIELDS.filter(
     field.key !== "name" && field.key !== "date",
 );
 
-/** 在个人信息中使用和荣誉库一致的字段，折叠状态不改变简历显隐 */
+/** 个人信息沿用荣誉库字段，折叠状态独立于简历显隐 */
 export default function HonorEntryFields({
   entry,
   idPrefix,
@@ -64,7 +64,7 @@ export default function HonorEntryFields({
         field.visible && field.label.trim() && field.value.trim(),
     ).length;
 
-  /** 字段共用标签、长度限制和更新逻辑 */
+  /** 字段共用标签、长度限制、更新逻辑 */
   function renderField(field: HonorField) {
     const fieldId =
       (
@@ -86,7 +86,7 @@ export default function HonorEntryFields({
       );
     const disabled = !editing || saving || full;
     const value = honorFieldValue(entry, field.key);
-    /** 编辑表单草稿并由上层保存内容和显示设置 */
+    /** 编辑表单草稿并由上层保存内容、显示设置 */
     function updateValue(value: string) {
       onChange(updateHonorField(entry, field.key, { value }));
     }
@@ -99,7 +99,7 @@ export default function HonorEntryFields({
         hidden={honorFieldHidden(entry, field.key)}
         disabled={disabled}
         onToggle={
-          /* 显示和隐藏只影响简历，保留信息原文 */ () =>
+          /* 显示、隐藏只影响简历，保留信息原文 */ () =>
             onChange(
               updateHonorField(entry, field.key, {
                 hidden: !honorFieldHidden(entry, field.key),
@@ -113,7 +113,7 @@ export default function HonorEntryFields({
             value={value}
             disabled={disabled || linked}
             onChange={
-              /* 分类名称和库中一致 */ (event) =>
+              /* 分类名称沿用库中名称 */ (event) =>
                 updateValue(event.target.value)
             }
           >

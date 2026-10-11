@@ -17,41 +17,39 @@ export default function JobProgress({ job }: { job: Job }) {
   >([]);
   useEffect(() => {
     const controller = new AbortController();
-    void (
-      /* 执行当前异步流程，保持请求结果和所属组件状态一致 */ (async () => {
-        try {
-          const response = await request(`/jobs/${job.id}/events`, {
-            signal: controller.signal,
-          });
-          const reader = response.body!.getReader(),
-            decoder = new TextDecoder();
-          let buffer = "";
-          while (true) {
-            const { value, done } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-            const chunks = buffer.split("\n\n");
-            buffer = chunks.pop() ?? "";
-            for (const chunk of chunks) {
-              if (chunk.includes("event: done")) continue;
-              const data = chunk
-                .split("\n")
-                .find((line) => line.startsWith("data: "));
-              if (data) {
-                const event = JSON.parse(data.slice(6));
-                setEvents((previous) => [...previous.slice(-19), event]);
-              }
+    void (async () => {
+      try {
+        const response = await request(`/jobs/${job.id}/events`, {
+          signal: controller.signal,
+        });
+        const reader = response.body!.getReader(),
+          decoder = new TextDecoder();
+        let buffer = "";
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const chunks = buffer.split("\n\n");
+          buffer = chunks.pop() ?? "";
+          for (const chunk of chunks) {
+            if (chunk.includes("event: done")) continue;
+            const data = chunk
+              .split("\n")
+              .find((line) => line.startsWith("data: "));
+            if (data) {
+              const event = JSON.parse(data.slice(6));
+              setEvents((previous) => [...previous.slice(-19), event]);
             }
           }
-        } catch (error) {
-          if (!controller.signal.aborted)
-            setEvents((previous) => [
-              ...previous,
-              { kind: "error", data: { text: (error as Error).message } },
-            ]);
         }
-      })()
-    );
+      } catch (error) {
+        if (!controller.signal.aborted)
+          setEvents((previous) => [
+            ...previous,
+            { kind: "error", data: { text: (error as Error).message } },
+          ]);
+      }
+    })();
     return () => controller.abort();
   }, [job.id]);
   const last = [...events].reverse().find((e) => e.data.text);

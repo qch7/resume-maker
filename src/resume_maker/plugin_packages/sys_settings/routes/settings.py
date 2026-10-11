@@ -1,4 +1,4 @@
-"""Provider 配置和实际连接检查的 HTTP 入口"""
+"""Provider 配置、实际连接检查的 HTTP 入口"""
 
 from typing import Annotated
 
@@ -29,5 +29,5 @@ def save_resume_defaults(
 def settings(
     dep_settings: Annotated[Settings, Depends(service("settings"))],
 ):
-    """返回 Provider 设置和数据目录，未配置的字段使用默认值"""
+    """返回 Provider 设置、数据目录，未配置的字段使用默认值"""
     return dep_settings.get()

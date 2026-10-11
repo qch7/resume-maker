@@ -34,7 +34,7 @@ LABELS = {
 
 
 def empty_project_range(text, fields, binding, start, end):
-    """移走同段正文时一并清除其字段标签及前导分隔符，边界不触及标题和时间"""
+    """移走同段正文时一并清除其字段标签及前导分隔符，边界不触及标题、时间"""
     if binding.target not in BODY_TARGETS:
         return start, end
     preceding = [
@@ -55,7 +55,7 @@ def empty_project_range(text, fields, binding, start, end):
 
 
 def ordered_paragraph(entry, nodes, fields, styles):
-    """沿用对应字段的段落和标签正文样式，展开自定义项及亮点，移除固定定位和分节"""
+    """沿用对应字段的段落、标签正文样式，展开自定义项及亮点，移除固定定位、分节"""
     target = "custom_fields" if entry["key"].startswith("custom:") else entry["key"]
     choices = [
         target,
@@ -77,7 +77,7 @@ def ordered_paragraph(entry, nodes, fields, styles):
     paragraph.append(properties)
     text = paragraph_text(donor)
     start, end = quote_range(text, binding)
-    # 亮点或综合正文引文往往包含粗体标签，正文应继承冒号后实际正文的字重
+    # 亮点或综合正文引文包含粗体标签时，继承冒号后正文的字重
     colon = re.search(r"[:：]", text[start:end])
     body_start = start + colon.end() if colon and colon.start() < 50 else start
     while body_start < end and text[body_start].isspace():

@@ -1,4 +1,4 @@
-"""独立保存未提交输入和界面偏好，正式业务版本仍由各服务发布"""
+"""独立保存未提交输入、界面偏好，正式业务版本仍由各服务发布"""
 
 import hashlib
 import re
@@ -24,7 +24,7 @@ class WorkspaceStorage:
     """提供按键版本校验及删除标记，避免迟到窗口重新写回旧草稿"""
 
     def __init__(self, db):
-        """数据目录和恢复代次共同隔离浏览器恢复副本"""
+        """数据目录、恢复代次共同隔离浏览器恢复副本"""
         self.db = db
         with db.transaction() as conn:
             conn.execute(

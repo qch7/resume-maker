@@ -1,4 +1,4 @@
-"""用合成中英文证书比较本地 OCR 分辨率、字段命中、耗时和峰值内存"""
+"""用合成中英文证书比较本地 OCR 分辨率、字段命中、耗时、峰值内存"""
 
 import argparse
 import json
@@ -54,7 +54,7 @@ def measure(font, mode):
     peak, stopped = [process.memory_info().rss], threading.Event()
 
     def monitor():
-        """采样本进程内存，包含模型、图片和 Python 运行时"""
+        """采样本进程内存，包含模型、图片、Python 运行时"""
         while not stopped.wait(0.02):
             peak[0] = max(peak[0], process.memory_info().rss)
 

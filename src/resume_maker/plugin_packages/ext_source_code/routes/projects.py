@@ -1,4 +1,4 @@
-"""项目来源、版本和草稿操作的 HTTP 入口"""
+"""项目来源、版本、草稿操作的 HTTP 入口"""
 
 from pathlib import Path
 from typing import Annotated
@@ -27,7 +27,7 @@ def update_sources(
     project_id: str,
     body: ProjectSourcesInput,
 ):
-    """校验并重新绑定项目来源目录，保留已经生成的经历和历史"""
+    """校验并重新绑定项目来源目录，保留已经生成的经历、历史"""
     return dep_projects.update_sources(
         project_id, body.name, body.roots, body.expected_name, body.expected_roots
     )

@@ -116,7 +116,7 @@ const EMPTY: State = {
   templates: [],
   jobs: [],
 };
-/** 组装工作台并协调项目导航、经历发布、会话和简历组合之间的状态 */
+/** 组装工作台并协调项目导航、经历发布、会话、简历组合之间的状态 */
 export default function ResumeWorkspace() {
   const Chat = pluginComponent("conversation");
   const pages = pluginWorkbenchPages();
@@ -188,11 +188,11 @@ export default function ResumeWorkspace() {
   );
   const [activeProject, setActiveProject] = useState("");
   const [sidebarSort, setSidebarSort] = useState(
-    /* 恢复排序偏好，使首次打开的项目和侧栏首项一致 */ () =>
+    /* 恢复排序偏好，使项目初次打开时选中侧栏首项 */ () =>
       restoreSidebarSort(loadLocal("rm.sidebarSort", "recent")),
   );
   const sortedSidebar = useMemo(
-    /* 侧栏展示和默认项目选择共用同一份排序结果 */ () =>
+    /* 侧栏展示、默认项目选择共用同一份排序结果 */ () =>
       sortSidebar(state.projects, state.conversations, sidebarSort),
     [state.projects, state.conversations, sidebarSort],
   );
@@ -264,7 +264,7 @@ export default function ResumeWorkspace() {
     [windowPage],
   );
   const parentProject = state.projects.find(
-    /* 识别当前子项目所属的整体项目，用于范围提示和返回导航 */ (p) =>
+    /* 识别当前子项目所属的整体项目，用于范围提示、返回导航 */ (p) =>
       p.id === project?.parent_id,
   );
   const revisionId =
@@ -331,7 +331,7 @@ export default function ResumeWorkspace() {
       updated_at: honor.updated_at,
     };
     setState(
-      /* 只更新来源资料，简历中的排序、显隐和其他草稿由原状态保留 */ (
+      /* 只更新来源资料，简历中的排序、显隐、其他草稿由原状态保留 */ (
         current,
       ) => {
         if (
@@ -350,7 +350,7 @@ export default function ResumeWorkspace() {
             ),
           ],
           resumes: current.resumes.map(
-            /* 当前和其他方案都读取同一份核对内容 */ (resume) =>
+            /* 当前、其他方案都读取同一份核对内容 */ (resume) =>
               syncHonorResume(resume, [source]),
           ),
         };
@@ -358,7 +358,7 @@ export default function ResumeWorkspace() {
     );
   }
 
-  /** 打开最新来源和当前简历草稿并在取消时保留原值 */
+  /** 打开最新来源、当前简历草稿并在取消时保留原值 */
   async function editLinkedHonor(
     id: string,
     sectionId: string,
@@ -489,18 +489,16 @@ export default function ResumeWorkspace() {
 
   /** 等待草稿保存后执行操作并显示异常提示 */
   function run(work: () => Promise<void>) {
-    void (
-      /* 执行当前异步流程，保持请求结果和所属组件状态一致 */ (async () => {
-        try {
-          await flushDrafts();
-          await work();
-        } catch (error) {
-          setToast({ text: (error as Error).message, error: true });
-        }
-      })()
-    );
+    void (async () => {
+      try {
+        await flushDrafts();
+        await work();
+      } catch (error) {
+        setToast({ text: (error as Error).message, error: true });
+      }
+    })();
   }
-  /** 刷新项目详情和工作台数据，由当前内容重新计算编辑状态 */
+  /** 刷新项目详情、工作台数据，由当前内容重新计算编辑状态 */
   function changed() {
     setRefresh((v) => v + 1);
     void reload();
@@ -526,7 +524,7 @@ export default function ResumeWorkspace() {
           [projectId]: convId,
         }));
       setFolded(
-        /* 展开子项目和所属项目以显示导航位置 */ (v) =>
+        /* 展开子项目、所属项目以显示导航位置 */ (v) =>
           expandProjectPath(state.projects, projectId, v),
       );
     });
@@ -571,7 +569,7 @@ export default function ResumeWorkspace() {
       });
     changed();
   }
-  /** 等待草稿写入并完成服务端删除后清理列表和导航缓存 */
+  /** 等待草稿写入并完成服务端删除后清理列表、导航缓存 */
   async function deleteProject() {
     if (!deletingProject) return;
     if (deletionBlocker) throw new Error(deletionBlocker);
@@ -592,7 +590,7 @@ export default function ResumeWorkspace() {
       branches: current.branches.filter((item) => !ids.has(item.project_id)),
       jobs: current.jobs.filter((item) => !ids.has(item.project_id)),
     }));
-    /** 清理被删除项目的导航偏好，保留其他项目当前版本和折叠状态 */
+    /** 清理被删除项目的导航偏好，保留其他项目当前版本、折叠状态 */
     const remaining = <T,>(values: Record<string, T>) =>
       Object.fromEntries(Object.entries(values).filter(([id]) => !ids.has(id)));
     setSelectedRevisions(remaining);
@@ -625,7 +623,7 @@ export default function ResumeWorkspace() {
     setMode("chat");
     changed();
   }
-  /** 提交绑定经历版本和范围的消息，以唯一请求标识防止重复入队 */
+  /** 提交绑定经历版本、范围的消息，以唯一请求标识防止重复入队 */
   async function send(text: string, scope: string, kind = "chat") {
     const id = await ensureConversation();
     await api(`/conversations/${id}/messages`, "POST", {
@@ -746,7 +744,7 @@ export default function ResumeWorkspace() {
             item.project_id === projectId,
         );
         const branch = state.branches.find(
-          /* 找到该简历引用的分支最新版本 */ (item) =>
+          (item) =>
             item.id === revisionCache[used?.revision_id ?? ""]?.branch_id,
         );
         setActiveProject(projectId);
@@ -1098,7 +1096,7 @@ export default function ResumeWorkspace() {
               onSaveEntry={saveSectionEntry}
               savedSections={
                 state.resumes.find(
-                  /* 各条资料和该方案的已保存内容独立比较 */ (resume) =>
+                  /* 逐条比较资料是否匹配该方案的已保存内容 */ (resume) =>
                     resume.id === draft.id,
                 )?.document?.sections
               }
@@ -1199,7 +1197,7 @@ export default function ResumeWorkspace() {
                       className="project-parent-link"
                       title={`返回整体项目 ${parentProject.name}`}
                       onClick={
-                        /* 返回原有整体项目经历和对话 */ () =>
+                        /* 返回原有整体项目经历、对话 */ () =>
                           navigate(parentProject.id)
                       }
                     >
@@ -1423,7 +1421,7 @@ export default function ResumeWorkspace() {
           exporting={exporting}
           deleting={deleting}
           onClose={
-            /* 关闭简历库，保留当前方案和所有本机草稿 */ () =>
+            /* 关闭简历库，保留当前方案、所有本机草稿 */ () =>
               setResumeLibraryOpen(false)
           }
           onChange={setDraft}
@@ -1497,7 +1495,7 @@ export default function ResumeWorkspace() {
         document={draft.document}
         resumeName={draft.name}
         onRemove={
-          /* 荣誉库移除入口只更新当前草稿，保留来源和其他简历 */ (id) =>
+          /* 荣誉库移除入口只更新当前草稿，保留来源、其他简历 */ (id) =>
             setDraft(
               /* 使用最新草稿以免覆盖其他未保存设置 */ (current) => ({
                 ...current,
@@ -1585,7 +1583,7 @@ export default function ResumeWorkspace() {
             ) => {
               honorSaved(honor);
               setEditingHonor(
-                /* 保留本次简历设置和打开时的取消基线 */ (current) =>
+                /* 保留本次简历设置、打开时的取消基线 */ (current) =>
                   current?.honor?.id === honor.id
                     ? { ...current, honor }
                     : current,
@@ -1609,7 +1607,7 @@ export default function ResumeWorkspace() {
           previewSources={previewSources}
           onSelected={(id) =>
             setDraft(
-              /* 采用新模板时保留全部个人资料和项目选择 */ (current) => ({
+              /* 采用新模板时保留全部个人资料、项目选择 */ (current) => ({
                 ...current,
                 template_id: id,
                 document:

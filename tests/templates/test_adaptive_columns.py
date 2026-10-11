@@ -1,4 +1,4 @@
-"""使用合成模板验证新增标签样式和长短记录混排"""
+"""使用合成模板验证新增标签样式、长短记录混排"""
 
 from copy import deepcopy
 
@@ -23,7 +23,7 @@ from tests.support.documents import record_content, record_plan
 def test_adjacent_metadata_gets_spacing_without_replacing_existing_separators(
     tmp_path, gap, period_first
 ):
-    """源样本日期和名称相连时增加间距，保留已有换行、制表位和单空格"""
+    """源样本日期、名称相连时增加间距，保留已有换行、制表位、单空格"""
     source, output = tmp_path / "source.docx", tmp_path / "result.docx"
     doc = Document()
     left, right = ("Old period", "Old title") if period_first else ("Old title", "Old period")
@@ -43,7 +43,7 @@ def test_adjacent_metadata_gets_spacing_without_replacing_existing_separators(
 @pytest.mark.parametrize("gap", [" " * 70, "\u3000" * 12, "\t"])
 @pytest.mark.parametrize("cell", [False, True])
 def test_long_repeat_titles_wrap_independently_of_dates(tmp_path, gap, cell):
-    """不同空白排版及容器中，长名称和完整日期占独立列，所有新增条目共用列宽"""
+    """不同空白排版及容器中，长名称、完整日期占独立列，所有新增条目共用列宽"""
     source, output = tmp_path / "source.docx", tmp_path / "result.docx"
     doc = Document()
     area = doc.add_table(rows=1, cols=1).cell(0, 0) if cell else doc
@@ -99,7 +99,7 @@ def test_long_repeat_titles_wrap_independently_of_dates(tmp_path, gap, cell):
 
 
 def test_narrow_container_stacks_metadata_without_losing_labels(tmp_path):
-    """窄栏容不下完整时间范围时，每条记录统一纵排，固定说明和标签保留"""
+    """窄栏容不下完整时间范围时，每条记录统一纵排，固定说明、标签保留"""
     source, output = tmp_path / "source.docx", tmp_path / "result.docx"
     doc = Document()
     cell = doc.add_table(rows=1, cols=1).cell(0, 0)

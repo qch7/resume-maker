@@ -1,4 +1,4 @@
-"""活动日志的有界保留和短连接策略"""
+"""活动日志的有界保留、短连接策略"""
 
 import json
 from pathlib import Path
@@ -31,5 +31,5 @@ class ActivityPolicy(PluginSettings):
     @field_validator("hidden_rules")
     @classmethod
     def validate_hidden_rules(cls, value):
-        """文件和界面查询共用规则校验，空列表明确关闭默认过滤"""
+        """文件、界面查询共用规则校验，空列表明确关闭默认过滤"""
         return normalize_hidden_rules("\n".join(value)).splitlines()

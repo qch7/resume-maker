@@ -147,7 +147,7 @@ def test_all_windows_must_acknowledge_and_flush_channel_remains_open(tmp_path):
 
 
 def test_waiting_windows_keep_page_names_and_stable_tab_numbers(tmp_path):
-    """页面改名和断连保留可辨认信息，标签序号不因其他窗口关闭而重复"""
+    """页面改名、断连保留可辨认信息，标签序号不因其他窗口关闭而重复"""
     with TestClient(
         create_app(Config(data_dir=tmp_path, token="test", profile="minimal"))
     ) as client:
@@ -355,7 +355,7 @@ def test_scope_cleanup_retries_only_failed_resources():
 @pytest.mark.parametrize("resource", ["barriers", "disposers"])
 @pytest.mark.parametrize("persistent", [False, True])
 def test_failed_disable_restores_live_services_or_keeps_maintenance(tmp_path, resource, persistent):
-    """停用清理失败后真实 API 恢复，持续失败则保留维护和旧配置"""
+    """停用清理失败后真实 API 恢复，持续失败则保留维护、旧配置"""
     app = create_app(Config(data_dir=tmp_path, token="test", profile="minimal"))
     host = app.state.runtime
     manager = host.require(ServiceKey("plugins"))
@@ -418,7 +418,7 @@ def test_failed_disable_restores_live_services_or_keeps_maintenance(tmp_path, re
 
 
 def test_undeclared_capability_is_not_a_service_locator(tmp_path):
-    """业务插件不能借容器语法访问未声明的凭据和执行服务"""
+    """业务插件不能借容器语法访问未声明的凭据、执行服务"""
     app = create_app(Config(data_dir=tmp_path, profile="minimal"))
     context = app.state.runtime.instances["sys.resume"]
     with pytest.raises(PluginError, match="未声明"):
@@ -489,7 +489,7 @@ def test_rollback_cleanup_failure_keeps_actual_dependency_graph(tmp_path, monkey
 def test_contribution_consumers_stop_before_any_provider_resource_is_released(
     tmp_path, monkeypatch, operation, cycle
 ):
-    """集合消费和增强环先完成停止屏障，失败时保留实际被消费的资源"""
+    """集合消费、增强环先完成停止屏障，失败时保留实际被消费的资源"""
     module = ModuleType("synthetic_consumer_drain")
     waiting, events = [True], []
     resources = []
