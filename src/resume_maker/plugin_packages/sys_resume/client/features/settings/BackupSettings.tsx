@@ -78,6 +78,10 @@ export default function BackupSettings(props: Props) {
   const currentPlan = useRef<RestorePlan | null>(null);
   const busyRef = useRef(false);
   const reconnecting = useRef(false);
+  const confirmCancel = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (confirm) confirmCancel.current?.focus();
+  }, [confirm]);
 
   /** 关闭设置时取消尚未执行的恢复，恢复提交后等待服务重连 */
   const beforeClose = useCallback(async () => {
@@ -420,7 +424,11 @@ export default function BackupSettings(props: Props) {
               : "此备份文件将永久删除，当前资料不受影响。"}
           </p>
           <div className="backup-actions">
-            <button disabled={busy} onClick={() => setConfirm(null)}>
+            <button
+              ref={confirmCancel}
+              disabled={busy}
+              onClick={() => setConfirm(null)}
+            >
               取消
             </button>
             <button
