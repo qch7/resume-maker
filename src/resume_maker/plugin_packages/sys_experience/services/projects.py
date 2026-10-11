@@ -1,4 +1,4 @@
-"""项目详情查询、本人贡献信息和来源目录维护"""
+"""项目详情查询、本人贡献信息、来源目录维护"""
 
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
@@ -10,14 +10,14 @@ from resume_maker.sdk.records import dump, now, unpack
 
 
 class Projects:
-    """项目详情查询、本人贡献资料和来源路径维护"""
+    """项目详情查询、本人贡献资料、来源路径维护"""
 
     def __init__(self, catalog: Catalog):
         """保存当前模块所需依赖，供后续业务操作共享使用"""
         self.catalog, self.db = catalog, catalog.db
 
     def get_project(self, project_id: str, revision_id: str | None = None):
-        """读取选定版本的工作副本、历史修订和来源快照供经历编辑器展示"""
+        """读取选定版本的工作副本、历史修订、来源快照供经历编辑器展示"""
         project = self.catalog.project(project_id)
         selected = revision_id or project["head_revision"]
         return {
@@ -44,7 +44,7 @@ class Projects:
         }
 
     def delete(self, project_id: str) -> list[str]:
-        """同一事务内检查简历引用和运行任务后删除项目组，不访问源码或历史导出文件"""
+        """同一事务内检查简历引用、运行任务后删除项目组，不访问源码或历史导出文件"""
         with self.db.transaction() as conn:
             need(
                 conn.execute("SELECT id FROM projects WHERE id=?", (project_id,)).fetchone(),
@@ -115,7 +115,7 @@ class Projects:
         expected_name: str,
         expected_roots: list[str],
     ):
-        """同事务核对名称和目录基线后同步父子项目"""
+        """同事务核对名称、目录基线后同步父子项目"""
         roots = list(dict.fromkeys(str(Path(p).expanduser().resolve(strict=True)) for p in sources))
         if any(not Path(p).is_dir() for p in roots):
             raise Problem("来源必须是目录。")
@@ -154,7 +154,7 @@ class Projects:
         return project
 
     def source_path(self, project_id: str, snapshot_id: str, source: str, path: str) -> Path:
-        """按历史快照解析来源，拒绝越界路径和已移走的文件以免打开错误仓库"""
+        """按历史快照解析来源，拒绝越界路径、已移走的文件以免打开错误仓库"""
         self.catalog.project(project_id)
         snapshot = need(
             self.db.one(

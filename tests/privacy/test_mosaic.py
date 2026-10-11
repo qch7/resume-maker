@@ -1,4 +1,4 @@
-"""验证模板图片打码、模型附件和无原图回退的隐私边界"""
+"""验证模板图片打码、模型附件、无原图回退的隐私边界"""
 
 import base64
 import hashlib
@@ -93,7 +93,7 @@ def test_unsafe_mosaics_never_reach_runner(tmp_path, failure):
 
 
 def test_template_mosaic_repair_covers_photo_without_original_upload(tmp_path, catalog):
-    """从遗漏照片的旧方案修复到可试填，首次和每轮修复均只附带马赛克"""
+    """从遗漏照片的旧方案修复到可试填，首次、每轮修复均只附带马赛克"""
     raw = synthetic_image()
     source = tmp_path / "template.docx"
     template = Document()

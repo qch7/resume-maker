@@ -46,7 +46,7 @@ class EnvironmentStore:
         return value["environments"]
 
     def inspect(self, manifest, location):
-        """锁中每个包必须提供名称、精确版本和包内 wheel 摘要"""
+        """锁中每个包必须提供名称、精确版本、包内 wheel 摘要"""
         if not manifest.environment_lock:
             raise PluginError("插件没有提供离线环境锁，请由发布者补充全部二进制依赖")
         relative = safe_member(manifest.environment_lock)
@@ -91,7 +91,7 @@ class EnvironmentStore:
         cancelled=None,
         commit=True,
     ):
-        """在独立目录完成环境安装和依赖检查，成功后才发布索引"""
+        """在独立目录完成环境安装、依赖检查，成功后才发布索引"""
         with self.lock:
             specification, wheels = self.inspect(manifest, location)
             uv = shutil.which("uv")
@@ -114,7 +114,7 @@ class EnvironmentStore:
             self.writer.write(target / "operation.json", operation)
 
             def run(command):
-                """每一步安装进程都使用同一系统回收边界和受审查命令"""
+                """每一步安装进程都使用同一系统回收边界、受审查命令"""
                 grant = sandbox.authorize(
                     manifest.id,
                     "plugin.environment",

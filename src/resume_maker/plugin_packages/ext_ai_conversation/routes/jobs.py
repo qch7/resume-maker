@@ -16,7 +16,7 @@ router = APIRouter(prefix="/api", tags=["jobs"])
 
 @router.post("/jobs/{job_id}/cancel")
 def cancel(dep_jobs: Annotated[Jobs, Depends(service("jobs"))], job_id: str):
-    """同时更新持久状态和进程取消信号，阻止任务结果继续发布"""
+    """同时更新持久状态、进程取消信号，阻止任务结果继续发布"""
     dep_jobs.cancel(job_id)
     return {"ok": True}
 
@@ -56,7 +56,7 @@ async def events(
 def adopt(
     dep_conversations: Annotated[Conversations, Depends(service("conversations"))], proposal_id: str
 ):
-    """检查建议原文和当前内容一致后写入草稿以免覆盖后续人工编辑"""
+    """建议原文匹配当前内容后写入草稿，防止覆盖后续人工编辑"""
     return dep_conversations.adopt(proposal_id)
 
 

@@ -1,4 +1,4 @@
-"""启动器只装配运行时和 HTTP 外壳，业务入口由清单发现"""
+"""启动器只装配运行时、HTTP 外壳，业务入口由清单发现"""
 
 from contextlib import asynccontextmanager
 
@@ -119,7 +119,7 @@ def create_app(config: Config | None = None, provider: Provider | None = None) -
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
-        """后台工作遵守插件拓扑启动和逆依赖关闭"""
+        """后台工作遵守插件拓扑启动、逆依赖关闭"""
         log.write("system", "startup", "本机服务启动", {"instance_id": config.instance_id})
         host.start()
         if ready := host.bootstrap.get("on_ready"):
@@ -157,7 +157,7 @@ def create_app(config: Config | None = None, provider: Provider | None = None) -
     app.state.dispatch = dispatch
 
     def openapi():
-        """插件 API 和根静态入口共享完整 HTTP 契约"""
+        """插件 API、根静态入口共享完整 HTTP 契约"""
         return get_openapi(
             title="Resume Maker",
             version=__version__,

@@ -81,7 +81,7 @@ def host_environment():
 
 
 def host_command(python, directory, args, *, first, candidate):
-    """固定本次目录和端口，重启沿用已保存的插件选择并禁用文件重读"""
+    """固定本次目录、端口，重启沿用已保存的插件选择并禁用文件重读"""
     command = [
         str(python),
         "-I",
@@ -110,7 +110,7 @@ def host_command(python, directory, args, *, first, candidate):
 
 
 def apply_transition(directory, transition):
-    """停止旧进程并取得实例锁后才发布整组包和新的配置代次"""
+    """停止旧进程并取得实例锁后才发布整组包、新的配置代次"""
     writer = StateStore(directory)
     packages = PackageStore(directory, set(discover()[0]))
     if packages.records() != transition["before"]["packages"]:
@@ -190,7 +190,7 @@ def migrate_cohort(directory, transition, packages):
 
 
 def rollback(directory, transition, reason):
-    """仅回退代码、环境和配置，遇到资料迁移保留维护状态及完整恢复点"""
+    """仅回退代码、环境、配置，遇到资料迁移保留维护状态及完整恢复点"""
     if not schema_compatible(
         directory,
         transition["data_signature"],
@@ -390,7 +390,7 @@ def watch_host(app, config, server):
     stopped = threading.Event()
 
     def observe():
-        """在启动生命周期完成后报告健康，异常使当前候选退出并交由监督器处理"""
+        """启动生命周期完成后报告健康，异常时退出候选并交由监督器处理"""
         while not stopped.is_set():
             try:
                 host.check_health()

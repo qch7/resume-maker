@@ -4,7 +4,7 @@ import {
   type JsonValue,
 } from "@resume-maker/plugin-sdk/plugins/extensions";
 
-/** 扩展资料只更新所属命名空间，普通字段和缺失插件的资料保持原样 */
+/** 扩展资料只更新所属命名空间，普通字段、缺失插件的资料保持原样 */
 export function updateExtension(
   value: ResumeDocument,
   owner: string,

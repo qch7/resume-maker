@@ -1,4 +1,4 @@
-"""固定经历引用、简历资料解析和乐观锁保存"""
+"""固定经历引用、简历资料解析、乐观锁保存"""
 
 from resume_maker.core.errors import Problem, need
 from resume_maker.domain.models import ResumeItem
@@ -11,7 +11,7 @@ class Resumes:
     """简历插件拥有组合保存，经历服务仅提供不可变引用读取"""
 
     def __init__(self, experience, *, storage, assets, sources=None):
-        """持有独立经历读取依赖和可撤销的资料来源解析器"""
+        """持有独立经历读取依赖、可撤销的资料来源解析器"""
         self.experience, self.db = experience, storage
         self.sources = sources
         self.assets = assets
@@ -37,13 +37,13 @@ class Resumes:
         return self.assets.read_file(f"templates/{template['id']}", "template.docx")
 
     def freeze_export(self, directory, identifier, expected_version=None):
-        """在同一快照固定成品所需的简历、修订和模板输入"""
+        """在同一快照固定成品所需的简历、修订、模板输入"""
         from resume_maker.plugin_packages.sys_resume.services.document_inputs import freeze_export
 
         return freeze_export(self, directory, identifier, expected_version)
 
     def freeze_preview(self, directory, template_id, document, items):
-        """在同一快照固定工作副本和可选模板输入"""
+        """在同一快照固定工作副本、可选模板输入"""
         from resume_maker.plugin_packages.sys_resume.services.document_inputs import freeze_preview
 
         return freeze_preview(self, directory, template_id, document, items)
@@ -85,7 +85,7 @@ class Resumes:
                 )
 
     def template(self, template_id: str, include_trashed: bool = False, conn=None) -> dict:
-        """读取模板所有者发布的稳定引用，停用插件仍保留资料和引用校验"""
+        """读取模板所有者发布的稳定引用，停用插件仍保留资料、引用校验"""
         template = need(
             self.db.reference("template", template_id, conn),
             "完整简历模板不可用，请重新选择模板或导入 Word 进行 AI 识别。",
@@ -115,7 +115,7 @@ class Resumes:
         version: int = 0,
         document: ResumeDocument | None = None,
     ) -> dict:
-        """校验项目、版本和亮点归属并以乐观锁保存固定版本组合"""
+        """校验项目、版本、亮点归属并以乐观锁保存固定版本组合"""
         seen = set()
         for item in items:
             revision = self.revision(item.revision_id, item.project_id)
@@ -129,7 +129,7 @@ class Resumes:
             self.template(template_id)
         resume_id = resume_id or uid()
         with self.db.transaction() as conn:
-            # 引用校验必须和写入持有同一把锁，避免校验后项目被另一窗口删除
+            # 引用校验必须、写入持有同一把锁，避免校验后项目被另一窗口删除
             for item in items:
                 self.experience.revision(item.revision_id, item.project_id, conn)
             if conn.execute(

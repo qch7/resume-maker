@@ -1,4 +1,4 @@
-"""项目目录定位、引用文件留存和原文证据核验"""
+"""项目目录定位、引用文件留存、原文证据核验"""
 
 import os
 import re
@@ -56,7 +56,7 @@ def git(root: Path, *args: str, policy=None) -> str:
 
 
 def linked(path: Path) -> bool:
-    """识别符号链接和 Windows 目录联接以免扫描越出来源目录"""
+    """识别符号链接、Windows 目录联接以免扫描越出来源目录"""
     return path.is_symlink() or path.is_junction()
 
 
@@ -92,7 +92,7 @@ def scan_collection(path: Path) -> list[dict]:
 
 
 def project_sources(project: dict, *, policy=None) -> list[dict]:
-    """解析关联目录和版本信息供模型按需读取源码"""
+    """解析关联目录、版本信息供模型按需读取源码"""
     sources = []
     for index, root_name in enumerate(project["roots"]):
         root = Path(root_name).expanduser().resolve(strict=True)
@@ -119,7 +119,7 @@ def project_sources(project: dict, *, policy=None) -> list[dict]:
 
 
 def evidence_file(sources, source, path, data_dir):
-    """仅定位本轮来源内的普通文件，拒绝越界、链接、密钥文件及应用自己的资料"""
+    """仅定位本轮来源中的普通文件，拒绝越界、链接、密钥及应用资料"""
     relative = PurePosixPath(path.replace("\\", "/"))
     root_info = next((item for item in sources if item["id"] == source), None)
     if (
@@ -228,7 +228,7 @@ def capture_evidence(data_dir, project, sources, references, cancelled=None, *, 
 
 
 def check_evidence(snapshot: dict | None, evidence: list[dict], *, assets) -> list[dict]:
-    """将行号和引文和留存原文比对，无记录或无法核实的引用降级为待确认"""
+    """将行号、引文、留存原文比对，无记录或无法核实的引用降级为待确认"""
     entries = (
         {(f["source"], f["path"]): f for f in snapshot["manifest"]["files"]} if snapshot else {}
     )
@@ -246,7 +246,7 @@ def check_evidence(snapshot: dict | None, evidence: list[dict], *, assets) -> li
                 valid = bool(item["quote"].strip()) and item["quote"].strip() in excerpt
             if not valid:
                 item["status"] = "unverified"
-        # 个人贡献和量化成果只能由用户本人确认，模型不能替用户作证
+        # 个人贡献、量化成果只能由用户本人确认，模型不能替用户作证
         elif item["status"] == "user":
             item["status"] = "unverified"
         result.append(item)

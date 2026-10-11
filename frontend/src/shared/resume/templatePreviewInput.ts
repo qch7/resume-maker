@@ -17,7 +17,7 @@ export function templatePreviewInput(
       content,
       highlight_ids: content.highlights
         .filter(
-          /* 和编辑视图保持相同的亮点顺序和可见范围 */ (point) =>
+          /* 亮点顺序、可见范围沿用编辑视图 */ (point) =>
             item.highlight_ids.includes(point.id),
         )
         .map(/* 提取工作副本中仍然存在的选中亮点 */ (point) => point.id),

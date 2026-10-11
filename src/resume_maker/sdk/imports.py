@@ -31,7 +31,7 @@ class ImportSource:
 
 @dataclass(frozen=True)
 class ImportProbe:
-    """探测返回实际格式和源页数，无法确定分页的 DOCX 可不声明页数"""
+    """探测返回实际格式、源页数，无法确定分页的 DOCX 可不声明页数"""
 
     format: str
     pages: int | None = None
@@ -49,7 +49,7 @@ class ImportResult:
 
 @dataclass(frozen=True)
 class ImportContext:
-    """本轮暂存空间和取消信号，模型调用只能使用系统注入的隐私出口"""
+    """本轮暂存空间、取消信号，模型调用只能使用系统注入的隐私出口"""
 
     workspace: Path
     cancelled: Event

@@ -2,7 +2,7 @@ import { FileImage, RotateCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { request } from "@resume-maker/plugin-sdk/shared/lib/api";
 
-/** 进入视口后下载首屏图并在离开时中止下载和释放图片 */
+/** 进入视口后下载首屏图并在离开时中止下载、释放图片 */
 export default function Thumbnail({ id, name }: { id: string; name: string }) {
   const element = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);

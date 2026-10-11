@@ -49,7 +49,7 @@ def test_project_info_drafts_publish_and_preserve_pinned_versions(catalog, proje
 
 
 def test_project_info_validation_and_old_revision_defaults():
-    """旧版本自动获得空设置，未知显隐字段和重复自定义标识必须拒绝"""
+    """旧版本自动获得空设置，未知显隐字段、重复自定义标识必须拒绝"""
     old = Experience.model_validate(experience())
     assert old.custom_fields == old.hidden_fields == []
     with pytest.raises(ValidationError):
@@ -62,7 +62,7 @@ def test_project_info_validation_and_old_revision_defaults():
 @pytest.mark.parametrize("layout", ["builtin", "body", "cell", "row", "details"])
 @pytest.mark.parametrize("hide_all", [False, True])
 def test_project_info_export_visibility_and_custom_fallback(tmp_path, layout, hide_all):
-    """内置、综合正文和独立字段模板都保留新增项，隐藏字段不泄漏且原始资料不变"""
+    """内置、综合正文、独立字段模板都保留新增项，隐藏字段不泄漏且原始资料不变"""
     source, output = tmp_path / "source.docx", tmp_path / "result.docx"
     value = project_info()
     if hide_all:
@@ -121,7 +121,7 @@ class ResettingProvider(FakeProvider):
 
 
 def test_reanalysis_preserves_user_defined_project_info(catalog, project, populated, tmp_path):
-    """采用 AI 整段建议时新增条目和显隐设置不被模型默认值覆盖"""
+    """采用 AI 整段建议时新增条目、显隐设置不被模型默认值覆盖"""
     base, identifier = populated["id"], project["id"]
     value = project_info()
     value["body_order"] = ["custom:link", "highlights", "role"]

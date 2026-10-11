@@ -1,4 +1,4 @@
-"""本机访问校验、安全响应头和业务异常的 HTTP 映射"""
+"""本机访问校验、安全响应头、业务异常的 HTTP 映射"""
 
 import secrets
 
@@ -27,7 +27,7 @@ def configure_middleware(app: FastAPI, config: Config) -> None:
 
     @app.middleware("http")
     async def local_auth(request: Request, call_next):
-        """核验本机文件接口的来源和实例令牌并设置缓存及嵌入防护响应头"""
+        """核验本机文件接口的来源、实例令牌并设置缓存及嵌入防护响应头"""
         if request.url.path.startswith("/api/") and request.url.path != "/api/health":
             origin = request.headers.get("origin")
             allowed = {f"http://127.0.0.1:{config.port}", f"http://localhost:{config.port}"}
@@ -54,7 +54,7 @@ def configure_middleware(app: FastAPI, config: Config) -> None:
 
     @app.exception_handler(RequestValidationError)
     async def request_validation_handler(_request, exc):
-        """输入错误只返回字段和原因，密码及个人资料不回显到响应"""
+        """输入错误只返回字段、原因，密码及个人资料不回显到响应"""
         return JSONResponse(
             {
                 "detail": [

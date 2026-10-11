@@ -4,7 +4,7 @@ import { buildSync } from "esbuild";
 import { fileURLToPath } from "node:url";
 import { newDocument } from "../src/shared/resume/document.ts";
 
-/** 渲染实际简历预览和注册表，验证模板缺席时仍能展示资料 */
+/** 渲染实际简历预览、注册表，验证模板缺席时仍能展示资料 */
 async function composerPreview() {
   const output = buildSync({
     stdin: {

@@ -3,7 +3,7 @@ import type { DocumentPreviewProps } from "./documents";
 import { clientExtensions } from "./extensions";
 import PluginBoundary from "./PluginBoundary";
 
-/** 已有预览和外部组件共用选择入口，卸载后保留输入并显示可用替代项 */
+/** 已有预览、外部组件共用选择入口，卸载后保留输入并显示可用替代项 */
 export default function DocumentPreview(
   props: DocumentPreviewProps & {
     preferred?: readonly string[];

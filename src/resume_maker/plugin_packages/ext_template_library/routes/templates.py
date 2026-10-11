@@ -1,4 +1,4 @@
-"""本机 Word 模板检查和登记的 HTTP 入口"""
+"""本机 Word 模板检查、登记的 HTTP 入口"""
 
 from typing import Annotated
 
@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api", tags=["templates"])
 def template_library(
     dep_template_library: Annotated[TemplateLibrary, Depends(service("template_library"))],
 ):
-    """读取所有入口共用的模板分类和 Like"""
+    """读取所有入口共用的模板分类、Like"""
     return dep_template_library.state()
 
 

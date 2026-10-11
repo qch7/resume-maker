@@ -1,4 +1,4 @@
-"""把不可变插件定义展开为具有独立配置和服务绑定的运行实例"""
+"""把不可变插件定义展开为具有独立配置、服务绑定的运行实例"""
 
 from copy import deepcopy
 
@@ -39,5 +39,5 @@ def expand_instances(definitions, specs=(), *, missing_ok=False):
 
 
 def definition_id(specs, identifier):
-    """安装记录按定义保存，运行和配置按实例保存"""
+    """安装记录按定义保存，运行、配置按实例保存"""
     return specs[identifier].plugin if identifier in specs else identifier

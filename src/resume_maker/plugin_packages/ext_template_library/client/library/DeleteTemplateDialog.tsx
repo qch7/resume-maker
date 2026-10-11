@@ -40,7 +40,7 @@ export default function DeleteTemplateDialog({
     },
     [],
   );
-  /** 固定删除目标并阻止重复提交且只在服务确认后刷新模板和数量 */
+  /** 固定删除目标并阻止重复提交且只在服务确认后刷新模板、数量 */
   async function remove() {
     if (submitting.current) return;
     submitting.current = true;

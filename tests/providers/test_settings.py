@@ -113,7 +113,7 @@ def test_settings_persist_normalize_and_fill_defaults(tmp_path):
     ],
 )
 def test_invalid_settings_do_not_replace_saved_configuration(tmp_path, invalid):
-    """拒绝强度格式错误和未知功能，校验失败不能覆盖已保存的配置"""
+    """拒绝强度格式错误、未知功能，校验失败不能覆盖已保存的配置"""
     with TestClient(
         create_app(Config(data_dir=tmp_path, token="test")), headers={"x-resume-token": "test"}
     ) as client:

@@ -24,7 +24,7 @@ import {
   type DefaultSearchResult,
 } from "@resume-maker/plugin-sdk/shared/resume/defaults/navigation";
 
-/** 集中编辑默认栏目和条目字段，草稿恢复后仍由用户确认应用 */
+/** 集中编辑默认栏目、条目字段，草稿恢复后仍由用户确认应用 */
 export default function DefaultsDialog({
   initial,
   document,
@@ -136,7 +136,7 @@ export default function DefaultsDialog({
     setTarget({ ...result });
     setQuery("");
   }
-  /** 更新选中栏目，其他栏目和个人信息保持不变 */
+  /** 更新选中栏目，其他栏目、个人信息保持不变 */
   function updateSection(patch: Partial<DefaultSection>) {
     setValue({
       ...value,
@@ -146,7 +146,7 @@ export default function DefaultsDialog({
       ),
     });
   }
-  /** 更新当前字段组，名称和初始显隐共同保存 */
+  /** 更新当前字段组，名称、初始显隐共同保存 */
   function updateFields(next: DefaultField[]) {
     if (section) updateSection({ fields: next });
     else setValue({ ...value, personal_fields: next });
@@ -403,7 +403,7 @@ export default function DefaultsDialog({
                     <option value="">独立大栏目</option>
                     {orderedSections
                       .filter(
-                        /* 排除自己和其他子栏目 */ (item) =>
+                        /* 排除自己、其他子栏目 */ (item) =>
                           item.id !== section.id && !item.parent_id,
                       )
                       .map(
@@ -448,7 +448,7 @@ export default function DefaultsDialog({
               <span />
             </div>
             {fields.map(
-              /* 默认字段和自定义默认项使用相同编辑方式 */ (field, index) => (
+              /* 默认字段、自定义默认项使用相同编辑方式 */ (field, index) => (
                 <div
                   className="defaults-field-row"
                   data-search-target={
@@ -550,8 +550,7 @@ export default function DefaultsDialog({
                   onChange={
                     /* 恢复内置字段，可重新显示保留的原始值 */ (event) => {
                       const field = missing.find(
-                        /* 查找所选内置定义 */ (item) =>
-                          item.id === event.target.value,
+                        (item) => item.id === event.target.value,
                       );
                       if (field) updateFields([...fields, { ...field }]);
                     }

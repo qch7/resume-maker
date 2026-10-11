@@ -1,4 +1,4 @@
-"""用真实服务和隐私出口验证模板引文、源码证据及证书附件的完整链路"""
+"""用真实服务、隐私出口验证模板引文、源码证据及证书附件的完整链路"""
 
 import json
 
@@ -25,7 +25,7 @@ from tests.support.templates import completed, simple_document
 
 
 def test_masked_source_paths_and_quotes_are_restored_before_evidence_validation(tmp_path, catalog):
-    """模型只引用脱敏路径和正文，最终源码证据仍核对原始文件"""
+    """模型只引用脱敏路径、正文，最终源码证据仍核对原始文件"""
     root = tmp_path / "original-private-source"
     root.mkdir()
     for index in range(205):

@@ -18,7 +18,7 @@ from resume_maker.sdk.manifest import Manifest
 
 
 def manifests():
-    """配置包含可空值、可选属性、嵌套对象和整体替换的数组"""
+    """配置包含可空值、可选属性、嵌套对象、整体替换的数组"""
     return {
         "community.example": Manifest.model_validate(
             {

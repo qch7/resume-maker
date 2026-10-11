@@ -1,4 +1,4 @@
-"""陌生模板的完整填充、样式保留、旧信息清理和错误映射边界"""
+"""陌生模板的完整填充、样式保留、旧信息清理、错误映射边界"""
 
 from zipfile import ZipFile
 
@@ -18,7 +18,7 @@ from tests.support.documents import make_template, photo_bytes, project_content,
 
 
 def test_complete_fill_keeps_layout_and_removes_old_data(tmp_path):
-    """整份替换所有容器、重复记录和照片，同时保留样式、布局和包资源"""
+    """整份替换所有容器、重复记录、照片，同时保留样式、布局、包资源"""
     source, output = tmp_path / "source.docx", tmp_path / "filled.docx"
     package, plan = make_template(source)
     assert package.review(plan)["ready"]
@@ -78,7 +78,7 @@ def test_hidden_rows_fields_and_photos_do_not_reappear(tmp_path):
     "case", ["quote", "overlap", "sample", "unknown", "keep_remove", "photo_duplicate"]
 )
 def test_invalid_mapping_is_rejected(tmp_path, case):
-    """错误位置、引文、范围和相互矛盾的分类不能产生导出文件"""
+    """错误位置、引文、范围、相互矛盾的分类不能产生导出文件"""
     source = tmp_path / "source.docx"
     package, plan = make_template(source)
     if case == "quote":

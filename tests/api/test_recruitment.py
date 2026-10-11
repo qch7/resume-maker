@@ -1,4 +1,4 @@
-"""招聘收藏夹的文件交换、并发保护和本机持久化"""
+"""招聘收藏夹的文件交换、并发保护、本机持久化"""
 
 import json
 from copy import deepcopy
@@ -16,7 +16,7 @@ HEADERS = {"x-resume-token": "test"}
 
 
 def sample():
-    """构造带中文备注和多个网址的小厂收藏，验证用户自定义字段可往返"""
+    """构造带中文备注、多个网址的小厂收藏，验证用户自定义字段可往返"""
     return {
         "format": "resume-maker.recruitment-bookmarks",
         "schema_version": 1,
@@ -47,7 +47,7 @@ def import_body(data, revision=0, policy="keep"):
 
 
 def test_preview_import_export_restart_and_backup_preserve_custom_data(tmp_path):
-    """预览不写入，保存后的顺序、标签和备注在导出重导及备份恢复后完整保留"""
+    """预览不写入，保存后的顺序、标签、备注在导出重导及备份恢复后完整保留"""
     config = Config(data_dir=tmp_path / "first", token="test")
     app = create_app(config)
     with TestClient(app) as client:
@@ -138,7 +138,7 @@ def test_import_keep_update_and_stale_preview_are_atomic(tmp_path):
     ],
 )
 def test_invalid_imports_never_change_existing_data(tmp_path, case):
-    """错误文件整体拒绝，包含有效和无效记录时也不留下部分数据"""
+    """错误文件整体拒绝，包含有效、无效记录时也不留下部分数据"""
     with TestClient(create_app(Config(data_dir=tmp_path, token="test"))) as client:
         body = sample()
         current = client.post(

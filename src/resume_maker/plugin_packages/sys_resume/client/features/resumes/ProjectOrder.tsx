@@ -10,7 +10,7 @@ import type {
   Revision,
 } from "@resume-maker/plugin-sdk/shared/types/index";
 
-/** 在栏目编排的项目经历栏目内管理项目顺序、固定引用和编辑入口 */
+/** 在栏目编排的项目经历栏目内管理项目顺序、固定引用、编辑入口 */
 export default function ProjectOrder({
   draft,
   revisions,
@@ -24,7 +24,7 @@ export default function ProjectOrder({
   onChange: (value: Resume) => void;
   onEdit: (id: string) => void;
 }) {
-  /** 移动项目时保留已选择的版本和亮点 */
+  /** 移动项目时保留已选择的版本、亮点 */
   function move(from: number, to: number) {
     onChange({ ...draft, items: arrayMove(draft.items, from, to) });
   }
@@ -36,7 +36,7 @@ export default function ProjectOrder({
       )}
       <SortableList
         items={draft.items.map(
-          /* 为排序手柄提供稳定标识和当前项目名称 */ (item) => ({
+          /* 为排序手柄提供稳定标识、当前项目名称 */ (item) => ({
             id: item.project_id,
             label:
               (sources[item.project_id] ?? revisions[item.revision_id])?.content
@@ -50,7 +50,7 @@ export default function ProjectOrder({
         onMove={move}
       >
         {draft.items.map(
-          /* 只显示管理项目所需的名称、版本和操作 */ (item, index) => {
+          /* 只显示管理项目所需的名称、版本、操作 */ (item, index) => {
             const revision =
               sources[item.project_id] ?? revisions[item.revision_id];
             const title = revision?.content.title || "正在读取经历版本…";
@@ -63,7 +63,7 @@ export default function ProjectOrder({
                 label={`项目 ${title}`}
               >
                 {
-                  /* 将拖动手柄和键盘可用的移动按钮放在同一行 */ (handle) => (
+                  /* 将拖动手柄、键盘可用的移动按钮放在同一行 */ (handle) => (
                     <>
                       <div className="project-order-info">
                         <strong>{title}</strong>
@@ -78,10 +78,7 @@ export default function ProjectOrder({
                         <button
                           className="icon-button"
                           aria-label={`编辑项目 ${title}`}
-                          onClick={
-                            /* 返回项目经历编辑区 */ () =>
-                              onEdit(item.project_id)
-                          }
+                          onClick={() => onEdit(item.project_id)}
                         >
                           <Pencil size={14} />
                         </button>

@@ -1,4 +1,4 @@
-"""使用模拟对话框验证路径选择的鉴权、取消、互斥和错误恢复"""
+"""使用模拟对话框验证路径选择的鉴权、取消、互斥、错误恢复"""
 
 import threading
 from pathlib import Path
@@ -52,7 +52,7 @@ def test_path_picker_endpoint_requires_token_and_valid_kind(tmp_path, monkeypatc
 
 
 def test_initial_directory_uses_file_parent_and_resolves_executable(tmp_path, monkeypatch):
-    """现有文件、目录和 PATH 中的可执行文件都能提供正确的初始浏览位置"""
+    """现有文件、目录、PATH 中的可执行文件都能提供正确的初始浏览位置"""
     file = tmp_path / "简历 文档.docx"
     file.write_bytes(b"path only")
     monkeypatch.chdir(tmp_path)

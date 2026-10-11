@@ -1,4 +1,4 @@
-"""Codex 适配器的注册和生命周期入口"""
+"""Codex 适配器的注册、生命周期入口"""
 
 from resume_maker.plugins.support import dependency, publish, routes
 
@@ -24,7 +24,7 @@ def activate(context):
     credentials = dependency(context, "credentials")
 
     def transport(*args, **kwargs):
-        """所有生产模型调用使用系统授权、会话和凭据借用"""
+        """所有生产模型调用使用系统授权、会话、凭据借用"""
         return run_model(
             *args,
             **kwargs,

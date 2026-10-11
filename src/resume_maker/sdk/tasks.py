@@ -10,7 +10,7 @@ from resume_maker.sdk.manifest import InstanceSpec
 
 @dataclass(frozen=True)
 class TaskContext:
-    """公开任务身份和有声明约束的实例服务读取入口"""
+    """公开任务身份、有声明约束的实例服务读取入口"""
 
     id: str
     generation: int

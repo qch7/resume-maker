@@ -1,4 +1,4 @@
-"""使用合成模板验证项目空位的位置、样式和重复填充"""
+"""使用合成模板验证项目空位的位置、样式、重复填充"""
 
 from copy import deepcopy
 from io import BytesIO
@@ -22,7 +22,7 @@ from tests.support.layouts import metadata_template, plan_for, project_document
 @pytest.mark.parametrize("container", ["body", "cell", "row"])
 @pytest.mark.parametrize("indent", [7, 23])
 def test_unlabelled_role_precedes_body_and_inherits_metadata_style(tmp_path, container, indent):
-    """正文、单元格和整行重复都把角色放到基本信息区并保留邻段缩进和标签字重"""
+    """正文、单元格、整行重复都把角色放到基本信息区并保留邻段缩进、标签字重"""
     source, output = tmp_path / "template.docx", tmp_path / "filled.docx"
     plan = metadata_template(source, container, indent)
     before, plan_before = source.read_bytes(), plan.model_dump()
@@ -68,7 +68,7 @@ def test_explicit_trailing_role_keeps_its_original_position(tmp_path):
 
 @pytest.mark.parametrize("label", ["Role:", "担任角色：", "Role"])
 def test_fixed_label_preserves_native_blank_slot(tmp_path, label):
-    """标签和值分段时角色仍保留在对应标签之后"""
+    """标签、字段值分段时，角色仍位于对应标签之后"""
     source, output = tmp_path / "template.docx", tmp_path / "filled.docx"
     doc = Document()
     for text in ("Old Project", "Old Details", label, ""):
@@ -124,7 +124,7 @@ def test_decorated_blank_role_retains_its_native_location(tmp_path, decoration):
 
 @pytest.mark.parametrize("targets", list(permutations(("period", "role", "stack"))))
 def test_multiple_missing_metadata_fields_have_stable_semantic_order(tmp_path, targets):
-    """只有项目标题示例时，无论空位和映射顺序如何，新增时间、角色、技术栈顺序一致"""
+    """模板仅含项目标题示例时，新增时间、角色、技术栈沿用固定顺序，支持任意空位及映射顺序"""
     source, output = tmp_path / "template.docx", tmp_path / "filled.docx"
     doc = Document()
     doc.add_paragraph("Old Project")

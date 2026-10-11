@@ -1,4 +1,4 @@
-"""按需源码上下文、引用证据和来源快照"""
+"""按需源码上下文、引用证据、来源快照"""
 
 import json
 import threading
@@ -25,7 +25,7 @@ from tests.support.providers import ProviderStub
 
 
 def test_snapshot_filters_secrets_and_preserves_original_input(catalog, project, tmp_path):
-    """验证快照过滤敏感内容并和之后修改的源码保持隔离"""
+    """验证快照过滤敏感内容并、之后修改的源码保持隔离"""
     root = Path(project["roots"][0])
     (root / ".env").write_text("API_KEY=must-never-copy")
     (root / "config.yaml").write_text('api_key: "secret-token-value"\nport: 8080\n')
@@ -99,7 +99,7 @@ def test_snapshot_excludes_application_data_inside_source(catalog, project):
 
 
 def reference(path="README.md", source="source-0", quote="current content"):
-    """构造含完整行号和引文的文件证据，供真实核对流程验证"""
+    """构造含完整行号、引文的文件证据，供真实核对流程验证"""
     return {
         "source": source,
         "path": path,
@@ -111,7 +111,7 @@ def reference(path="README.md", source="source-0", quote="current content"):
 
 
 def test_source_context_does_not_enumerate_or_read_project_files(catalog, project, monkeypatch):
-    """来源定位不遍历或读取项目文件，因此目录数量和大文件不会挡住模型启动"""
+    """来源定位不遍历或读取项目文件，因此目录数量、大文件不会挡住模型启动"""
 
     def unexpected(*args, **kwargs):
         """任何提前枚举或读取内容都意味着整库采集被重新引入"""
@@ -127,7 +127,7 @@ def test_source_context_does_not_enumerate_or_read_project_files(catalog, projec
 
 
 def test_jobs_read_all_current_roots_and_only_archive_cited_files(catalog, tmp_path):
-    """所有来源直接可读，续聊读取最新内容和重绑路径，历史快照不会成为输入"""
+    """所有来源直接可读，续聊读取最新内容、重绑路径，历史快照不会成为输入"""
     roots = [tmp_path / f"component-{index}" for index in range(5)]
     for index, root in enumerate(roots):
         root.mkdir()
@@ -144,7 +144,7 @@ def test_jobs_read_all_current_roots_and_only_archive_cited_files(catalog, tmp_p
         """通过本轮只读网关访问当前源码并引用末尾子项目"""
 
         def run(self, **kw):
-            """在返回之前确认未采集新文件，再按当前路径生成回复和一次经历建议"""
+            """在返回之前确认未采集新文件，再按当前路径生成回复、一次经历建议"""
             context = json.loads(kw["prompt"].split("本轮上下文数据：\n")[1])
             assert context["source_access"] == "on-demand-redacted"
             assert "snapshot_directory" not in context
@@ -246,7 +246,7 @@ def test_jobs_read_all_current_roots_and_only_archive_cited_files(catalog, tmp_p
 
 
 def test_cited_files_have_no_old_size_or_suffix_limits(catalog, project, tmp_path):
-    """单文件超过 512 KB、合计超过 25 MB 和自定义扩展名都能留存被引用证据"""
+    """单文件超过 512 KB、合计超过 25 MB、自定义扩展名都能留存被引用证据"""
     root = Path(project["roots"][0])
     content = "current content\n" + "x\n" * (7 * 1024 * 1024)
     for name in ("first.custom", "second.custom"):
@@ -271,7 +271,7 @@ def test_cited_files_have_no_old_size_or_suffix_limits(catalog, project, tmp_pat
 
 
 def test_invalid_or_changed_citations_are_unverified(catalog, project, tmp_path):
-    """失效路径、越界、敏感文件和已变化的引文均降级，正常引用仍然可核对"""
+    """失效路径、越界、敏感文件、已变化的引文均降级，正常引用仍然可核对"""
     root = Path(project["roots"][0])
     (root / "README.md").write_text("new content", encoding="utf-8")
     (root / ".env").write_text("private content", encoding="utf-8")

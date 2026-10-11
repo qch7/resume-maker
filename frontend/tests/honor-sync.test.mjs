@@ -19,7 +19,7 @@ import {
   isCurrentExport,
 } from "../src/shared/resume/composition.ts";
 
-/** 完整已核对资料，和个人数据库无关 */
+/** 使用完整的已核对资料，独立于个人数据库 */
 function source() {
   return {
     id: "linked",
@@ -141,7 +141,7 @@ test("confirmed source changes and clearing fields update every selected resume 
   assert.equal(syncHonorResume(synced, []), synced);
 });
 
-test("unreviewed suggestions, same-name records and manual entries cannot overwrite linked content", /* 同名不同标识、人工条目和未核对识别结果都不会被误关联 */ () => {
+test("unreviewed suggestions, same-name records and manual entries cannot overwrite linked content", /* 同名不同标识、人工条目、未核对识别结果都不会被误关联 */ () => {
   const document = newDocument();
   document.sections[3].entries = [
     {

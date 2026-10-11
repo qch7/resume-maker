@@ -64,7 +64,7 @@ function baseline() {
   };
 }
 
-test("entry saves isolate other drafts without losing pending changes", /* 保存一条时不提交其他经历、姓名、编排和项目引用 */ () => {
+test("entry saves isolate other drafts without losing pending changes", /* 保存一条时不提交其他经历、姓名、编排、项目引用 */ () => {
   const saved = baseline();
   const draft = structuredClone(saved);
   draft.name = "方案草稿";

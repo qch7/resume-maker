@@ -1,4 +1,4 @@
-/** 检查函数中文说明和前端依赖边界，供本机验证和 CI 共用 */
+/** 检查函数中文说明、前端依赖边界，供本机验证、CI 共用 */
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -35,7 +35,7 @@ function documentationAnchor(node) {
   return node;
 }
 
-/** 检查单个文件的函数说明、语法和从共享层反向依赖业务层的情况 */
+/** 检查单文件的函数说明、语法及共享层反向依赖 */
 export function checkFile(name, sourceRoot = root) {
   const source = fs.readFileSync(name, "utf8");
   const file = ts.createSourceFile(name, source, ts.ScriptTarget.Latest, true);

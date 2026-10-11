@@ -1,4 +1,4 @@
-"""构建前身份校验和完整依赖锁不依赖开发机已有包"""
+"""构建前身份校验、完整依赖锁不依赖开发机已有包"""
 
 import json
 from zipfile import ZipFile
@@ -10,7 +10,7 @@ from resume_maker.runtime.graph import PluginError
 
 
 def source(tmp_path, identifier="community.synthetic"):
-    """独立源码只包含公开清单和最小入口"""
+    """独立源码只包含公开清单、最小入口"""
     root = tmp_path / "source"
     root.mkdir()
     (root / "manifest.json").write_text(
@@ -43,7 +43,7 @@ def wheel(directory, name, requires=()):
 
 
 def test_packaging_rejects_reserved_identity_and_omits_unlisted_files(tmp_path):
-    """普通检查和打包不会执行入口或收集作者的本机文件"""
+    """普通检查、打包不会执行入口或收集作者的本机文件"""
     root = source(tmp_path, "provider.synthetic")
     with pytest.raises(PluginError, match="保留前缀"):
         package_source(root, tmp_path / "reserved.rmp")

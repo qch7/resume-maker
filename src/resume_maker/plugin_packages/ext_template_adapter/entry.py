@@ -1,10 +1,10 @@
-"""模板适配的注册和生命周期入口"""
+"""模板适配的注册、生命周期入口"""
 
 from resume_maker.plugins.support import dependency, publish, routes
 
 
 def activate(context):
-    """注册模板工作副本和填充能力，不强制依赖模型连接"""
+    """注册模板工作副本、填充能力，不强制依赖模型连接"""
     from resume_maker.integrations.word.templates.fill import fill_template
     from resume_maker.plugin_packages.ext_template_adapter.configuration import Settings
     from resume_maker.plugin_packages.ext_template_adapter.services.template_records import (

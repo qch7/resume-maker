@@ -1,4 +1,4 @@
-"""模板回收站、引用保护、到期清理和永久文件删除的完整行为"""
+"""模板回收站、引用保护、到期清理、永久文件删除的完整行为"""
 
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
@@ -31,7 +31,7 @@ def age_item(service, identifier, stamp):
 
 
 def test_recycle_restore_and_permanent_delete_api(tmp_path):
-    """取消不产生请求，移入后不可选用，恢复保留收藏，永久删除实际文件和保存记录"""
+    """取消不产生请求，移入后不可选用，恢复保留收藏，永久删除实际文件、保存记录"""
     config = Config(data_dir=tmp_path / "data", token="test")
     headers = {"x-resume-token": "test"}
     with TestClient(create_app(config)) as client:
@@ -188,7 +188,7 @@ def test_restart_cleans_expired_without_opening_library(tmp_path):
 
 
 def test_permanent_cleanup_keeps_shared_artifacts_and_external_source(catalog, tmp_path):
-    """永久删除仅清理模板专属目录、缓存和缩略图"""
+    """永久删除仅清理模板专属目录、缓存、缩略图"""
     root = tmp_path / "data"
     source = register_template(catalog, root)
     record = Resumes(catalog, storage=catalog.db, assets=catalog.assets).template("mapped")
@@ -289,7 +289,7 @@ def test_failed_file_cleanup_stays_in_trash_for_retry(catalog, tmp_path, monkeyp
 
 
 def test_recycle_and_save_cannot_create_a_dangling_reference(catalog, tmp_path):
-    """并发保存和移入只允许一个成功，数据库不会产生引用回收站模板的简历"""
+    """并发保存、移入只允许一个成功，数据库不会产生引用回收站模板的简历"""
     register_template(catalog, tmp_path / "data")
     service = TemplateLibrary(
         Resumes(catalog, storage=catalog.db, assets=catalog.assets),

@@ -48,7 +48,7 @@ class PluginTestClient:
         return json.loads(self.request(path, method, body))
 
     def select(self, selected):
-        """单份候选计划完成准备和应用，真实后台执行结束后才算通过"""
+        """单份候选计划完成准备、应用，真实后台执行结束后才算通过"""
         plan = self.json(
             "/api/plugins/plans",
             "POST",

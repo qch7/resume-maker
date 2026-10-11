@@ -14,7 +14,7 @@ from resume_maker.sdk.context import ServiceKey
 
 
 def validate_schema(schema):
-    """拒绝需要联网解析的 schema，输入和输出均使用同一公开协议"""
+    """拒绝需要联网解析的 schema，输入、输出均使用同一公开协议"""
     if isinstance(schema, dict):
         for key, value in schema.items():
             if key == "$ref" and (not isinstance(value, str) or not value.startswith("#")):
@@ -26,7 +26,7 @@ def validate_schema(schema):
 
 
 class Worker:
-    """每次调用持有独立执行租约和材料会话，可使用独立解释器环境"""
+    """每次调用持有独立执行租约、材料会话，可使用独立解释器环境"""
 
     def __init__(self, context, entry, directory):
         """装载 schema 及授权要求，不运行包内脚本"""

@@ -1,4 +1,4 @@
-"""本机隐私规则、脱敏预览和发送记录管理"""
+"""本机隐私规则、脱敏预览、发送记录管理"""
 
 from resume_maker.core.errors import Problem
 from resume_maker.integrations.privacy_store import PrivacyStore
@@ -10,12 +10,12 @@ class Privacy:
     """保存隐私设置并复用模型出口使用的本机脱敏引擎"""
 
     def __init__(self, db: RelationalStore, store: PrivacyStore, *, runtime_state=None):
-        """绑定当前实例的持久设置和隐私出口"""
+        """绑定当前实例的持久设置、隐私出口"""
         self.db, self.store = db, store
         self.runtime_state = runtime_state
 
     def get(self):
-        """返回强制隐私策略和用户可补充的敏感词"""
+        """返回强制隐私策略、用户可补充的敏感词"""
         saved = {
             row["key"]: row["value"]
             for row in self.db.all(
@@ -41,7 +41,7 @@ class Privacy:
         }
 
     def save_terms(self, terms: list[str], expected_version: int):
-        """同一事务内保存规范化敏感词和版本，冲突时保留原有设置"""
+        """同一事务内保存规范化敏感词、版本，冲突时保留原有设置"""
         terms = list(dict.fromkeys(value.strip() for value in terms if value.strip()))
         if any(len(value) > 500 for value in terms):
             raise Problem("单条敏感词最多 500 个字符。")
@@ -59,12 +59,12 @@ class Privacy:
         return {"terms": terms, "version": version + 1}
 
     def preview(self, text: str):
-        """只在内存中预览脱敏结果，不保存原文和还原表"""
+        """只在内存中预览脱敏结果，不保存原文、还原表"""
         redactor = self.store.redactor()
         return {"text": redactor.prompt(text), "replacements": redactor.count}
 
     def requests(self):
-        """读取已脱敏的发送记录，不包含响应原文和真实值映射"""
+        """读取已脱敏的发送记录，不包含响应原文、真实值映射"""
         return self.db.setting("privacy_audit", [])
 
     def clear_requests(self):

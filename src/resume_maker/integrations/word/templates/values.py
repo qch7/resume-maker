@@ -10,7 +10,7 @@ from resume_maker.integrations.word.full_resume import displayed_entries, visibl
 
 
 def custom_text(fields) -> str:
-    """按用户顺序输出名称和值均非空的可见自定义信息"""
+    """按用户顺序输出名称、值均非空的可见自定义信息"""
     return "\n".join(f"{field.label}：{field.value}" for field in visible_custom_fields(fields))
 
 
@@ -110,7 +110,7 @@ def personal_values(document: ResumeDocument) -> dict[str, str]:
 
 
 def required_entry_fields(records: list[dict], *, project: bool) -> list[str]:
-    """为 AI 识别和覆盖校验提供同一份非空字段要求，隐藏资料已由记录整理阶段移除"""
+    """为 AI 识别、覆盖校验提供同一份非空字段要求，隐藏资料已由记录整理阶段移除"""
     fields = (
         ("title", "period", "role", "stack", "description", "highlights", "custom_fields")
         if project

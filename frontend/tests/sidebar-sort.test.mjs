@@ -26,7 +26,7 @@ const conversations = [
   },
 ];
 
-test("alphabetic mode sorts projects and conversations naturally in both directions", /* 验证项目和会话支持自然名称正序和倒序 */ () => {
+test("alphabetic mode sorts projects and conversations naturally in both directions", /* 验证项目、会话支持自然名称正序、倒序 */ () => {
   const asc = sortSidebar(projects, conversations, "asc");
   assert.deepEqual(
     asc.projects.map((p) => p.id),
@@ -86,7 +86,7 @@ test("child activity brings its aggregate forward and navigation expands its anc
   assert.deepEqual(folded, { parent: true, child: true, other: true });
 });
 
-test("recent mode includes project edits, drafts and conversation activity", /* 验证最近排序包含项目修改、草稿和会话活动 */ () => {
+test("recent mode includes project edits, drafts and conversation activity", /* 验证最近排序包含项目修改、草稿、会话活动 */ () => {
   assert.deepEqual(
     sortSidebar(projects, [], "recent").projects.map((p) => p.id),
     ["b", "c", "a"],
@@ -108,7 +108,7 @@ test("recent mode includes project edits, drafts and conversation activity", /* 
   );
 });
 
-test("missing timestamps and equal names have deterministic ordering", /* 验证缺失时间和重名条目仍有确定的排序 */ () => {
+test("missing timestamps and equal names have deterministic ordering", /* 验证缺失时间、重名条目仍有确定的排序 */ () => {
   const rows = [
     { id: "2", name: "Same", updated_at: "invalid" },
     { id: "1", name: "same" },

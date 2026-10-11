@@ -70,7 +70,7 @@ test("removing a linked honor preserves same-name entries, sections and other re
   const before = structuredClone(document);
   const removed = removeHonor(document, source.id);
   const retained = removed.sections.find(
-    /* 栏目自身保留原来的名称和显隐设置 */ (item) => item.id === section.id,
+    /* 栏目自身保留原来的名称、显隐设置 */ (item) => item.id === section.id,
   );
   assert.equal(hasHonor(removed, source.id), false);
   assert.equal(hasHonor(removed, "other"), true);
@@ -166,9 +166,8 @@ test("adding honors keeps initial values immutable until a source update is rece
   const original = newDocument();
   const item = honor();
   const composed = addHonors(original, [item]);
-  const entry = composed.sections.find(
-    /* 查找目标栏目 */ (section) => section.id === "honors",
-  ).entries[0];
+  const entry = composed.sections.find((section) => section.id === "honors")
+    .entries[0];
   assert.equal(entry.title, "示例竞赛");
   assert.equal(entry.subtitle, "示例组委会");
   assert.equal(entry.period, "2026-06");
@@ -185,11 +184,11 @@ test("adding honors keeps initial values immutable until a source update is rece
   );
 });
 
-test("all honor fields keep their meaning while competitions also display award and level", /* 所有库字段无损复制，奖项、级别和说明不再合并 */ () => {
+test("all honor fields keep their meaning while competitions also display award and level", /* 所有库字段无损复制，奖项、级别、说明不再合并 */ () => {
   const item = honor();
   const composed = addHonors(newDocument(), [item]);
   const section = composed.sections.find(
-    /* 读取荣誉栏目的完整保存资料和成品副本 */ (section) =>
+    /* 读取荣誉栏目的完整保存资料、成品副本 */ (section) =>
       section.id === "honors",
   );
   const entry = section.entries[0];
@@ -228,7 +227,7 @@ test("all honor fields keep their meaning while competitions also display award 
   assert.equal(newHonorEntry(longName).details, longName.description);
 });
 
-test("manual and relocated honor entries use the same fields without changing other sections", /* 荣誉字段在手工录入、换栏目和改名后仍能识别 */ () => {
+test("manual and relocated honor entries use the same fields without changing other sections", /* 荣誉字段在手工录入、换栏目、改名后仍能识别 */ () => {
   const sections = newDocument().sections;
   const honors = sections.find(
     /* 默认荣誉栏目 */ (section) => section.id === "honors",
@@ -252,7 +251,7 @@ test("manual and relocated honor entries use the same fields without changing ot
   assert.equal(isHonorSection({ ...honors, kind: "education" }), false);
 });
 
-test("optional honor edits and visibility survive a single-entry save without touching other drafts", /* 单条保存保留可选资料、显示设置和其他草稿 */ () => {
+test("optional honor edits and visibility survive a single-entry save without touching other drafts", /* 单条保存保留可选资料、显示设置、其他草稿 */ () => {
   const saved = {
     id: "resume",
     name: "示例方案",
@@ -264,7 +263,7 @@ test("optional honor edits and visibility survive a single-entry save without to
   const draft = structuredClone(saved);
   draft.document.personal.name = "尚未保存姓名";
   const section = draft.document.sections.find(
-    /* 读取待编辑的荣誉栏目 */ (section) => section.id === "honors",
+    (section) => section.id === "honors",
   );
   let entry = updateHonorField(section.entries[0], "award", {
     value: "二等奖",
@@ -334,7 +333,7 @@ test("existing entries can adopt name and date display without losing text or cu
   assert.equal(honorFieldHidden(restored, "issuer"), false);
 });
 
-test("only reviewed honors can be added and missing section is created", /* 待核对、失败和已取消资料不能误入成品 */ () => {
+test("only reviewed honors can be added and missing section is created", /* 待核对、失败、已取消资料不能误入成品 */ () => {
   const original = newDocument();
   original.sections = original.sections.filter(
     /* 模拟用户已移除默认荣誉栏目 */ (section) => section.id !== "honors",
@@ -352,7 +351,7 @@ test("only reviewed honors can be added and missing section is created", /* 待�
   );
 });
 
-test("honors respect explicit targets, entry limits and search fields", /* 自定义栏目、容量边界和编号检索均维持可预期结果 */ () => {
+test("honors respect explicit targets, entry limits and search fields", /* 自定义栏目、容量边界、编号检索均维持可预期结果 */ () => {
   const original = newDocument();
   const item = honor();
   const composed = addHonors(original, [item], "skills");

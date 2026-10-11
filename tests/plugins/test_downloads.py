@@ -88,7 +88,7 @@ def test_download_cancellation_waits_for_real_read_and_never_publishes(tmp_path)
 
 
 def test_wrong_download_digest_is_not_an_installable_file(tmp_path):
-    """网络成功仍须验证发布者摘要，失败下载和中断进度不会误报就绪"""
+    """网络成功仍须验证发布者摘要，失败下载、中断进度不会误报就绪"""
     service = Downloads(tmp_path, opener=lambda _: Response(b"unexpected"))
     identifier = str(uuid4())
     service.start(identifier, "https://example.test/package.rmp", "0" * 64)

@@ -22,7 +22,7 @@ export function activate(context: ClientContext) {
     {
       title: "打开插件管理",
       shortcut: "Mod+Shift+m",
-      /** 系统命令和外部贡献遵守相同的生命周期和快捷键规则 */
+      /** 系统命令、外部贡献遵守相同的生命周期、快捷键规则 */
       run() {
         window.dispatchEvent(new Event("resume-plugin-manager"));
       },

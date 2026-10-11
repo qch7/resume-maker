@@ -73,7 +73,7 @@ test("uncommitted nodes belong to their own baseline and never consume revision 
   );
 });
 
-test("history graph follows actual parents across interleaved branches", /* 验证交错保存和旧分叉仍按真实父关系连线 */ () => {
+test("history graph follows actual parents across interleaved branches", /* 验证交错保存、旧分叉仍按真实父关系连线 */ () => {
   const revisions = [
     { id: "r1", number: 1, parent_id: null, branch_id: "main" },
     { id: "r2", number: 2, parent_id: "r1", branch_id: "main" },

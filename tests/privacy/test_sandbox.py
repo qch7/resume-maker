@@ -1,4 +1,4 @@
-"""验证只读工具的目录边界、进程回收和真实 CLI 的工具注册结果"""
+"""验证只读工具的目录边界、进程回收、真实 CLI 的工具注册结果"""
 
 import base64
 import json
@@ -37,7 +37,7 @@ class BoundaryReply(Model):
 def test_windows_sandbox_accepts_token_owners_and_rejects_foreign_owner(
     tmp_path, monkeypatch, existing_owner
 ):
-    """账户和进程默认所有者可归一到当前账户，其他账户目录不能修改权限或接管"""
+    """账户、进程默认所有者可归一到当前账户，其他账户目录不能修改权限或接管"""
     import win32security
 
     account = win32security.ConvertStringSidToSid("S-1-5-21-100-200-300-1001")
@@ -78,7 +78,7 @@ def test_windows_sandbox_accepts_token_owners_and_rejects_foreign_owner(
 
 @pytest.mark.parametrize("exit_reason", ["success", "failure", "cancelled"])
 def test_project_sandbox_cleans_only_its_task(tmp_path, monkeypatch, exit_reason):
-    """项目内沙箱在成功、异常和取消后清理本轮副本，保留源码及其他任务"""
+    """项目内沙箱在成功、异常、取消后清理本轮副本，保留源码及其他任务"""
     project = tmp_path / "project"
     project.mkdir()
     original = project / "main.py"
@@ -143,7 +143,7 @@ def test_nested_sandbox_rejects_linked_ancestor_before_creating_files(tmp_path, 
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX 所有权及链接由 Linux CI 验证")
 def test_posix_parent_rejects_foreign_owner_files_and_links(tmp_path, monkeypatch):
-    """即使权限私有也拒绝其他账户的目录，文件和符号链接同样不能充当父目录"""
+    """即使权限私有也拒绝其他账户的目录，文件、符号链接同样不能充当父目录"""
     parent = tmp_path / "sandbox"
     parent.mkdir(mode=0o700)
     file = tmp_path / "file"
@@ -160,7 +160,7 @@ def test_posix_parent_rejects_foreign_owner_files_and_links(tmp_path, monkeypatc
 
 @pytest.mark.parametrize("newline", ["\n", "\r\n", "\r"])
 def test_material_boundaries_and_line_numbers(tmp_path, newline):
-    """仅生成的文件编号可读，路径穿越、命令、凭据文件和链接全部被拒绝"""
+    """仅生成的文件编号可读，路径穿越、命令、凭据文件、链接全部被拒绝"""
     root = tmp_path / "materials"
     root.mkdir()
     (tmp_path / "original.txt").write_text("PRIVATE-CANARY", encoding="utf-8")
@@ -209,7 +209,7 @@ def test_material_boundaries_and_line_numbers(tmp_path, newline):
 
 
 def test_mcp_stdio_protocol(tmp_path):
-    """从真实独立进程验证只读 MCP 能完成初始化、读取和未知工具拒绝"""
+    """从真实独立进程验证只读 MCP 能完成初始化、读取、未知工具拒绝"""
     from resume_maker.integrations.providers import material_server
 
     (tmp_path / "context.txt").write_text("safe material", encoding="utf-8")
@@ -323,7 +323,7 @@ def test_windows_job_waits_for_delayed_descendant_exit(tmp_path, monkeypatch):
     cleanup_started = False
 
     def delayed_termination(handle, code):
-        """模拟系统已接受终止请求，但进程退出尚未完成"""
+        """模拟已接受终止请求、尚未退出的进程"""
         nonlocal worker
 
         def finish():
@@ -451,7 +451,7 @@ def test_native_cli_tool_boundary(tmp_path, model, with_mosaic):
             """测试不输出请求或鉴权日志"""
 
         def do_POST(self):
-            """先尝试 shell 和越界读取，再返回固定结构结果"""
+            """先尝试 shell、越界读取，再返回固定结构结果"""
             payload = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             requests.append(payload)
             number = len(requests)

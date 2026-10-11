@@ -34,7 +34,7 @@ export function mergeEvents(
   return older ? sorted.slice(0, 3000) : sorted.slice(-3000);
 }
 
-/** 成功响应到达后撤回普通轮询及读取步骤，保留慢操作、警告和错误 */
+/** 成功响应到达后撤回普通轮询及读取步骤，保留慢操作、警告、错误 */
 export function isHiddenPolling(event: ActivityEvent, hidden: Set<string>) {
   return (
     hidden.has(event.trace_id) &&
@@ -46,7 +46,7 @@ export function isHiddenPolling(event: ActivityEvent, hidden: Set<string>) {
   );
 }
 
-/** 将执行阶段改为简短中文，区分本机原文和模型上下文 */
+/** 执行阶段使用简短中文，分别展示本机原文、模型上下文 */
 export function eventPhase(event: ActivityEvent) {
   if (event.source === "provider.run_structured") {
     if (event.event === "started") return "原始输入";

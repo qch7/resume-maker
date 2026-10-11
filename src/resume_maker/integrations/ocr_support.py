@@ -1,4 +1,4 @@
-"""文档恢复和隐私网关复用的 OCR 预算、取消及原生文字工具"""
+"""文档恢复、隐私网关复用的 OCR 预算、取消及原生文字工具"""
 
 from resume_maker.integrations.document_limits import (
     OCR_MAX_BLOCKS,
@@ -17,7 +17,7 @@ class OCRBudget:
     """累计模板回退页面的 OCR 开销，同一页重试只计一次"""
 
     def __init__(self):
-        """每份模板独立记录页数、文字数和行数"""
+        """每份模板独立记录页数、文字数、行数"""
         self.pages = {}
 
     def register(self, key, blocks):
@@ -33,7 +33,7 @@ class OCRBudget:
 
 
 def check_cancelled(cancelled):
-    """在页面和识别阶段边界检查取消，避免发布已取消结果"""
+    """在页面、识别阶段边界检查取消，避免发布已取消结果"""
     if cancelled.is_set():
         raise Cancelled("本地 OCR 已取消。")
 

@@ -1,4 +1,4 @@
-"""检查图片恢复中资料区和重复栏目是否共用容器以免通过映射检查却跳过顶部重排"""
+"""检查图片恢复中资料区、重复栏目是否共用容器以免通过映射检查却跳过顶部重排"""
 
 import math
 
@@ -10,7 +10,7 @@ from resume_maker.integrations.word.templates.layout import child_in
 
 
 def private_image_text(package):
-    """按分节重建图片和扫描 PDF 身份登记，重开任务后继续保护每页页首"""
+    """按分节重建图片、扫描 PDF 身份登记，重开任务后继续保护每页页首"""
     root = package.parts["word/document.xml"]
     from resume_maker.integrations.word.image.constants import IMAGE_SOURCE
 

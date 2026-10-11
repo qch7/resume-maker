@@ -390,7 +390,7 @@ export default function PluginManager(props: SettingsPanelProps) {
       clearInterval(timer);
     };
   }, [plan?.id, plan?.state]);
-  /** 取消候选验证仍须等待独立宿主和安装进程真实退出 */
+  /** 取消候选验证仍须等待独立宿主、安装进程真实退出 */
   async function cancelValidation() {
     if (!plan) return;
     try {

@@ -37,7 +37,7 @@ export default function GroupsEditor({
       ),
     });
   }
-  /** 提交领域名称和迁移后的收藏，校验失败保留当前副本 */
+  /** 提交领域名称、迁移后的收藏，校验失败保留当前副本 */
   async function save() {
     setBusy(true);
     setError("");

@@ -1,4 +1,4 @@
-"""模板分析的可控模型、任务等待和模板登记"""
+"""模板分析的可控模型、任务等待、模板登记"""
 
 import threading
 import time
@@ -43,7 +43,7 @@ def register_template(catalog, data_dir):
 
 
 def simple_document():
-    """创建仅填写姓名的当前资料，便于独立验证任务和接口边界"""
+    """创建仅填写姓名的当前资料，便于独立验证任务、接口边界"""
     return ResumeDocument(
         personal={"name": "新的用户资料"},
         sections=[
@@ -77,7 +77,7 @@ class TemplateProvider(ProviderStub):
         self.release.set()
 
     def wait_started(self):
-        """有界等待后台文档准备结束，共享 Windows runner 允许较慢的磁盘和字体处理"""
+        """有界等待后台文档准备结束，共享 Windows 执行环境 允许较慢的磁盘、字体处理"""
         assert self.started.wait(60), "模板模型替身未在 60 秒内启动"
 
     def run_structured(self, **kwargs):
@@ -103,7 +103,8 @@ class TemplateProvider(ProviderStub):
 
 def completed(service, identifier):
     """有界等待实际分析线程结束，返回完成或失败的任务结果"""
-    # 字体、磁盘和文档处理在共享 Windows runner 上可能超过十秒，所有线程共用等待上限
+    # 共享 Windows 执行环境中的字体、磁盘、文档处理可能超过十秒
+    # 所有线程共用等待上限
     deadline = time.monotonic() + 60
     for thread in service.threads:
         thread.join(timeout=max(0, deadline - time.monotonic()))
@@ -112,7 +113,7 @@ def completed(service, identifier):
 
 
 class RecoveryProvider(TemplateProvider):
-    """同时模拟图片转可编辑页和后续精确映射，两个阶段使用不同 schema"""
+    """同时模拟图片转可编辑页、后续精确映射，两个阶段使用不同 schema"""
 
     def __init__(self, cancel=False):
         """记录逐页请求，可在恢复返回时触发取消来检查迟到结果隔离"""

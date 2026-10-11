@@ -16,7 +16,7 @@ class DocumentRegistry(ImporterRegistry):
         self.provenance = provenance or (lambda _owner: {})
 
     def entries(self, point, expected):
-        """校验声明和实际接口，并保留贡献所有者用于追溯"""
+        """校验声明、实际接口，并保留贡献所有者用于追溯"""
         result = {}
         for item in self.contributions(point):
             if (

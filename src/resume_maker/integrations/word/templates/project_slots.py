@@ -47,7 +47,7 @@ def explicit_slot(node, nodes, keep):
 
 
 def run_style(paragraph, offset):
-    """按引文字符位置继承真实文字运行样式，区分标签和值的字重及字体"""
+    """按引文位置继承实际文字样式，分别保留标签、字段值的字重及字体"""
     position = 0
     for text in paragraph_texts(paragraph):
         position += len(text.text or "")
@@ -59,7 +59,7 @@ def run_style(paragraph, offset):
 
 
 def labelled_slot(donor, binding, label):
-    """只继承相邻正文的缩进、行距和字体来创建带标签段落"""
+    """只继承相邻正文的缩进、行距、字体来创建带标签段落"""
     paragraph = etree.Element(w("p"))
     properties = donor.find(w("pPr"))
     properties = deepcopy(properties) if properties is not None else etree.Element(w("pPr"))
@@ -78,7 +78,7 @@ def labelled_slot(donor, binding, label):
 
 
 def prepare_project_slots(nodes, fields, values, keep):
-    """只规范项目样本内无标签的空白元信息位置，返回本条克隆的映射和可清理空段落"""
+    """只规范项目样本内无标签的空白元信息位置，返回本条克隆的映射、可清理空段落"""
     if "_highlight_items" not in values:
         return fields, []
     updated, empty = list(fields), []

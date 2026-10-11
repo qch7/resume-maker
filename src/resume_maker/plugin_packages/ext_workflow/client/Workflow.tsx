@@ -5,7 +5,7 @@ import { getWorkflow, type GuideTarget } from "./state";
 import { WORKFLOW_STEPS as steps } from "./steps";
 import ExtensionSteps from "./ExtensionSteps";
 
-/** 展示当前制作步骤和下一步操作，支持折叠和目标定位 */
+/** 展示当前制作步骤、下一步操作，支持折叠、目标定位 */
 export default function Workflow({
   input,
   activeStep,

@@ -1,4 +1,4 @@
-"""RapidOCR的注册和生命周期入口"""
+"""RapidOCR的注册、生命周期入口"""
 
 from resume_maker.plugins.support import publish
 

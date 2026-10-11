@@ -3,7 +3,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Project } from "@resume-maker/plugin-sdk/shared/types/index";
 
-/** 固定删除目标并展示删除范围和占用原因 */
+/** 固定删除目标并展示删除范围、占用原因 */
 export default function DeleteProjectDialog({
   project,
   childCount,

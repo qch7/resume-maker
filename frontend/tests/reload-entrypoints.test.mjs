@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 
-/** 保留实际组件及协调器，只提供不依赖浏览器渲染器的 hooks 和页面节点 */
+/** 保留实际组件及协调器，只提供不依赖浏览器渲染器的 hooks、页面节点 */
 async function application() {
   const fixtures = {
     react: `let values = [], index = 0;

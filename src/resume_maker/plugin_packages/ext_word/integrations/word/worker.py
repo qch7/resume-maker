@@ -8,7 +8,7 @@ import psutil
 
 
 def main():
-    """创建独立 Word COM 实例，登记进程身份并导出 PDF，最后释放文档和 COM"""
+    """创建独立 Word COM 实例，登记进程身份并导出 PDF，最后释放文档、COM"""
     import pythoncom
     import win32com.client
     import win32process

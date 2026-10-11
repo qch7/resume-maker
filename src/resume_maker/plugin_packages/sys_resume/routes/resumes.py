@@ -1,4 +1,4 @@
-"""固定版本简历组合和导出下载的 HTTP 入口"""
+"""固定版本简历组合、导出下载的 HTTP 入口"""
 
 from typing import Annotated
 
@@ -39,7 +39,7 @@ def resume_source_items(
 def save_resume(
     dep_resume: Annotated[Resumes, Depends(service("resume"))], resume_id: str, body: ResumeInput
 ):
-    """校验项目、版本和亮点归属并以乐观锁保存固定版本组合"""
+    """校验项目、版本、亮点归属并以乐观锁保存固定版本组合"""
     return dep_resume.save_resume(
         body.name,
         body.template_id,
@@ -56,6 +56,6 @@ def delete_resume(
     resume_id: str,
     version: int = Query(ge=1),
 ):
-    """删除指定版本的简历方案，历史导出和原始项目资料继续保留"""
+    """删除指定版本的简历方案，历史导出、原始项目资料继续保留"""
     dep_resume.delete_resume(resume_id, version)
     return {"ok": True}

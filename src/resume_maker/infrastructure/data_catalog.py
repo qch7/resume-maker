@@ -1,4 +1,4 @@
-"""备份可读取的非执行插件资料描述和资源引用规则"""
+"""备份可读取的非执行插件资料描述、资源引用规则"""
 
 import json
 import re
@@ -50,7 +50,7 @@ def value_at(record, path):
 
 
 def resource_records(conn):
-    """由已存资料目录枚举资源，查询标识符和相对路径均受固定语法约束"""
+    """由已存资料目录枚举资源，查询标识符、相对路径均受固定语法约束"""
     rows = conn.execute("SELECT plugin_id,descriptor_json FROM plugin_data_catalog").fetchall()
     resources = []
     for owner, raw in rows:
@@ -120,7 +120,7 @@ def validate_folder(owner, folder):
 
 
 def validate_descriptor(owner, descriptor, external):
-    """外部非执行描述只能引用自己声明的表、设置和资料目录"""
+    """外部非执行描述只能引用自己声明的表、设置、资料目录"""
     if not external:
         return
     prefix = "plugin_" + re.sub(r"[.-]", "_", owner) + "_"
@@ -164,7 +164,7 @@ def check_versions(conn, manifests):
 
 
 def data_blockers(db, manifests, locations):
-    """不修改资料即可识别不兼容版本和未初始化表，允许最小系统继续访问资料"""
+    """不修改资料即可识别不兼容版本、未初始化表，允许最小系统继续访问资料"""
     blocked = {}
     with db.connect() as conn:
         versions = dict(conn.execute("SELECT plugin_id,schema_version FROM plugin_data_catalog"))

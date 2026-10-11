@@ -9,7 +9,7 @@ from resume_maker.core.process_environment import EnvironmentPolicy, process_env
 
 
 def reveal_file(path: Path) -> None:
-    """Windows 和 macOS 选中文件，其他桌面平台打开其所在目录"""
+    """Windows、macOS 选中文件，其他桌面平台打开其所在目录"""
     if sys.platform == "win32":
         command = ["explorer.exe", "/select,", str(path)]
     elif sys.platform == "darwin":

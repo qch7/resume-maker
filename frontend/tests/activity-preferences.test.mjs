@@ -3,7 +3,7 @@ import test from "node:test";
 import { build } from "esbuild";
 import { fileURLToPath } from "node:url";
 
-/** 保留实际偏好恢复和保存代码，以合成后端规则及工作区存储验证启动行为 */
+/** 保留实际偏好恢复、保存代码，以合成后端规则及工作区存储验证启动行为 */
 async function application() {
   const result = await build({
     entryPoints: [

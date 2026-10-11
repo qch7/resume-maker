@@ -28,7 +28,7 @@ export function ExperiencePreview({ value }: { value: Experience }) {
   );
 }
 
-/** 展示修改前后内容和建议原因，提供采用或拒绝入口 */
+/** 展示修改前后内容、建议原因，提供采用或拒绝入口 */
 export default function ProposalCard({
   value,
   run,

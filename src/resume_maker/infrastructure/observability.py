@@ -1,4 +1,4 @@
-"""关联请求、后台任务和适配器活动，统一记录耗时及异常"""
+"""关联请求、后台任务、适配器活动，统一记录耗时及异常"""
 
 import inspect
 import logging
@@ -14,7 +14,7 @@ CURRENT = ContextVar("resume_activity", default=None)
 
 @contextmanager
 def activity_scope(log, **fields):
-    """为当前线程或异步请求绑定实例日志及关联标识，退出时恢复上层上下文"""
+    """为当前线程或异步请求绑定实例日志、关联标识，退出时恢复上层上下文"""
     parent = CURRENT.get()
     values = {**(parent[1] if parent and parent[0] is log else {}), **fields}
     values.setdefault("trace_id", str(uuid4()))
@@ -34,7 +34,7 @@ def record(category, event, title, payload=None, **fields):
 
 
 def record_event(kind, data):
-    """统一接收既有任务进度及新增 AI 和工具明细"""
+    """统一接收既有任务进度及新增 AI、工具明细"""
     category = "tool" if kind.startswith("tool") else "ai" if kind.startswith("ai") else "task"
     title = data.get("text") or data.get("tool") or data.get("type") or kind
     record(category, kind, str(title), data, level="error" if kind == "error" else "info")
@@ -60,7 +60,7 @@ def remember_task(log, identifier, **fields):
 
 
 def operation(source, category="service", *, title=None):
-    """记录开始、结束和异常，允许按参数生成标题并保留稳定来源及原签名"""
+    """记录开始、结束、异常，允许按参数生成标题并保留稳定来源及原签名"""
 
     def decorate(function):
         """将同步业务边界包装成具有独立跨度的可观测操作"""
@@ -114,7 +114,7 @@ def operation(source, category="service", *, title=None):
 
 
 def instrument_service(service, log, name, *, background=()):
-    """集中覆盖服务公开入口及明确的后台执行边界，新增公开方法自动纳入日志"""
+    """记录服务公开入口、后台执行边界，新增公开方法自动纳入日志"""
     for method_name, method in inspect.getmembers(service, predicate=inspect.ismethod):
         if getattr(method, "__activity_internal__", False):
             continue
@@ -129,7 +129,7 @@ def service_entry(function, log, background):
 
     @wraps(function)
     def wrapped(*args, **kwargs):
-        """从参数提取稳定的项目和会话标识，防止线程间日志串线"""
+        """从参数提取稳定的项目、会话标识，防止线程间日志串线"""
         arguments = inspect.signature(function).bind(*args, **kwargs).arguments
         fields = {
             key: arguments[key]
@@ -153,10 +153,10 @@ def service_entry(function, log, background):
 
 
 class ActivityHandler(logging.Handler):
-    """把当前操作内的 Python 警告和异常转入系统日志"""
+    """把当前操作内的 Python 警告、异常转入系统日志"""
 
     def emit(self, entry):
-        """只处理有实例上下文的日志，避免不同应用和框架请求日志互相污染"""
+        """只处理有实例上下文的日志，避免不同应用、框架请求日志互相污染"""
         if CURRENT.get():
             record(
                 "system",

@@ -9,7 +9,7 @@ import type {
 import { isCurrentExport } from "@resume-maker/plugin-sdk/shared/resume/composition";
 import PrintedPage from "@resume-maker/plugin-sdk/shared/components/PrintedPage";
 
-/** 按导出时的名称展示和下载历史快照 */
+/** 按导出时的名称展示、下载历史快照 */
 function ExportCard({
   result,
   draft,
@@ -79,7 +79,7 @@ function ExportCard({
             <button
               disabled={pending}
               onClick={
-                /* PDF 和 Word 来自同一次导出 */ () =>
+                /* PDF、Word 来自同一次导出 */ () =>
                   void saveFile("resume.pdf", `${name}.pdf`)
               }
             >

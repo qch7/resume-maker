@@ -1,4 +1,4 @@
-"""证书上传、识别、人工核对、取消隔离和备份恢复的用户行为回归"""
+"""证书上传、识别、人工核对、取消隔离、备份恢复的用户行为回归"""
 
 import threading
 import time
@@ -62,7 +62,7 @@ def upload(client, name="certificate.png", raw=None):
 
 @pytest.mark.parametrize("kind", ["png", "jpeg", "webp", "pdf"])
 def test_upload_recognize_review_and_persist(tmp_path, kind):
-    """PDF 和常见图片均生成原件和分页并在核对后独立持久化"""
+    """PDF、常见图片均生成原件、分页并在核对后独立持久化"""
     provider = CertificateProvider()
     config = Config(data_dir=tmp_path / "data", token="test")
     app = create_app(config, provider)

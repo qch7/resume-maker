@@ -1,4 +1,4 @@
-"""按处理阶段区分文档资源边界，不加载可选图像和 PDF 依赖"""
+"""按处理阶段区分文档资源边界，不加载可选图像、PDF 依赖"""
 
 from resume_maker.sdk.ocr import (
     OCR_MAX_BLOCKS as OCR_MAX_BLOCKS,
@@ -28,7 +28,7 @@ CERTIFICATE_TEXT_TOTAL_CHARS = 30_000
 
 
 def import_limits(purpose):
-    """界面和后端读取同一用途的上传边界，模板页数由格式处理器核验"""
+    """界面、后端读取同一用途的上传边界，模板页数由格式处理器核验"""
     return {
         "max_bytes": CERTIFICATE_MAX_BYTES if purpose == "certificate" else TEMPLATE_MAX_BYTES,
         "max_pages": CERTIFICATE_MAX_PAGES if purpose == "certificate" else None,

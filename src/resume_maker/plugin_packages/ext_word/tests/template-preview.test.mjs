@@ -30,7 +30,7 @@ test("continuous typing is debounced and identical inputs are reused", /* 连续
   assert.equal(calls.length, 0);
   t.mock.timers.tick(200);
   assert.deepEqual(
-    calls.map(/* 读取实际排版输入 */ (call) => call.key),
+    calls.map((call) => call.key),
     ["second"],
   );
   calls[0].resolve("page");

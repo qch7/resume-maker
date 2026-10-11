@@ -63,7 +63,7 @@ export default function DiscardChangesDialog({
     },
     [projectId, revisionId],
   );
-  /** 仅在用户二次确认后执行撤销，失败仍保留窗口和全部改动 */
+  /** 仅在用户二次确认后执行撤销，失败仍保留窗口、全部改动 */
   async function confirm() {
     if (!versions || submitting.current) return;
     submitting.current = true;

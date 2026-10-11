@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { storage, storageVersion, subscribeStorage } from "../lib/storage";
 import { reloadWindow } from "../../plugins/window";
 
-/** 展示自动保存失败和窗口冲突，处理前始终保留本页输入 */
+/** 展示自动保存失败、窗口冲突，处理前始终保留本页输入 */
 export default function PersistenceStatus() {
   useSyncExternalStore(subscribeStorage, storageVersion);
   const [error, setError] = useState("");

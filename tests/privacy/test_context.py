@@ -1,4 +1,4 @@
-"""验证业务名称和求职信息可供模型理解，身份字段仍遮盖并在本机还原"""
+"""验证业务名称、求职信息可供模型理解，身份字段仍遮盖并在本机还原"""
 
 import json
 import re
@@ -30,7 +30,7 @@ def test_saved_business_names_do_not_pollute_other_requests(catalog, name):
 
 
 def test_personal_context_preserves_qualifications_and_protects_hidden_identity(tmp_path):
-    """未保存资料保留专业、职位和成绩，隐藏姓名及学校等信息仍进入统一出口"""
+    """未保存资料保留专业、职位、成绩，隐藏姓名及学校等信息仍进入统一出口"""
     document = {
         "personal": {
             "name": "林沐晴",
@@ -80,7 +80,7 @@ def test_personal_context_preserves_qualifications_and_protects_hidden_identity(
     ],
 )
 def test_business_labels_are_not_person_name_suffixes(text):
-    """文件名和业务名称标签不因含有 name 后缀而被识别为姓名"""
+    """文件名、业务名称标签不因含有 name 后缀而被识别为姓名"""
     assert Redactor().prompt(text) == text
 
 
@@ -97,7 +97,7 @@ def test_explicit_identity_labels_remain_sensitive(label):
 
 
 def test_business_values_can_still_be_explicitly_private():
-    """业务字段继续服从补充敏感词和联系方式等格式规则"""
+    """业务字段继续服从补充敏感词、联系方式等格式规则"""
     redactor = Redactor(["大学英语四级"])
     raw = {"name": "大学英语四级", "project": {"name": "person@example.invalid"}}
     safe = json.loads(redactor.prompt(json.dumps(raw, ensure_ascii=False)))
@@ -121,7 +121,7 @@ def test_saved_certificate_name_survives_pdf_extraction_and_model_roundtrip(tmp_
         pdf.save(source)
 
     def handle(payload):
-        """只从实际收到的脱敏文字提取名称和占位符，供应商接触不到真实身份"""
+        """只从实际收到的脱敏文字提取名称、占位符，供应商接触不到真实身份"""
         documents = json.loads(payload["input"].split("禁止推测）：\n", 1)[1])
         text = documents[0]["text"]
         assert text.splitlines()[0] == title

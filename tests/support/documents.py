@@ -1,4 +1,4 @@
-"""合成 DOCX、简历资料和记录映射"""
+"""合成 DOCX、简历资料、记录映射"""
 
 import base64
 from io import BytesIO
@@ -18,7 +18,7 @@ from resume_maker.integrations.word.templates.mapping import NS, TemplatePackage
 
 
 def header_content(**personal):
-    """构造有新增字段、长网址和照片的真实填充资料"""
+    """构造有新增字段、长网址、照片的真实填充资料"""
     return ResumeDocument.model_validate(
         {
             "personal": {
@@ -40,7 +40,7 @@ def header_content(**personal):
 
 
 def add_annotation_part(doc, kind, content):
-    """为脱敏文档添加带内容类型和关系的标准注释部件"""
+    """为脱敏文档添加带内容类型、关系的标准注释部件"""
     part = Part(
         PackURI(f"/word/{kind}s.xml"),
         f"application/vnd.openxmlformats-officedocument.wordprocessingml.{kind}s+xml",
@@ -51,7 +51,7 @@ def add_annotation_part(doc, kind, content):
 
 
 def record_plan(path, targets, table=False):
-    """按当前原文建立单条重复范围，任意空段落和样式变化都不会依赖节点编号"""
+    """按当前原文建立单条重复范围，任意空段落、样式变化都不会依赖节点编号"""
     package = TemplatePackage(path)
     nodes = {
         paragraph_text(node): key
@@ -86,7 +86,7 @@ def record_plan(path, targets, table=False):
 
 
 def record_content(entries):
-    """构造任意普通栏目和必需的项目区，隐藏规则和实际个人信息界面相同"""
+    """构造任意普通栏目、必需项目区，沿用个人信息界面的隐藏规则"""
     return ResumeDocument.model_validate(
         {
             "sections": [
@@ -105,7 +105,7 @@ def photo_bytes(color):
 
 
 def resume_content():
-    """构造包含个人资料、教育、项目和隐藏字段的完整脱敏资料"""
+    """构造包含个人资料、教育、项目、隐藏字段的完整脱敏资料"""
     return ResumeDocument.model_validate(
         {
             "personal": {
@@ -166,7 +166,7 @@ def project_content():
 
 
 def make_template(path, *, decoration=False):
-    """建立含表格、跨样式文字、页眉页脚、文本框和照片的陌生 DOCX"""
+    """建立含表格、跨样式文字、页眉页脚、文本框、照片的陌生 DOCX"""
     doc = Document()
     doc.sections[0].page_width = Cm(21)
     doc.sections[0].page_height = Cm(29.7)

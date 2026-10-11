@@ -1,4 +1,4 @@
-"""工作台设置、默认栏目并发保存和模型连接检查"""
+"""工作台设置、默认栏目并发保存、模型连接检查"""
 
 import threading
 from pathlib import Path
@@ -17,7 +17,7 @@ class Settings:
     """管理实例设置，模型调用使用应用入口注入的统一 Provider"""
 
     def __init__(self, db: RelationalStore, data_dir: Path, provider: Provider | None = None):
-        """保存本机配置存储和模型出口，不依赖后台任务队列"""
+        """保存本机配置存储、模型出口，不依赖后台任务队列"""
         self.db, self.data_dir, self.provider = db, data_dir, provider
 
     @internal
@@ -27,7 +27,7 @@ class Settings:
         return {"resume_defaults": unpack(row)["value"] if row else None}
 
     def get(self):
-        """返回完整 Provider 配置和当前数据目录"""
+        """返回完整 Provider 配置、当前数据目录"""
         return {"provider": self._provider_settings().model_dump(), "data_dir": str(self.data_dir)}
 
     def _provider_settings(self):
@@ -64,7 +64,7 @@ class Settings:
         return self.db.setting("resume_defaults")
 
     def save_resume_defaults(self, defaults: ResumeDefaults):
-        """在同一事务内校验版本和保存默认栏目，防止多窗口覆盖"""
+        """在同一事务内校验版本、保存默认栏目，防止多窗口覆盖"""
         with self.db.transaction() as conn:
             row = unpack(
                 conn.execute(

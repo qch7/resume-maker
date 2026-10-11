@@ -1,4 +1,4 @@
-"""插件注册、类型化能力和资源作用域协议"""
+"""插件注册、类型化能力、资源作用域协议"""
 
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -12,14 +12,14 @@ R = TypeVar("R")
 
 @dataclass(frozen=True)
 class ServiceKey[T]:
-    """公共接口的稳定标识和协议版本"""
+    """公共接口的稳定标识、协议版本"""
 
     name: str
     version: str = "1.0.0"
 
 
 class Context(Protocol):
-    """插件只能消费清单声明的依赖和登记自己拥有的贡献"""
+    """插件只能消费清单声明的依赖、登记自己拥有的贡献"""
 
     instance_id: str
     plugin_id: str

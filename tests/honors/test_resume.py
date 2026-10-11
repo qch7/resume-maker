@@ -1,4 +1,4 @@
-"""荣誉快照、关联同步和简历输出"""
+"""荣誉快照、关联同步、简历输出"""
 
 import json
 from copy import deepcopy
@@ -28,7 +28,7 @@ from tests.support.templates import register_template
 
 
 def honor_registry(db):
-    """独立业务验收使用和生产相同的来源贡献"""
+    """独立业务验收沿用生产环境的来源贡献"""
     contribution = Contribution(
         "ext.honors", "resume.sources", "ext.honors/library", resume_source()
     )
@@ -36,7 +36,7 @@ def honor_registry(db):
 
 
 def test_honor_snapshot_roundtrip_and_rendering(catalog, tmp_path, fixtures_dir):
-    """前端生成的完整字段副本保存无损，内置和模板填充默认仅使用名称及日期"""
+    """前端生成的完整字段副本保存无损，内置、模板填充默认仅使用名称及日期"""
     fixture = fixtures_dir / "honor-entry.json"
     entry = json.loads(fixture.read_text(encoding="utf-8"))
     document = ResumeDocument.model_validate(
@@ -111,7 +111,7 @@ def fields(name="同步后的证书"):
 
 
 def linked_document(identifier):
-    """构造明确关联来源的过时快照和填满的自定义资料"""
+    """构造明确关联来源的过时快照、填满的自定义资料"""
     return ResumeDocument.model_validate(
         {
             "personal": {"name": "姓名草稿"},
@@ -250,7 +250,7 @@ def test_preview_and_export_resolve_current_honors_and_invalidate_cache(
     """旧草稿也生成当前荣誉，新核对内容使预览缓存失效且旧导出清单保持原样"""
 
     def render(source, output):
-        """只代替分页软件，真实 DOCX 填充和内容检查仍完整执行"""
+        """只代替分页软件，真实 DOCX 填充、内容检查仍完整执行"""
         output.write_bytes(b"pdf")
         (output.parent / "page-1.png").write_bytes(b"png")
         return 1, None

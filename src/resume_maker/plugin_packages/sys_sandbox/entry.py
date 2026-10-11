@@ -1,4 +1,4 @@
-"""执行策略与材料隔离的注册和生命周期入口"""
+"""执行策略、材料隔离的注册、生命周期入口"""
 
 from resume_maker.plugins.support import dependency, publish
 

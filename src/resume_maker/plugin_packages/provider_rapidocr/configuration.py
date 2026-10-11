@@ -1,4 +1,4 @@
-"""RapidOCR 的本机推理策略，模型来源和隐私保护规则固定由代码管理"""
+"""RapidOCR 的本机推理策略，模型来源、隐私保护规则固定由代码管理"""
 
 from pydantic import Field
 

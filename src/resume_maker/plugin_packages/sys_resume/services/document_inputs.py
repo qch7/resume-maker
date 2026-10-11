@@ -7,7 +7,7 @@ from resume_maker.sdk.records import dump, unpack
 
 
 def freeze_export(catalog, directory, identifier, expected_version=None):
-    """固定简历版本、来源内容、映射和原件，写锁只覆盖短暂的本地读取"""
+    """固定简历版本、来源内容、映射、原件，写锁只覆盖短暂的本地读取"""
     with catalog.db.transaction() as conn:
         resume = need(
             unpack(
@@ -45,7 +45,7 @@ def freeze_export(catalog, directory, identifier, expected_version=None):
 
 
 def freeze_preview(catalog, directory, template_id, document, items):
-    """预览也在同一读取事务固定来源、经历和模板，工作副本作为显式输入保留"""
+    """预览也在同一读取事务固定来源、经历、模板，工作副本作为显式输入保留"""
     if document is None:
         raise Problem("请先填写个人资料和栏目。")
     if len({item["project_id"] for item in items}) != len(items):

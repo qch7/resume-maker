@@ -14,7 +14,7 @@ from tests.support.data import record_source_files
 
 
 def test_reveal_uses_snapshot_root_after_sources_reordered(catalog, project, tmp_path, monkeypatch):
-    """来源顺序改变后仍打开引文原始仓库并保留含中文和空格的完整文件名"""
+    """来源顺序改变后仍打开引文原始仓库并保留含中文、空格的完整文件名"""
     original = Path(project["roots"][0]) / "引用 文件.py"
     original.write_text("print('source')", encoding="utf-8")
     snapshot = record_source_files(catalog.db, tmp_path / "data", project, (original.name,))
@@ -79,7 +79,7 @@ def test_reveal_endpoint_checks_token_and_snapshot_ownership(tmp_path, monkeypat
     ],
 )
 def test_reveal_rejects_unlisted_or_escaping_paths(catalog, project, tmp_path, monkeypatch, path):
-    """越界、绝对路径、备用数据流和快照外文件均不能触发本机打开"""
+    """越界、绝对路径、备用数据流、快照外文件均不能触发本机打开"""
     snapshot = record_source_files(catalog.db, tmp_path / "data", project)
     opened = []
     monkeypatch.setattr("resume_maker.integrations.desktop.reveal_file", opened.append)

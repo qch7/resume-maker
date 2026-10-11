@@ -11,7 +11,7 @@ from resume_maker.sdk.context import ServiceKey
 
 
 def snapshot(host, exception_handlers):
-    """校验路径及方法唯一后生成不可变路由集合和独立 OpenAPI"""
+    """校验路径及方法唯一后生成不可变路由集合、独立 OpenAPI"""
     app = FastAPI(
         title="Resume Maker",
         version=__version__,
@@ -58,7 +58,7 @@ class PluginDispatch(BaseRoute):
         return (Match.FULL, {}) if scope["path"].startswith("/api/") else (Match.NONE, {})
 
     async def handle(self, scope, receive, send):
-        """在单次请求期间保留相同应用和服务集合"""
+        """在单次请求期间保留相同应用、服务集合"""
         app = self.current
         scope["root_app"] = scope["app"]
         manager = app.state.runtime.require(ServiceKey("plugins"))

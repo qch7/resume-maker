@@ -1,4 +1,4 @@
--- AI 所有者声明项目删除时的排空检查和同事务清理，停用后规则仍保留
+-- AI 所有者声明项目删除前的排空检查、同事务清理，停用后保留规则
 CREATE TRIGGER IF NOT EXISTS conversation_project_guard AFTER INSERT ON record_operations
 WHEN NEW.namespace='project' AND NEW.phase='check' BEGIN
  UPDATE record_operations SET blockers_json=json_insert(blockers_json,'$[#]',

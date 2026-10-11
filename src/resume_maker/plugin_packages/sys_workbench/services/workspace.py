@@ -25,7 +25,7 @@ class Workspace:
         self.stopped = False
 
     def state(self):
-        """所有系统读取和扩展贡献共用一个快照，避免混用不同版本的资料"""
+        """系统读取、扩展贡献共用一个快照，保持资料版本一致"""
         with self.db.connect() as conn:
             conn.execute("BEGIN")
             state = {"honors": [], "conversations": [], "templates": [], "jobs": []}
@@ -37,7 +37,7 @@ class Workspace:
 
     @internal
     def poll(self, previous):
-        """未变化时省去聚合和正文，数据库及贡献变更立即失效"""
+        """未变化时省去聚合、正文，数据库及贡献变更立即失效"""
         with self.lock:
             if self.stopped:
                 raise Problem("工作台正在停止。", 409)

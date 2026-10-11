@@ -1,4 +1,4 @@
-"""验证开放模型参数和配置档名称，同时保持文件读取及配置继承边界"""
+"""验证开放模型参数、配置档名称，同时保持文件读取及配置继承边界"""
 
 import json
 
@@ -45,7 +45,7 @@ def test_custom_efforts_persist_and_inherit_per_function(tmp_path):
 @pytest.mark.parametrize("effort", ["none", "max", "ultra", "custom_effort"])
 @pytest.mark.parametrize("location", ["root", "inline", "file"])
 def test_effort_inherits_from_each_cli_configuration(tmp_path, effort, location):
-    """主配置和两种 Profile 中的强度经同一校验透传给 CLI，设置仍可覆盖"""
+    """主配置、两种 Profile 中的强度经同一校验透传给 CLI，设置仍可覆盖"""
     profile = "团队 profile.v2"
     selection = f'model="provider/model.v2"\nmodel_reasoning_effort=" {effort} "\n'
     config = selection if location == "root" else 'model="base"\n'
@@ -113,7 +113,7 @@ def test_linked_profile_cannot_escape_cli_home(tmp_path):
 
 @pytest.mark.parametrize("effort", [123, ["high"], "high\nshell_tool=true", "x" * 65])
 def test_inherited_effort_rejects_invalid_types_and_shapes(tmp_path, effort):
-    """CLI 配置继承同样约束强度类型和格式，不将异常值作为参数发送"""
+    """CLI 配置继承同样约束强度类型、格式，不将异常值作为参数发送"""
     (tmp_path / "config.toml").write_text(
         "model_reasoning_effort=" + json.dumps(effort), encoding="utf-8"
     )
@@ -122,7 +122,7 @@ def test_inherited_effort_rejects_invalid_types_and_shapes(tmp_path, effort):
 
 
 def test_custom_model_catalog_retains_the_same_tool_restrictions(tmp_path):
-    """任意供应商模型名称原样进入目录，模型名称不改变工具和执行能力"""
+    """任意供应商模型名称原样进入目录，模型名称不改变工具、执行能力"""
     (tmp_path / "control").mkdir()
     model = "provider/custom-model:2027"
     path = write_catalog(tmp_path, {"model": model})

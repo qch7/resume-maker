@@ -6,7 +6,7 @@ from typing import Protocol
 
 
 class Credentials[T](Protocol):
-    """可信 Host 插件按实例身份和声明用途借用凭据"""
+    """可信 Host 插件按实例身份、声明用途借用凭据"""
 
     def register(
         self, adapter: str, purpose: str, loader: Callable[[], AbstractContextManager[T]]

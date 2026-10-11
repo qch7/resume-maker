@@ -1,4 +1,4 @@
-"""将图片空间识别结果转成可流动 Word，局部素材和文字分离，禁止整页背景伪装恢复"""
+"""将图片空间识别结果转成可流动 Word，局部素材、文字分离，禁止整页背景伪装恢复"""
 
 import math
 import os
@@ -29,7 +29,7 @@ FONT_NAMES = {
 
 
 def validate_layout(layout):
-    """拒绝相交的文字裁图和重复文字框以免旧姓名、正文或整页混进素材"""
+    """拒绝相交的文字裁图、重复文字框以免旧姓名、正文或整页混进素材"""
     for asset in layout.assets:
         if asset.kind not in {"photo", "icon"}:
             continue
@@ -77,17 +77,17 @@ def font_for(text):
 
 
 def physical_box(box, width, height):
-    """比例矩形转换为纸面点数，所有文字和素材共用同一坐标系"""
+    """比例矩形转换为纸面点数，所有文字、素材共用同一坐标系"""
     return pymupdf.Rect(box[0] * width, box[1] * height, box[2] * width, box[3] * height)
 
 
 def color_rgb(color):
-    """解析已校验的十六进制颜色，供矢量文字和重新绘制的底色共同使用"""
+    """解析已校验的十六进制颜色，供矢量文字、重新绘制的底色共同使用"""
     return tuple(int(color[index : index + 2], 16) for index in (1, 3, 5))
 
 
 def insert_texts(page, layout):
-    """根据文字框和字宽换算字号并生成可编辑字符"""
+    """根据文字框、字宽换算字号并生成可编辑字符"""
     fonts = {}
     for text in layout.texts:
         key = text.font_name, text.bold
@@ -123,7 +123,7 @@ def insert_texts(page, layout):
 
 @contextmanager
 def text_layer(layout, width, height):
-    """构造临时几何页并核验全部识别字符，字体缺字或异常时及时关闭临时文档"""
+    """构造几何临时页，核验全部识别字符，字体缺字或异常时关闭文档"""
     with pymupdf.open() as pdf:
         page = pdf.new_page(width=width, height=height)
         insert_texts(page, layout)
@@ -134,7 +134,7 @@ def text_layer(layout, width, height):
 
 
 def asset_bytes(image, asset):
-    """仅照片和图标从原图裁剪，底块和线条重新画，绝不包含原模板文字像素"""
+    """仅照片、图标从原图裁剪，底块、线条重新画，绝不包含原模板文字像素"""
     box = physical_box(asset.box, image.width, image.height)
     if asset.kind in {"photo", "icon"}:
         result = image.crop(tuple(round(value) for value in box))
@@ -154,7 +154,7 @@ def asset_bytes(image, asset):
 
 
 def place_image_assets(image, layout, paragraphs, width, height):
-    """根据原始几何选择素材对应段落，底色、照片和图标各自保留用途及可伸展锚点"""
+    """根据原始几何选择素材对应段落，底色、照片、图标各自保留用途及可伸展锚点"""
     for asset in layout.assets:
         box = physical_box(asset.box, width, height)
 
@@ -182,7 +182,7 @@ def place_image_assets(image, layout, paragraphs, width, height):
 
 
 def image_text_styles(paragraphs):
-    """设置中文字体和列表悬挂缩进以让续行对齐正文"""
+    """设置中文字体、列表悬挂缩进以让续行对齐正文"""
     for paragraph, _, _ in paragraphs:
         # 原文行尾以后的列内宽度仍可用于排版新资料
         paragraph.paragraph_format.right_indent = Pt(0)

@@ -32,7 +32,7 @@ from tests.support.templates import simple_document
 
 
 def mixed_fixture(path, image):
-    """合成两张不同尺寸扫描页和中间的原生文字页，隐藏文字层不得当作正文"""
+    """合成两张不同尺寸扫描页、中间的原生文字页，隐藏文字层不得当作正文"""
     with pymupdf.open() as pdf:
         for index, (width, height) in enumerate([(500, 700), (400, 600), (420, 594)]):
             page = pdf.new_page(width=width, height=height)
@@ -54,7 +54,7 @@ def page_answer(payload, layout):
 
 
 def test_mixed_pdf_recovers_private_pages_and_reopens_safely(tmp_path, monkeypatch):
-    """混合页保留尺寸、顺序和本机照片，重开任务仍逐页保护身份且不影响原生正文"""
+    """混合页保留尺寸、顺序、本机照片，重开任务仍逐页保护身份且不影响原生正文"""
     image, source, output = tmp_path / "image.png", tmp_path / "mixed.pdf", tmp_path / "result.docx"
     layout, local = page_fixture(image, monkeypatch)
     layout.texts[-1].text = "MYSTERY ID"
@@ -275,7 +275,7 @@ def test_native_conversion_failure_uses_sanitized_page(tmp_path, monkeypatch):
 
 
 def test_private_pdf_keeps_empty_pages_without_ocr(tmp_path, monkeypatch):
-    """真正空白的 PDF 页只保留纸张和分节，不触发 OCR 或模型请求"""
+    """真正空白的 PDF 页只保留纸张、分节，不触发 OCR 或模型请求"""
     source, output = tmp_path / "blank-middle.pdf", tmp_path / "result.docx"
     with pymupdf.open() as pdf:
         pdf.new_page(width=400, height=500).insert_text((40, 60), "FIRST PAGE")
@@ -284,7 +284,7 @@ def test_private_pdf_keeps_empty_pages_without_ocr(tmp_path, monkeypatch):
         pdf.save(source)
 
     def forbidden(*args, **kwargs):
-        """原生文字和空白页面无需启动图像识别"""
+        """原生文字、空白页面无需启动图像识别"""
         pytest.fail("原生和空白 PDF 页不应 OCR 或调用模型")
 
     monkeypatch.setattr(page_images, "read_document", forbidden)
@@ -310,7 +310,7 @@ def test_private_pdf_keeps_empty_pages_without_ocr(tmp_path, monkeypatch):
 
 
 def test_scanned_pdf_fields_and_photo_remain_fillable(tmp_path, monkeypatch):
-    """扫描页恢复后沿用模板填充，替换姓名联系方式和照片并清除旧隐私元数据"""
+    """扫描页恢复后沿用模板填充，替换姓名联系方式、照片并清除旧隐私元数据"""
     image, source, output = tmp_path / "image.png", tmp_path / "scan.pdf", tmp_path / "result.docx"
     layout, _ = page_fixture(image, monkeypatch)
     with pymupdf.open() as pdf:
@@ -375,7 +375,7 @@ def test_private_mixed_pdf_recovers_only_scanned_page(tmp_path, monkeypatch, bla
     monkeypatch.setattr(page_images, "read_document", local_ocr.read_document)
 
     def runner(payload, *args, safe_images):
-        """扫描页模型只获得脱敏图和占位文字，回复使用本地 OCR 坐标"""
+        """扫描页模型只获得脱敏图、占位文字，回复使用本地 OCR 坐标"""
         assert not blank
         assert len(safe_images) == 1 and payload["images"][0]["kind"] == "sanitized-page"
         assert "UncertainIdentity" not in payload["input"]

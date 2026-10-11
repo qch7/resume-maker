@@ -1,4 +1,4 @@
-"""Provider 配置和实际连接检查的 HTTP 入口"""
+"""Provider 配置、实际连接检查的 HTTP 入口"""
 
 from collections.abc import Callable
 from typing import Annotated

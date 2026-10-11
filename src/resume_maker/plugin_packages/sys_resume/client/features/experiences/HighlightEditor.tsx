@@ -12,7 +12,7 @@ import EvidenceDialog from "./EvidenceDialog";
 import { editHighlightText, fieldChanged } from "./changes";
 import { VisibilityButton } from "@resume-maker/plugin-sdk/shared/components/VisibilityField";
 import CopyButton from "@resume-maker/plugin-sdk/shared/components/CopyButton";
-/** 编辑亮点和证据并将增删改暂存为草稿 */
+/** 编辑亮点、证据并将增删改暂存为草稿 */
 export default function HighlightEditor({
   item,
   draftVersion,
@@ -42,7 +42,7 @@ export default function HighlightEditor({
   const [showEvidence, setShowEvidence] = useState(false);
   const { value } = editor;
   useEffect(
-    /* 输入和本机草稿恢复立即进入实时预览，无需等待网络防抖保存 */ () =>
+    /* 输入、本机草稿恢复立即进入实时预览，无需等待网络防抖保存 */ () =>
       onPreview(value),
     [value, onPreview],
   );
@@ -84,7 +84,7 @@ export default function HighlightEditor({
             title={`来源引用（${value.evidence.length} 条）`}
             aria-label={`来源引用（${value.evidence.length} 条）`}
             aria-haspopup="dialog"
-            onClick={/* 展示当前亮点的来源引用 */ () => setShowEvidence(true)}
+            onClick={() => setShowEvidence(true)}
           >
             <FileText size={14} />
             <span className="highlight-tool-label">来源引用</span>
@@ -108,9 +108,8 @@ export default function HighlightEditor({
                       `/projects/${detail.project.id}?revision_id=${revisionId}`,
                     );
                     const version =
-                      fresh.working.drafts.find(
-                        /* 查找当前亮点的草稿版本 */ (d) => d.field === field,
-                      )?.version ?? 0;
+                      fresh.working.drafts.find((d) => d.field === field)
+                        ?.version ?? 0;
                     await api(`/projects/${detail.project.id}/draft`, "PUT", {
                       base_revision: revisionId,
                       field,

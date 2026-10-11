@@ -1,4 +1,4 @@
-"""默认栏目设置持久化、并发保护和排版一致性"""
+"""默认栏目设置持久化、并发保护、排版一致性"""
 
 from copy import deepcopy
 
@@ -57,7 +57,7 @@ def test_defaults_persist_across_application_restarts_and_reject_stale_writes(tm
 
 @pytest.mark.parametrize("case", ["duplicate", "unknown", "blank", "projects", "cycle", "capacity"])
 def test_invalid_default_definitions_are_rejected_without_saving(tmp_path, case):
-    """校验字段和层级，失败不会留下部分配置"""
+    """校验字段、层级，失败不会留下部分配置"""
     body = defaults()
     if case == "duplicate":
         body["personal_fields"].append(body["personal_fields"][0])

@@ -14,7 +14,7 @@ from resume_maker.sdk.tasks import task_metadata
 
 
 def task_owners(record):
-    """任务租约同时覆盖调度所有者和本轮会创建的插件实例"""
+    """任务租约同时覆盖调度所有者、本轮会创建的插件实例"""
     owners = {record["owner"]}
     for instance in record.get("metadata", {}).get("plugin_instances", []):
         owners.update((instance["id"], instance["plugin"]))
@@ -25,7 +25,7 @@ class TaskSupervisor:
     """任务持有配置快照，重启不自动重放外部操作"""
 
     def __init__(self, db, scope_factory=None, prepare_scope=None, *, policy=None):
-        """创建实例独立的处理器和执行租约表"""
+        """创建实例独立的处理器、执行租约表"""
         self.db = db
         self.policy = policy or TaskPolicy()
         self.scope_factory = scope_factory or (lambda _record: nullcontext())
@@ -45,7 +45,7 @@ class TaskSupervisor:
         self.dispatcher_stop = threading.Event()
 
     def scope(self, owner, generation, providers, version="1.0.0"):
-        """业务队列取得固定插件身份和配置快照的调度入口"""
+        """业务队列取得固定插件身份、配置快照的调度入口"""
         return OwnedQueue(self, owner, generation, providers, version)
 
     def attach(self, owner, inspect, cancel):
@@ -144,7 +144,7 @@ class TaskSupervisor:
             return self.diagnostics()
 
     def diagnostics(self):
-        """诊断仅包含失败标识，不暴露任务输入和异常正文"""
+        """诊断仅包含失败标识，不暴露任务输入、异常正文"""
         with self.lock:
             return [
                 {key: item[key] for key in ("id", "owner", "error_type", "state")}
@@ -286,7 +286,7 @@ class TaskSupervisor:
                 self.condition.notify_all()
 
     def wait_owned(self, owner, timeout=None):
-        """取消归属队列并等待实际执行结束，超时保留服务和句柄"""
+        """取消归属队列并等待实际执行结束，超时保留服务、句柄"""
         with self.condition:
             for record, flag in self.owned.values():
                 if record["owner"] == owner:
@@ -301,7 +301,7 @@ class TaskSupervisor:
                 raise Problem("插件任务尚未实际结束，保留执行租约。", 409)
 
     def cancel_owned(self, owners):
-        """取消只发出信号，真实结束仍由活动查询和清理屏障判断"""
+        """取消只发出信号，真实结束仍由活动查询、清理屏障判断"""
         with self.lock:
             for record, flag in self.owned.values():
                 if task_owners(record) & owners:
@@ -509,7 +509,7 @@ class ExecutionHandle:
 
 
 class OwnedQueue:
-    """插件任务共享调度器，身份、参数快照和取消归属固定"""
+    """插件任务共享调度器，身份、参数快照、取消归属固定"""
 
     def __init__(self, supervisor, owner, generation, providers, version):
         """不读取后续活动宿主代次，避免半次任务更换提供方"""

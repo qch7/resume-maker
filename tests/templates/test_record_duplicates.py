@@ -76,7 +76,7 @@ def repeated_sample(path, layout, target):
 @pytest.mark.parametrize("layout", ["body", "cell", "rows"])
 @pytest.mark.parametrize("target", ["details", "title"])
 def test_duplicate_scalar_record_fields_block_export(tmp_path, layout, target):
-    """多条样例合并后会让每条新记录出现两次，须在试填和导出前拒绝"""
+    """多条样例合并后会让每条新记录出现两次，须在试填、导出前拒绝"""
     source, output = tmp_path / "original.docx", tmp_path / "filled.docx"
     package, plan, document = repeated_sample(source, layout, target)
     review = package.review(plan)
@@ -88,14 +88,14 @@ def test_duplicate_scalar_record_fields_block_export(tmp_path, layout, target):
 
 
 def test_multiple_paragraphs_with_distinct_fields_remain_valid(tmp_path):
-    """一条记录本来可含标题和正文，不能仅因样本占多个段落就拒绝"""
+    """一条记录本来可含标题、正文，不能仅因样本占多个段落就拒绝"""
     package, plan, _ = repeated_sample(tmp_path / "original.docx", "body", "title")
     plan.repeats[0].fields[1].target = "details"
     assert package.review(plan)["ready"]
 
 
 def test_repeated_personal_fields_are_not_record_slots(tmp_path):
-    """个人信息在正文和页眉重复显示不属于重复记录的错误边界"""
+    """个人信息在正文、页眉重复显示不属于重复记录的错误边界"""
     source = tmp_path / "original.docx"
     doc = Document()
     doc.add_paragraph("Old name")

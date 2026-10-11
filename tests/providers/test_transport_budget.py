@@ -11,7 +11,7 @@ from resume_maker.plugin_packages.ext_provider_codex.integrations.providers.conn
 
 @pytest.mark.parametrize("retries", [0, 1, 2])
 def test_inherited_retry_budget_controls_attempt_count(tmp_path, retries):
-    """使用隔离配置和本地传输模拟连续失败，确保请求次数遵守原预算"""
+    """使用隔离配置、本地传输模拟连续失败，确保请求次数遵守原预算"""
     (tmp_path / "config.toml").write_text(
         'model="synthetic"\nmodel_provider="test"\n[model_providers.test]\n'
         'name="test"\nbase_url="https://example.invalid/v1"\n'

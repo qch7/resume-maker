@@ -1,4 +1,4 @@
-"""原生模板的组合图形、浮动坐标、照片和横向分栏不能因识别或填充丢失"""
+"""原生模板的组合图形、浮动坐标、照片、横向分栏不能因识别或填充丢失"""
 
 import base64
 import threading
@@ -29,7 +29,7 @@ WPS = "http://schemas.microsoft.com/office/word/2010/wordprocessingShape"
 
 
 def grouped_header(path):
-    """构造照片、蓝色背景和白色姓名共用组合图形，锚点借用课程正文的模板"""
+    """构造照片、蓝色背景、白色姓名共用组合图形，锚点借用课程正文的模板"""
     document = Document()
     document.add_paragraph("固定说明")
     document.add_paragraph("教育背景")
@@ -105,7 +105,7 @@ def grouped_header(path):
 @pytest.mark.parametrize("photo", [True, False])
 @pytest.mark.parametrize("education", [True, False])
 def test_grouped_photo_changes_leave_background_text_and_page_anchor(tmp_path, photo, education):
-    """更换或隐藏照片、隐藏其原锚点栏目时，页首背景、姓名、坐标和其他图形仍保留"""
+    """更换或隐藏照片、隐藏其原锚点栏目时，页首背景、姓名、坐标、其他图形仍保留"""
     source, output = tmp_path / "source.docx", tmp_path / "filled.docx"
     package, plan = grouped_header(source)
     before = source.read_bytes()
@@ -195,7 +195,7 @@ def test_import_separates_paragraph_relative_drawing_without_reindexing_saved_so
     )
     assert not course.findall(".//w:drawing", NS)
     actual = package.parts["word/document.xml"].find(f".//{{{WP}}}anchor")
-    # 序列化可能改变命名空间前缀，因此只比较几何和图形内容
+    # 序列化可能改变命名空间前缀，因此只比较几何、图形内容
     old = etree.fromstring(before_geometry)
     assert actual.attrib == old.attrib
     assert actual.find(f"{{{WP}}}positionV/{{{WP}}}posOffset").text == "0"
@@ -205,7 +205,7 @@ def test_import_separates_paragraph_relative_drawing_without_reindexing_saved_so
 
 
 def test_repeated_education_preserves_three_column_layout_and_fonts(tmp_path):
-    """多条教育记录沿用原三栏节属性、字体和横向段落"""
+    """多条教育记录沿用原三栏节属性、字体、横向段落"""
     source, output = tmp_path / "source.docx", tmp_path / "filled.docx"
     document = Document()
     for text in ("旧日期", "旧学校", "旧专业"):
@@ -276,7 +276,7 @@ def test_repeated_education_preserves_three_column_layout_and_fonts(tmp_path):
 
 
 def test_highlight_keeps_bold_title_and_regular_body_across_styled_spaces():
-    """替换整条亮点时分别继承标题和正文的字重"""
+    """替换整条亮点时分别继承标题、正文的字重"""
     document = Document()
     paragraph = document.add_paragraph()
     paragraph.add_run("旧标题： ").bold = True

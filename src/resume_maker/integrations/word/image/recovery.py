@@ -1,4 +1,4 @@
-"""按图片原始空间关系恢复文字和素材，输出可继续映射和填充的 Word 模板"""
+"""按图片原始空间关系恢复文字、素材，输出可继续映射、填充的 Word 模板"""
 
 from resume_maker.core.errors import Problem
 from resume_maker.domain.image_layout import ImagePage
@@ -20,7 +20,7 @@ polygon 为页面比例坐标的顶点列表（斜切底块需要四角），普
 
 
 def recognize_image(provider, image, output, settings, flag, emit, *, paper_size=None, budget=None):
-    """结构识别和几何检查共用两次有界重试，取消后不发布迟到结果"""
+    """结构识别、几何检查共用两次有界重试，取消后不发布迟到结果"""
     from PIL import Image
 
     from resume_maker.integrations.word.image.layout import page_size, text_layer, validate_layout

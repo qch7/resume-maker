@@ -10,14 +10,14 @@ from resume_maker.domain.templates import TemplatePlan
 
 
 class ProjectInput(Model):
-    """项目登记或来源重绑请求，限制名称和来源数量"""
+    """项目登记或来源重绑请求，限制名称、来源数量"""
 
     name: str = Field(min_length=1, max_length=200)
     roots: list[str] = Field(default_factory=list, max_length=30)
 
 
 class ProjectSourcesInput(ProjectInput):
-    """来源更新携带读取时的名称和目录基线"""
+    """来源更新携带读取时的名称、目录基线"""
 
     expected_name: str
     expected_roots: list[str] = Field(max_length=30)
@@ -31,7 +31,7 @@ class ProjectProfileInput(Model):
 
 
 class DraftInput(Model):
-    """带基础修订和草稿版本号的字段编辑请求"""
+    """带基础修订、草稿版本号的字段编辑请求"""
 
     base_revision: str
     field: str
@@ -62,7 +62,7 @@ class BranchInput(Model):
 
 
 class MessageInput(Model):
-    """绑定经历版本、讨论范围和幂等标识的会话请求"""
+    """绑定经历版本、讨论范围、幂等标识的会话请求"""
 
     text: str = Field(min_length=1, max_length=30000)
     kind: str = "chat"
@@ -92,13 +92,13 @@ class ResumeInput(Model):
 
 
 class PreviewProject(ResumeItem):
-    """预览可覆盖经历工作副本，但固定修订仍必须属于对应项目"""
+    """预览可覆盖经历工作副本，固定修订须属于对应项目"""
 
     content: Experience | None = None
 
 
 class ResumePreviewInput(Model):
-    """当前模板和未保存资料的临时预览请求"""
+    """当前模板、未保存资料的临时预览请求"""
 
     template_id: str | None = None
     document: ResumeDocument
@@ -136,7 +136,7 @@ class TemplateLibraryItemInput(Model):
 
 
 class TemplateCategoryInput(Model):
-    """新分类的展示名称，空白和重名由业务层校验"""
+    """新分类的展示名称，空白、重名由业务层校验"""
 
     name: str = Field(min_length=1, max_length=50)
 
@@ -170,13 +170,13 @@ class TemplatePreviewInput(TemplateMappingInput):
 
 
 class TemplateRepairInput(TemplatePreviewInput):
-    """基于当前方案和用户说明重新补全映射，保留原分析副本"""
+    """基于当前方案、用户说明重新补全映射，保留原分析副本"""
 
     feedback: str = Field(default="", max_length=4000)
 
 
 class RevealSourceInput(Model):
-    """通过项目快照和来源相对路径定位文件"""
+    """通过项目快照、来源相对路径定位文件"""
 
     snapshot_id: str = Field(min_length=1)
     source: str = Field(min_length=1)

@@ -1,4 +1,4 @@
-"""备份压缩和在线任务共享资料时的写入及快照保证"""
+"""备份压缩、在线任务共享资料时的写入及快照保证"""
 
 import sqlite3
 import threading
@@ -36,7 +36,7 @@ def test_zip_compression_allows_writes_and_preserves_frozen_database(
     worker = threading.Thread(target=write)
 
     class ConcurrentZip(ZipFile):
-        """进入 ZIP 时固定写入和备份的先后关系"""
+        """进入 ZIP 时固定写入、备份的先后关系"""
 
         def __enter__(self):
             """必须在压缩返回前观察到真实写事务成功"""
@@ -80,7 +80,7 @@ def test_backup_after_offline_migration_accepts_delete_journal(catalog, tmp_path
 
 
 def test_model_completes_during_backup_without_duplicate_call(catalog, project, monkeypatch):
-    """压缩中返回的模型事件和结果成功发布，不残留无人执行的运行任务"""
+    """压缩中返回的模型事件、结果成功发布，不残留无人执行的运行任务"""
     catalog.db.policy = DatabasePolicy(lock_timeout_seconds=0.1)
     entered, release = threading.Event(), threading.Event()
     calls = []
@@ -113,7 +113,7 @@ def test_model_completes_during_backup_without_duplicate_call(catalog, project, 
     assert entered.wait(2)
 
     class ConcurrentZip(ZipFile):
-        """在数据库和附件快照已经固定后放行模型"""
+        """在数据库、附件快照已经固定后放行模型"""
 
         def __enter__(self):
             """ZIP 尚未结束时，真实任务已经完成全部持久写入"""

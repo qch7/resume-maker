@@ -25,7 +25,7 @@ from tests.support.providers import privacy_provider
 
 
 def test_page_pixels_metadata_and_sensitive_rows_are_removed(tmp_path, monkeypatch):
-    """敏感行不含原始文字像素，头像只剩粗色块，坐标和安全文字仍可用于版面恢复"""
+    """敏感行不含原始文字像素，头像只剩粗色块，坐标、安全文字仍可用于版面恢复"""
     source = tmp_path / "private-name.png"
     layout, _ = page_fixture(source, monkeypatch)
     original = source.read_bytes()
@@ -55,7 +55,7 @@ def test_private_page_rebuild_restores_text_assets_and_preserves_source(tmp_path
     original, calls = source.read_bytes(), []
 
     def runner(payload, *args, safe_images):
-        """验证真实网关的图片和上下文，仅返回合成坐标和受保护文字"""
+        """验证真实网关的图片、上下文，仅返回合成坐标、受保护文字"""
         context = json.loads(payload["input"].splitlines()[-1])
         calls.append(context)
         assert len(safe_images) == 1

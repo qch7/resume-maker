@@ -1,4 +1,4 @@
-"""模板库的完整映射、分类、缩略图和持久化"""
+"""模板库的完整映射、分类、缩略图、持久化"""
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -33,7 +33,7 @@ from tests.support.templates import (
 
 
 def test_library_persists_and_category_deletion_keeps_likes(tmp_path):
-    """收藏和分类跨实例保留，删除分类不删除模板或取消收藏"""
+    """收藏、分类跨实例保留，删除分类不删除模板或取消收藏"""
     config = Config(data_dir=tmp_path / "data", token="test")
     headers = {"x-resume-token": "test"}
     with TestClient(create_app(config)) as client:
@@ -67,7 +67,7 @@ def test_library_persists_and_category_deletion_keeps_likes(tmp_path):
 
 
 def test_library_validation_and_independent_updates(catalog, tmp_path):
-    """新分类校验空白和重名并发修改分类和收藏互不覆盖"""
+    """校验新分类的空白、重名，并发修改分类、收藏时各自保留内容"""
     service = TemplateLibrary(
         Resumes(catalog, storage=catalog.db, assets=catalog.assets),
         tmp_path / "data",
@@ -94,7 +94,7 @@ def test_library_validation_and_independent_updates(catalog, tmp_path):
 
 
 def test_template_rename_persists_without_changing_references(tmp_path):
-    """已使用模板可改名，名称跨重启保留，模板文件、映射和所有简历数据不变"""
+    """已使用模板可改名，名称跨重启保留，模板文件、映射、所有简历数据不变"""
     config = Config(data_dir=tmp_path / "data", token="test")
     headers = {"x-resume-token": "test"}
     with TestClient(create_app(config)) as client:
@@ -170,7 +170,7 @@ def test_template_rename_validation_is_atomic(tmp_path):
 
 
 def test_thumbnail_cache_and_original_are_isolated(catalog, tmp_path, monkeypatch):
-    """重复及并发读取只渲染一次，原始文件和数据库模板映射不变"""
+    """重复及并发读取只渲染一次，原始文件、数据库模板映射不变"""
     data_dir = tmp_path / "data"
     source = register_template(catalog, data_dir)
     original = source.read_bytes()
@@ -306,10 +306,10 @@ def test_only_complete_templates_can_be_selected(catalog, tmp_path):
 
 
 def test_saved_recognition_history_survives_restart_and_resave(tmp_path):
-    """保存并重启后保留真实活动、轮次、耗时和用量，人工另存不会清空历史或再调用 AI"""
+    """保存并重启后保留真实活动、轮次、耗时、用量，人工另存不会清空历史或再调用 AI"""
 
     class RecordedProvider(TemplateProvider):
-        """为真实分析流程提供确定的公开活动和统计"""
+        """为真实分析流程提供确定的公开活动、统计"""
 
         def run_structured(self, **kwargs):
             """发出可识别的活动，再沿用脱敏模板的结构化建议"""

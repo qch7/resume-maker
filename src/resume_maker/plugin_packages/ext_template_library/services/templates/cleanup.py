@@ -7,7 +7,7 @@ from resume_maker.core.errors import Problem
 
 
 def managed_path(root, path):
-    """删除前核验绝对路径和目录树中的链接均位于应用数据目录内"""
+    """删除前核验绝对路径、目录树中的链接均位于应用数据目录内"""
     root, path = root.resolve(), Path(path).absolute()
     if path == root or not path.resolve().is_relative_to(root):
         raise Problem("模板清理路径超出项目数据目录，已停止删除。", 409)
@@ -27,7 +27,7 @@ def artifact_paths(template):
 
 
 def cleanup_template(root, template, others, tasks=None, previews=None, conn=None):
-    """在调用方锁和事务中清理专属文件，再使旧任务失效，失败时保留回收站记录"""
+    """在调用方锁、事务中清理专属文件，再使旧任务失效，失败时保留回收站记录"""
     shared = set().union(*(artifact_paths(item) for item in others))
     paths = {root / relative for relative in artifact_paths(template) - shared}
     if tasks:

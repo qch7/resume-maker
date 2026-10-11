@@ -39,7 +39,7 @@ export function restoreActivityPreferences(
   return result;
 }
 
-/** 检查统一隐藏规则，允许 API 路径和操作名中的星号通配符 */
+/** 检查统一隐藏规则，允许 API 路径、操作名中的星号通配符 */
 export function hiddenRuleError(value: string) {
   if (value.length > 4000) return "规则总长度不能超过 4,000 字符";
   const lines = value

@@ -31,11 +31,11 @@ BOOLEAN_VALUES = {
 
 
 class LaunchConfigurationError(ValueError):
-    """配置诊断只显示字段和来源，不包含未经确认的输入值"""
+    """配置诊断只显示字段、来源，不包含未经确认的输入值"""
 
 
 class LaunchSettings(SupervisorPolicy):
-    """宿主启动参数独立于业务设置、插件配置和每次生成的实例身份"""
+    """宿主启动参数独立于业务设置、插件配置、每次生成的实例身份"""
 
     model_config = ConfigDict(extra="forbid", frozen=True, hide_input_in_errors=True)
 
@@ -49,7 +49,7 @@ class LaunchSettings(SupervisorPolicy):
     @field_validator("port", mode="before")
     @classmethod
     def integer_port(cls, value):
-        """端口只接受整数，拒绝布尔值和隐式浮点转换"""
+        """端口只接受整数，拒绝布尔值、隐式浮点转换"""
         if isinstance(value, bool) or not isinstance(value, (int, str)):
             raise ValueError("端口须为整数")
         if isinstance(value, str) and not re.fullmatch(r"[0-9]+", value.strip()):
@@ -106,7 +106,7 @@ def environment_path(name: str):
 
 
 def file_environment(path: Path):
-    """使用 dotenv 语法读取明确文件，拒绝错误语法、重复项和非启动变量"""
+    """使用 dotenv 语法读取明确文件，拒绝错误语法、重复项、非启动变量"""
     try:
         source = path.read_text(encoding="utf-8-sig")
     except (OSError, UnicodeError) as exc:
@@ -132,7 +132,7 @@ def file_environment(path: Path):
 
 
 def validated_settings(values, sources):
-    """校验最终有效值，错误仅列字段、来源和错误类别"""
+    """校验最终有效值，错误仅列字段、来源、错误类别"""
     try:
         return LaunchSettings.model_validate(values)
     except ValidationError as exc:
@@ -165,7 +165,7 @@ class ResolvedLaunch:
 
 
 def resolve_launch(*, environment=None, env_file=None, overrides=None, cwd=None):
-    """按文件、进程环境和显式参数依次覆盖，路径按所属来源位置解析"""
+    """按文件、进程环境、显式参数依次覆盖，路径按所属来源位置解析"""
     directory = Path.cwd() if cwd is None else Path(cwd)
     directory = directory.resolve()
     path = Path(env_file).expanduser() if env_file is not None else None

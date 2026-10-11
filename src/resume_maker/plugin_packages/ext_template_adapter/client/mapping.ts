@@ -25,7 +25,7 @@ export const ENTRY_LABELS: Record<string, string> = {
   custom_fields: "自定义信息",
 };
 
-/** 生成用户当前可以映射的资料字段和栏目标题名称 */
+/** 生成用户当前可以映射的资料字段、栏目标题名称 */
 export function personalTargets(document: ResumeDocument) {
   return {
     ...PERSONAL_LABELS,
@@ -48,12 +48,12 @@ export function personalTargets(document: ResumeDocument) {
   };
 }
 
-/** 新增映射从明确的原文开始，保存前仍需校验具体字段和引文 */
+/** 新增映射从明确的原文开始，保存前仍需校验具体字段、引文 */
 export function newBinding(node: TemplateNode, target: string): TextBinding {
   return { node: node.id, quote: node.text, target, occurrence: 1 };
 }
 
-/** 位置选项展示容器名称和原文 */
+/** 位置选项展示容器名称、原文 */
 export function nodeLabel(node: TemplateNode) {
   const part = node.part.includes("header")
     ? "页眉"

@@ -1,4 +1,4 @@
-"""经历草稿、版本发布、恢复和并发冲突"""
+"""经历草稿、版本发布、恢复、并发冲突"""
 
 from copy import deepcopy
 
@@ -41,7 +41,7 @@ def test_commit_publishes_all_drafts_and_preserves_pinned_resume(catalog, projec
 
 
 def test_incomplete_draft_survives_but_cannot_publish(catalog, project, populated):
-    """验证不完整内容可存草稿，但不能发布为正式经历"""
+    """验证不完整内容仅可保存为草稿"""
     p, base = project["id"], populated["id"]
     one = populated["content"]["highlights"][0]
     catalog.put_draft(p, base, "highlight:one", {**one, "text": ""}, 0)
@@ -204,7 +204,7 @@ def test_unchanged_save_rejects_concurrent_draft_edit(catalog, project, populate
 def test_edits_and_repeated_ordering_survive_restart_as_one_pending_change(
     catalog, project, populated
 ):
-    """多次排序、文字修改和删除重启后仍为草稿，确认后只生成一个版本"""
+    """多次排序、文字修改、删除重启后仍为草稿，确认后只生成一个版本"""
     p, base = project["id"], populated["id"]
     one, two = populated["content"]["highlights"]
     resume = Resumes(catalog, storage=catalog.db, assets=catalog.assets).save_resume(
@@ -268,7 +268,7 @@ def test_pending_changes_are_visible_across_branches_and_noop_orders_are_hidden(
 
 
 def test_failed_commit_keeps_working_tree_and_version_count(catalog, project, populated):
-    """内容校验失败时草稿和历史均保留，修正后可以合并提交"""
+    """内容校验失败时草稿、历史均保留，修正后可以合并提交"""
     p, base = project["id"], populated["id"]
     catalog.put_draft(p, base, "highlight:new", {"title": "", "text": "", "evidence": []}, 0)
     before = Projects(catalog).get_project(p)
@@ -282,7 +282,7 @@ def test_failed_commit_keeps_working_tree_and_version_count(catalog, project, po
 
 @pytest.mark.parametrize("field", ["meta", "order", "highlight:one"])
 def test_reverted_draft_not_in_history_or_new_versions(catalog, project, populated, field):
-    """已自动保存过的文字或排序改回原值，保留并发记录但历史树和版本均无差异"""
+    """文字或排序自动保存后改回原值，保留并发记录，历史树、版本均无差异"""
     identifier, revision = project["id"], populated["id"]
     base = populated["content"]
     original = field_value(base, field)

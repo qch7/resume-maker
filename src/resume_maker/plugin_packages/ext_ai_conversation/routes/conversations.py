@@ -1,4 +1,4 @@
-"""独立会话维护和消息提交的 HTTP 入口"""
+"""独立会话维护、消息提交的 HTTP 入口"""
 
 from typing import Annotated
 
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api", tags=["conversations"])
 def create_conversation(
     dep_conversations: Annotated[Conversations, Depends(service("conversations"))], project_id: str
 ):
-    """为指定项目创建具有独立历史和输入草稿的会话"""
+    """为指定项目创建具有独立历史、输入草稿的会话"""
     return dep_conversations.create_conversation(project_id, "新会话")
 
 
@@ -32,7 +32,7 @@ def get_conversation(
     dep_conversations: Annotated[Conversations, Depends(service("conversations"))],
     conversation_id: str,
 ):
-    """聚合单个会话的消息、建议和任务，保持不同会话上下文隔离"""
+    """聚合单个会话的消息、建议、任务，保持不同会话上下文隔离"""
     return dep_conversations.get_conversation(conversation_id)
 
 

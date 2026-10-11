@@ -1,4 +1,4 @@
-"""验证本地文档分流、资源限制、OCR 识别和进入模型前的脱敏"""
+"""验证本地文档分流、资源限制、OCR 识别、进入模型前的脱敏"""
 
 import json
 import threading
@@ -52,7 +52,7 @@ def test_retry_recovers_small_text_and_composites_alpha(monkeypatch):
 
 
 def test_document_limits_and_cancel(tmp_path):
-    """页数限制和已取消请求在识别之前停止"""
+    """页数限制、已取消请求在识别之前停止"""
     path = tmp_path / "long.pdf"
     with pymupdf.open() as pdf:
         for _ in range(local_ocr.MAX_PAGES + 1):
@@ -86,7 +86,7 @@ def test_hidden_pdf_text_not_trusted(monkeypatch):
 
 
 def test_actual_ocr_private_fields_never_reach_runner(tmp_path):
-    """真实 CPU OCR 提取图片和扫描 PDF，姓名电话在 CLI 材料中只保留占位符"""
+    """真实 CPU OCR 提取图片、扫描 PDF，姓名电话在 CLI 材料中只保留占位符"""
     font_file = next(
         (
             p

@@ -106,7 +106,7 @@
   }
 }
 
-/* 独立模板区占满工作台，离开时只隐藏以保留选区和人工调整 */
+/* 独立模板区占满工作台，离开时只隐藏以保留选区、人工调整 */
 .template-area .workbench {
   display: none;
 }
@@ -159,7 +159,7 @@
   min-width: min(100%, 760px);
   max-width: 100%;
 }
-/* 模板入口和识别状态常驻一行，展开后才占用导入及切换区域 */
+/* 模板入口、识别状态常驻一行，展开后才占用导入及切换区域 */
 .template-source-summary {
   display: flex;
   align-items: center;
@@ -898,7 +898,7 @@
   --tone: #758194;
   --tone-bg: #f3f5f8;
 }
-/* 默认结果页按资料和栏目组织，精细结构仍在独立视图中可调整 */
+/* 默认结果页按资料、栏目组织，精细结构仍在独立视图中可调整 */
 .template-result-scroll {
   overflow-y: auto;
   min-height: 0;
@@ -1088,7 +1088,7 @@
   }
 }
 
-/* 实际活动和耗时独立于模板清单，长消息和窄屏均可自然换行 */
+/* 实际活动、耗时独立于模板清单，长消息、窄屏均可自然换行 */
 .template-live-progress {
   flex-shrink: 0;
   border-bottom: 1px solid var(--line);

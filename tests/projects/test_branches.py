@@ -17,7 +17,7 @@ from tests.support.jobs import FakeProvider, wait_job
 
 
 def test_fork_drafts_save_restore_and_pinned_resume(catalog, project, populated):
-    """同一节点分叉时草稿独立，保存和恢复只移动目标分支，简历引用不变"""
+    """同一节点分叉时草稿独立，保存、恢复只移动目标分支，简历引用不变"""
     p, base = project["id"], populated["id"]
     one, two = populated["content"]["highlights"]
     catalog.put_draft(p, base, "highlight:one", {**one, "text": "Copied draft"}, 0)
@@ -64,7 +64,7 @@ def test_fork_drafts_save_restore_and_pinned_resume(catalog, project, populated)
 
 
 def test_branch_api_validation_and_graph(tmp_path):
-    """接口返回可绘制的父关系和分支指针，拒绝重名和跨项目创建"""
+    """接口返回可绘制的父关系、分支指针，拒绝重名、跨项目创建"""
     app = create_app(Config(data_dir=tmp_path / "data", token="test"))
     roots = [tmp_path / "one", tmp_path / "two"]
     for root in roots:

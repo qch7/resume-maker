@@ -1,4 +1,4 @@
-"""固定版本简历组合和导出下载的 HTTP 入口"""
+"""固定版本简历组合、导出下载的 HTTP 入口"""
 
 import threading
 from typing import Annotated
@@ -110,7 +110,7 @@ def export(
     engine_id: str | None = None,
     renderer_id: str | None = None,
 ):
-    """读取固定版本组合，生成完整简历 Word、预览和追溯清单"""
+    """读取固定版本组合，生成完整简历 Word、预览、追溯清单"""
     return dep_documents.export(
         resume_id, expected_version=version, engine_id=engine_id, renderer_id=renderer_id
     )
@@ -126,7 +126,7 @@ def document_engines(dep_documents: Annotated[Documents, Depends(service("docume
 def document_importers(
     dep_documents: Annotated[Documents, Depends(service("documents"))], purpose: str = "template"
 ):
-    """公开已启用的格式和处理器，上传时仍须探测实际内容"""
+    """公开已启用的格式、处理器，上传时仍须探测实际内容"""
     return dep_documents.importers(purpose)
 
 

@@ -3,7 +3,7 @@ import { api } from "@resume-maker/plugin-sdk/shared/lib/api";
 import type { Conversation } from "@resume-maker/plugin-sdk/shared/types";
 import type { SettingsPanelProps } from "@resume-maker/plugin-sdk/plugins/contracts";
 
-/** 已归档会话由会话插件查询和恢复，系统设置不持有其状态 */
+/** 已归档会话由会话插件查询、恢复，系统设置不持有其状态 */
 export default function ConversationSettings(props: SettingsPanelProps) {
   const [archived, setArchived] = useState<Conversation[]>([]);
   const [notice, setNotice] = useState("");

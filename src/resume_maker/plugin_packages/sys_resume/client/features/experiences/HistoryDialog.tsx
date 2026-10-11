@@ -62,7 +62,7 @@ export default function HistoryDialog({
       const controller = new AbortController();
       void flushDrafts()
         .then(
-          /* 草稿落盘后读取最新树以免漏掉刚输入但未防抖保存的内容 */ () =>
+          /* 等待防抖输入落盘后读取历史树，避免遗漏最新草稿 */ () =>
             api<ProjectDetail>(
               `/projects/${props.detail.project.id}?revision_id=${revisionId}`,
               "GET",
@@ -405,7 +405,7 @@ export default function HistoryDialog({
               <p>{current.content.stack.join(" · ")}</p>
               <p>{current.content.description || "尚未填写项目描述"}</p>
               {(current.content.custom_fields ?? []).map(
-                /* 历史详情展示保存的自定义原文，隐藏项仍可核对和恢复 */ (
+                /* 历史详情展示保存的自定义原文，隐藏项仍可核对、恢复 */ (
                   field,
                 ) => (
                   <p key={field.id}>

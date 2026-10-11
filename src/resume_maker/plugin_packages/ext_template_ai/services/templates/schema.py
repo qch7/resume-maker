@@ -8,7 +8,7 @@ from resume_maker.domain.templates import RepeatBinding, TemplatePlan, TextBindi
 
 
 def plan_schema(package, document):
-    """限制可选节点和栏目并将引文及结构检查交给映射校验器"""
+    """限制可选节点、栏目并将引文及结构检查交给映射校验器"""
     nodes = package.inventory()["nodes"]
     paragraphs = tuple(node["id"] for node in nodes if node["kind"] == "p")
     blocks = tuple(node["id"] for node in nodes if node["kind"] in {"p", "tbl", "tr"})

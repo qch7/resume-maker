@@ -61,7 +61,7 @@ export default function TemplateTrial({
                 disabled={stale}
                 title={stale ? "更新试填预览后即可下载" : undefined}
                 onClick={
-                  /* PDF 和当前 Word 使用同一次排版结果 */ () =>
+                  /* PDF、当前 Word 使用同一次排版结果 */ () =>
                     run(
                       /* 下载 Word 实际生成的 PDF */ () =>
                         download(

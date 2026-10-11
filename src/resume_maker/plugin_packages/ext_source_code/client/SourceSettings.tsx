@@ -12,7 +12,7 @@ export default function SourceSettings(props: SettingsPanelProps) {
   >([]);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
-  /** 将扫描和导入串行提交到工作台统一错误处理 */
+  /** 将扫描、导入串行提交到工作台统一错误处理 */
   function run(work: () => Promise<void>) {
     props.run(async () => {
       setBusy(true);

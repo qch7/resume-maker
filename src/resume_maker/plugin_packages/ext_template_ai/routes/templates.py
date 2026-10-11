@@ -1,4 +1,4 @@
-"""本机 Word 模板检查和登记的 HTTP 入口"""
+"""本机 Word 模板检查、登记的 HTTP 入口"""
 
 from pathlib import Path
 from typing import Annotated

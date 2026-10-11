@@ -1,11 +1,11 @@
-/** 逻辑测试解析与构建相同的公开 SDK 子入口，不安装源码别名包 */
+/** 逻辑测试沿用构建时的公开 SDK 子入口，省去源码别名包 */
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const exportsRoot = new URL("../src/plugins/shared/exports/", import.meta.url);
 
-/** 在公开出口和相对源码之间补全 TypeScript 后缀，其他依赖使用 Node 默认解析 */
+/** 在公开出口、相对源码之间补全 TypeScript 后缀，其他依赖使用 Node 默认解析 */
 export function resolve(specifier, context, nextResolve) {
   let location;
   if (specifier === "@resume-maker/plugin-sdk")

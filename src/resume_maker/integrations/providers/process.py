@@ -83,7 +83,7 @@ def close_windows_job(job, timeout=2):
 
 
 def process_title(arguments):
-    """从固定子命令区分版本检查和模型调用，标题不包含路径或提示词"""
+    """从固定子命令区分版本检查、模型调用，标题不包含路径或提示词"""
     command = arguments.get("command", ())
     action = command[1] if len(command) > 1 else ""
     return {"--version": "CLI 版本检查", "exec": "CLI 模型调用"}.get(action, "CLI 进程")
@@ -97,7 +97,7 @@ def diagnostic(message, env):
 
 @operation("cli.process", "system", title=process_title)
 def execute(command, *, cwd, env, timeout, cancelled, stdin="", event=None):
-    """通过有界队列接收输出，超时和取消及时关闭整个请求"""
+    """通过有界队列接收输出，超时、取消及时关闭整个请求"""
     if cancelled.is_set():
         raise Cancelled("请求已取消。")
     label = process_title({"command": command})

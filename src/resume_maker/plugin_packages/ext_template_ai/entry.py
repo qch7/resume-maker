@@ -1,10 +1,10 @@
-"""AI 模板分析的注册和生命周期入口"""
+"""AI 模板分析的注册、生命周期入口"""
 
 from resume_maker.plugins.support import dependency, routes, task_queue
 
 
 def activate(context):
-    """为模板分析附接统一模型出口和分析实现"""
+    """为模板分析附接统一模型出口、分析实现"""
     from resume_maker.plugin_packages.ext_template_ai.services.templates.analysis_driver import (
         TemplateAnalysis,
     )

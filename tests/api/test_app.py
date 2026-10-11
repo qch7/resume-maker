@@ -1,4 +1,4 @@
-"""HTTP 契约、访问校验、应用生命周期和业务往返"""
+"""HTTP 契约、访问校验、应用生命周期、业务往返"""
 
 import json
 
@@ -10,7 +10,7 @@ from resume_maker.core.config import Config, frontend_directory
 
 
 def test_sidebar_activity_tracks_drafts_and_conversation_edits(tmp_path, monkeypatch):
-    """验证项目活动时间聚合草稿和会话修改，重复值不会刷新时间"""
+    """验证项目活动时间聚合草稿、会话修改，重复值不会刷新时间"""
     stamp = "2026-01-01T00:00:00Z"
     monkeypatch.setattr(
         "resume_maker.plugin_packages.sys_experience.services.catalog.now", lambda: stamp
@@ -77,7 +77,7 @@ def test_sidebar_activity_tracks_drafts_and_conversation_edits(tmp_path, monkeyp
 
 
 def test_local_api_requires_token_and_rejects_other_origins(tmp_path):
-    """验证本机接口要求实例令牌并拒绝外部 Origin 和 Host"""
+    """验证本机接口要求实例令牌并拒绝外部 Origin、Host"""
     app = create_app(Config(data_dir=tmp_path, token="test-token"))
     with TestClient(app) as client:
         assert client.get("/api/health").status_code == 200
@@ -166,7 +166,7 @@ def test_commit_and_restore_publish_complete_working_copy(tmp_path):
 
 
 def without_descriptions(value):
-    """去除可改进的文档描述且只比较请求参数、模型和响应格式等通信契约"""
+    """去除可改进的文档描述且只比较请求参数、模型、响应格式等通信契约"""
     if isinstance(value, dict):
         return {k: without_descriptions(v) for k, v in value.items() if k != "description"}
     if isinstance(value, list):
@@ -175,7 +175,7 @@ def without_descriptions(value):
 
 
 def test_http_contract_matches_current_application(tmp_path, fixtures_dir):
-    """校验当前路径、参数和请求体，服务注入不能泄漏为查询参数"""
+    """校验当前路径、参数、请求体，服务注入不能泄漏为查询参数"""
     spec = create_app(Config(data_dir=tmp_path)).openapi()
     actual = {
         "paths": {
@@ -227,7 +227,7 @@ def test_lifespan_stops_worker_even_on_exception(tmp_path):
 
 
 def test_static_assets_and_current_token_are_served(tmp_path):
-    """页面和资源从配置位置读取且只有首页的占位符替换为当前实例令牌"""
+    """页面、资源从配置位置读取且只有首页的占位符替换为当前实例令牌"""
     frontend = tmp_path / "web"
     (frontend / "assets").mkdir(parents=True)
     (frontend / "index.html").write_text('<meta content="__RESUME_TOKEN__">', encoding="utf-8")

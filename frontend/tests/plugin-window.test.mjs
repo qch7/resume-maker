@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { buildSync } from "esbuild";
 
-/** 编译实际窗口协调模块，只有浏览器网络和页面元素由测试提供 */
+/** 编译实际窗口协调模块，只有浏览器网络、页面元素由测试提供 */
 async function windowModule() {
   const output = buildSync({
     stdin: {

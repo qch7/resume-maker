@@ -1,4 +1,4 @@
-"""在受信任后端按需生成脱敏源码，映射和原始路径不交给 CLI"""
+"""在受信任后端按需生成脱敏源码，映射、原始路径不交给 CLI"""
 
 import json
 import os
@@ -27,7 +27,7 @@ class SourceBudgetExceeded(ProviderError):
 
 
 class SourceAccess:
-    """本轮来源和脱敏表共用生命周期，分页只限制单次工作量和返回量"""
+    """本轮来源、脱敏表共用生命周期，分页只限制单次工作量、返回量"""
 
     def __init__(
         self,
@@ -68,12 +68,12 @@ class SourceAccess:
         self.directory.cleanup()
 
     def check(self):
-        """取消和连接关闭后停止继续读取原件"""
+        """取消、连接关闭后停止继续读取原件"""
         if self.cancelled.is_set() or self.stopped.is_set():
             raise Cancelled("源码读取已取消。")
 
     def resolve(self, source, path):
-        """每次使用前复核来源、目录、凭据、链接和硬链接边界"""
+        """每次使用前复核来源、目录、凭据、链接、硬链接边界"""
         if not isinstance(source, str) or not isinstance(path, str):
             raise ValueError("来源和相对路径必须是文字")
         source, path = self.redactor.restore(source), self.redactor.restore(path)
@@ -108,7 +108,7 @@ class SourceAccess:
         return {"source": source, "path": safe_path}
 
     def entries(self, source, pattern):
-        """交替遍历所选来源，任意数量的目录和文件均可通过游标继续访问"""
+        """交替遍历所选来源，任意数量的目录、文件均可通过游标继续访问"""
         selected = [row for row in self.sources if not source or row["id"] == source]
         if not selected:
             raise ValueError("来源不属于本轮授权范围")
@@ -139,7 +139,7 @@ class SourceAccess:
             yield row["id"], path
 
     def prepared(self, source, path):
-        """预先核验全文内存预算，安全副本按字节和数量淘汰"""
+        """预先核验全文内存预算，安全副本按字节、数量淘汰"""
         self.check()
         source, path, file = self.resolve(source, path)
         before = file.stat()
@@ -203,7 +203,7 @@ class SourceAccess:
             yield self.metadata(*entry) if entry else None
 
     def searching(self, source, pattern, query):
-        """遍历全部候选文件的脱敏正文，结果和未命中进度均可分页继续"""
+        """遍历全部候选文件的脱敏正文，结果、未命中进度均可分页继续"""
         for entry in self.entries(source, pattern):
             if not entry:
                 yield None
@@ -309,7 +309,7 @@ class SourceAccess:
         return {"results": rows, "next_cursor": next_cursor, "complete": complete}
 
     def read(self, args):
-        """按原始行号读取脱敏文件，长行和输出上限均提供继续坐标"""
+        """按原始行号读取脱敏文件，长行、输出上限均提供继续坐标"""
         if set(args) - {"source", "path", "start_line", "start_column", "line_count"}:
             raise ValueError("读取参数不受支持")
         start, column, count = (

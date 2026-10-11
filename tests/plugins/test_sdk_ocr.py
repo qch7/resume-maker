@@ -59,7 +59,7 @@ def test_invalid_provider_results_are_rejected(mutate):
 
 
 def test_public_limits_match_consumers_and_empty_pages_remain_valid():
-    """空页可以保留原分页，但整份空文档明确报告无法识别"""
+    """空页保留原分页，整份空文档报告无法识别"""
     for name in ("OCR_MAX_PAGES", "OCR_MAX_BLOCKS", "OCR_MAX_FILE_BYTES", "OCR_MAX_TEXT_CHARS"):
         assert getattr(document_limits, name) == getattr(ocr, name)
     assert privacy_policy.OCR_REVIEW_CONFIDENCE == OCR_REVIEW_CONFIDENCE
@@ -109,7 +109,7 @@ def test_existing_gateway_consumes_both_ocr_provider_interfaces(as_function):
         """提供相同结果供两种公开调用方式验收"""
 
         def read_document(self, path, signal):
-            """保留实际材料路径和取消信号，不依赖具体 OCR 引擎"""
+            """保留实际材料路径、取消信号，不依赖具体 OCR 引擎"""
             calls.append((path, signal))
             return result
 

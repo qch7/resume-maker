@@ -1,4 +1,4 @@
-"""保存可复用的栏目结构和表单字段配置"""
+"""保存可复用的栏目结构、表单字段配置"""
 
 from typing import Literal
 
@@ -39,7 +39,7 @@ class DefaultSection(Model):
 
     @model_validator(mode="after")
     def validate_definition(self):
-        """校验栏目标题和对应表单所支持的内置字段"""
+        """校验栏目标题、对应表单所支持的内置字段"""
         if not self.title.strip():
             raise ValueError("栏目名称不能为空。")
         allowed = PROJECT if self.kind == "projects" else ENTRY | HONOR

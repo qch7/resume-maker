@@ -15,7 +15,7 @@ from resume_maker.core.errors import Problem
 
 
 def mount_frontend(app: FastAPI, config: Config) -> None:
-    """挂载构建资源和首页，缺少构建时提供明确的操作提示"""
+    """挂载构建资源、首页，缺少构建时提供明确的操作提示"""
     if config.frontend.exists():
         assets = config.frontend / "assets"
         if assets.exists():
@@ -26,7 +26,7 @@ def mount_frontend(app: FastAPI, config: Config) -> None:
 
     @app.get("/plugin-assets/{plugin_id}/{digest}/{resource:path}", include_in_schema=False)
     def plugin_asset(plugin_id: str, digest: str, resource: str):
-        """只提供已选插件清单登记的公开客户端产物，不暴露资料和 Python 源码"""
+        """只提供已选插件清单登记的公开客户端产物，不暴露资料、Python 源码"""
         host = app.state.runtime
         location = host.bootstrap["packages"].get(plugin_id)
         enabled = any(host.definition_id(key) == plugin_id for key in host.selected)
@@ -57,7 +57,7 @@ def mount_frontend(app: FastAPI, config: Config) -> None:
 
     @app.get("/bundled-plugin-assets/{plugin_id}/{digest}/{resource:path}", include_in_schema=False)
     def bundled_asset(plugin_id: str, digest: str, resource: str):
-        """发行包仅公开活动插件索引内的客户端产物，源码和私有文件不可下载"""
+        """发行包仅公开活动插件索引内的客户端产物，源码、私有文件不可下载"""
         from resume_maker.plugins.client_assets import client_digest, client_directory
         from resume_maker.runtime.packages import safe_member
 

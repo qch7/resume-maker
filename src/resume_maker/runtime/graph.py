@@ -1,4 +1,4 @@
-"""纯清单依赖求解和发行完整性验证"""
+"""纯清单依赖求解、发行完整性验证"""
 
 from dataclasses import dataclass
 
@@ -7,12 +7,12 @@ from resume_maker.sdk.version import CLIENT_API_VERSION, HOST_API_VERSION
 
 
 class PluginError(RuntimeError):
-    """包含插件和阶段的可操作错误"""
+    """包含插件、阶段的可操作错误"""
 
 
 @dataclass(frozen=True)
 class Resolution:
-    """激活顺序、依赖边和已选择的能力所有者"""
+    """激活顺序、依赖边、已选择的能力所有者"""
 
     order: tuple[str, ...]
     edges: dict[str, frozenset[str]]
@@ -87,7 +87,7 @@ def deactivation_groups(resolution):
     rank = {key: index for index, key in enumerate(resolution.order)}
 
     def visit(key):
-        """收拢强连通分组，组内保持逆注册顺序但共享停止屏障"""
+        """收拢强连通分组，组内保持逆注册顺序，共用停止屏障"""
         indices[key] = lows[key] = len(indices)
         stack.append(key)
         active.add(key)
@@ -114,7 +114,7 @@ def deactivation_groups(resolution):
 
 
 def resolve(manifests: dict[str, Manifest], selected: set[str], required: set[str]) -> Resolution:
-    """独立验证 Host、Client 和远端依赖的版本、基数及生命周期作用域"""
+    """独立验证 Host、Client、远端依赖的版本、基数及生命周期作用域"""
     if missing := required - selected:
         raise PluginError(f"必需插件不能缺席或停用：{', '.join(sorted(missing))}")
     if missing := selected - manifests.keys():

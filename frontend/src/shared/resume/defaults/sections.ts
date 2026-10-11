@@ -114,7 +114,7 @@ export function repairDefaultDuplicates(
         !replacements.has(section.id),
     )
     .map(
-      /* 重挂空栏目下的子栏目，保持条目标识和当前排列 */ (section) => {
+      /* 重挂空栏目下的子栏目，保持条目标识、当前排列 */ (section) => {
         const parent = restoredParents.get(section.id) ?? section.parent_id;
         const parent_id = parent
           ? (replacements.get(parent)?.id ?? parent)

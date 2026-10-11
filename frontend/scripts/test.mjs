@@ -1,4 +1,4 @@
-/** 收集宿主和各插件自己的测试，删除插件目录后不留下测试入口引用 */
+/** 收集宿主、各插件自己的测试，删除插件目录后不留下测试入口引用 */
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";

@@ -27,7 +27,7 @@ import {
   type HonorSort,
 } from "@resume-maker/plugin-sdk/shared/lib/honorSort";
 
-/** 提供大栏目和子栏目的层级选择、显隐、增删和同级排序 */
+/** 提供大栏目、子栏目的层级选择、显隐、增删、同级排序 */
 export default function SectionOrganizer({
   value,
   onChange,
@@ -146,7 +146,7 @@ export default function SectionOrganizer({
         }
       >
         {group.map(
-          /* 大栏目携带子栏目一起呈现和移动 */ (section, index) => (
+          /* 大栏目携带子栏目一起呈现、移动 */ (section, index) => (
             <SortableItem
               id={section.id}
               key={section.id}
@@ -314,7 +314,7 @@ export default function SectionOrganizer({
                               ).length < 2
                             }
                             onChange={
-                              /* 将排序写入当前简历草稿，预览和导出读取同一顺序 */ (
+                              /* 将排序写入当前简历草稿，预览、导出读取同一顺序 */ (
                                 sort,
                               ) => {
                                 setHonorSorts(

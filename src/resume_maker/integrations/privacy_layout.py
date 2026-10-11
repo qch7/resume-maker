@@ -15,7 +15,7 @@ SECTION_HEADING = re.compile(
 
 
 def header_values(blocks):
-    """页首身份区整体保护，避免未登记姓名和 OCR 误认的联系方式漏过格式规则"""
+    """页首身份区整体保护，避免未登记姓名、OCR 误认的联系方式漏过格式规则"""
     boundary = min(
         (row["box"][1] for row in blocks if SECTION_HEADING.fullmatch(row["text"].strip())),
         default=0.25,

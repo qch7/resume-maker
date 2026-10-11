@@ -48,12 +48,10 @@ export function historyGraph(
     },
   );
   const nodes = ordered.map(
-    /* 同一分支使用固定泳道和颜色 */ (revision, index) => {
+    /* 同一分支使用固定泳道、颜色 */ (revision, index) => {
       const lane = Math.max(
         0,
-        branches.findIndex(
-          /* 找到修订所属分支 */ (branch) => branch.id === revision.branch_id,
-        ),
+        branches.findIndex((branch) => branch.id === revision.branch_id),
       );
       return {
         revision,

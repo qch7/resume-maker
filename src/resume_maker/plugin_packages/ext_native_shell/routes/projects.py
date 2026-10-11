@@ -1,4 +1,4 @@
-"""项目来源、版本和草稿操作的 HTTP 入口"""
+"""项目来源、版本、草稿操作的 HTTP 入口"""
 
 from typing import Annotated
 

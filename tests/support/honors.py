@@ -1,4 +1,4 @@
-"""合成证书和荣誉任务等待"""
+"""合成证书、荣誉任务等待"""
 
 import time
 from io import BytesIO
@@ -9,7 +9,7 @@ from PIL import Image
 
 
 def certificate_bytes(kind="png", pages=1):
-    """生成和用户资料无关的真实图片或多页 PDF，用于解码和预览验证"""
+    """生成独立于用户资料的真实图片或多页 PDF，用于解码、预览验证"""
     if kind == "pdf":
         with pymupdf.open() as document:
             for index in range(pages):

@@ -1,7 +1,7 @@
 import type { Resume } from "@resume-maker/plugin-sdk/shared/types/index";
 import { newDocument } from "@resume-maker/plugin-sdk/shared/resume/document";
 
-/** 保存基本信息时保留服务器上的其他栏目和固定引用 */
+/** 保存基本信息时保留服务器上的其他栏目、固定引用 */
 export function personalComposition(draft: Resume, saved?: Resume): Resume {
   if (draft.id && !saved)
     throw new Error("当前方案已不存在，请刷新后重新选择。");

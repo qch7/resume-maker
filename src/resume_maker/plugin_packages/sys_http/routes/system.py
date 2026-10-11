@@ -1,4 +1,4 @@
-"""健康状态、工作台聚合、关闭和备份的 HTTP 入口"""
+"""健康状态、工作台聚合、关闭、备份的 HTTP 入口"""
 
 from typing import Annotated
 
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/api", tags=["system"])
 def health(
     dep_config: Annotated[Config, Depends(service("config"))],
 ):
-    """返回本机服务状态和实例标识，供启动、停止脚本核验身份"""
+    """返回本机服务状态、实例标识，供启动、停止脚本核验身份"""
     return {"status": "ok", "version": __version__, "instance_id": dep_config.instance_id}
 
 

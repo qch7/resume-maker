@@ -1,4 +1,4 @@
-"""SQLite 后端的注册和生命周期入口"""
+"""SQLite 后端的注册、生命周期入口"""
 
 from resume_maker.plugins.support import publish
 

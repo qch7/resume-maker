@@ -1,4 +1,4 @@
-"""隔离 Word 渲染和预览图片生成并只回收本次启动的 Word 实例"""
+"""隔离 Word 渲染、预览图片生成并只回收本次启动的 Word 实例"""
 
 import json
 import os
@@ -23,7 +23,7 @@ RENDER_LOCK = threading.Lock()
 
 @contextmanager
 def render_lock():
-    """等候 Word 时仍检查当前预览的取消和总截止"""
+    """等候 Word 时仍检查当前预览的取消、总截止"""
     while not RENDER_LOCK.acquire(timeout=0.05):
         check_document_work()
     try:
@@ -143,7 +143,7 @@ def word_process(
 def render_word(
     docx: Path, pdf: Path, *, executor=None, settings=None
 ) -> tuple[int | None, str | None]:
-    """串行生成 PDF 和分页图片，失败仍保留已生成的 DOCX"""
+    """串行生成 PDF、分页图片，失败仍保留已生成的 DOCX"""
     options = {"settings": settings} if settings is not None else {}
     if executor is not None:
         options["executor"] = executor

@@ -1,4 +1,4 @@
-"""持久记录的公开编码和标识规则，不依赖具体数据库"""
+"""持久记录的公开编码、标识规则，不依赖具体数据库"""
 
 import json
 from datetime import UTC, datetime
@@ -7,7 +7,7 @@ from uuid import uuid4
 
 
 def now() -> str:
-    """返回毫秒精度的 UTC 时间，供持久化记录和排序统一使用"""
+    """返回毫秒精度的 UTC 时间，供持久化记录、排序统一使用"""
     return datetime.now(UTC).isoformat(timespec="milliseconds")
 
 

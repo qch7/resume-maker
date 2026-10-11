@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def main() -> None:
     """依次执行各项检查并在首次失败时退出"""
-    # 路径和检查报告可能包含中文，固定编码以支持英文 Windows 终端
+    # 路径、检查报告可能包含中文，固定编码以支持英文 Windows 终端
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
     npm = shutil.which("npm")

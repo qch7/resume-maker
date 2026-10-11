@@ -1,4 +1,4 @@
-"""本机插件包检查、不可变安装和保留资料的卸载"""
+"""本机插件包检查、不可变安装、保留资料的卸载"""
 
 import hashlib
 import importlib.metadata
@@ -21,7 +21,7 @@ from resume_maker.sdk.manifest import Manifest
 
 
 def safe_member(name: str) -> PurePosixPath:
-    """只接受规范相对包路径，拒绝平台设备名和链接逃逸"""
+    """只接受规范相对包路径，拒绝平台设备名、链接逃逸"""
     path = PurePosixPath(name)
     devices = {
         "con",
@@ -81,7 +81,7 @@ class PackageStore:
     """安装只处理数据文件，激活或维护前才允许执行已授权代码"""
 
     def __init__(self, directory: Path, reserved: set[str], *, records=None):
-        """安装区独立于可备份资料和运行解释器"""
+        """安装区独立于可备份资料、运行解释器"""
         self.root = directory / "plugin-packages"
         self.index = directory / "plugin-packages.json"
         self.reserved = reserved
@@ -186,7 +186,7 @@ class PackageStore:
             }
 
     def install(self, path: Path, expected_digest: str, trusted_modes: set[str], *, commit=True):
-        """仅安装已审查的相同产物，代码和依赖不会注入活动解释器"""
+        """仅安装已审查的相同产物，代码、依赖不会注入活动解释器"""
         inspection = self.inspect(path)
         if inspection["digest"] != expected_digest:
             raise PluginError("插件包在审查后发生变化，请重新生成安装计划")
@@ -261,7 +261,7 @@ class PackageStore:
         return manifests, locations
 
     def _discover_one(self, identifier, record):
-        """核验单个已安装包的完整摘要、身份和信任"""
+        """核验单个已安装包的完整摘要、身份、信任"""
         if identifier in self.reserved or identifier.startswith(("sys.", "provider.")):
             raise PluginError("安装目录试图覆盖受保护插件")
         safe_member(identifier)
@@ -292,7 +292,7 @@ class PackageStore:
         return manifest, directory
 
     def uninstall(self, identifier: str, active: set[str]):
-        """先移除未激活包的安装引用，资料和已加载代码等待独立回收"""
+        """先移除未激活包的安装引用，资料、已加载代码等待独立回收"""
         if identifier in active:
             raise PluginError("请先通过变更计划停用插件及其依赖")
         records = self.records()

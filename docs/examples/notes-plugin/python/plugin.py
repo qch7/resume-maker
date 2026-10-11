@@ -4,7 +4,7 @@ from resume_maker.sdk.context import Context
 
 
 def activate(context: Context) -> None:
-    """注册笔记操作和查询，持久资料在停用后保留"""
+    """注册笔记操作、查询，持久资料在停用后保留"""
     data = context.data
     running = [False]
 

@@ -1,4 +1,4 @@
-"""在模板副本中整理动态域、修订、绑定、绘图和批注，保留当前文字供识别"""
+"""在模板副本中整理动态域、修订、绑定、绘图、批注，保留当前文字供识别"""
 
 from lxml import etree
 
@@ -12,7 +12,7 @@ MC = "http://schemas.openxmlformats.org/markup-compatibility/2006"
 
 
 def normalize_document_kind(files):
-    """将 DOCM/DOTX 等包规范为不含宏的 DOCX 副本以免后续扩展名和内容类型不匹配"""
+    """将 DOCM、DOTX 等包转换为无宏 DOCX 副本，保持扩展名、内容类型一致"""
     changed = False
     for name in list(files):
         if name.startswith(("word/vba", "word/_rels/vba")):
@@ -98,7 +98,7 @@ def prepare_parts(files: dict[str, bytes]) -> list[str]:
                 parent.remove(alternate)
                 dirty = True
         dirty |= separate_anchors(root)
-        # 接受当前修订：保留插入和移入，移除已删除内容及旧属性快照
+        # 接受当前修订：保留插入、移入，移除已删除内容及旧属性快照
         for node in list(root.iter()):
             if node.getparent() is None:
                 continue

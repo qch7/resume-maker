@@ -16,7 +16,7 @@ export interface LibraryTemplate extends Template {
   usage_count: number;
 }
 
-/** 为内置和导入模板补上持久化组织信息，新模板默认未分类且未收藏 */
+/** 为内置、导入模板补上持久化组织信息，新模板默认未分类且未收藏 */
 export function libraryTemplates(
   templates: Template[],
   state: LibraryState,
@@ -48,7 +48,7 @@ export function libraryTemplates(
   );
 }
 
-/** 在当前分类内按名称搜索和排序，两种视图共用同一批结果 */
+/** 在当前分类内按名称搜索、排序，两种视图共用同一批结果 */
 export function filterTemplates(
   templates: LibraryTemplate[],
   folder: string,
@@ -74,7 +74,7 @@ export function filterTemplates(
     );
 }
 
-/** 按有效保留天数和服务端 UTC 时间计算回收站截止日期 */
+/** 按有效保留天数、服务端 UTC 时间计算回收站截止日期 */
 export function templateExpiry(
   deletedAt: string,
   retentionDays: number | undefined,

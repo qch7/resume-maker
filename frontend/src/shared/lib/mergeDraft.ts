@@ -19,7 +19,7 @@ export function restoreDraft<T>(
 /** 三方合并保留单边修改，双方冲突沿用本页输入并报告待核对位置 */
 export function mergeDraft<T>(baseline: T, local: T, latest: T) {
   const conflicts: string[] = [];
-  /** 递归合并字段和稳定标识列表，不改变三份原始输入 */
+  /** 递归合并字段、稳定标识列表，不改变三份原始输入 */
   function merge(
     base: unknown,
     ours: unknown,
@@ -72,7 +72,7 @@ export function mergeDraft<T>(baseline: T, local: T, latest: T) {
   return { value: merge(baseline, local, latest, "") as T, conflicts };
 }
 
-/** JSON 表单按实际值比较，缺失字段和显式空值分别处理 */
+/** JSON 表单按实际值比较，缺失字段、显式空值分别处理 */
 export function equal(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   if (Array.isArray(a) && Array.isArray(b))
@@ -106,7 +106,7 @@ function record(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-/** 栏目和字段列表以唯一标识合并，普通列表保留整份选择 */
+/** 栏目、字段列表以唯一标识合并，普通列表保留整份选择 */
 function identified(
   value: unknown,
 ): value is (Record<string, unknown> & { id: string })[] {

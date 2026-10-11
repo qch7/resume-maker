@@ -1,4 +1,4 @@
-"""健康状态、工作台聚合、关闭和备份的 HTTP 入口"""
+"""健康状态、工作台聚合、关闭、备份的 HTTP 入口"""
 
 from typing import Annotated
 from urllib.parse import quote

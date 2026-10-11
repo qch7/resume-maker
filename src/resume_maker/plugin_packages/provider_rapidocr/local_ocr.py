@@ -1,4 +1,4 @@
-"""使用随包模型在本机提取中英文文字和坐标，不连接云端 OCR"""
+"""使用随包模型在本机提取中英文文字、坐标，不连接云端 OCR"""
 
 import math
 import threading
@@ -34,7 +34,7 @@ PDF_IMAGE_AREA_RATIO = 0.15
 
 
 class LocalOCR:
-    """模型和锁归属插件实例，配置变更不会复用旧模型或修改其他应用"""
+    """模型、锁归属插件实例，配置变更不会复用旧模型或修改其他应用"""
 
     def __init__(self, settings=None):
         """只冻结配置，实际模型在第一次识别时装载"""
@@ -44,7 +44,7 @@ class LocalOCR:
         self.closed = False
 
     def engine(self):
-        """模型构造和识别共用实例锁，CPU 参数在装载前固定"""
+        """模型构造、识别共用实例锁，CPU 参数在装载前固定"""
         with self.lock:
             if self.closed:
                 raise ProviderError("本地 OCR 实例已停止，请使用当前活动实例。")
@@ -61,7 +61,7 @@ class LocalOCR:
             return self._engine
 
     def recognize(self, image, cancelled, *, adaptive=True):
-        """识别消费本实例的尺寸和复核策略"""
+        """识别消费本实例的尺寸、复核策略"""
         return recognize(image, cancelled, adaptive=adaptive, backend=self)
 
     def read_document(self, path, cancelled):
@@ -204,7 +204,7 @@ def pdf_page(page, cancelled, *, backend=None):
 
 @operation("ocr.read_document", "system")
 def read_document(path, cancelled, *, backend=None):
-    """统一处理本地 PDF 和图片，限制页数、字数和文件大小且不返回原始像素"""
+    """统一处理本地 PDF、图片，限制页数、字数、文件大小且不返回原始像素"""
     path = Path(path)
     check_cancelled(cancelled)
     if path.stat().st_size > OCR_MAX_FILE_BYTES:

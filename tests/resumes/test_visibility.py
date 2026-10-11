@@ -1,4 +1,4 @@
-"""项目显隐属于简历方案，保存、预览和导出都不创建项目版本"""
+"""项目显隐属于简历方案，保存、预览、导出都不创建项目版本"""
 
 from io import BytesIO
 
@@ -18,7 +18,7 @@ from tests.support.layouts import metadata_template, project_document
 def test_resume_visibility_isolated_persistent_and_matches_export(
     catalog, project, tmp_path, monkeypatch, mapped
 ):
-    """两份简历可用同一项目版本独立显隐，恢复旧版隐藏项，且预览和正式导出一致"""
+    """两份简历可用同一项目版本独立显隐，恢复旧版隐藏项，且预览、正式导出一致"""
     identifier, base = project["id"], project["head_revision"]
     catalog.put_draft(identifier, base, "experience", project_info(), 0)
     revision = catalog.save_revision(identifier, base, base)

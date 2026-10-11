@@ -1,4 +1,4 @@
-"""基于代次和窗口确认的插件变更计划"""
+"""基于代次、窗口确认的插件变更计划"""
 
 import threading
 import time
@@ -20,10 +20,10 @@ from resume_maker.runtime.state import fingerprint
 
 
 class PluginManager:
-    """协调配置、依赖、在途请求和浏览器草稿，不让超时代替确认"""
+    """协调配置、依赖、在途请求、浏览器草稿，不让超时代替确认"""
 
     def __init__(self, host, store, profiles=None, *, policy=None):
-        """每个宿主持有独立计划、窗口和请求租约"""
+        """每个宿主持有独立计划、窗口、请求租约"""
         self.host, self.store = host, store
         self.policy = policy or PluginPolicy()
         self.profiles = deepcopy(profiles or {})
@@ -97,7 +97,7 @@ class PluginManager:
             return {**result, "restart_required": False}
 
     def uninstall(self, identifier):
-        """移除安装引用后保留数据目录和清理记录"""
+        """移除安装引用后保留数据目录、清理记录"""
         with self.lock:
             if self.pending_plan or self.maintenance:
                 raise Problem("插件变更期间不能卸载代码，请先完成当前计划。", 409)
@@ -250,7 +250,7 @@ class PluginManager:
             return deepcopy(value)
 
     def prepare_environment(self, identifier):
-        """准备环境仅添加候选解释器，活动进程和插件不会原地更新依赖"""
+        """准备环境仅添加候选解释器，活动进程、插件不会原地更新依赖"""
         with self.lock:
             if self.pending_plan or self.maintenance:
                 raise Problem("请先完成当前插件变更。", 409)
@@ -297,7 +297,7 @@ class PluginManager:
         return plan
 
     def _plan(self, identifier, digest):
-        """核对代次、摘要、有效期和当前包状态"""
+        """核对代次、摘要、有效期、当前包状态"""
         plan = self._identified_plan(identifier, digest)
         self._generation(plan["generation"])
         _, parsed = expand_instances(
@@ -338,7 +338,7 @@ class PluginManager:
             return self.progress(identifier)
 
     def progress(self, identifier):
-        """显示未确认窗口和在途请求，超时窗口不会自动被移除"""
+        """显示未确认窗口、在途请求，超时窗口不会自动被移除"""
         plan = self.plans.get(identifier)
         if plan is None:
             raise Problem("变更计划不存在。", 404)
@@ -426,7 +426,7 @@ class PluginManager:
             window["recovery_retained"] = True
 
     def acknowledge(self, identifier, plan_id, generation):
-        """窗口只有在领域草稿和最终工作区草稿均落盘后才能确认"""
+        """窗口只有在领域草稿、最终工作区草稿均落盘后才能确认"""
         with self.lock:
             self._generation(generation)
             window = self.windows.get(identifier)

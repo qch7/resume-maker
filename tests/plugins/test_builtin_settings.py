@@ -1,4 +1,4 @@
-"""验证内置运行配置真正进入实例和公开限制，兼容旧空配置"""
+"""验证内置运行配置真正进入实例、公开限制，兼容旧空配置"""
 
 import json
 import threading
@@ -43,7 +43,7 @@ def config_file(path, values):
 
 
 def test_runtime_settings_reach_consumers_and_survive_restart(tmp_path):
-    """配置文件调整执行并发、数据库和日志，关闭后重启仍沿用保存的组合默认"""
+    """配置文件调整执行并发、数据库、日志，关闭后重启仍沿用保存的组合默认"""
     path = config_file(
         tmp_path / "policy.json",
         {
@@ -76,7 +76,7 @@ def test_runtime_settings_reach_consumers_and_survive_restart(tmp_path):
 
 
 def test_upload_limits_and_retention_are_published_from_effective_policy(tmp_path):
-    """导入能力和模板库通过真实 HTTP 返回后端限制及有效回收站策略"""
+    """导入能力、模板库通过真实 HTTP 返回后端限制及有效回收站策略"""
     path = config_file(
         tmp_path / "policy.json", {"ext.template-library": {"trash_retention_days": 7}}
     )
@@ -100,7 +100,7 @@ def test_ocr_instances_keep_their_own_engine_parameters_and_resolution(monkeypat
     calls, shapes = [], []
 
     def factory(**parameters):
-        """以合成识别器记录真正传入引擎和推理的参数"""
+        """以合成识别器记录真正传入引擎、推理的参数"""
         calls.append(parameters)
 
         def recognize(pixels):
@@ -190,7 +190,7 @@ def test_word_timeout_and_preview_scale_reach_controlled_execution(tmp_path, mon
 
 
 def test_management_policy_changes_require_host_restart(tmp_path):
-    """管理器自身策略通过重启切换，不在活动下载和计划上替换等待规则"""
+    """管理器自身策略通过重启切换，不在活动下载、计划上替换等待规则"""
     app = create_app(Config(data_dir=tmp_path / "data", profile="minimal"))
     with TestClient(app):
         host = app.state.runtime

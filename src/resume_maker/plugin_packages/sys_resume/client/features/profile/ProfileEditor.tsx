@@ -49,7 +49,7 @@ const FIELDS: {
   },
 ];
 
-/** 压缩照片为预览和 Word 共用的 JPEG 并限制缓存体积 */
+/** 压缩照片为预览、Word 共用的 JPEG 并限制缓存体积 */
 async function readPhoto(file: File): Promise<string> {
   if (
     !["image/png", "image/jpeg"].includes(file.type) ||
@@ -130,7 +130,7 @@ export default function ProfileEditor({
   const latest = useRef(value);
   latest.current = value;
   const photoRequest = useRef(0);
-  /** 仅更新个人字段显隐，隐藏时仍保留照片和文字原值 */
+  /** 仅更新个人字段显隐，隐藏时仍保留照片、文字原值 */
   function togglePersonalField(field: PersonalField) {
     onChange({
       ...value,
@@ -181,7 +181,7 @@ export default function ProfileEditor({
       if (serial === photoRequest.current) setPhotoBusy(false);
     }
   }
-  /** 更新单个栏目，保留同一方案中的基本信息和其他栏目 */
+  /** 更新单个栏目，保留同一方案中的基本信息、其他栏目 */
   function updateSection(section: ResumeSection) {
     onChange({
       ...value,
@@ -245,13 +245,11 @@ export default function ProfileEditor({
                       type="file"
                       accept="image/png,image/jpeg"
                       disabled={!editing || photoBusy || saving}
-                      onChange={
-                        /* 读取本次选择的文件 */ (event) => {
-                          const file = event.target.files?.[0];
-                          event.target.value = "";
-                          if (file) void uploadPhoto(file);
-                        }
-                      }
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        event.target.value = "";
+                        if (file) void uploadPhoto(file);
+                      }}
                     />
                   </label>
                   {value.personal.photo && (
@@ -277,7 +275,7 @@ export default function ProfileEditor({
                     hidden={value.personal.hidden_fields.includes("photo")}
                     disabled={!editing || saving || photoBusy}
                     onToggle={
-                      /* 照片显隐和移除照片分开，便于恢复 */ () =>
+                      /* 照片显隐、移除照片分开，便于恢复 */ () =>
                         togglePersonalField("photo")
                     }
                   />
@@ -401,7 +399,7 @@ export default function ProfileEditor({
               editing={editing}
               disabled={saving}
               onChange={
-                /* 自定义信息和固定基本信息使用同一保存流程 */ (
+                /* 自定义信息、固定基本信息使用同一保存流程 */ (
                   custom_fields,
                 ) =>
                   onChange({

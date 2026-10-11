@@ -1,4 +1,4 @@
-"""检查后端中文函数说明和模块依赖方向"""
+"""检查后端中文函数说明、模块依赖方向"""
 
 import ast
 import json
@@ -27,7 +27,7 @@ OWNERS = {
 
 
 def owner_of(module):
-    """属性导入和模块导入共用最长模块前缀归属"""
+    """属性导入、模块导入共用最长模块前缀归属"""
     declared = next(
         (
             OWNERS[key]
@@ -43,7 +43,7 @@ def owner_of(module):
 
 
 def layer_of(module):
-    """独立插件目录内保留服务、路由和适配器的原有分层约束"""
+    """独立插件目录内保留服务、路由、适配器的原有分层约束"""
     parts = module.split(".")
     if parts[:2] == ["resume_maker", "plugin_packages"]:
         return {"routes": "api"}.get(parts[3], parts[3]) if len(parts) > 3 else ""
@@ -51,7 +51,7 @@ def layer_of(module):
 
 
 def check_file(path: Path) -> tuple[list[str], int]:
-    """解析函数说明和包内导入，返回具体违规位置和检查到的函数数量"""
+    """解析函数说明、包内导入，返回具体违规位置、检查到的函数数量"""
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     relative = path.relative_to(ROOT)
     layer = path.relative_to(PACKAGE).parts[0] if path.is_relative_to(PACKAGE) else ""
@@ -101,8 +101,8 @@ def check_file(path: Path) -> tuple[list[str], int]:
 
 
 def main() -> None:
-    """检查 Python 源码、测试和维护脚本并在违规时返回非零退出码"""
-    # 脚本使用 UTF-8 输出以支持不同 Windows 语言和代码页
+    """检查 Python 源码、测试、维护脚本并在违规时返回非零退出码"""
+    # 脚本使用 UTF-8 输出，支持不同 Windows 语言、代码页
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
     errors, functions = [], 0

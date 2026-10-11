@@ -1,4 +1,4 @@
-"""简历读取、保存和生成共用的荣誉资料解析入口"""
+"""简历读取、保存、生成共用的荣誉资料解析入口"""
 
 from resume_maker.sdk.records import unpack
 
@@ -13,7 +13,7 @@ def resume_source():
         return tuple(source_item(value) for value in values if value and value["reviewed"])
 
     def browse(reader, cursor, query, limit):
-        """按稳定标识分页，搜索不把证书原文和识别建议传给客户端"""
+        """按稳定标识分页，搜索不把证书原文、识别建议传给客户端"""
         rows = reader.all(
             "SELECT value_json FROM settings WHERE key LIKE 'honor:%' "
             "AND json_extract(value_json,'$.reviewed')=1 "
@@ -51,7 +51,7 @@ def source_item(honor):
 
 
 def honor_sources(conn):
-    """返回同步和排序所需资料，工作台轮询不携带附件文本或识别原文"""
+    """返回同步、排序所需资料，工作台轮询不携带附件文本或识别原文"""
     rows = conn.execute("SELECT value_json FROM settings WHERE key LIKE 'honor:%'")
     return [
         {

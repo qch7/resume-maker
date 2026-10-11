@@ -1,4 +1,4 @@
-"""以本地 OCR 和粗色块重绘整页证据，原始文字像素及照片细节不进入附件"""
+"""以本地 OCR、粗色块重绘整页证据，原始文字像素及照片细节不进入附件"""
 
 import hashlib
 import math
@@ -74,7 +74,7 @@ def common_color(image):
 
 
 def row_colors(image, box):
-    """估计单行文字和底色以保留深底白字等版面关系"""
+    """估计单行文字、底色以保留深底白字等版面关系"""
     crop = image.crop(pixel_box(box, image.size))
     # OCR 框内的密集笔画可能比底色多，使用框外边缘估计底色
     area = pixel_box(box, image.size, 3)
@@ -109,7 +109,7 @@ def graphic_regions(image, background):
     mask = (np.max(np.abs(pixels - background), axis=2) > 35).astype(np.uint8) * 255
     radius = max(2, round(min(image.size) * 0.008))
     kernel = np.ones((radius * 2 + 1, radius * 2 + 1), dtype=np.uint8)
-    # 合并头像内部及邻近碎片，不能将眼鼻等局部各自当成独立图片保留细节
+    # 合并头像内部及邻近碎片，避免眼鼻局部作为独立图片泄露细节
     closed = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
     count, _, stats, _ = cv2.connectedComponentsWithStats(closed)
     regions = []

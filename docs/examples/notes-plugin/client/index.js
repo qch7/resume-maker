@@ -1,6 +1,6 @@
 import { createElement, useEffect, useState } from "/shared/react.js";
 
-/** 每个客户端实例拥有自己的页面和 RPC 身份 */
+/** 每个客户端实例拥有自己的页面、RPC 身份 */
 export function activate(context) {
   /** 编辑当前实例的笔记，错误保留在页面上 */
   function Notes() {

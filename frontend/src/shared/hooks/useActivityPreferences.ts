@@ -11,7 +11,7 @@ const listeners = new Set<() => void>();
 let defaultRules = "";
 let snapshot: { preferences: ActivityPreferences; error: string } | undefined;
 
-/** 首次挂载时读取已恢复的存储，设置页和插件页面共享同一快照 */
+/** 首次挂载时读取已恢复的存储，设置页、插件页面共享同一快照 */
 function current() {
   snapshot ??= {
     preferences: restoreActivityPreferences(

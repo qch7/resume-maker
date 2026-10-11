@@ -1,4 +1,4 @@
-/** 独立构建每个客户端包，React 和公开 SDK 由宿主提供 */
+/** 独立构建每个客户端包，React、公开 SDK 由宿主提供 */
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";

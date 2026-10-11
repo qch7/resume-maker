@@ -184,7 +184,7 @@ export function createPersistence(options: Options) {
     options.changed();
     schedule();
   }
-  /** 连续输入合并后提交，导航和备份可以直接等待 flush */
+  /** 连续输入合并后提交，导航、备份可以直接等待 flush */
   function schedule() {
     clearTimeout(timer);
     timer = setTimeout(
@@ -278,7 +278,7 @@ export function createPersistence(options: Options) {
     options.changed();
     if (choice === "local") await flush();
   }
-  /** 冲突载入需要重挂表单，其他未同步输入先确认写入数据库或浏览器日志 */
+  /** 载入冲突结果前先持久化其他输入，再重新挂载表单 */
   async function prepareReload() {
     try {
       await flush();

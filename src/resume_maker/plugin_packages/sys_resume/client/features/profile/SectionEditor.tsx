@@ -140,7 +140,7 @@ export default function SectionEditor({
         /* 每条资料具有独立且稳定的编辑身份 */ (entry, index) => (
           <EntryEditor
             source={honors.find(
-              /* 来源身份和所在栏目名称无关 */ (item) =>
+              /* 来源身份独立于所在栏目名称 */ (item) =>
                 item.reviewed && honorSourceId(entry) === item.id,
             )}
             onEditHonor={onEditHonor}
@@ -263,7 +263,7 @@ function EntryEditor({
             aria-label={`编辑${section.title}条目 ${index + 1}`}
             disabled={(!linked && editing) || saving}
             onClick={
-              /* 关联荣誉在一个表单中编辑内容和显示设置 */ () => {
+              /* 关联荣誉在一个表单中编辑内容、显示设置 */ () => {
                 if (source && onEditHonor) {
                   onEditHonor(source.id, section.id, entry);
                   return;
@@ -380,7 +380,7 @@ function EntryEditor({
                   ),
               )
               .map(
-                /* 栏目字段共用独立输入和显隐开关 */ (field) => (
+                /* 栏目字段共用独立输入、显隐开关 */ (field) => (
                   <VisibilityField
                     key={field.key}
                     id={`entry-${section.id}-${entry.id}-${field.key}`}
@@ -447,7 +447,7 @@ function EntryEditor({
               hidden={entry.hidden_fields.includes("details")}
               disabled={!editing || saving}
               onToggle={
-                /* 正文也可独立隐藏和恢复 */ () =>
+                /* 正文也可独立隐藏、恢复 */ () =>
                   updateEntry({
                     ...entry,
                     hidden_fields: toggleHiddenField(

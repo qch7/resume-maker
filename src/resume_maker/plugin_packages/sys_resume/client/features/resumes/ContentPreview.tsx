@@ -7,7 +7,7 @@ import type {
 import { fieldVisible } from "@resume-maker/plugin-sdk/shared/resume/visibility";
 import { projectBodyOrder } from "@resume-maker/plugin-sdk/shared/resume/bodyOrder";
 
-/** 内容预览遵守显隐和固定引用，不依赖 Word 或远端模型 */
+/** 内容预览遵守显隐、固定引用，不依赖 Word 或远端模型 */
 export default function ContentPreview({ input }: { input: string | null }) {
   if (!input) return <p className="subtle">正在读取经历版本…</p>;
   const { document, items } = JSON.parse(input) as {

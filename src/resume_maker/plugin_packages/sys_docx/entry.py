@@ -1,4 +1,4 @@
-"""内置 DOCX 引擎的注册和生命周期入口"""
+"""内置 DOCX 引擎的注册、生命周期入口"""
 
 from resume_maker.plugins.support import publish
 
@@ -10,7 +10,7 @@ def activate(context):
     from resume_maker.sdk.documents import DocumentEngine
 
     def generate(output, inputs):
-        """内置引擎只消费冻结内容，保持预览和导出的字段规则一致"""
+        """内置引擎只消费冻结内容，保持预览、导出的字段规则一致"""
         resume, projects, _template = inputs.values()
         write_full_resume(output, resume["document"], projects)
 

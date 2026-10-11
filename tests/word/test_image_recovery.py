@@ -1,4 +1,4 @@
-"""使用合成图片验证恢复、填充和格式隔离"""
+"""使用合成图片验证恢复、填充、格式隔离"""
 
 from copy import deepcopy
 from io import BytesIO
@@ -33,7 +33,7 @@ from tests.support.providers import ProviderStub
 
 
 class ImageProvider(ProviderStub):
-    """返回给定图片结构，可模拟首轮坏坐标和迟到取消"""
+    """返回给定图片结构，可模拟首轮坏坐标、迟到取消"""
 
     def __init__(self, layout, invalid=False, cancel=False):
         """保存每次调用，验证图片入口独立且有界重试"""
@@ -55,7 +55,7 @@ class ImageProvider(ProviderStub):
 @pytest.mark.parametrize("left", [True, False])
 @pytest.mark.parametrize("hidden", [[], ["email", "photo"]])
 def test_image_fields_reflow_with_icons_and_photo(tmp_path, left, hidden):
-    """真实值、新增字段和显隐后的图标/头像在可伸展容器中重排，成品没有旧源文字标记"""
+    """真实值、新增字段、显隐后的图标/头像在可伸展容器中重排，成品没有旧源文字标记"""
     source = tmp_path / "source.png"
     layout = image_fixture(source, left=left)
     original, output = tmp_path / "original.docx", tmp_path / "filled.docx"
@@ -87,14 +87,14 @@ def test_image_fields_reflow_with_icons_and_photo(tmp_path, left, hidden):
 def test_pixel_resolution_and_dpi_do_not_change_paper_geometry(
     tmp_path, monkeypatch, scale, dpi, fallback
 ):
-    """不同像素、DPI 和字体回退条件下保持样例字号和纸张尺寸"""
+    """不同像素、DPI、字体回退条件下保持样例字号、纸张尺寸"""
     font = pymupdf.Font("cjk" if fallback else "helv")
     if fallback:
         monkeypatch.setenv("WINDIR", str(tmp_path / "no-system-fonts"))
     else:
 
         def known_font(text):
-            """使用内置拉丁字体统一样例和恢复文本的度量"""
+            """使用内置拉丁字体统一样例、恢复文本的度量"""
             return font
 
         monkeypatch.setattr("resume_maker.integrations.word.image.layout.font_for", known_font)
@@ -170,7 +170,7 @@ def test_invalid_geometry_is_rejected():
 
 
 def test_exif_rotation_and_transparency_are_normalized(tmp_path):
-    """照片旋转方向先归一化，透明底合成白色，再发送同一张图供识别和裁图"""
+    """照片旋转方向先归一化，透明底合成白色，再发送同一张图供识别、裁图"""
     source, output = tmp_path / "rotated.png", tmp_path / "original.docx"
     image = Image.new("RGBA", (842, 595), (0, 0, 0, 0))
     exif = image.getexif()

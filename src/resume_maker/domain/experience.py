@@ -1,4 +1,4 @@
-"""在内存中读取、替换和校验经历字段"""
+"""在内存中读取、替换、校验经历字段"""
 
 from copy import deepcopy
 
@@ -8,7 +8,9 @@ from resume_maker.domain.project_layout import project_body_order
 
 
 def same_experience(left: dict, right: dict) -> bool:
-    """比较规范化内容，明确排序和继承旧简历排序不同，两个明确排序比较实际位置"""
+    """比较规范化内容，分别处理显式排序、继承排序
+    两侧均为显式排序时比较实际位置
+    """
     values = []
     for content in (left, right):
         normalized = Experience.model_validate(content).model_dump()
@@ -35,7 +37,7 @@ def replace_field(content: dict, field: str, value) -> dict:
     """在深拷贝上替换指定字段并校验亮点内容及完整排序"""
     content = deepcopy(content)
     if field == "experience":
-        # AI 只修改正文时保留用户已有的排序、自定义条目和显隐设置
+        # AI 只修改正文时保留用户已有的排序、自定义条目、显隐设置
         preserved = {
             key: content[key]
             for key in ("hidden_fields", "custom_fields", "body_order")
@@ -71,7 +73,7 @@ def displayed_experience(
     visibility: ProjectVisibility | None = None,
     definitions: list[DefaultField] | None = None,
 ) -> dict:
-    """在排版副本中应用版本显隐和当前简历的覆盖设置"""
+    """在排版副本中应用版本显隐、当前简历的覆盖设置"""
     value = Experience.model_validate(content).model_dump()
     hidden = set(value["hidden_fields"])
     configured = {field.id: field for field in definitions} if definitions is not None else None

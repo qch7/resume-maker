@@ -4,7 +4,7 @@ import { hasDefault } from "../resume/defaults/model";
 import type { CustomInfoField, DefaultField } from "../types/index";
 import { VisibilityButton } from "./VisibilityField";
 
-/** 自定义名称和内容沿用紧凑字段布局，支持独立隐藏、恢复和删除 */
+/** 自定义名称、内容沿用紧凑字段布局，支持独立隐藏、恢复、删除 */
 export default function CustomFields({
   fields,
   definitions,
@@ -76,7 +76,7 @@ export default function CustomFields({
                   maxLength={1000}
                   readOnly={!editing || disabled}
                   onChange={
-                    /* 内容和名称一并进入当前资料草稿 */ (event) =>
+                    /* 内容、名称一并进入当前资料草稿 */ (event) =>
                       updateField({ ...field, value: event.target.value })
                   }
                 />

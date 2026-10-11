@@ -1,4 +1,4 @@
-"""不可变资源公共契约，业务记录和文件引用在同一事务发布"""
+"""不可变资源公共契约，业务记录、文件引用在同一事务发布"""
 
 from contextlib import AbstractContextManager
 from pathlib import Path
@@ -6,7 +6,7 @@ from typing import Protocol
 
 
 class Assets(Protocol):
-    """真实目录及回收实现属于提供方，消费者使用逻辑键和有期限的租约"""
+    """真实目录及回收实现属于提供方，消费者使用逻辑键、有期限的租约"""
 
     def stage(self, owner: str, data: bytes, media_type: str) -> dict:
         """暂存完整字节，失败不发布业务引用"""
@@ -21,7 +21,7 @@ class Assets(Protocol):
         ...
 
     def publish_bundle(self, conn, owner: str, key: str, staged: dict) -> dict:
-        """替换完整集合，引用转移和业务写入原子提交"""
+        """替换完整集合，引用转移、业务写入原子提交"""
         ...
 
     def update_bundle(self, conn, owner: str, key: str, staged: dict) -> dict:
@@ -29,7 +29,7 @@ class Assets(Protocol):
         ...
 
     def release_bundle(self, conn, owner: str, key: str) -> None:
-        """同事务解除索引和全部引用，文件仍等待显式维护回收"""
+        """同事务解除索引、全部引用，文件仍等待显式维护回收"""
         ...
 
     def file_id(self, key: str, name: str) -> str:

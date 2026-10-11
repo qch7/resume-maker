@@ -1,4 +1,4 @@
-"""用不同模板验证条目对齐和隐藏字段收起"""
+"""用不同模板验证条目对齐、隐藏字段收起"""
 
 from copy import deepcopy
 from io import BytesIO
@@ -20,7 +20,7 @@ from tests.support.documents import photo_bytes, record_content, record_plan
 @pytest.mark.parametrize("indent", [11, 37])
 @pytest.mark.parametrize("table", [False, True])
 def test_repeat_titles_align_to_effective_body_indent_and_keep_right_tabs(tmp_path, indent, table):
-    """不同继承样式及容器中的多条记录沿用本列正文起点，日期右制表位和字体保留"""
+    """不同继承样式及容器中的多条记录沿用本列正文起点，日期右制表位、字体保留"""
     source, output = tmp_path / "source.docx", tmp_path / "result.docx"
     doc = Document()
     base = doc.styles.add_style("Base body", WD_STYLE_TYPE.PARAGRAPH)
@@ -76,7 +76,7 @@ def test_repeat_titles_align_to_effective_body_indent_and_keep_right_tabs(tmp_pa
 @pytest.mark.parametrize("kind", ["direct", "inherited", "literal", "label"])
 @pytest.mark.parametrize("table", [False, True])
 def test_hidden_details_remove_list_labels_and_empty_rows(tmp_path, kind, table):
-    """直接编号、继承列表、手输圆点和中英标签随空字段整体移除，恢复后可再次显示"""
+    """直接编号、继承列表、手输圆点、中英标签随空字段整体移除，恢复后可再次显示"""
     source, output = tmp_path / "source.docx", tmp_path / "result.docx"
     doc = Document()
     if table:
@@ -254,7 +254,7 @@ def test_hiding_a_field_keeps_its_attached_decoration(tmp_path):
 
 
 def test_inherited_character_indent_isolated_without_changing_source_styles(tmp_path):
-    """字符单位缩进通过独立样式展开后不再覆盖距离缩进，原样式、字体和多个制表位完整保留"""
+    """字符单位缩进通过独立样式展开后不再覆盖距离缩进，原样式、字体、多个制表位完整保留"""
     source, output = tmp_path / "source.docx", tmp_path / "result.docx"
     doc = Document()
     base = doc.styles.add_style("Character base", WD_STYLE_TYPE.PARAGRAPH)

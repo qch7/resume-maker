@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import type { useFormDraft } from "../hooks/useFormDraft";
 
-/** 展示可核对的最新资料和恢复副本，明确选择后才允许继续保存 */
+/** 展示可核对的最新资料、恢复副本，明确选择后才允许继续保存 */
 export default function FormDraftRecovery<T>({
   form,
   renderValue,

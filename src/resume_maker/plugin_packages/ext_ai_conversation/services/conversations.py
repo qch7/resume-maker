@@ -1,4 +1,4 @@
-"""独立会话查询、归档维护和模型上下文重建"""
+"""独立会话查询、归档维护、模型上下文重建"""
 
 from resume_maker.core.errors import Problem, need
 from resume_maker.infrastructure.observability import record
@@ -7,7 +7,7 @@ from resume_maker.sdk.services import Catalog
 
 
 class Conversations:
-    """会话详情、归档状态和模型上下文重建服务"""
+    """会话详情、归档状态、模型上下文重建服务"""
 
     def __init__(self, catalog: Catalog, *, storage):
         """保存当前模块所需依赖，供后续业务操作共享使用"""
@@ -18,7 +18,7 @@ class Conversations:
         return self.db.all("SELECT * FROM conversations WHERE archived=1 ORDER BY updated_at DESC")
 
     def get_conversation(self, conversation_id: str):
-        """聚合单个会话的消息、建议和任务，保持不同会话上下文隔离"""
+        """聚合单个会话的消息、建议、任务，保持不同会话上下文隔离"""
         return {
             "conversation": self.conversation(conversation_id),
             "messages": self.db.all(
@@ -93,7 +93,7 @@ class Conversations:
         return {"ok": True}
 
     def create_conversation(self, project_id: str, title: str) -> dict:
-        """为指定项目创建具有独立历史和输入草稿的会话"""
+        """为指定项目创建具有独立历史、输入草稿的会话"""
         self.catalog.project(project_id)
         conversation_id, stamp = uid(), now()
         with self.db.transaction() as conn:
@@ -109,7 +109,7 @@ class Conversations:
         return need(self.db.one("SELECT * FROM conversations WHERE id=?", (conversation_id,)))
 
     def adopt(self, proposal_id: str):
-        """检查建议原文和当前内容一致后写入草稿以免覆盖后续人工编辑"""
+        """建议原文匹配当前内容后写入草稿，防止覆盖后续人工编辑"""
         with self.db.transaction() as conn:
             proposal = need(
                 unpack(

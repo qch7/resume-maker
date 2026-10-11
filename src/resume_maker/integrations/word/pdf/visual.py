@@ -1,4 +1,4 @@
-"""扫描 PDF 页通过统一隐私出口恢复版面，原文和照片只在本机还原"""
+"""扫描 PDF 页通过统一隐私出口恢复版面，原文、照片只在本机还原"""
 
 import pymupdf
 
@@ -12,7 +12,7 @@ from resume_maker.sdk.model import Cancelled
 
 
 def recover_private_page(document, page, number, output, provider, settings, flag, emit, budget):
-    """按规范化后的页面渲染并恢复，保留实际尺寸和每页隐私标记"""
+    """按规范化后的页面渲染并恢复，保留实际尺寸、每页隐私标记"""
     image = output.parent / f"recovery-page-{number}.png"
     size = page.rect.width, page.rect.height
     scale = min(3, 2400 / max(size))

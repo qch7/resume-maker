@@ -1,4 +1,4 @@
-"""用真实 PowerShell 和合成配置验证 Windows 启停入口的一致性"""
+"""用真实 PowerShell、合成配置验证 Windows 启停入口的一致性"""
 
 import json
 import shutil
@@ -12,7 +12,7 @@ pytestmark = pytest.mark.skipif(POWERSHELL is None, reason="需要 PowerShell")
 
 @pytest.fixture(autouse=True)
 def offline_launcher_dependencies(monkeypatch):
-    """验收复用已安装的锁定依赖，排除网络请求对脚本结果和耗时的影响"""
+    """验收复用已安装的锁定依赖，排除网络请求对脚本结果、耗时的影响"""
     monkeypatch.setenv("UV_OFFLINE", "true")
 
 
@@ -39,7 +39,7 @@ def run_powershell(script, cwd):
 
 @pytest.mark.parametrize("entry", ["start", "stop"])
 def test_windows_scripts_resolve_same_file_and_cwd(entry, tmp_path, pytestconfig, monkeypatch):
-    """启动和停止在任意工作目录读取同一文件并选取同一资料目录，诊断不启动实例"""
+    """启动、停止在任意工作目录读取同一文件并选取同一资料目录，诊断不启动实例"""
     root = pytestconfig.rootpath
     directory = tmp_path / "config"
     directory.mkdir()

@@ -1,4 +1,4 @@
-"""短连接 SQLite 访问、即时写事务和数据库初始化"""
+"""短连接 SQLite 访问、即时写事务、数据库初始化"""
 
 import sqlite3
 from contextlib import contextmanager
@@ -18,7 +18,7 @@ from resume_maker.sdk.records import now as now
 from resume_maker.sdk.records import uid as uid
 from resume_maker.sdk.records import unpack as unpack
 
-# SQL 随 Python 包分发，读取位置和当前工作目录无关
+# SQL 随 Python 包分发，读取位置独立于当前工作目录
 SCHEMA = Path(__file__).with_name("schema.sql").read_text(encoding="utf-8")
 # 只接受当前数据库结构
 SCHEMA_VERSION = 9
@@ -43,13 +43,13 @@ class Connection(sqlite3.Connection):
             callback()
 
     def rollback(self):
-        """放弃未提交写入和对应的缓存修改"""
+        """放弃未提交写入、对应的缓存修改"""
         super().rollback()
         self.callbacks = []
 
 
 class Database:
-    """短连接 SQLite 访问和事务边界，统一 JSON 编解码和配置存储"""
+    """短连接 SQLite 访问、事务边界，统一 JSON 编解码、配置存储"""
 
     def __init__(self, path: Path, *, plugins=None, policy=None):
         """校验资料版本后建立所选插件的表，拒绝未迁移的旧库"""
@@ -83,14 +83,14 @@ class Database:
         return script.replace("IF NOT EXISTS IF NOT EXISTS", "IF NOT EXISTS")
 
     def _install(self, conn, plugins):
-        """建表、资料归属和持久引用规则全部加入调用方事务"""
+        """建表、资料归属、持久引用规则全部加入调用方事务"""
         execute_script(conn, self._schema_script(plugins))
         execute_script(conn, CATALOG_SCHEMA)
         execute_script(conn, resources(relational_owners(conn), "relations"))
         initialize_catalog(conn, plugins)
 
     def ensure_schemas(self, plugins):
-        """按清单补建新启用的结构，已有资料和停用模块的引用规则继续保留"""
+        """按清单补建新启用的结构，已有资料、停用模块的引用规则继续保留"""
         with self.transaction() as conn:
             self._install(conn, plugins)
 

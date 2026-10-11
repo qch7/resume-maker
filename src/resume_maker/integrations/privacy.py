@@ -1,4 +1,4 @@
-"""本机敏感值登记、请求脱敏和单次响应还原"""
+"""本机敏感值登记、请求脱敏、单次响应还原"""
 
 import json
 import re
@@ -97,7 +97,7 @@ class Redactor:
         self.count = 0
 
     def learn(self, value, *, personal=False):
-        """按字段语义登记身份，通用名称和专业等业务信息不自动加入敏感词"""
+        """按字段语义登记身份，通用名称、专业等业务信息不自动加入敏感词"""
         if isinstance(value, dict):
             if value.get("kind") == "education":
                 for entry in value.get("entries", []):
@@ -154,7 +154,7 @@ class Redactor:
         return self.mapping[value]
 
     def text(self, value):
-        """先移除凭据再替换已知值和常见身份格式，编码附件直接拦截"""
+        """先移除凭据再替换已知值、常见身份格式，编码附件直接拦截"""
         if TOKEN.search(value):
             registered = set(self.mapping.values())
             parts, offset = [], 0
@@ -223,7 +223,7 @@ class Redactor:
         return value
 
     def protect_schema(self, value):
-        """保留程序生成契约的固定语法，仅脱敏说明和动态候选中的资料"""
+        """保留程序生成契约的固定语法，仅脱敏说明、动态候选中的资料"""
         if isinstance(value, list):
             return [self.protect_schema(child) for child in value]
         if isinstance(value, dict):
@@ -258,7 +258,7 @@ class Redactor:
         protected = self.protect(context, fixed_keys={"source_materials", "output_schema"})
         if isinstance(context, dict) and isinstance(context.get("source_materials"), dict):
             source = context["source_materials"]
-            # 仅保留本机材料清单的固定路由字段，路径、正文及未知字典键继续脱敏
+            # 本机材料清单仅保留固定路由字段，路径、正文、未知键继续脱敏
             protected["source_materials"] = self.protect(
                 source, fixed_keys={"files", "limited", "omitted", "notice", "mode", "sources"}
             )
@@ -284,7 +284,7 @@ class Redactor:
         reverse = {token: original for original, token in self.mapping.items()}
 
         def replace(match):
-            """仅还原本轮登记且不是凭据的值"""
+            """仅还原本轮登记的非凭据值"""
             if match[0] not in reverse:
                 raise ProviderError("模型返回了未知隐私占位符，结果未采用，请重试。")
             original = reverse[match[0]]

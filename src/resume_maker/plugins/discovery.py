@@ -1,4 +1,4 @@
-"""内置清单、发行策略和声明式产品组合发现"""
+"""内置清单、发行策略、声明式产品组合发现"""
 
 import json
 from pathlib import Path
@@ -11,7 +11,7 @@ PACKAGES = ROOT.parent / "plugin_packages"
 
 
 def package_definitions():
-    """扫描独立目录的声明和组合归属，发现阶段不执行插件代码"""
+    """扫描独立目录的声明、组合归属，发现阶段不执行插件代码"""
     for path in sorted(PACKAGES.glob("*/manifest.json")):
         manifest = Manifest.model_validate_json(path.read_text(encoding="utf-8"))
         metadata = json.loads(path.with_name("package.json").read_text(encoding="utf-8"))

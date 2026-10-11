@@ -9,7 +9,7 @@ _WINDOWS_FILE_LOCK_ERRORS = frozenset({5, 32, 33})
 
 
 def replace_file(source, target):
-    """原子替换保留旧文件，Windows 短暂读取和扫描占用仅有限重试"""
+    """原子替换保留旧文件，Windows 短暂读取、扫描占用仅有限重试"""
     for attempt in range(_RETRY_ATTEMPTS):
         try:
             return source.replace(target)
@@ -38,7 +38,7 @@ def publish_directory(source, target):
 
 
 def remove_owned_directory(root, target):
-    """只删除已核验的归属子目录，短暂共享冲突重试后仍失败则保留清理责任"""
+    """核验归属后仅删除子目录，共享冲突有限重试，失败时保留清理责任"""
     resolved = target.resolve()
     boundary = root.resolve()
     if (

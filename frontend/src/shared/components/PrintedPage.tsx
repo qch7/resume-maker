@@ -18,15 +18,13 @@ export default function PrintedPage({
     let objectUrl = "",
       stopped = false;
     void request(imagePath)
-      .then(/* 将下载响应转换为浏览器可展示的文件内容 */ (r) => r.blob())
-      .then(
-        /* 将下载响应转换为浏览器可展示的文件内容 */ (blob) => {
-          if (!stopped) {
-            objectUrl = URL.createObjectURL(blob);
-            setUrl(objectUrl);
-          }
-        },
-      )
+      .then((r) => r.blob())
+      .then((blob) => {
+        if (!stopped) {
+          objectUrl = URL.createObjectURL(blob);
+          setUrl(objectUrl);
+        }
+      })
       .catch(
         /* 取消后忽略迟到的错误 */ (e) => {
           if (!stopped) setError(e.message);

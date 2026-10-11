@@ -7,7 +7,7 @@ import {
   restoreActivityPreferences,
 } from "../../../../../frontend/src/shared/lib/activityPreferences.ts";
 
-/** 构造最小日志摘要，测试只关注列表游标和时间定位 */
+/** 构造最小日志摘要，测试只关注列表游标、时间定位 */
 function event(id, created_at = "2026-09-21T01:00:00Z") {
   return { id, created_at, title: `event-${id}` };
 }

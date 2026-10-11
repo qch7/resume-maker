@@ -55,7 +55,7 @@ export function configPointer(path: string[]): string {
   );
 }
 
-/** 只遍历 JSON 自有属性，区分缺失、空值和空字符串 */
+/** 只遍历 JSON 自有属性，区分缺失、空值、空字符串 */
 export function configValue(value: unknown, path: string[]): unknown {
   for (const key of path) {
     if (!value || typeof value !== "object" || !Object.hasOwn(value, key))
@@ -110,7 +110,7 @@ function resolveSchema(
   return schema;
 }
 
-/** 根据对象属性生成独立控件，数组和复杂联合保留单项 JSON 编辑 */
+/** 根据对象属性生成独立控件，数组、复杂联合保留单项 JSON 编辑 */
 export function configFields(schema: ConfigSchema): ConfigField[] {
   const result: ConfigField[] = [];
   /** 有限展开已声明的嵌套对象 */
@@ -183,7 +183,7 @@ export function parseConfigJson(text: string): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-/** 输入先检查明确的类型和范围，完整 schema 继续由服务端校验 */
+/** 输入先检查明确的类型、范围，完整 schema 继续由服务端校验 */
 export function parseConfigField(
   field: ConfigField,
   input: FieldInput,
@@ -286,7 +286,7 @@ function within(path: string[], ancestor: string[]): boolean {
   );
 }
 
-/** 清理被同一字段覆盖的后续操作，保留其他字段和祖先操作 */
+/** 清理被同一字段覆盖的后续操作，保留其他字段、祖先操作 */
 function fieldOperation(draft: ConfigDraft, edit: ConfigEdit): ConfigDraft {
   return {
     ...draft,
@@ -380,7 +380,7 @@ export function configDraftError(draft: ConfigDraft): string {
   return Object.values(draft.fields).find((field) => field.error)?.error ?? "";
 }
 
-/** 字段编辑只发送 set 和 reset，高级 JSON 及新实例才发送整份对象 */
+/** 字段编辑只发送 set、reset，高级 JSON 及新实例才发送整份对象 */
 export function configRequest(
   items: { id: string; state: string; config?: Record<string, unknown> }[],
   drafts: Record<string, ConfigDraft>,

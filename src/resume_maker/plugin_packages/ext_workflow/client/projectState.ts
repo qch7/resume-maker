@@ -22,7 +22,7 @@ function hasContent(value?: Experience) {
   );
 }
 
-/** 根据草稿、固定引用、模板和导出状态推导可操作的制作步骤 */
+/** 根据草稿、固定引用、模板、导出状态推导可操作的制作步骤 */
 export function getProjectWorkflow(input: {
   projectCount: number;
   detail: ProjectDetail | null;
@@ -66,7 +66,7 @@ export function getProjectWorkflow(input: {
     compositionSaved && exported,
   ];
 
-  /** 构建一个带状态、说明和定位目标的制作指引步骤 */
+  /** 构建一个带状态、说明、定位目标的制作指引步骤 */
   function guide(
     step: number,
     text: string,

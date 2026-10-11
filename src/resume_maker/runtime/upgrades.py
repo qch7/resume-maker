@@ -26,7 +26,7 @@ def process_environment():
 
 
 class Upgrades:
-    """候选试运行和正式重启使用同一计划，失败保留旧代码及用户资料"""
+    """候选试运行、正式重启使用同一计划，失败保留旧代码及用户资料"""
 
     def __init__(self, manager):
         """只有宿主停止后监督器才提交包索引及新代次"""
@@ -73,7 +73,7 @@ class Upgrades:
             )
 
     def start(self, plan):
-        """窗口和业务排空后开始独立候选验证，管理通道持续可查询"""
+        """窗口、业务排空后开始独立候选验证，管理通道持续可查询"""
         manager = self.manager
         if self.active and self.active.is_alive():
             raise Problem("候选验证仍在进行。", 409)
@@ -94,7 +94,7 @@ class Upgrades:
             self.manager.save_plan(plan)
 
     def _run(self, plan):
-        """使用备份副本和独立解释器启动候选，正式资料不交给试运行修改"""
+        """使用备份副本、独立解释器启动候选，正式资料不交给试运行修改"""
         manager, host = self.manager, self.manager.host
         directory = host.bootstrap["config"].data_dir
         writer = StateStore(directory)
@@ -262,7 +262,7 @@ class Upgrades:
             return deepcopy(plan)
 
     def close(self):
-        """停止时等待本轮候选线程和它拥有的进程真实结束"""
+        """停止时等待本轮候选线程、它拥有的进程真实结束"""
         self.cancelled.set()
         if self.active and self.active is not threading.current_thread():
             self.active.join(15)
@@ -271,7 +271,7 @@ class Upgrades:
 
 
 def data_signature(db):
-    """代码回退只允许使用相同的数据结构和插件资料版本"""
+    """代码回退只允许使用相同的数据结构、插件资料版本"""
     return {
         "schema": db.one("PRAGMA user_version")["user_version"],
         "plugins": {
@@ -284,7 +284,7 @@ def data_signature(db):
 
 
 def transition_digest(value):
-    """固定经确认的切换材料，状态和诊断更新不改变授权内容"""
+    """固定经确认的切换材料，状态、诊断更新不改变授权内容"""
     return fingerprint(
         {
             key: value[key]

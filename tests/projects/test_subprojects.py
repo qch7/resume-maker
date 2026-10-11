@@ -111,7 +111,7 @@ def test_source_changes_keep_subproject_identity_and_existing_history(catalog, t
 
 
 def test_parent_and_subproject_jobs_use_separate_sources_histories_and_threads(catalog, tmp_path):
-    """整体读取全部来源，子项目仅读取自身来源，三者不共享模型会话和消息"""
+    """整体读取全部来源，子项目仅读取自身来源，三者不共享模型会话、消息"""
     roots = make_sources(tmp_path)
     parent = catalog.create_project("TrustGuard", roots)
     subs = children(catalog, parent["id"])

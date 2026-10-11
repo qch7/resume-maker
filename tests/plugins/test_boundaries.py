@@ -1,4 +1,4 @@
-"""模型保护、资源校验和插件缺失后的可见行为"""
+"""模型保护、资源校验、插件缺失后的可见行为"""
 
 import json
 import threading
@@ -13,7 +13,7 @@ from resume_maker.sdk.model import ProviderError
 
 
 def test_gateway_protects_any_transport_and_rejects_images_without_ocr(tmp_path):
-    """不依赖供应商类即可脱敏和还原，缺少图片保护时不能降级发送原图"""
+    """不依赖供应商类即可脱敏、还原，缺少图片保护时不能降级发送原图"""
     calls = []
 
     def transport(payload, *_args, **_kwargs):
@@ -45,7 +45,7 @@ def test_gateway_protects_any_transport_and_rejects_images_without_ocr(tmp_path)
 
 
 def test_execution_grants_are_bound_and_single_use(tmp_path):
-    """更改命令、重复使用和不满足的隔离保证都不能进入执行后端"""
+    """更改命令、重复使用、不满足的隔离保证都不能进入执行后端"""
     calls = []
 
     class Backend:
@@ -93,7 +93,7 @@ def test_unknown_extensions_require_explicit_plain_text_display():
 
 
 def test_execution_rejects_environment_material_and_revocation_changes(tmp_path):
-    """凭据环境和输入被替换或权限撤销后，旧授权不能启动进程"""
+    """凭据环境、输入被替换或权限撤销后，旧授权不能启动进程"""
     source = tmp_path / "material.txt"
     source.write_text("synthetic", encoding="utf-8")
     execution = Execution(lambda *_args, **_kwargs: None)

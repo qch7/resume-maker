@@ -1,4 +1,4 @@
-"""Word 插件通过系统执行和 sandbox 取得每轮受管进程"""
+"""Word 插件通过系统执行、sandbox 取得每轮受管进程"""
 
 import threading
 
@@ -13,7 +13,7 @@ from resume_maker.sdk.documents import current_document_work
 
 
 class ControlledWord:
-    """持有当前插件代次和取消句柄，关闭时等待真实进程结束"""
+    """持有当前插件代次、取消句柄，关闭时等待真实进程结束"""
 
     def __init__(self, execution, sandbox, generation, *, settings=None):
         """系统边界由装配注入，文档模块不自行挑选进程后端"""
@@ -24,7 +24,7 @@ class ControlledWord:
         self.stopped = False
 
     def execute(self, command, *, cwd, timeout):
-        """为固定命令和工作目录签发一次授权，保留 Word 所需的本机环境"""
+        """为固定命令、工作目录签发一次授权，保留 Word 所需的本机环境"""
         flag = threading.Event()
         work = current_document_work()
         cancellation = WordCancellation(flag, work)
@@ -65,7 +65,7 @@ class ControlledWord:
         return render_word(source, output, executor=self.execute, settings=self.settings)
 
     def convert(self, source, output):
-        """旧文档转换使用相同授权和进程回收边界"""
+        """旧文档转换使用相同授权、进程回收边界"""
         return word_process(
             source, output, "convert", executor=self.execute, settings=self.settings
         )
@@ -83,7 +83,7 @@ class ControlledWord:
 
 
 class WordCancellation:
-    """插件停止和当前预览取消都通知同一个受管子进程"""
+    """插件停止、当前预览取消都通知同一个受管子进程"""
 
     def __init__(self, flag, work):
         """保留插件事件供关闭屏障使用"""

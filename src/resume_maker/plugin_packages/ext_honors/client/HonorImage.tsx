@@ -21,7 +21,7 @@ export default function HonorImage({
       let objectUrl = "";
       setUrl("");
       setError("");
-      /** 只发布属于本次证书和页码的响应 */
+      /** 只发布属于本次证书、页码的响应 */
       async function read() {
         try {
           const response = await request(`/honors/${id}/pages/${page}`, {

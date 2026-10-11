@@ -1,4 +1,4 @@
-"""验证采集配置真正控制落盘，并在重启、历史补录和故障后保持一致"""
+"""验证采集配置真正控制落盘，并在重启、历史补录、故障后保持一致"""
 
 import json
 from contextlib import closing
@@ -18,7 +18,7 @@ from resume_maker.plugin_packages.sys_activity.services.activity import (
 
 
 def test_default_capture_skips_disabled_categories_before_serialization(tmp_path, monkeypatch):
-    """默认仅 AI 落盘，其他类别的警告和错误也不打开数据库或序列化正文"""
+    """默认仅 AI 落盘，其他类别的警告、错误也不打开数据库或序列化正文"""
     log = ActivityLog(tmp_path / "activity.sqlite")
     assert capture_settings(log).categories == ["ai"]
     assert log.write("ai", "assistant", "保留回复", {"text": "合成内容"})
@@ -41,7 +41,7 @@ def test_default_capture_skips_disabled_categories_before_serialization(tmp_path
 
 
 def test_capture_api_applies_immediately_and_survives_restart_and_delete(tmp_path):
-    """勾选类别实时影响业务日志，空选停止采集且重启和删除均保留设置"""
+    """勾选类别实时影响业务日志，空选停止采集且重启、删除均保留设置"""
     config = Config(data_dir=tmp_path, token="synthetic-token")
     app = create_app(config)
     headers = {"x-resume-token": config.token}
@@ -109,7 +109,7 @@ def test_capture_api_applies_immediately_and_survives_restart_and_delete(tmp_pat
     ],
 )
 def test_invalid_capture_settings_do_not_change_policy(tmp_path, body):
-    """拒绝未知类别和无效请求，保留原采集策略"""
+    """拒绝未知类别、无效请求，保留原采集策略"""
     app = create_app(Config(data_dir=tmp_path, token="synthetic-token"))
     with TestClient(app) as client:
         response = client.put(
@@ -120,7 +120,7 @@ def test_invalid_capture_settings_do_not_change_policy(tmp_path, body):
 
 
 def test_capture_save_failure_keeps_previous_policy(tmp_path):
-    """磁盘提交失败时接口报错，内存和重启后的采集类别都不改变"""
+    """磁盘提交失败时接口报错，内存、重启后的采集类别都不改变"""
     app = create_app(Config(data_dir=tmp_path, token="synthetic-token"))
     log = app.state.services.db.activity
     save_capture_settings(
@@ -165,7 +165,7 @@ def test_existing_log_without_capture_settings_defaults_to_ai(tmp_path):
 
 
 def test_start_capture_skips_before_serialization_and_database_access(tmp_path, monkeypatch):
-    """默认开始事件在序列化和数据库访问前跳过，结果和错误仍能落盘"""
+    """默认开始事件在序列化、数据库访问前跳过，结果、错误仍能落盘"""
     log = ActivityLog(tmp_path / "activity.sqlite")
     assert not capture_settings(log).capture_starts
 
@@ -193,7 +193,7 @@ def test_start_capture_skips_before_serialization_and_database_access(tmp_path, 
 
 
 def test_start_capture_switch_is_immediate_and_persists_without_showing_starts(tmp_path):
-    """真实请求验证采集和显示独立，重启及删除保留开始事件开关"""
+    """真实请求验证采集、显示独立，重启及删除保留开始事件开关"""
     config = Config(data_dir=tmp_path, token="synthetic-token")
     headers = {"x-resume-token": config.token}
     app = create_app(config)
@@ -222,7 +222,7 @@ def test_start_capture_switch_is_immediate_and_persists_without_showing_starts(t
 
 
 def test_start_display_filter_preserves_paging_counts_exports_and_raw_trace(tmp_path):
-    """显示开关统一影响列表、搜索和导出，关联请求仍能查看已采集完整链路"""
+    """显示开关统一影响列表、搜索、导出，关联请求仍能查看已采集完整链路"""
     log = ActivityLog(tmp_path / "activity.sqlite")
     save_capture_settings(log, ActivityCaptureSettings(categories=["ai"], capture_starts=True))
     starts = ("request", "started", "startup", "thread.started", "turn.started", "item.started")

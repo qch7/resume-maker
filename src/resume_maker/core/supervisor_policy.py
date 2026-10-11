@@ -4,7 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class SupervisorPolicy(BaseModel):
-    """就绪等待和候选观察分别计时，正常服务没有寿命上限"""
+    """就绪等待、候选观察分别计时，正常服务没有寿命上限"""
 
     model_config = ConfigDict(
         extra="forbid", frozen=True, hide_input_in_errors=True, allow_inf_nan=False

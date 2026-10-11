@@ -16,7 +16,7 @@ from tests.support.documents import resume_content
 
 
 def personal_template(path, table):
-    """制作有已满联系方式行和教育栏目的模板，覆盖正文和可扩展单元格"""
+    """制作有已满联系方式行、教育栏目的模板，覆盖正文、可扩展单元格"""
     doc = Document()
     contact = (
         doc.add_table(rows=1, cols=1).cell(0, 0).paragraphs[0] if table else doc.add_paragraph()
@@ -60,7 +60,7 @@ def personal_template(path, table):
 
 @pytest.mark.parametrize("table", [False, True])
 def test_new_personal_fields_extend_existing_area_without_changing_template(tmp_path, table):
-    """新条目继承同区字体、缩进和行距，后续隐藏、清空、改名都不留下旧行"""
+    """新条目继承同区字体、缩进、行距，后续隐藏、清空、改名都不留下旧行"""
     source, output = tmp_path / "source.docx", tmp_path / "filled.docx"
     plan = personal_template(source, table)
     original, original_plan = source.read_bytes(), deepcopy(plan)
@@ -128,7 +128,7 @@ def test_new_personal_fields_extend_existing_area_without_changing_template(tmp_
 
 
 def test_automatic_rows_do_not_mask_missing_photo_mapping(tmp_path):
-    """个人区和栏目可扩展不会绕过未识别照片校验，也不写回模板或不完整输出"""
+    """个人区、栏目可扩展不会绕过未识别照片校验，也不写回模板或不完整输出"""
     source, output = tmp_path / "source.docx", tmp_path / "filled.docx"
     plan = personal_template(source, False)
     original = source.read_bytes()
@@ -165,7 +165,7 @@ def test_automatic_rows_do_not_mask_missing_photo_mapping(tmp_path):
     ],
 )
 def test_hidden_contacts_remove_labels_and_fill_grid_gaps(tmp_path, hidden, expected):
-    """两列混合段落隐藏整条信息，后续字段和自动新增主页连续补位且保留标签和值的样式"""
+    """两列混合段落隐藏整条信息，后续字段、自动新增主页连续补位且保留标签、值的样式"""
     source, output = tmp_path / "grid.docx", tmp_path / "filled.docx"
     doc = Document()
     contact = doc.add_paragraph()
@@ -234,7 +234,7 @@ def test_hidden_contacts_remove_labels_and_fill_grid_gaps(tmp_path, hidden, expe
 
 
 def test_hidden_standalone_field_removes_its_paragraph(tmp_path):
-    """单列标签和值一起隐藏，后面的姓名段落自然上移，固定标题不被当作个人条目删除"""
+    """单列标签、值一起隐藏，后面的姓名段落自然上移，固定标题不被当作个人条目删除"""
     source, output = tmp_path / "single.docx", tmp_path / "filled.docx"
     doc = Document()
     doc.add_paragraph("邮箱：old-email")
@@ -325,7 +325,7 @@ def test_hidden_table_contacts_compact_each_column_and_remove_empty_rows(tmp_pat
 
 
 def test_compaction_keeps_repeated_quote_label_separate_from_value(tmp_path):
-    """标签和旧值同字时仍按正确出现次数替换，重排不能把标签替换为邮箱地址"""
+    """标签、旧值同字时仍按正确出现次数替换，重排不能把标签替换为邮箱地址"""
     source, output = tmp_path / "repeated.docx", tmp_path / "filled.docx"
     doc = Document()
     doc.add_paragraph("邮箱：邮箱\t所在地：城市")

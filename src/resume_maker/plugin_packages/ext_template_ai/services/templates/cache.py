@@ -20,7 +20,7 @@ from resume_maker.plugin_packages.ext_template_ai.services.templates.cache_polic
 
 
 def cache_path(directory, package, document, projects, settings) -> Path:
-    """按模板、字段需求、映射契约和 AI 配置生成键，切换模型后重新识别"""
+    """按模板、字段需求、映射契约、AI 配置生成键，切换模型后重新识别"""
     context = analysis_context(package, document, projects)
     context.pop("template")
     context.pop("layout")

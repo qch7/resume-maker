@@ -1,4 +1,4 @@
-"""独立实例、分层作用域和候选健康检查的可观察行为"""
+"""独立实例、分层作用域、候选健康检查的可观察行为"""
 
 import sys
 import threading
@@ -15,7 +15,7 @@ from resume_maker.sdk.manifest import Manifest
 
 @pytest.fixture
 def definitions(monkeypatch):
-    """合成插件各自保存计数和资源，只通过声明的能力使用父作用域"""
+    """合成插件各自保存计数、资源，只通过声明的能力使用父作用域"""
     module = ModuleType("synthetic_instances")
 
     def activate(context):
@@ -83,7 +83,7 @@ def definitions(monkeypatch):
 
 
 def test_independent_instances_have_explicit_bindings_and_unique_contributions(definitions):
-    """同一插件共享定义但状态不串用，两个消费实例分别绑定明确的提供方"""
+    """同一插件的实例共享定义，各自持有状态，消费实例绑定明确的提供方"""
     specs = [
         {"id": "counter.one", "plugin": "example.counter"},
         {"id": "counter.two", "plugin": "example.counter"},
@@ -178,7 +178,7 @@ def test_task_definitions_require_a_task_scope_and_cannot_expand_permissions(def
 
 
 def test_system_jobs_own_task_instances_until_actual_cleanup(definitions, tmp_path):
-    """两个并发任务有独立实例，取消保留租约直到函数和子作用域都退出"""
+    """两个并发任务有独立实例，取消保留租约直到函数、子作用域都退出"""
     from resume_maker.infrastructure.database import Database
     from resume_maker.infrastructure.task_supervisor import TaskSupervisor
     from resume_maker.sdk.tasks import current_task

@@ -1,4 +1,4 @@
-"""招聘收藏夹的可交换文件、链接校验和导入合并规则"""
+"""招聘收藏夹的可交换文件、链接校验、导入合并规则"""
 
 from typing import Annotated, Literal
 
@@ -40,7 +40,7 @@ class RecruitmentLink(Model):
     @field_validator("url")
     @classmethod
     def validate_url(cls, value: str) -> str:
-        """校验网页协议和主机，拒绝凭据及控制字符并统一网址格式"""
+        """校验网页协议、主机，拒绝凭据及控制字符并统一网址格式"""
         value = value.strip()
         if any(ord(char) < 32 for char in value):
             raise ValueError("网址不能包含控制字符")
@@ -51,7 +51,7 @@ class RecruitmentLink(Model):
 
 
 class RecruitmentBookmark(Model):
-    """企业或自定义招聘网站，可保存多个入口和个人备注"""
+    """企业或自定义招聘网站，可保存多个入口、个人备注"""
 
     id: Identifier
     name: Label
@@ -75,7 +75,7 @@ class RecruitmentFile(Model):
 
     @model_validator(mode="after")
     def validate_references(self):
-        """整份校验标识、领域名称和引用，防止部分导入留下孤立条目"""
+        """整份校验标识、领域名称、引用，防止部分导入留下孤立条目"""
         for groups, label in ((self.domains, "领域"), (self.categories, "分类")):
             if len({group.id for group in groups}) != len(groups):
                 raise ValueError(f"{label} ID 不能重复")
@@ -97,7 +97,7 @@ class RecruitmentFile(Model):
 
 
 def empty_recruitment() -> RecruitmentFile:
-    """创建完全空白的收藏夹，分组和网址由用户添加或导入"""
+    """创建完全空白的收藏夹，分组、网址由用户添加或导入"""
     return RecruitmentFile(
         format="resume-maker.recruitment-bookmarks",
         schema_version=1,
@@ -128,7 +128,7 @@ def merge_groups(current: list[RecruitmentGroup], incoming: list[RecruitmentGrou
 def merge_recruitment(
     current: RecruitmentFile, incoming: RecruitmentFile, policy: Literal["keep", "update"]
 ) -> tuple[RecruitmentFile, dict]:
-    """合并文件携带的领域和分类，按稳定标识处理重复收藏"""
+    """合并文件携带的领域、分类，按稳定标识处理重复收藏"""
     domains, domain_mapping = merge_groups(current.domains, incoming.domains)
     categories, category_mapping = merge_groups(current.categories, incoming.categories)
     bookmarks = {item.id: item for item in current.bookmarks}

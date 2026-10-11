@@ -1,4 +1,4 @@
-"""共享内容摘要和基础凭据遮盖"""
+"""共享内容摘要、基础凭据遮盖"""
 
 import hashlib
 import re
@@ -15,6 +15,6 @@ def digest(data: bytes) -> str:
 
 
 def redact(text: str) -> str:
-    """遮盖明显的口令和 API 密钥，降低快照和错误日志泄露敏感值的风险"""
+    """遮盖明显的口令、API 密钥，降低快照、错误日志泄露敏感值的风险"""
     text = SECRET_VALUE.sub(r"\1<redacted>", text)
     return re.sub(r"\bsk-[A-Za-z0-9_-]{16,}\b", "<redacted>", text)

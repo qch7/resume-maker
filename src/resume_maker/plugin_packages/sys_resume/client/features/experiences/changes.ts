@@ -6,7 +6,7 @@ import type {
 } from "@resume-maker/plugin-sdk/shared/types/index";
 import { experienceContent } from "@resume-maker/plugin-sdk/shared/resume/visibility";
 
-/** 只比较当前字段和正式版本的内容 */
+/** 只比较当前字段在草稿、正式版本中的内容 */
 export function fieldChanged(
   value: unknown,
   base: Experience,
@@ -28,7 +28,7 @@ export function fieldChanged(
       )
     );
   const original = base.highlights.find(
-    /* 找到该亮点的正式内容 */ (point) => point.id === field.slice(10),
+    (point) => point.id === field.slice(10),
   );
   return JSON.stringify(value ?? null) !== JSON.stringify(original ?? null);
 }
@@ -50,7 +50,7 @@ export function editHighlightText(
             ? base.evidence.find(
                 /* 不同对象属性顺序不影响同一证据的识别 */ (item) =>
                   Object.entries(source).every(
-                    /* 保留文件、行号和原文均一致的引用状态 */ ([
+                    /* 文件、行号、原文均一致时保留引用状态 */ ([
                       key,
                       content,
                     ]) => item[key as keyof typeof item] === content,

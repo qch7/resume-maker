@@ -138,7 +138,7 @@ def server(directory, *, initial=False):
 
 
 def main():
-    """独立构建后验证文档请求、实例资源加载、停用和持久恢复"""
+    """独立构建后验证文档请求、实例资源加载、停用、持久恢复"""
     source = Path(sys.argv[1]).resolve()
     archive = source.parent / "notes.rmp"
     subprocess.run(

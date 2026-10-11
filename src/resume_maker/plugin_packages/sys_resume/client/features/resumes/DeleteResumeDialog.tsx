@@ -3,7 +3,7 @@ import { useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import type { Resume } from "@resume-maker/plugin-sdk/shared/types/index";
 
-/** 删除前展示方案名称和影响范围 */
+/** 删除前展示方案名称、影响范围 */
 export default function DeleteResumeDialog({
   resume,
   onClose,

@@ -61,7 +61,7 @@ def wildcard_pattern(value):
 
 
 def safe_text(value):
-    """遮盖文本中的常见鉴权值和私钥，保留调试需要的业务正文"""
+    """遮盖文本中的常见鉴权值、私钥，保留调试需要的业务正文"""
     text = SECRET_TEXT.sub(lambda match: (match[1] or match[2] or "") + "[已遮盖]", value)
     return re.sub(r"(https?://)[^\s/@]+:[^\s/@]+@", r"\1[已遮盖]@", text)
 
@@ -124,12 +124,12 @@ def mask_secrets(value, secrets):
 
 
 class ActivityLog:
-    """每个应用实例独立持有日志库和保留策略"""
+    """每个应用实例独立持有日志库、保留策略"""
 
     def __init__(
         self, path: Path, *, max_records=None, retention_days=None, secrets=(), policy=None
     ):
-        """建立独立日志库以保留现有业务数据库结构和用户数据"""
+        """建立独立日志库以保留现有业务数据库结构、用户数据"""
         self.path = path
         self.policy = policy or ActivityPolicy()
         self.max_records = self.policy.max_records if max_records is None else max_records
@@ -165,7 +165,7 @@ class ActivityLog:
             conn.commit()
 
     def connect(self, *, check_same_thread=True):
-        """创建短连接，日志锁和业务事务互不共享"""
+        """创建短连接，日志锁、业务事务互不共享"""
         conn = sqlite3.connect(
             self.path, timeout=self.policy.lock_timeout_seconds, check_same_thread=check_same_thread
         )
@@ -192,7 +192,7 @@ class ActivityLog:
         )
 
     def _cursor(self, conn):
-        """同时读取保留记录和持久游标，清空日志后编号继续递增"""
+        """同时读取保留记录、持久游标，清空日志后编号继续递增"""
         return conn.execute(
             "SELECT MAX(COALESCE((SELECT MAX(id) FROM activity),0),"
             "COALESCE((SELECT CAST(value AS INTEGER) FROM metadata WHERE key='last_id'),0))"
@@ -207,7 +207,7 @@ class ActivityLog:
         )
 
     def write(self, category, event, title, payload=None, **fields) -> bool:
-        """落盘前按类别和开始事件开关跳过，避免序列化及推进游标"""
+        """落盘前按类别、开始事件开关跳过，避免序列化及推进游标"""
         try:
             with self.lock:
                 if category not in self.capture_categories or (
@@ -270,7 +270,7 @@ class ActivityLog:
         hidden_rules=None,
         **_,
     ):
-        """组合固定列的参数化条件，关键词按字面搜索全部正文和关联标识"""
+        """组合固定列的参数化条件，关键词按字面搜索全部正文、关联标识"""
         hidden_rules = "\n".join(self.policy.hidden_rules) if hidden_rules is None else hidden_rules
         clauses, args = [], []
         if not show_starts and not trace_id:
@@ -488,7 +488,7 @@ class ActivityLog:
         }
 
     def delete(self, *, before):
-        """串行删除指定时间之前或全部日志，保留历史补录标记和递增游标"""
+        """串行删除指定时间之前或全部日志，保留历史补录标记、递增游标"""
         with self.lock, closing(self.connect()) as conn:
             conn.execute("BEGIN IMMEDIATE")
             self._remember_cursor(conn, self._cursor(conn))
@@ -517,7 +517,7 @@ class ActivityLog:
         """以固定快照分批导出 JSONL，导出过程中新增记录留给下次导出"""
         where, args = self.filters(**filters)
         cte, polling_args = self.polling_cte(**filters)
-        # 流式迭代串行执行，但框架可能将下一批调度到另一线程
+        # 流式迭代逐批串行执行，框架可将下一批调度到其他线程
         with closing(self.connect(check_same_thread=False)) as conn:
             conn.execute("BEGIN")
             snapshot = self._cursor(conn)

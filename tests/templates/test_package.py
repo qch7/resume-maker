@@ -1,4 +1,4 @@
-"""DOCX 批注、部件和版面结构的读取及保留"""
+"""DOCX 批注、部件、版面结构的读取及保留"""
 
 from zipfile import ZipFile
 
@@ -21,7 +21,7 @@ from tests.support.templates import TemplateProvider, completed, simple_document
 
 
 def test_default_annotation_parts_allow_analysis_and_filling(tmp_path):
-    """默认分隔线和空批注部件不阻止 AI 识别及填充，导出时仍原样保留部件"""
+    """默认分隔线、空批注部件不阻止 AI 识别及填充，导出时仍原样保留部件"""
     source, output = tmp_path / "source.docx", tmp_path / "output.docx"
     doc = Document()
     doc.add_paragraph("原姓名")
@@ -149,7 +149,7 @@ def empty_plan(**kwargs):
 
 @pytest.mark.parametrize("kind", ["footnote", "endnote"])
 def test_note_text_is_replaced_and_comments_are_removed_from_copy(tmp_path, kind):
-    """正文和脚注尾注同时替换，批注及其引用清理，原文件完全保留"""
+    """正文、脚注尾注同时替换，批注及其引用清理，原文件完全保留"""
     doc = Document()
     paragraph = doc.add_paragraph("原姓名")
     reference = etree.SubElement(paragraph.add_run()._r, w(f"{kind}Reference"))
@@ -191,7 +191,7 @@ def test_note_text_is_replaced_and_comments_are_removed_from_copy(tmp_path, kind
 
 @pytest.mark.parametrize("requires,expected", [("wps", "现代表示"), ("future", "备用表示")])
 def test_word_alternate_representation_is_not_counted_twice(tmp_path, requires, expected):
-    """Word 的同一内容只选择一种有效表示以免 AI 和待处理清单重复计算"""
+    """Word 的同一内容只选择一种有效表示以免 AI、待处理清单重复计算"""
     doc = Document()
     paragraph = doc.add_paragraph()
     paragraph._p.append(

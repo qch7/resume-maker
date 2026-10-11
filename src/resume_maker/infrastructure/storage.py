@@ -1,4 +1,4 @@
-"""离线恢复和应用服务器共用实例锁以免数据目录被并发覆盖"""
+"""离线恢复、应用服务器共用实例锁以免数据目录被并发覆盖"""
 
 import hashlib
 import json
@@ -23,13 +23,14 @@ FOLDERS = ("assets", "plugin-data")
 
 @contextmanager
 def instance_lock(directory: Path):
-    """持有数据目录的跨进程排他锁以防运行实例和离线恢复互相覆盖"""
+    """持有数据目录的跨进程排他锁以防运行实例、离线恢复互相覆盖"""
     directory = directory.resolve()
     lock_directory = directory.parent
     if (lock_directory / "pyproject.toml").is_file():
         lock_directory = lock_directory / ".local" / "locks"
     lock_directory.mkdir(parents=True, exist_ok=True)
-    # 锁保存在数据目录外，源码运行集中到 .local，恢复交换目录时排他锁继续有效
+    # 锁保存在资料目录外，源码运行时集中存于 .local
+    # 恢复交换资料目录时继续持有排他锁
     with (lock_directory / f".{directory.name}.instance.lock").open("a+b") as lock:
         if os.name == "nt":
             import msvcrt
@@ -55,7 +56,7 @@ def instance_lock(directory: Path):
 def create_backup(
     db: Database, directory: Path, *, kind: str = "manual", reason: str = "manual"
 ) -> Path:
-    """短事务固定读取快照和附件副本，释放写锁后复制数据库及压缩"""
+    """短事务固定读取快照、附件副本，释放写锁后复制数据库及压缩"""
     if kind not in {"manual", "automatic"}:
         raise ValueError("备份来源无效。")
     folder = directory / "backups"
@@ -249,7 +250,7 @@ def stored_file(conn, directory, key, name):
 
 
 def validate_assets(conn, directory):
-    """数据库记录和文件清单同时校验，不能只验证 ZIP 内部自洽"""
+    """数据库记录、文件清单同时校验，不能只验证 ZIP 内部自洽"""
     for key, raw in conn.execute(
         "SELECT key,value_json FROM settings WHERE key LIKE 'asset-bundle:%'"
     ):

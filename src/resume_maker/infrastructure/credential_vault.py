@@ -1,4 +1,4 @@
-"""不透明凭据引用和限用途借用，不进入普通配置或广播"""
+"""不透明凭据引用、限用途借用，不进入普通配置或广播"""
 
 import base64
 import json
@@ -18,7 +18,7 @@ class CredentialVault:
     """本机凭据后端协调刷新，原始值只在借用范围内交给可信适配器"""
 
     def __init__(self, directory: Path | None = None):
-        """每个应用实例使用独立引用和撤销集合"""
+        """每个应用实例使用独立引用、撤销集合"""
         self.records, self.lock = {}, threading.RLock()
         self.directory = directory
         self.closed = False
@@ -52,7 +52,7 @@ class CredentialVault:
         return identifier
 
     def _persistent(self, identifier):
-        """只读取宿主创建的引用，路径和保护格式不由插件提供"""
+        """只读取宿主创建的引用，路径、保护格式不由插件提供"""
         if self.directory is None or not re.fullmatch(r"cred\.[a-f0-9]{32}", identifier):
             return None
         path = self.directory / identifier
@@ -74,7 +74,7 @@ class CredentialVault:
             raise Problem("凭据存储无法读取，请重新配置。", 409) from None
 
     def register(self, adapter, purpose, loader):
-        """登记凭据加载器而非在插件配置中存放明文"""
+        """通过加载器读取凭据，插件配置排除明文"""
         identifier = secrets.token_urlsafe(24)
         with self.lock:
             if self.closed:
@@ -84,7 +84,7 @@ class CredentialVault:
 
     @contextmanager
     def borrow(self, identifier, adapter, purpose):
-        """借用时核对适配器及目的，锁协调刷新和撤销"""
+        """借用时核对适配器及目的，锁协调刷新、撤销"""
         with self.lock:
             if self.closed:
                 raise Problem("凭据服务已停止。", 409)

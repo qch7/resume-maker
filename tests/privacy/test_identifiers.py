@@ -1,4 +1,4 @@
-"""身份标识的格式变体、完整遮盖和正常数字保留"""
+"""身份标识的格式变体、完整遮盖、正常数字保留"""
 
 import json
 import threading
@@ -36,7 +36,7 @@ def test_entire_identifier_wins_over_short_private_term(number):
     ],
 )
 def test_formatted_identifiers_hide_every_component(value):
-    """字宽、控制符、分组和换行不会留下能拼回编号的片段"""
+    """字宽、控制符、分组、换行不会留下能拼回编号的片段"""
     redactor = Redactor(["21"])
     safe = redactor.prompt(value)
     assert not any(character.isdecimal() for character in TOKEN.sub("", safe))
@@ -71,7 +71,7 @@ def test_grouped_verification_code_needs_no_saved_identity():
 
 
 def test_short_numeric_terms_keep_unrelated_dates_scores_and_code():
-    """年龄等短数字只匹配独立值，不改坏日期、成绩和程序符号"""
+    """年龄等短数字只匹配独立值，不改坏日期、成绩、程序符号"""
     redactor = Redactor(["21", "20", "1"])
     ordinary = "2024年12月；总分575；听力206；阅读201；翻译168\nreturn value21 + 0.21"
     assert redactor.prompt(ordinary) == ordinary
@@ -81,7 +81,7 @@ def test_short_numeric_terms_keep_unrelated_dates_scores_and_code():
 
 
 def test_grouped_scores_and_dates_are_preserved():
-    """分组成绩、年月日、年份列表和结构坐标不应被合并当成身份编号"""
+    """分组成绩、年月日、年份列表、结构坐标不应被合并当成身份编号"""
     redactor = Redactor()
     text = "575 206 201 168\n2024-12-01\n2024 2025 2026 2027\n0.1234567890123"
     assert redactor.prompt(text) == text
@@ -102,7 +102,7 @@ def test_overlapping_known_value_cannot_expose_identifier_suffix():
 
 
 def test_ocr_fragments_and_structured_aliases_use_the_same_gateway(tmp_path, monkeypatch):
-    """OCR 分块、汇总文字和结构化编号全部遮盖，模型结果在本机完整还原"""
+    """OCR 分块、汇总文字、结构化编号全部遮盖，模型结果在本机完整还原"""
     number = "762810219043785"
     fragments = ["76281", "02190", "43785"]
     document = {
@@ -182,7 +182,7 @@ def test_certificate_identity_labels_are_discovered(label, identity, separator):
     ],
 )
 def test_known_identity_ocr_spacing_and_width_are_masked(known, variant):
-    """OCR 插入空白、不可见字符和全角字符不绕过已登记身份"""
+    """OCR 插入空白、不可见字符、全角字符不绕过已登记身份"""
     raw = "材料正文 " + variant
     redactor = Redactor([known])
     safe = redactor.prompt(raw)
@@ -197,7 +197,7 @@ def test_known_identity_ocr_spacing_and_width_are_masked(known, variant):
     ["１３９００００４７２６", "ｐｅｒｓｏｎ＠ｅｘａｍｐｌｅ．ｉｎｖａｌｉｄ", "139\u200b00004726"],
 )
 def test_unknown_contact_width_and_format_controls(raw):
-    """首次出现的电话和邮箱也识别全角字符及不可见格式符"""
+    """首次出现的电话、邮箱也识别全角字符及不可见格式符"""
     redactor = Redactor()
     safe = redactor.prompt(raw)
     assert raw not in safe and TOKEN.search(safe)

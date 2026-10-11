@@ -1,4 +1,4 @@
-"""个人信息和两级简历栏目，独立于项目经历的固定版本引用"""
+"""个人信息、两级简历栏目，独立于项目经历的固定版本引用"""
 
 import base64
 import binascii
@@ -59,7 +59,7 @@ class PersonalInfo(Model):
 
 
 class SourceReference(Model):
-    """简历固定保存来源身份和最后采用版本，缺包时原文字段仍可展示"""
+    """简历固定保存来源身份、最后采用版本，缺包时原文字段仍可展示"""
 
     provider: str = Field(pattern=r"^[a-z][a-z0-9._-]*/[a-zA-Z0-9._/-]+$", max_length=250)
     id: str = Field(min_length=1, max_length=100)
@@ -67,7 +67,7 @@ class SourceReference(Model):
 
 
 class SectionEntry(Model):
-    """栏目下的经历或文本条目，支持学校、专业、时间和多行正文"""
+    """栏目下的经历或文本条目，支持学校、专业、时间、多行正文"""
 
     id: str = Field(min_length=1, max_length=100)
     source: SourceReference | None = None
@@ -110,7 +110,7 @@ class ResumeSection(Model):
 
 
 class ResumeDocument(Model):
-    """一份简历独立保存的顶部资料和栏目编排，允许大栏目加子栏目两层"""
+    """一份简历独立保存的顶部资料、栏目编排，允许大栏目加子栏目两层"""
 
     personal: PersonalInfo = Field(default_factory=PersonalInfo)
     sections: list[ResumeSection] = Field(max_length=40)
@@ -119,7 +119,7 @@ class ResumeDocument(Model):
 
     @model_validator(mode="after")
     def validate_hierarchy(self):
-        """拒绝重复标识、孤立引用、循环和超过两级的栏目，项目经历保持独立大栏目"""
+        """拒绝重复标识、孤立引用、循环、超过两级的栏目，项目经历保持独立大栏目"""
         if any(
             not re.fullmatch(r"[a-z][a-z0-9]*(?:[._-][a-z0-9]+)+", key) for key in self.extensions
         ):

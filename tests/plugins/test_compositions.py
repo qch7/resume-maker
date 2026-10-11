@@ -1,4 +1,4 @@
-"""真实 HTTP 组合和最小产品闭环验收"""
+"""真实 HTTP 组合、最小产品闭环验收"""
 
 from io import BytesIO
 from pathlib import Path
@@ -17,7 +17,7 @@ HEADERS = {"x-resume-token": "test"}
 
 
 def test_minimal_manual_revision_docx_and_restore(tmp_path):
-    """无 AI、源码、OCR 和 Word 时完成手工经历到备份恢复的闭环"""
+    """无 AI、源码、OCR、Word 时完成手工经历到备份恢复的闭环"""
     config = Config(data_dir=tmp_path / "data", profile="minimal", token="test")
     with TestClient(create_app(config)) as client:
         capabilities = client.get("/api/capabilities", headers=HEADERS).json()
@@ -123,7 +123,7 @@ def test_optional_reverse_dependencies_are_explicit():
 
 
 def test_task_instances_never_silently_run_as_workspace():
-    """任务声明可以解析，但不能作为长期工作区实例激活"""
+    """任务声明可以解析，长期工作区拒绝激活任务实例"""
     from resume_maker.runtime.host import Host
     from resume_maker.sdk.manifest import Manifest
 
@@ -209,7 +209,7 @@ def test_each_optional_disable_has_explicit_dependency_or_working_minimal_core(
             },
         )
         assert response.status_code == 200, response.text
-        # 真实 Word 另行验证，此矩阵只检验引擎和组合边界
+        # 真实 Word 另行验证，此矩阵只检验引擎、组合边界
         from resume_maker.runtime.host import Contribution
         from resume_maker.sdk.documents import DocumentRenderer
 

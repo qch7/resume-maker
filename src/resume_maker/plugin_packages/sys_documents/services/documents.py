@@ -43,7 +43,7 @@ class Documents:
         return self.registry.describe() if self.registry else {"engines": [], "renderers": []}
 
     def importers(self, purpose):
-        """读取统一导入目录，证书和模板页面使用相同格式描述"""
+        """读取统一导入目录，证书、模板页面使用相同格式描述"""
         return self.registry.importers(purpose) if self.registry else []
 
     def export(
@@ -64,7 +64,7 @@ class Documents:
     def _export(
         self, resume_id, *, directory, expected_version=None, engine_id=None, renderer_id=None
     ):
-        """读取固定资料及项目引用，按所选完整模板或内置版式生成文件和清单"""
+        """读取固定资料及项目引用，按所选完整模板或内置版式生成文件、清单"""
         inputs = self.catalog.freeze_export(self.data_dir, resume_id, expected_version)
         resume, manifest_items, template = inputs.values()
         renderer = self.renderer

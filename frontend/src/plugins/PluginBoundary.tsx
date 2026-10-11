@@ -1,6 +1,6 @@
 import { Component, type ReactNode } from "react";
 
-/** 单个扩展视图失败时保留工作台和现有草稿 */
+/** 单个扩展视图失败时保留工作台、现有草稿 */
 export default class PluginBoundary extends Component<
   { owner: string; children: ReactNode },
   { failed: boolean }

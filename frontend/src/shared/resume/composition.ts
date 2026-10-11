@@ -43,7 +43,7 @@ export function orderCompositionHighlights(
         return {
           ...item,
           highlight_ids: [...item.highlight_ids].sort(
-            /* 保留未提交亮点的选择和相对顺序 */ (a, b) =>
+            /* 保留未提交亮点的选择、相对顺序 */ (a, b) =>
               (positions.get(a) ?? highlights.length) -
               (positions.get(b) ?? highlights.length),
           ),
@@ -53,7 +53,7 @@ export function orderCompositionHighlights(
   };
 }
 
-/** 比较实际组合内容和固定引用，忽略保存次数等非内容变化 */
+/** 比较实际组合内容、固定引用，忽略保存次数等非内容变化 */
 export function sameComposition(a: Resume | undefined, b: Resume) {
   return (
     !!a &&
@@ -65,7 +65,7 @@ export function sameComposition(a: Resume | undefined, b: Resume) {
   );
 }
 
-/** 确认导出属于当前简历且清单中的组合和当前选择一致 */
+/** 确认导出属于当前简历，清单组合须匹配当前选择 */
 export function isCurrentExport(result: Export | null, draft: Resume) {
   return (
     !!result &&
@@ -74,7 +74,10 @@ export function isCurrentExport(result: Export | null, draft: Resume) {
   );
 }
 
-/** 保存请求返回时保留后续输入或已切换的方案且只推进同一方案的服务器版本号 */
+/**
+ * 保存返回后仅更新同一方案
+ * 请求期间有新输入时保留输入，只更新标识及版本号
+ */
 export function acceptSavedComposition(
   current: Resume,
   submitted: Resume,

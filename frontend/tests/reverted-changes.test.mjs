@@ -12,7 +12,7 @@ import {
 import { buildLivePreview } from "../../src/resume_maker/plugin_packages/sys_resume/client/features/resumes/livePreview.ts";
 import { newDocument } from "../src/shared/resume/document.ts";
 
-/** 包含核实证据、自定义信息和两条亮点，覆盖多个编辑器共同变化 */
+/** 包含核实证据、自定义信息、两条亮点，覆盖多个编辑器共同变化 */
 function fixture() {
   return {
     title: "项目",

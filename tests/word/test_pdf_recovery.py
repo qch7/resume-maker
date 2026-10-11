@@ -28,7 +28,7 @@ from tests.support.templates import RecoveryProvider, simple_document
 
 
 def synthetic_pdf(path, *, rotate=0):
-    """构造包含文字、图标、白字底块、图片和三列资料的 PDF"""
+    """构造包含文字、图标、白字底块、图片、三列资料的 PDF"""
     with pymupdf.open() as pdf:
         page = pdf.new_page(width=500, height=700)
         page.insert_text((190, 45), "EXAMPLE NAME", fontsize=19, fontname="hebo")
@@ -117,7 +117,7 @@ def test_visual_layer_has_no_baked_in_heading(tmp_path):
 
 
 def test_mixed_pages_keep_order_sizes_and_media(tmp_path):
-    """原生、扫描和旋转页面逐页分流，合并后文字顺序、分节尺寸及素材关系都有效"""
+    """原生、扫描、旋转页面逐页分流，合并后文字顺序、分节尺寸及素材关系都有效"""
     native = tmp_path / "native.pdf"
     synthetic_pdf(native)
     source = tmp_path / "mixed.pdf"
@@ -206,7 +206,7 @@ def test_scan_and_hidden_ocr_layer_are_not_native(tmp_path):
 
 
 def test_native_word_never_enters_pdf_converter(tmp_path, monkeypatch):
-    """PDF 新入口即使失效，原生 Word 的表格、图片和文字仍走原路径"""
+    """PDF 新入口即使失效，原生 Word 的表格、图片、文字仍走原路径"""
     source, output = tmp_path / "word.docx", tmp_path / "result.docx"
     document = Document()
     document.add_paragraph("原姓名")
@@ -224,7 +224,7 @@ def test_native_word_never_enters_pdf_converter(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize("rotation", [0, 90, 180, 270])
 def test_rotation_and_crop_keep_visible_page(rotation):
-    """四个方向的旋转和非零裁切框都保持逐像素一致以免原文和裁图坐标错位"""
+    """四向旋转、非零裁切框均保持逐像素一致，防止原文坐标、裁图坐标错位"""
     with pymupdf.open() as source:
         page = source.new_page(width=300, height=500)
         page.insert_text((40, 70), "ROTATION")
@@ -381,7 +381,7 @@ def test_colored_background_does_not_absorb_photo(tmp_path):
 
 
 def test_stroked_horizontal_and_vertical_lines_are_preserved():
-    """零面积路径按可见笔画裁图，水平分隔线和竖线不会被当作空素材丢弃"""
+    """零面积路径按可见笔画裁图，水平分隔线、竖线不会被当作空素材丢弃"""
     with pymupdf.open() as pdf:
         page = pdf.new_page(width=500, height=700)
         page.draw_line((25, 65), (475, 65), color=(0.1, 0.2, 0.3), width=1)

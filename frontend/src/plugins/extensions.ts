@@ -63,7 +63,7 @@ export interface Extension<K extends keyof ClientExtensionPoints> {
   value: ClientExtensionPoints[K];
 }
 
-/** 校验插件返回的 JSON 值，拒绝隐式丢失、非有限数值和过大的草稿 */
+/** 校验插件返回的 JSON 值，拒绝隐式丢失、非有限数值、过大的草稿 */
 export function jsonCopy<T>(value: T): T {
   const encoded = JSON.stringify(value, (_key, item) => {
     if (
@@ -89,7 +89,7 @@ function freeze<T>(value: T): Readonly<T> {
   return value;
 }
 
-/** 使用明确修饰键避免接管输入字符和依赖安装顺序选择冲突命令 */
+/** 使用明确修饰键，避免接管字符输入或按安装顺序选择冲突命令 */
 export function normalizeShortcut(value: string): string {
   const parts = value.toLowerCase().split("+");
   const key = parts.pop();
@@ -304,7 +304,7 @@ export function createClientExtensions(
     }));
   }
 
-  /** 展示后端已遮盖的事件副本，单个贡献失败保留原始记录和其他展示 */
+  /** 展示后端已遮盖的事件副本，单个贡献失败保留原始记录、其他展示 */
   function activity(input: ActivityInput) {
     const snapshot = freeze(JSON.parse(JSON.stringify(input)) as ActivityInput);
     return list("activity.presenters")

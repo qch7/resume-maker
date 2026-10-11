@@ -17,7 +17,7 @@ export function remoteProvider(
 /** 服务只按宿主求解的所有者绑定，失败插件不能提供半注册能力 */
 export function createClientServices() {
   const values = new Map<string, unknown>();
-  /** 实例和服务名共同组成唯一身份 */
+  /** 实例、服务名共同组成唯一身份 */
   function key(owner: string, name: string) {
     return JSON.stringify([owner, name]);
   }

@@ -8,7 +8,7 @@ import {
   sameComposition,
 } from "../src/shared/resume/composition.ts";
 
-test("saving personal information leaves other pending sections and project selections unpublished", /* 基本信息保存后仍保留其他栏目和项目引用草稿 */ () => {
+test("saving personal information leaves other pending sections and project selections unpublished", /* 基本信息保存后仍保留其他栏目、项目引用草稿 */ () => {
   const saved = {
     id: "resume",
     name: "已保存方案",
@@ -130,7 +130,7 @@ test("personal save responses never erase newer typing or switch resumes", /* �
   assert.equal(acceptSavedComposition(other, submitted, response), other);
 });
 
-test("object property order and visibility selection order do not keep a full save dirty", /* 属性顺序和显隐勾选顺序不影响保存状态，内容和可见性变化仍可识别 */ () => {
+test("object property order and visibility selection order do not keep a full save dirty", /* 属性顺序、显隐勾选顺序不影响保存状态，内容、可见性变化仍可识别 */ () => {
   const draft = {
     id: "template",
     name: "简历",

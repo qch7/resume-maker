@@ -12,7 +12,7 @@ ORDER = ["custom:link", "description", "highlights", "role", "custom:team", "sta
 
 
 def order_template(path, layout):
-    """构造独立正文、表格、综合字段、共享标题和多亮点槽位模板"""
+    """构造独立正文、表格、综合字段、共享标题、多亮点槽位模板"""
     if layout in {"body", "cell", "row"}:
         return metadata_template(path, layout, 7)
     doc = Document()
@@ -130,7 +130,7 @@ def generic_template(path, layout="body", padding=0):
 
 
 def generic_content():
-    """构造两个不同项目和两条普通经历，包含未来新增、可隐藏的自定义信息"""
+    """构造两个不同项目、两条普通经历，包含未来新增、可隐藏的自定义信息"""
     document = ResumeDocument.model_validate(
         {
             "personal": {"name": "Current Person", "website": "https://profile.example.test"},
@@ -177,19 +177,19 @@ def generic_content():
 
 
 def visible_text(path):
-    """提取所有容器的段落文字，检查重复记录、隐藏资料和占位符"""
+    """提取所有容器的段落文字，检查重复记录、隐藏资料、占位符"""
     return "\n".join(
         row["text"] for row in TemplatePackage(path).inventory()["nodes"] if row["kind"] == "p"
     )
 
 
 def template_body_text(path):
-    """读取文档正文顺序，包含表格和图形内的文字"""
+    """读取文档正文顺序，包含表格、图形内的文字"""
     return "\n".join(Document(path).element.body.xpath(".//w:t/text()"))
 
 
 def section_template(path, table=False):
-    """生成三个独立栏目，使用精确标题映射和可重复的条目样本"""
+    """生成三个独立栏目，使用精确标题映射、可重复的条目样本"""
     doc = Document()
     doc.add_paragraph("固定开头")
     container = doc.add_table(rows=0, cols=1) if table else doc
@@ -236,7 +236,7 @@ def section_template(path, table=False):
 
 
 def layout_content():
-    """生成大栏目和子栏目的资料，刻意将子栏目放在数组前面检验层级展开"""
+    """生成大栏目、子栏目的资料，刻意将子栏目放在数组前面检验层级展开"""
     return ResumeDocument.model_validate(
         {
             "sections": [
@@ -265,7 +265,7 @@ def project_document():
 
 
 def plan_for(path, bindings, keep=(), row=False):
-    """按段落原文和空位出现顺序建立映射，允许测试不同容器和节点编号"""
+    """按段落原文、空位出现顺序建立映射，允许测试不同容器、节点编号"""
     package = TemplatePackage(path)
     paragraphs = [node for node in package.nodes.values() if node.tag == w("p")]
     fields = []
@@ -300,7 +300,7 @@ def plan_for(path, bindings, keep=(), row=False):
 
 
 def metadata_template(path, container, indent, role=""):
-    """构造正文或表格样本，末尾角色的原缩进故意和正文不同"""
+    """构造正文或表格样本，末尾角色使用不同于正文的原缩进"""
     doc = Document()
     if container == "body":
         area = doc

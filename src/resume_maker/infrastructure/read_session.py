@@ -10,7 +10,7 @@ class ReadSession:
     """阻止来源回调通过查询接口改写正在保存的事务"""
 
     def __init__(self, conn):
-        """引用调用方连接，读会话不拥有提交和关闭权限"""
+        """引用调用方连接，读会话不拥有提交、关闭权限"""
         self._conn = conn
         self.closed = False
 
@@ -34,7 +34,7 @@ class ReadSession:
             self._conn.set_authorizer(None)
 
     def setting(self, key, default=None):
-        """配置读取保持和资料查询同一事务代次"""
+        """配置读取、资料查询使用同一事务代次"""
         rows = self.all("SELECT value_json FROM settings WHERE key=?", (key,))
         return rows[0]["value"] if rows else default
 

@@ -1,4 +1,4 @@
-"""本机服务启动和离线恢复的命令行入口"""
+"""本机服务启动、离线恢复的命令行入口"""
 
 import argparse
 import json
@@ -28,7 +28,7 @@ from .api import create_app
 
 
 def add_launch_arguments(parser):
-    """所有官方启动器复用相同参数、配置文件开关和布尔覆盖语义"""
+    """所有官方启动器复用相同参数、配置文件开关、布尔覆盖语义"""
     parser.add_argument("--data-dir", type=Path)
     parser.add_argument("--port")
     for name in SupervisorPolicy.model_fields:
@@ -158,7 +158,7 @@ def main(argv=None):
 
 
 def maintain_assets(config, args):
-    """停机回收只处理已审查的资源，不装载外部插件和业务代码"""
+    """停机回收只处理已审查的资源，不装载外部插件、业务代码"""
     from resume_maker.infrastructure.assets import Assets
     from resume_maker.infrastructure.database import Database
 

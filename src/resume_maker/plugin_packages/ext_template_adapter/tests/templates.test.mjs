@@ -37,7 +37,7 @@ test("完整模板在个人资料及栏目单独保存后继续生效", /* 验�
   );
 });
 
-test("映射选项包括当前自定义信息和所有栏目标题", /* 栏目和个人自定义资料可以参与整份模板替换 */ () => {
+test("映射选项包括当前自定义信息和所有栏目标题", /* 栏目、个人自定义资料可以参与整份模板替换 */ () => {
   const document = newDocument();
   document.personal.custom_fields = [
     { id: "language", label: "语言", value: "中文", visible: true },

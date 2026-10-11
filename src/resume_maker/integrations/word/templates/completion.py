@@ -1,4 +1,4 @@
-"""模板加载、识别、检查、保存和导出共用的资料补位入口"""
+"""模板加载、识别、检查、保存、导出共用的资料补位入口"""
 
 from pydantic import ValidationError
 
@@ -13,7 +13,7 @@ from resume_maker.integrations.word.templates.values import missing_targets
 
 
 def complete_template(package, plan, document, projects, source=None):
-    """仅扩展已确认结构的独立副本，需要落盘时将新节点和映射一并保存到任务快照"""
+    """仅扩展已确认结构的独立副本，需要落盘时将新节点、映射一并保存到任务快照"""
     # projects 是重复区的公开别名，模型也可能用它标识标题，需统一到实际栏目名称
     if not any(section.title == "projects" for section in document.sections):
         project_title = next(

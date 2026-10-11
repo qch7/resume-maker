@@ -12,7 +12,7 @@ from tests.support.data import experience, make_catalog
 
 @pytest.fixture(autouse=True)
 def isolate_launch_configuration(monkeypatch):
-    """测试显式声明启动输入，不读取开发者环境和源码根目录配置文件"""
+    """测试显式声明启动输入，不读取开发者环境、源码根目录配置文件"""
     for key in tuple(os.environ):
         if key.upper().startswith(PREFIX) and key.upper() != PREFIX + "TEST_NATIVE_CLI":
             monkeypatch.delenv(key)

@@ -18,7 +18,7 @@ export function restoreSidebarWidth(value: unknown): number {
     : 210;
 }
 
-/** 恢复视图和排序偏好，损坏或过期的值回退到卡片及原始顺序 */
+/** 恢复视图、排序偏好，损坏或过期的值回退到卡片及原始顺序 */
 export function restoreDisplayPreferences(value: unknown): DisplayPreferences {
   const saved =
     value && typeof value === "object"
@@ -75,7 +75,7 @@ export function bookmarkDescription(item: Bookmark): string {
     : description;
 }
 
-/** 创建空白收藏，领域和分类均可不选 */
+/** 创建空白收藏，领域、分类均可不选 */
 export function newBookmark(domain: string): Bookmark {
   return {
     id: crypto.randomUUID(),
@@ -90,7 +90,7 @@ export function newBookmark(domain: string): Bookmark {
   };
 }
 
-/** 按领域、分类、收藏和关键词筛选，保留用户原有排序 */
+/** 按领域、分类、收藏、关键词筛选，保留用户原有排序 */
 export function filterBookmarks(
   items: Bookmark[],
   domain: string,
@@ -118,7 +118,7 @@ export function filterBookmarks(
   });
 }
 
-/** 全部网站保留完整分类，领域和星标只显示当前范围实际使用的分类 */
+/** 全部网站保留完整分类，领域、星标只显示当前范围实际使用的分类 */
 export function scopeCategories(
   categories: Domain[],
   items: Bookmark[],

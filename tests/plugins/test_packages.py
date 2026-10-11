@@ -1,4 +1,4 @@
-"""外部包从检查到真实激活和卸载的完整行为"""
+"""外部包从检查到真实激活、卸载的完整行为"""
 
 import hashlib
 import json
@@ -219,7 +219,7 @@ def enable(client, identifier):
 
 
 def test_external_resume_source_survives_disable_and_restart(tmp_path):
-    """外部来源通过真实接口采用、同步和导出，停用前保留最后确认内容"""
+    """外部来源通过真实接口采用、同步、导出，停用前保留最后确认内容"""
     archive = tmp_path / "source.rmp"
     code = '''from resume_maker.sdk.sources import ResumeSource, SourceItem, SourcePage
 
@@ -321,7 +321,7 @@ def activate(context):
 
 
 def test_external_document_engine_uses_frozen_input_and_keeps_history_after_disable(tmp_path):
-    """外部引擎无需修改主工程即可导出，停用拒绝重新生成但历史文件仍可读取"""
+    """外部引擎可独立接入导出，停用后仅可读取历史文件"""
     archive = tmp_path / "engine.rmp"
     code = '''from docx import Document
 from resume_maker.sdk.documents import DocumentEngine
@@ -456,7 +456,7 @@ def test_external_host_and_client_install_without_rebuilding(tmp_path):
 
 
 def test_worker_process_validates_dto_and_reaps_process(tmp_path):
-    """受信任 worker 在独立进程执行计算，通过同一执行和 sandbox 服务回收"""
+    """受信任 worker 在独立进程执行计算，通过同一执行、sandbox 服务回收"""
     archive = tmp_path / "worker.rmp"
     bundle(archive, worker=True)
     app = create_app(Config(data_dir=tmp_path / "data", token="test", profile="minimal"))
@@ -630,7 +630,7 @@ def test_trusted_client_entry_at_package_root_or_subdirectory_is_downloadable(tm
 
 
 def test_inspect_rejects_hash_mismatch_and_identity_conflict(tmp_path):
-    """未执行任何入口前拒绝损坏产物和伪装系统身份"""
+    """未执行任何入口前拒绝损坏产物、伪装系统身份"""
     archive = tmp_path / "plugin.rmp"
     bundle(archive, extra={"id": "sys.privacy"})
     store = PackageStore(tmp_path / "data", set())
@@ -648,7 +648,7 @@ def test_inspect_rejects_hash_mismatch_and_identity_conflict(tmp_path):
 
 
 def test_external_importer_full_upload_template_cancel_disable_restore(tmp_path):
-    """真实外部格式接入两条导入路径，任务排空、停用和恢复均保留原件及处理记录"""
+    """真实外部格式接入两条导入路径，任务排空、停用、恢复均保留原件及处理记录"""
     import base64
     from io import BytesIO
 

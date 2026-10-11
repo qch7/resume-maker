@@ -28,7 +28,7 @@ interface Props {
   onRange: () => void;
 }
 
-/** 编辑当前选区的字段、照片用途和重复范围 */
+/** 编辑当前选区的字段、照片用途、重复范围 */
 export default function TemplateInspector({
   nodes,
   plan,

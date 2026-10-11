@@ -7,7 +7,7 @@ import type {
   ProjectDetail,
 } from "@resume-maker/plugin-sdk/shared/types/index";
 
-/** 在独立弹窗中查看引文和校验状态并定位本机来源文件 */
+/** 在独立弹窗中查看引文、校验状态并定位本机来源文件 */
 export default function EvidenceDialog({
   title,
   evidence,
@@ -25,7 +25,7 @@ export default function EvidenceDialog({
   const [opening, setOpening] = useState<number | null>(null);
   const snapshots = [detail.revision_snapshot, ...detail.snapshots];
   const verified = evidence.filter(
-    /* 统计已经和源码或文档原文匹配的引用 */ (entry) =>
+    /* 统计已匹配源码或文档原文的引用 */ (entry) =>
       entry.status === "code" || entry.status === "document",
   ).length;
 
@@ -38,7 +38,7 @@ export default function EvidenceDialog({
     [],
   );
 
-  /** 将快照标识和相对路径交给后端验证，错误留在当前弹窗内展示 */
+  /** 将快照标识、相对路径交给后端验证，错误留在当前弹窗内展示 */
   async function reveal(entry: Evidence, snapshotId: string, index: number) {
     setOpening(index);
     setNotice("");

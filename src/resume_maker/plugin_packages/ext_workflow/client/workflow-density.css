@@ -50,7 +50,7 @@
   }
 }
 
-/* 最简模式横向保留六个可点击步骤并隐藏说明和子步骤 */
+/* 最简模式横向保留六个可点击步骤并隐藏说明、子步骤 */
 @container resume-guide (height < 88px) {
   .workflow:not(.collapsed) .workflow-overview {
     width: auto;

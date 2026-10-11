@@ -1,4 +1,4 @@
-"""后台经历任务的可控模型和完成等待"""
+"""后台经历任务的可控模型、完成等待"""
 
 import json
 import time
@@ -15,11 +15,11 @@ class FakeProvider(ProviderStub):
     """可控 AI 替身以免自动测试调用真实 CLI 或消耗模型额度"""
 
     def __init__(self, block=False):
-        """配置测试替身是否等待取消，用于覆盖成功和取消两条任务路径"""
+        """配置测试替身是否等待取消，用于覆盖成功、取消两条任务路径"""
         self.calls, self.block = [], block
 
     def run(self, **kw):
-        """返回可预测的结构化建议并模拟独立会话标识和取消信号"""
+        """返回可预测的结构化建议并模拟独立会话标识、取消信号"""
         context = json.loads(kw["prompt"].split("本轮上下文数据：\n")[1])
         self.calls.append(
             {
@@ -45,7 +45,7 @@ class FakeProvider(ProviderStub):
 
 
 def wait_job(catalog, job_id):
-    """为慢速 CI 留出数据库等待余量，超时报告任务状态和最后事件"""
+    """为慢速 CI 留出数据库等待余量，超时报告任务状态、最后事件"""
     until = time.monotonic() + 30
     while True:
         job = catalog.db.one("SELECT * FROM jobs WHERE id=?", (job_id,))

@@ -1,4 +1,4 @@
-﻿# 启停脚本只转换参数，默认值、文件语法和优先级由 Python 入口解析
+﻿# 启停脚本只转换参数，默认值、文件语法、优先级由 Python 入口解析
 function Get-LaunchConfiguration {
     param([hashtable]$Parameters, [string]$RepoPath)
     $arguments = @('--print-config')
@@ -42,7 +42,7 @@ function Get-FrozenLaunchArguments {
 function Invoke-FrozenLaunch {
     param($Configuration)
     $previous = @{}
-    # 删除已解析的启动变量，让空的可选覆盖也保持固定，供应商输入继续保留
+    # 清除已解析的启动变量，固定空的可选覆盖并保留供应商输入
     $launchNames = @($Configuration.sources.PSObject.Properties.Name | ForEach-Object { 'RESUME_MAKER_' + $_.ToUpperInvariant() })
     $environment = [Environment]::GetEnvironmentVariables('Process')
     foreach ($name in $environment.Keys) {

@@ -37,7 +37,7 @@ def test_idle_poll_reuses_counts_and_delete_invalidates(tmp_path, monkeypatch):
 
 
 def test_another_log_instance_invalidates_deletion_and_filter_caches(tmp_path):
-    """同库另一个实例的删除立即失效，筛选结果和不同目录仍独立"""
+    """同库另一个实例的删除立即失效，筛选结果、不同目录仍独立"""
     left = ActivityLog(tmp_path / "shared.db")
     left.write("ai", "message", "one")
     peer = ActivityLog(tmp_path / "shared.db")

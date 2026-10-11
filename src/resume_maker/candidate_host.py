@@ -11,7 +11,7 @@ from resume_maker.runtime.graph import PluginError
 
 
 def main():
-    """试运行完整候选组合，任何缺失能力、健康失败和清理失败均返回失败"""
+    """试运行完整候选组合，任何缺失能力、健康失败、清理失败均返回失败"""
     specification = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
     config = Config(
         data_dir=Path(specification["data_dir"]),

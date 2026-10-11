@@ -10,7 +10,7 @@ from resume_maker.plugin_packages.ext_template_ai.services.templates.cache impor
 
 
 class TemplateAnalysis:
-    """模型提示和分析缓存随 AI 插件装配，手工模板核验独立运行"""
+    """模型提示、分析缓存随 AI 插件装配，手工模板核验独立运行"""
 
     def __init__(self, settings=None):
         """冻结本实例的修正轮数，任务之间不共享可变参数"""

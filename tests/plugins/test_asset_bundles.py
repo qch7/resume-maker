@@ -1,4 +1,4 @@
-"""不可变原件、原子引用和统一资源恢复的用户行为验收"""
+"""不可变原件、原子引用、统一资源恢复的用户行为验收"""
 
 from io import BytesIO
 from zipfile import ZipFile
@@ -16,7 +16,7 @@ from tests.support.honors import certificate_bytes
 
 
 def test_certificate_backup_restores_without_optional_plugin(tmp_path):
-    """证书只发布统一资源，最小组合和缺插件恢复仍保留完整原件"""
+    """证书只发布统一资源，最小组合、缺插件恢复仍保留完整原件"""
     directory = tmp_path / "data"
     db = Database(directory / "resume.db")
     raw = certificate_bytes()
@@ -37,7 +37,7 @@ def test_certificate_backup_restores_without_optional_plugin(tmp_path):
 
 
 def test_failed_bundle_publish_preserves_previous_files_and_references(tmp_path):
-    """业务事务失败时原件和索引完整保留，替换成功后旧文件仍受在途租约保护"""
+    """业务事务失败时原件、索引完整保留，替换成功后旧文件仍受在途租约保护"""
     assets = Assets(Database(tmp_path / "resume.db"), tmp_path)
     first = assets.stage_bundle("example", {"original": b"first", "copy": b"first"})
     assert first["original"]["id"] == first["copy"]["id"]
@@ -59,7 +59,7 @@ def test_failed_bundle_publish_preserves_previous_files_and_references(tmp_path)
 
 
 def test_export_uses_only_assets_and_restored_download_matches(tmp_path):
-    """最小安装成品只有资源副本，恢复后原成品和追溯清单可下载"""
+    """最小安装成品只有资源副本，恢复后原成品、追溯清单可下载"""
     directory = tmp_path / "data"
     app = create_app(Config(data_dir=directory, profile="minimal", token="test"))
     with TestClient(app, headers={"x-resume-token": "test"}) as client:

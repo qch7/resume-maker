@@ -5,7 +5,7 @@ from resume_maker.sdk.records import unpack
 
 
 class TemplateRecords:
-    """元信息、映射和稳定引用由模板表的同事务发布规则保持一致"""
+    """在同一事务中发布模板元信息、映射及稳定引用"""
 
     def list(self, conn, *, excluding=None):
         """在已有快照返回独立模板记录"""
@@ -23,11 +23,11 @@ class TemplateRecords:
         )
 
     def rename(self, conn, identifier, name):
-        """名称更新和公共引用摘要在同一事务完成"""
+        """名称更新、公共引用摘要在同一事务完成"""
         self.get(conn, identifier)
         conn.execute("UPDATE templates SET name=? WHERE id=?", (name, identifier))
 
     def delete(self, conn, identifier):
-        """资料删除和公共引用失效在同一事务完成"""
+        """资料删除、公共引用失效在同一事务完成"""
         self.get(conn, identifier)
         conn.execute("DELETE FROM templates WHERE id=?", (identifier,))

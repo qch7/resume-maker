@@ -1,4 +1,4 @@
-"""共享设置和未发送输入的并发保存保护"""
+"""共享设置、未发送输入的并发保存保护"""
 
 import pytest
 
@@ -50,7 +50,7 @@ def test_conversation_requires_input_baseline_and_preserves_conflicts(catalog, p
 
 
 def test_sending_does_not_clear_another_windows_new_input(catalog, project, tmp_path):
-    """发送甲消息前乙已保存新输入，排队只清除与所发消息相同的草稿"""
+    """发送甲消息前乙已保存新输入，排队时仅清除内容匹配所发消息的草稿"""
     conversations = Conversations(catalog, storage=catalog.db)
     identifier = conversations.create_conversation(project["id"], "测试")["id"]
     conversations.patch_conversation(

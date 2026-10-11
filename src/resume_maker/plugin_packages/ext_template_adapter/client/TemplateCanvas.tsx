@@ -18,11 +18,11 @@ interface Props {
   showBlanks?: boolean;
 }
 
-/** 根据映射展示可点击的文档结构和字段高亮 */
+/** 根据映射展示可点击的文档结构、字段高亮 */
 export default function TemplateCanvas(props: Props) {
   const root = useRef<HTMLDivElement>(null);
   const tree = useMemo(
-    /* 将节点接到最近可见祖先，保留文本框和表格内部层级 */ () => {
+    /* 将节点接到最近可见祖先，保留文本框、表格内部层级 */ () => {
       const children = new Map<string, TemplateNode[]>();
       for (const node of props.nodes) {
         const parent = node.ancestors[0] ?? node.part;
@@ -60,7 +60,7 @@ export default function TemplateCanvas(props: Props) {
     },
     [props.selected],
   );
-  /** 递归呈现表格行、单元格内文字、图片和普通段落 */
+  /** 递归呈现表格行、单元格内文字、图片、普通段落 */
   function renderNode(node: TemplateNode, index: number) {
     const children = tree.get(node.id) ?? [];
     const mapping = mappings.get(node.id)!;
@@ -189,7 +189,7 @@ export default function TemplateCanvas(props: Props) {
     >
       <div className="template-paper">
         {parts.map(
-          /* 按页眉、正文和页脚分别展示文档结构 */ (part, index) => (
+          /* 按页眉、正文、页脚分别展示文档结构 */ (part, index) => (
             <section className="template-part" key={part}>
               <div className="template-part-label">
                 {part.includes("header")

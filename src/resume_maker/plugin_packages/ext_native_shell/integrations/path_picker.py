@@ -14,7 +14,7 @@ _CANCELLED = -2147023673  # 用户取消对话框时返回的 Windows 错误码
 
 
 def initial_directory(value: str, kind: str) -> Path:
-    """优先打开已填路径或其所在目录，无效路径和命令名回退到可用目录"""
+    """优先打开已填路径或其所在目录，无效路径、命令名回退到可用目录"""
     value = value.strip().strip('"')
     if kind == "executable" and value:
         value = shutil.which(value) or value
@@ -65,7 +65,7 @@ def _call(pointer, index, types=(), *args):
 
 
 def _windows_dialog(kind: str, directory: Path) -> str | None:
-    """使用 IFileOpenDialog 展示现代资源管理器界面并在原线程释放所有 COM 资源"""
+    """用 IFileOpenDialog 显示文件选择界面，所有 COM 资源在原线程释放"""
     ole = ctypes.WinDLL("ole32")
     shell = ctypes.WinDLL("shell32")
     user = ctypes.WinDLL("user32", use_last_error=True)
@@ -102,7 +102,7 @@ def _windows_dialog(kind: str, directory: Path) -> str | None:
     owner = None
     try:
         # 当前线程创建隐藏的置顶所有者窗口以让选择框显示在浏览器前
-        # 选择结束后同时释放选择框和所有者窗口
+        # 选择结束后同时释放选择框、所有者窗口
         owner = user.CreateWindowExW(
             0x88, "STATIC", "Resume Maker", 0x80000000, 0, 0, 0, 0, None, None, None, None
         )

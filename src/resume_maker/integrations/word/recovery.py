@@ -31,7 +31,7 @@ RECOVERY_INSTRUCTIONS = """将这一页简历模板恢复为可编辑的文字�
 
 
 def readable_pdf(package, output):
-    """Word 不可用时使用包内文字和图片进行视觉识别"""
+    """Word 不可用时使用包内文字、图片进行视觉识别"""
     import pymupdf
 
     with pymupdf.open() as pdf:
@@ -224,7 +224,7 @@ def blank_template(output, document, projects):
     result = Document()
     values = personal_values(document)
     if values.get("personal.photo"):
-        # 照片占位图不含当前用户照片，供后续映射定位和真实试填替换
+        # 照片占位图不含当前用户照片，供后续映射定位、真实试填替换
         import base64
 
         placeholder = base64.b64decode(
@@ -335,7 +335,7 @@ def prepare_template(
 
                     notices = rebuild_image(source, output, provider, settings, flag, emit)
                     return TemplatePackage(output), notices
-            # PDF 和图片可直接成为识别页面，旧 Word 或损坏的 DOCX 由 Word 修复转换
+            # PDF、图片可直接成为识别页面，旧 Word 或损坏的 DOCX 由 Word 修复转换
             try:
                 if importers is not None and "pdf" not in importers:
                     raise ValueError("PDF 插件未启用")
@@ -364,7 +364,7 @@ def prepare_template(
     if flag.is_set():
         raise Cancelled("模板自动整理已取消。")
     if package is not None:
-        # 只在首次导入、尚无映射时分离段落相对锚点，不能重编号已保存的模板
+        # 首次导入且尚无映射时分离段落相对锚点，已保存模板保留原编号
         separated = [
             separate_anchors(root, paragraph_relative=True) for root in package.parts.values()
         ]

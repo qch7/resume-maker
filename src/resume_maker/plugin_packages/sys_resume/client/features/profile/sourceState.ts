@@ -13,7 +13,7 @@ export interface SourceItem {
   custom_fields: CustomInfoField[];
 }
 
-/** 选择资料只追加草稿，重复来源和容量不足时保留原栏目 */
+/** 选择资料只追加草稿，重复来源、容量不足时保留原栏目 */
 export function addSource(
   section: ResumeSection,
   provider: string,

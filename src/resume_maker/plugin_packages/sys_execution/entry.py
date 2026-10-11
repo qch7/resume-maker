@@ -1,4 +1,4 @@
-"""系统执行的注册和生命周期入口"""
+"""系统执行的注册、生命周期入口"""
 
 from resume_maker.plugins.support import dependency, publish
 

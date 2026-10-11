@@ -10,7 +10,7 @@ import {
   storage,
 } from "@resume-maker/plugin-sdk/shared/lib/storage";
 
-/** 集中管理布局偏好、可见区域边界、分隔条和放大预览退出行为 */
+/** 集中管理布局偏好、可见区域边界、分隔条、放大预览退出行为 */
 export function useWorkspaceLayout() {
   const [sidebar, setSidebar] = useState(
     () => !matchMedia("(max-width: 600px)").matches,

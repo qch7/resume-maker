@@ -1,4 +1,4 @@
-"""内置格式适配器使用公开导入契约，具体解码库只在对应插件使用时加载"""
+"""内置格式适配器遵守公开导入契约，插件使用时才加载解码库"""
 
 import json
 from io import BytesIO
@@ -13,7 +13,7 @@ from resume_maker.sdk.imports import DocumentImporter, ImportProbe, ImportResult
 
 
 def docx_probe(source, *, scanned=False):
-    """只认实际 DOCX 内容，可编辑模板和纯图片模板交由不同处理器"""
+    """只认实际 DOCX 内容，可编辑模板、纯图片模板交由不同处理器"""
     if source.purpose != "template" or not source.data.startswith(b"PK"):
         return None
     package = TemplatePackage(BytesIO(source.data))
@@ -25,7 +25,7 @@ def docx_probe(source, *, scanned=False):
 
 
 def pdf_probe(source):
-    """核验 PDF 实际格式、密码和源页数，扩展名不参与判断"""
+    """核验 PDF 实际格式、密码、源页数，扩展名不参与判断"""
     if not source.data.lstrip().startswith(b"%PDF-"):
         return None
     import pymupdf
@@ -39,7 +39,7 @@ def pdf_probe(source):
 
 
 def image_probe(source):
-    """核验图片真实格式和帧数，拒绝只导入多帧文件的第一页"""
+    """核验图片真实格式、帧数，拒绝只导入多帧文件的第一页"""
     from PIL import Image, UnidentifiedImageError
 
     try:
@@ -72,7 +72,7 @@ def word_probe(source):
 
 
 def prepare_certificate(source, context, kind):
-    """复用本地证书解码器，原件命名和业务发布由调用方统一负责"""
+    """复用本地证书解码器，原件命名、业务发布由调用方统一负责"""
     from resume_maker.integrations.certificates import prepare_certificate as prepare
 
     metadata = prepare(
@@ -115,7 +115,7 @@ def importer(kind, *, converter=None):
     """为各内置插件构造同一公开协议的格式贡献"""
 
     def probe(source):
-        """按适配器声明探测实际内容，图片 DOCX 不和普通 DOCX 抢占同一输入"""
+        """按适配器声明探测实际内容，图片 DOCX 不、普通 DOCX 抢占同一输入"""
         if kind == "scanned-docx":
             return docx_probe(source, scanned=True)
         return {"docx": docx_probe, "pdf": pdf_probe, "image": image_probe, "word": word_probe}[
@@ -123,7 +123,7 @@ def importer(kind, *, converter=None):
         ](source)
 
     def prepare(source, context):
-        """模板恢复和证书分页共用同一个显式格式选择"""
+        """模板恢复、证书分页共用同一个显式格式选择"""
         if source.purpose == "certificate":
             return prepare_certificate(source, context, kind)
         return prepare_template(source, context, kind, converter)

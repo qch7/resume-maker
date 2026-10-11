@@ -5,7 +5,7 @@ import type {
 } from "../../types/index.ts";
 import { applyCustomDefaults } from "./model.ts";
 
-/** 为项目表单补齐默认项和初始显示设置 */
+/** 为项目表单补齐默认项、初始显示设置 */
 export function projectDefaultView(
   original: Meta,
   settings: ProjectVisibility,

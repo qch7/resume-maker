@@ -64,7 +64,7 @@ interface FieldsProps {
   onChange: (value: AISettings) => void;
 }
 
-/** 复用模型和自定义强度输入，空值明确显示其继承来源 */
+/** 复用模型、自定义强度输入，空值明确显示其继承来源 */
 function ModelFields(props: FieldsProps) {
   const effortOptions = useId();
   return (
@@ -101,7 +101,7 @@ function ModelFields(props: FieldsProps) {
         />
         <datalist id={effortOptions}>
           {efforts.map(
-            /* 显示和 CLI 参数一一对应的强度选项 */ (effort) => (
+            /* 按 CLI 参数显示强度选项 */ (effort) => (
               <option key={effort.value} value={effort.value}>
                 {effort.label}
               </option>
@@ -113,7 +113,7 @@ function ModelFields(props: FieldsProps) {
   );
 }
 
-/** 编辑全局默认和各 AI 功能覆盖，模型和强度可分别继承 */
+/** 编辑全局默认、各 AI 功能覆盖，模型、强度可分别继承 */
 export default function CodexModels(props: {
   value: ProviderSettings;
   disabled: boolean;
@@ -169,7 +169,7 @@ export default function CodexModels(props: {
                 }
                 disabled={props.disabled}
                 onChange={
-                  /* 只更新当前功能，保留其他覆盖和 CLI 连接设置 */ (value) =>
+                  /* 只更新当前功能，保留其他覆盖、CLI 连接设置 */ (value) =>
                     props.onChange({
                       ...provider,
                       functions: { ...provider.functions, [feature.id]: value },
