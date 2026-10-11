@@ -99,7 +99,9 @@ class Upgrades:
         directory = host.bootstrap["config"].data_dir
         writer = StateStore(directory)
         try:
-            backup = create_backup(host.services["db"], directory)
+            backup = create_backup(
+                host.services["db"], directory, kind="automatic", reason="plugin-change"
+            )
             trial = directory / "plugin-trials" / plan["id"]
             restore_backup(backup, trial)
             packages = host.bootstrap["package_store"]

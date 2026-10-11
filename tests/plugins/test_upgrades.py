@@ -67,6 +67,11 @@ def test_new_candidate_health_failure_leaves_active_packages_and_data(tmp_path):
         assert not manager.maintenance
         assert app.state.services.db.setting("synthetic-preserved") == {"value": 7}
         assert not (tmp_path / "data" / "host-transition.json").exists()
+        from resume_maker.infrastructure.backup_history import list_backups
+
+        history = list_backups(tmp_path / "data")
+        assert len(history) == 1
+        assert history[0]["kind"] == "automatic" and history[0]["reason"] == "plugin-change"
 
 
 def test_cohort_probe_commit_and_safe_code_rollback(tmp_path):

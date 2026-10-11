@@ -37,6 +37,24 @@ class StateStore:
             plan = json.loads(path.read_text(encoding="utf-8"))
             if path.stem != plan["id"]:
                 raise PluginError("插件操作记录身份不匹配")
+            if plan.get("restore_backup") and plan["state"] == "restart-required":
+                restore_path = self.path.parent / "host-restore.json"
+                restore = (
+                    json.loads(restore_path.read_text(encoding="utf-8"))
+                    if restore_path.is_file()
+                    else {}
+                )
+                plan["state"] = (
+                    restore.get("state", "interrupted")
+                    if restore.get("id") == plan["id"]
+                    else "interrupted"
+                )
+                if plan["state"] == "prepared":
+                    plan["state"] = "restart-required"
+                plan["message"] = restore.get("message", "")
+                self.save_plan(plan)
+                result[plan["id"]] = plan
+                continue
             if "package_updates" in plan and plan["state"] in {
                 "validating",
                 "restart-required",

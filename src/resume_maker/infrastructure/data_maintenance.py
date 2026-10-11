@@ -119,7 +119,7 @@ class DataMaintenance:
             raise Problem("资料或插件已改变，请停止应用后重新生成迁移计划。", 409)
         if not current["steps"] and not current["initialize"]:
             return {"state": "unchanged", "version": current["to"]}
-        backup = create_backup(self.db, self.directory)
+        backup = create_backup(self.db, self.directory, kind="automatic", reason="data-migration")
         identifier = uid()
         root = self.directory / "backups" / "migrations" / identifier
         root.mkdir(parents=True)

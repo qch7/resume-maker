@@ -495,6 +495,10 @@ class PluginManager:
                 raise Problem("仍有窗口草稿或请求未确认，变更尚未应用。", 409)
             if plan["mode"] == "host-restart":
                 return self.upgrades.start(plan)
+            if plan["mode"] == "backup-restore":
+                from resume_maker.runtime.backup_restore import start_restore
+
+                return start_restore(self, plan)
             self.store.begin(plan)
             self._switch(plan)
             return {"generation": self.host.generation, "state": "committed"}
