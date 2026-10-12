@@ -1,28 +1,59 @@
 /* 工作台分栏、制作指引、拖拽布局 */
 .app-shell {
   display: flex;
-  flex-direction: column;
   height: 100dvh;
   overflow: hidden;
   font-size: 13px;
+  background: var(--surface);
+}
+.app-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  container: app-content / inline-size;
 }
 .app-header {
-  min-height: 52px;
-  height: 52px;
+  min-height: 64px;
   flex-shrink: 0;
-  display: grid;
-  grid-template-columns: max-content max-content minmax(0, 1fr) max-content;
-  gap: 18px;
+  display: flex;
+  gap: 16px;
   align-items: center;
-  padding: 0 22px;
+  padding: 10px 24px;
   background: var(--surface);
   border-bottom: 1px solid var(--line);
 }
+.header-location {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  margin-right: auto;
+}
+.header-context {
+  color: var(--subtle);
+  font-size: 12px;
+}
+.header-context::after {
+  content: "/";
+  margin-left: 12px;
+  opacity: 0.45;
+}
+.header-location strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 550;
+}
+.header-actions {
+  flex-shrink: 0;
+  gap: 4px;
+}
 .workbench {
   display: grid;
-  grid-template-columns: var(--sidebar-width) 8px minmax(320px, 1fr) 8px var(
-      --composer-width
-    );
+  grid-template-columns: minmax(0, 1fr) 8px var(--composer-width);
   flex: 1;
   min-width: 0;
   min-height: 0;
@@ -83,33 +114,6 @@
   height: 40px;
   grid-template-rows: minmax(0, 1fr);
 }
-.app-header strong {
-  font-size: 15px;
-  letter-spacing: -0.3px;
-}
-.app-brand {
-  white-space: nowrap;
-}
-.theme-switch {
-  display: flex;
-  gap: 2px;
-  padding: 3px;
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  background: var(--muted);
-}
-.theme-switch button {
-  border: 0;
-  background: transparent;
-  color: var(--subtle);
-  font-size: 11px;
-  padding: 5px 8px;
-  border-radius: 2px;
-}
-.theme-switch button[aria-pressed="true"] {
-  color: var(--text);
-  background: var(--surface);
-}
 .workflow {
   display: flex;
   gap: 16px;
@@ -117,7 +121,7 @@
   min-height: 0;
   overflow: auto;
   border-bottom: 1px solid var(--line);
-  background: var(--panel);
+  background: var(--surface);
 }
 .workflow-overview {
   width: 150px;
@@ -137,7 +141,7 @@
 .workflow progress {
   appearance: none;
   border: 0;
-  border-radius: 0;
+  border-radius: 8px;
   overflow: hidden;
   height: 4px;
   width: 120px;
@@ -191,7 +195,7 @@
   padding: 4px 8px;
   max-width: 100%;
   color: var(--subtle);
-  border-radius: 0;
+  border-radius: 8px;
 }
 .workflow-steps button:hover {
   background: var(--muted);
@@ -203,7 +207,7 @@
   width: 28px;
   height: 28px;
   flex-shrink: 0;
-  border-radius: 2px;
+  border-radius: 8px;
   border: 1px solid var(--line);
   font-size: 12px;
   font-weight: 600;

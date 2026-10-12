@@ -1,6 +1,6 @@
 import App from "./App";
 import type { ClientContext } from "@resume-maker/plugin-sdk/plugins/contracts";
-import { Puzzle } from "lucide-react";
+import { PluginsIcon } from "@resume-maker/plugin-sdk/shared/components/NavigationIcon";
 import PluginManager from "./features/plugins/PluginManager";
 import css from "./features/plugins/plugin-manager.css?inline";
 
@@ -11,7 +11,7 @@ export function activate(context: ClientContext) {
   context.settingsPage({
     id: context.id + "/plugins",
     title: "插件",
-    icon: Puzzle,
+    icon: PluginsIcon,
     order: 30,
     openFor: ["plugins"],
     component: PluginManager,

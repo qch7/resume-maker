@@ -20,9 +20,9 @@ button:not(:disabled):not(.sort-handle):active {
 input:not([type="checkbox"]):focus,
 textarea:focus,
 select:focus {
-  border-color: var(--accent);
+  border-color: var(--focus);
 }
-.highlight:hover {
+.highlight[data-hidden]:hover {
   background: var(--panel);
 }
 .toast,
@@ -35,5 +35,17 @@ dialog[open] {
   }
   to {
     opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+  button:not(:disabled):not(.sort-handle):active {
+    translate: none;
   }
 }

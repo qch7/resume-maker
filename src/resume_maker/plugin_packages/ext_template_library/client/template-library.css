@@ -51,7 +51,7 @@
   border-radius: 12px;
   background: var(--surface);
   color: var(--text);
-  box-shadow: 0 28px 100px #0005;
+  box-shadow: 0 20px 64px #0003;
   overflow: hidden;
 }
 .template-library-dialog[open] {
@@ -59,7 +59,7 @@
   flex-direction: column;
 }
 .template-library-dialog::backdrop {
-  background: #080e1880;
+  background: #0007;
   backdrop-filter: blur(3px);
 }
 .library-titlebar {
@@ -67,7 +67,7 @@
   justify-content: space-between;
   align-items: center;
   gap: 16px;
-  padding: 14px 20px;
+  padding: 18px 24px;
   border-bottom: 1px solid var(--line);
   flex-shrink: 0;
 }
@@ -106,7 +106,7 @@
   padding: 0 12px;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 5px;
+  border-radius: 8px;
   font-size: 12px;
 }
 .library-address > svg {
@@ -135,7 +135,7 @@
   height: 36px;
   padding: 0 10px;
   border: 1px solid var(--line);
-  border-radius: 5px;
+  border-radius: 8px;
   background: var(--surface);
   color: var(--subtle);
 }
@@ -177,7 +177,7 @@
   background: transparent;
   padding: 9px 10px;
   margin-bottom: 4px;
-  border-radius: 5px;
+  border-radius: 8px;
   gap: 9px;
 }
 .library-sidebar > button > svg {
@@ -198,13 +198,13 @@
   background: var(--muted);
 }
 .library-sidebar > button.active {
-  background: var(--accent-soft);
-  border-color: var(--line);
-  color: var(--accent);
+  background: var(--selected);
+  border-color: transparent;
+  color: var(--text);
   font-weight: 600;
 }
 .library-sidebar > button.active > svg {
-  color: var(--accent);
+  color: var(--text);
 }
 .library-sidebar > button.library-category-start {
   margin-top: 17px;
@@ -280,10 +280,10 @@
   border-radius: 10px;
   background: var(--surface);
   color: var(--text);
-  box-shadow: 0 20px 70px #0005;
+  box-shadow: 0 20px 64px #0003;
 }
 .library-delete-dialog::backdrop {
-  background: #080e1880;
+  background: #0007;
 }
 .library-delete-dialog p {
   margin: 16px 0;
@@ -309,7 +309,7 @@
   gap: 2px;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 5px;
+  border-radius: 8px;
 }
 .library-view-toggle button {
   padding: 5px 7px;
@@ -318,9 +318,9 @@
   color: var(--subtle);
 }
 .library-view-toggle button[aria-pressed="true"] {
-  color: var(--accent);
+  color: var(--text);
   background: var(--surface);
-  box-shadow: 0 1px 3px #0001;
+  box-shadow: none;
 }
 .library-scroll {
   min-height: 0;
@@ -330,7 +330,7 @@
 }
 .library-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(175px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(175px, 100%), 1fr));
   align-content: start;
   gap: 18px;
 }
@@ -338,7 +338,7 @@
   position: relative;
   min-width: 0;
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: 12px;
   overflow: hidden;
   background: var(--surface);
 }
@@ -347,8 +347,7 @@
 }
 .library-entry.is-selected {
   border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
-  background: var(--accent-soft);
+  background: var(--selected);
 }
 .library-card-preview {
   position: relative;
@@ -503,7 +502,7 @@
   font-size: 11px;
 }
 .library-list .library-entry {
-  border-radius: 4px;
+  border-radius: 8px;
   border-color: transparent;
   margin-top: 4px;
   padding: 3px 10px;
@@ -536,7 +535,7 @@
 .library-detail-preview {
   padding: 14px 21px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 10px;
   margin-bottom: 18px;
   background: var(--muted);
 }

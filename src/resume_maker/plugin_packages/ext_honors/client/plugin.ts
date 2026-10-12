@@ -1,4 +1,4 @@
-import { Award } from "lucide-react";
+import { HonorsIcon } from "@resume-maker/plugin-sdk/shared/components/NavigationIcon";
 import style0 from "./honors.css?inline";
 import HonorLibrary from "./HonorLibrary";
 import HonorEditor from "./HonorEditor";
@@ -10,7 +10,7 @@ export function activate(context: ClientContext) {
     slot: "honors",
     title: "荣誉证书",
     order: 40,
-    icon: Award,
+    icon: HonorsIcon,
   });
   context.style(style0);
 

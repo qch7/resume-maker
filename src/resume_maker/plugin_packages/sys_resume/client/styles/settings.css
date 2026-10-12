@@ -16,7 +16,7 @@
   align-items: center;
   justify-content: space-between;
   flex-shrink: 0;
-  padding: 22px 28px;
+  padding: 20px 24px;
   border-bottom: 1px solid var(--line);
 }
 .settings-window-header h2 {
@@ -33,14 +33,14 @@
   padding: 18px 12px;
   overflow-y: auto;
   border-right: 1px solid var(--line);
-  background: var(--muted);
+  background: var(--sidebar);
 }
 .settings-navigation button {
   width: 100%;
   justify-content: flex-start;
-  gap: 12px;
+  gap: 10px;
   margin-bottom: 5px;
-  padding: 13px 16px;
+  padding: 11px 12px;
   border: 0;
   border-radius: 9px;
   background: transparent;
@@ -51,8 +51,8 @@
   color: var(--text);
 }
 .settings-navigation button.active {
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--selected);
+  color: var(--text);
   font-weight: 600;
 }
 .settings-content {
@@ -60,7 +60,7 @@
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 26px 32px 32px;
+  padding: 24px;
   scrollbar-gutter: stable;
 }
 .settings-page-title {

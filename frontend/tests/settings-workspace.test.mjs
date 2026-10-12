@@ -70,6 +70,10 @@ async function application() {
         SlidersHorizontal = Icon, X = Icon, ChevronDown = Icon, Puzzle = Icon, Search = Icon;
       export function Component() { return null; }
       export default Component;`,
+    icons: `export {
+      Icon as ActivityIcon, Icon as BackupIcon, Icon as PrivacyIcon,
+      Icon as ProjectsIcon, Icon as SettingsIcon
+    } from "fixture/state";`,
   };
   const output = await build({
     stdin: {
@@ -91,6 +95,13 @@ async function application() {
             path: "react",
             namespace: "fixture",
           }));
+          builder.onResolve(
+            {
+              filter:
+                /^@resume-maker\/plugin-sdk\/shared\/components\/NavigationIcon$/,
+            },
+            () => ({ path: "icons", namespace: "fixture" }),
+          );
           builder.onResolve(
             {
               filter:

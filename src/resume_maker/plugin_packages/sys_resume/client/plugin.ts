@@ -1,3 +1,4 @@
+import navigationStyle from "./styles/navigation.css?inline";
 import style6 from "./styles/privacy.css?inline";
 import settingsStyle from "./styles/settings.css?inline";
 import style5 from "./styles/resume-library.css?inline";
@@ -20,6 +21,7 @@ export function activate(context: ClientContext) {
   context.style(style5);
   context.style(style6);
   context.style(settingsStyle);
+  context.style(navigationStyle);
   context.component("workspace", ResumeWorkspace);
   context.contribute("documents.previewers", "sys.resume/content", {
     title: "内容预览",

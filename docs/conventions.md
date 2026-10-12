@@ -17,6 +17,7 @@
 | `src/resume_maker/integrations/word/` | 多个文档引擎和导入器复用的 OOXML、布局及恢复工具 |
 | `frontend/src/plugins/` | 客户端加载器、作用域、贡献注册表和公开 SDK 入口 |
 | `frontend/src/shared/` | 通用控件、hooks、网络、本机缓存和 API 类型 |
+| `frontend/src/assets/icons/navigation/` | 导航 SVG 资源；宿主共享组件统一渲染，插件通过公开 SDK 引用 |
 | `frontend/src/styles/` | 宿主基础样式；功能样式随所属插件独立构建 |
 | `tests/`、`frontend/tests/` | 按功能分组的后端回归测试和前端逻辑测试，后端共享辅助代码在 `tests/support/` |
 | `scripts/` | 启停、检查、构建和模板评测脚本 |

@@ -1,12 +1,11 @@
-/* 顶部唯一入口、资源库式成品管理，工作台为预览保留完整高度 */
+/* 简历库入口、成品管理 */
 .resume-library-trigger {
-  justify-self: end;
   min-width: 0;
   max-width: 240px;
   padding: 5px 12px;
   gap: 9px;
-  color: var(--accent);
-  background: var(--accent-soft);
+  color: var(--text);
+  background: var(--panel);
 }
 .resume-library-trigger > svg {
   flex-shrink: 0;
@@ -45,7 +44,7 @@
   border-radius: 12px;
   background: var(--surface);
   color: var(--text);
-  box-shadow: 0 28px 100px #0005;
+  box-shadow: 0 20px 64px #0003;
   overflow: hidden;
 }
 .resume-library-dialog[open] {
@@ -53,7 +52,7 @@
   flex-direction: column;
 }
 .resume-library-dialog::backdrop {
-  background: #080e1880;
+  background: #0007;
   backdrop-filter: blur(3px);
 }
 .resume-library-notice {
@@ -89,7 +88,7 @@
   gap: 8px;
   padding: 0 9px;
   border: 1px solid var(--line);
-  border-radius: 5px;
+  border-radius: 8px;
   background: var(--surface);
 }
 .resume-library-search input {
@@ -112,12 +111,12 @@
   margin-bottom: 5px;
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: 8px;
 }
 .resume-library-item.selected {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-  color: var(--accent);
+  border-color: transparent;
+  background: var(--selected);
+  color: var(--text);
 }
 .resume-library-select {
   width: 100%;
@@ -173,7 +172,7 @@
   background: var(--panel);
 }
 .resume-library-settings {
-  padding: 12px 20px 16px;
+  padding: 20px 24px;
   background: var(--surface);
   border-bottom: 1px solid var(--line);
 }
@@ -242,7 +241,7 @@
   gap: 20px;
   padding: 16px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 12px;
   background: var(--surface);
 }
 .resume-export-thumbnail {
@@ -309,34 +308,7 @@
   margin: 0;
   font-size: 12px;
 }
-@media (min-width: 1001px) and (max-width: 1380px) {
-  .app-header {
-    grid-template-columns: max-content minmax(0, 1fr) max-content max-content;
-    gap: 8px;
-    padding: 0 14px;
-  }
-  .area-navigation > button {
-    padding: 7px;
-    gap: 5px;
-  }
-  .theme-switch button {
-    padding: 5px;
-  }
-  .theme-switch button span {
-    display: none;
-  }
-}
 @media (max-width: 1000px) {
-  .app-header {
-    grid-template-columns: max-content minmax(0, 1fr) max-content;
-  }
-  .header-actions {
-    grid-column: 3;
-  }
-  .resume-library-trigger {
-    grid-column: 2;
-    grid-row: 1;
-  }
   .resume-library-body {
     grid-template-columns: 200px minmax(0, 1fr);
   }

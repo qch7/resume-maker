@@ -7,7 +7,6 @@ import {
   FolderPlus,
   LoaderCircle,
   MoreHorizontal,
-  PanelLeftClose,
   Plus,
   Trash2,
 } from "lucide-react";
@@ -21,7 +20,6 @@ import type { SidebarSort, sortSidebar } from "./sort";
 import { hasPlugin } from "@resume-maker/plugin-sdk/shared/lib/capabilities";
 
 interface Props {
-  onCollapse: () => void;
   sortedSidebar: ReturnType<typeof sortSidebar>;
   sidebarSort: SidebarSort;
   onSortChange: (sort: SidebarSort) => void;
@@ -43,7 +41,6 @@ interface Props {
 
 /** 展示、排序项目及会话，通过回调把导航、写入交给工作台协调 */
 export default function ProjectSidebar({
-  onCollapse,
   sortedSidebar,
   sidebarSort,
   onSortChange,
@@ -190,17 +187,6 @@ export default function ProjectSidebar({
           项目库
           <span className="count-badge">{sortedSidebar.projects.length}</span>
         </span>
-        <button
-          id="sidebar-collapse"
-          className="icon-button"
-          aria-label="收起项目库"
-          title="收起项目库"
-          aria-expanded={true}
-          aria-controls="project-sidebar"
-          onClick={onCollapse}
-        >
-          <PanelLeftClose size={17} />
-        </button>
       </div>
       <div className="sidebar-sort" role="group" aria-label="项目与会话排序">
         <span>

@@ -13,7 +13,7 @@ import {
 /** 集中管理布局偏好、可见区域边界、分隔条、放大预览退出行为 */
 export function useWorkspaceLayout() {
   const [sidebar, setSidebar] = useState(
-    () => !matchMedia("(max-width: 600px)").matches,
+    () => !matchMedia("(max-width: 760px)").matches,
   );
   const [layout, setLayout] = useState(() => {
     const saved = loadLocal<Partial<Layout> | null>("rm.layout", null);
@@ -26,7 +26,7 @@ export function useWorkspaceLayout() {
   const [previewFocused, setPreviewFocused] = useState(false);
   const workbench = useRef<HTMLDivElement>(null);
   const workbenchSize = useElementSize(workbench);
-  const columns = columnSizes(workbenchSize.width, sidebar, layout);
+  const columns = columnSizes(workbenchSize.width, false, layout);
   // 内容随实际高度逐级精简，各个工作区都允许缩到单行步骤导航
   const guideMin = 40;
   const guideMax = Math.max(guideMin, Math.min(280, innerHeight - 360));

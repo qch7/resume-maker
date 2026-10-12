@@ -7,19 +7,12 @@ import {
 import { hasPlugin } from "@resume-maker/plugin-sdk/shared/lib/capabilities";
 import { registerWindowTitle } from "@resume-maker/plugin-sdk/plugins/window";
 import {
-  FileDown,
-  FilePenLine,
   FolderPlus,
   LoaderCircle,
-  PanelLeftOpen,
   RefreshCw,
   RotateCcw,
-  Settings as SettingsIcon,
   Sparkles,
   X,
-  UserRound,
-  PanelsTopLeft,
-  ListTree,
 } from "lucide-react";
 import {
   useCallback,
@@ -76,7 +69,16 @@ import type {
   WorkflowInput,
 } from "@resume-maker/plugin-sdk/plugins/slots";
 import ResizeHandle from "@resume-maker/plugin-sdk/shared/components/ResizeHandle";
-import ThemeSwitch from "@resume-maker/plugin-sdk/shared/components/ThemeSwitch";
+import {
+  ProjectsIcon,
+  ProfileIcon,
+  SectionsIcon,
+  ActivityIcon,
+  ResumesIcon,
+  EditIcon,
+  ChatIcon,
+} from "@resume-maker/plugin-sdk/shared/components/NavigationIcon";
+import WorkspaceSidebar from "./WorkspaceSidebar";
 import { useRemote } from "@resume-maker/plugin-sdk/shared/hooks/useRemote";
 import { api, request } from "@resume-maker/plugin-sdk/shared/lib/api";
 import { createStateReader } from "./stateReader";
@@ -164,10 +166,16 @@ export default function ResumeWorkspace() {
     },
     [sidebar],
   );
-  /** 切换项目库显隐并在渲染后恢复操作按钮的焦点 */
+  /** 切换侧边栏显隐并在渲染后恢复操作按钮的焦点 */
   function toggleSidebar() {
     sidebarToggleRequested.current = true;
     setSidebar(/* 基于最近状态切换以免连续操作覆盖 */ (visible) => !visible);
+  }
+  /** 手机完成导航后关闭抽屉，将焦点交回可见入口 */
+  function closeMobileSidebar() {
+    if (!matchMedia("(max-width: 760px)").matches) return;
+    sidebarToggleRequested.current = true;
+    setSidebar(false);
   }
   const [state, setState] = useState<State>(EMPTY),
     [loaded, setLoaded] = useState(false);
@@ -503,12 +511,29 @@ export default function ResumeWorkspace() {
     setRefresh((v) => v + 1);
     void reload();
   }
+  /** 从资料表单离开时使项目缓存失效，隐藏的编辑区也只能挂载最新草稿 */
+  function openArea(next: typeof area) {
+    if (
+      (area === "personal" || area === "structure") &&
+      next !== "personal" &&
+      next !== "structure" &&
+      next !== "projects"
+    )
+      setRefresh((value) => value + 1);
+    setArea(next);
+  }
+  /** 草稿刷新后重取项目详情，避免重新挂载编辑器时沿用旧内容 */
+  function openProjects() {
+    setRefresh((value) => value + 1);
+    openArea("projects");
+  }
   /** 保存待处理草稿后切换项目或会话，用序号防止旧导航覆盖新选择 */
   function navigate(projectId: string, convId?: string) {
     const serial = ++navigation.current;
     run(async () => {
       if (serial !== navigation.current) return;
-      setArea("projects");
+      openProjects();
+      closeMobileSidebar();
       setActiveProject(projectId);
       setMode(convId ? "chat" : "edit");
       const head = state.projects.find(
@@ -543,6 +568,7 @@ export default function ResumeWorkspace() {
       await reload();
       // 请求期间切换了项目时，保留用户后来的导航选择
       if (serial !== navigation.current) return;
+      closeMobileSidebar();
       setActiveProject(projectId);
       setSelectedConversations((v) => ({
         ...v,
@@ -707,23 +733,23 @@ export default function ResumeWorkspace() {
       setResumeLibraryOpen(false);
       setGuideTarget(null);
       if (target === "template-select") {
-        setArea("templates");
+        openArea("templates");
         setGuideTarget(target);
         return;
       }
       if (target.startsWith("personal-")) {
-        setArea("personal");
+        openArea("personal");
         setGuideTarget(target);
         return;
       }
       if (target.startsWith("honor-")) {
-        setArea("honors");
+        openArea("honors");
         setGuideTarget(target);
         return;
       }
       if (target === "structure") {
         setStructureTarget(null);
-        setArea("structure");
+        openArea("structure");
         return;
       }
       if (target === "composition-save" || target === "export") {
@@ -731,7 +757,7 @@ export default function ResumeWorkspace() {
         setGuideTarget(target);
         return;
       }
-      setArea("projects");
+      openProjects();
       if (target === "projects" || (!project && !projectId)) {
         setModal("projects");
         return;
@@ -759,7 +785,7 @@ export default function ResumeWorkspace() {
       }
       if (["analysis", "experience-save", "experience-use"].includes(target))
         setMode(target === "analysis" && currentJob ? "chat" : "edit");
-      if (matchMedia("(max-width: 600px)").matches) setSidebar(false);
+      closeMobileSidebar();
       setGuideTarget(target);
     });
   }
@@ -830,841 +856,834 @@ export default function ResumeWorkspace() {
   const error = remoteProject.error || remoteChat.error;
   return (
     <div
-      className={`app-shell ${area === "recruitment" ? "recruitment-area" : ""} ${selectedPage ? "extension-area" : ""} ${sidebar && area === "projects" ? "" : "sidebar-hidden"} ${previewFocused ? "preview-focused" : ""} ${area === "honors" ? "honor-area" : area === "templates" ? "template-area" : area !== "projects" ? "profile-area" : ""}`}
+      className={`app-shell ${area === "recruitment" ? "recruitment-area" : ""} ${selectedPage ? "extension-area" : ""} ${sidebar ? "" : "navigation-collapsed"} ${previewFocused ? "preview-focused" : ""} ${area === "honors" ? "honor-area" : area === "templates" ? "template-area" : area !== "projects" ? "profile-area" : ""}`}
       style={
         {
-          "--sidebar-width": `${columns.sidebar}px`,
+          "--navigation-width": `${clamp(layout.sidebar, 216, 320)}px`,
           "--composer-width": `${columns.composer}px`,
           "--guide-height": `${clamp(layout.guide, guideMin, guideMax)}px`,
           "--editor-height": `${clamp(layout.editor, 280, 1000)}px`,
         } as CSSProperties
       }
     >
-      <header className="app-header">
-        <div className="row app-brand">
-          {!sidebar && !previewFocused && area === "projects" && (
+      <WorkspaceSidebar
+        expanded={sidebar}
+        current={page || area}
+        destinations={[
+          { id: "projects", label: "项目经历", icon: ProjectsIcon },
+          { id: "personal", label: "个人信息", icon: ProfileIcon },
+          { id: "structure", label: "栏目编排", icon: SectionsIcon },
+          ...pluginNavigation().map((item) => ({
+            id: item.slot,
+            label: item.title,
+            icon: item.icon,
+          })),
+        ]}
+        pages={pages.map((item) => ({
+          id: item.id,
+          label: item.title,
+          icon: item.icon ?? ActivityIcon,
+        }))}
+        onToggle={toggleSidebar}
+        onSettings={() => {
+          closeMobileSidebar();
+          setModal("settings");
+        }}
+        onNavigate={(id) =>
+          run(async () => {
+            const contributed = pages.find((item) => item.id === id);
+            setPage(contributed ? id : "");
+            if (!contributed && id === "projects") openProjects();
+            else openArea(contributed ? "projects" : (id as typeof area));
+            setPreviewFocused(false);
+            closeMobileSidebar();
+          })
+        }
+      >
+        {area === "projects" && !selectedPage && (
+          <ProjectSidebar
+            sortedSidebar={sortedSidebar}
+            sidebarSort={sidebarSort}
+            onSortChange={setSidebarSort}
+            activeJobs={activeJobs}
+            items={draft.items}
+            activeProject={activeProject}
+            conversationId={conversationId}
+            mode={mode}
+            creatingConversation={creatingConversation}
+            folded={folded}
+            setFolded={setFolded}
+            onNavigate={navigate}
+            onToggleProject={toggleProject}
+            onNewConversation={
+              /* 新建会话后更新工作台状态 */ (id) =>
+                run(() => newConversation(id))
+            }
+            onArchive={
+              /* 处理 onArchive 回调，将变化同步到工作台状态 */ (
+                projectId,
+                id,
+              ) => run(() => archiveConversation(projectId, id))
+            }
+            onDelete={setDeletingProject}
+            onImport={
+              /* 处理 onImport 回调，将变化同步到工作台状态 */ () =>
+                setModal("projects")
+            }
+          />
+        )}
+      </WorkspaceSidebar>
+      {sidebar && (
+        <button
+          className="navigation-backdrop"
+          aria-label="关闭侧边栏"
+          tabIndex={-1}
+          onClick={toggleSidebar}
+        />
+      )}
+      <ResizeHandle
+        className="navigation-resize"
+        label="调整侧边栏宽度"
+        axis="x"
+        value={clamp(layout.sidebar, 216, 320)}
+        min={216}
+        max={320}
+        onChange={(value) => resize("sidebar", value)}
+        onReset={() => resize("sidebar", DEFAULT_LAYOUT.sidebar)}
+      />
+      <div className="app-content">
+        <header className="app-header">
+          <div className="header-location">
+            <span className="header-context">工作空间</span>
+            <strong>
+              {selectedPage?.title ??
+                {
+                  projects: "项目经历",
+                  personal: "个人信息",
+                  structure: "栏目编排",
+                  templates: "模板库",
+                  honors: "荣誉库",
+                  recruitment: "招聘收藏",
+                }[area]}
+            </strong>
+          </div>
+          <button
+            className="resume-library-trigger"
+            aria-label={`导出与模板：${draft.name || "未命名方案"}，打开简历库`}
+            aria-haspopup="dialog"
+            aria-expanded={resumeLibraryOpen}
+            title={`导出与模板 · ${draft.name || "未命名方案"}`}
+            onClick={() => setResumeLibraryOpen(true)}
+          >
+            <ResumesIcon size={17} />
+            <span className="resume-trigger-copy">
+              <b>{exporting ? "正在导出…" : "导出与模板"}</b>
+              <small>{draft.name || "未命名方案"}</small>
+            </span>
+            {!sameComposition(
+              state.resumes.find(
+                /* 顶部提示当前方案是否仍有未保存的修改 */ (item) =>
+                  item.id === draft.id,
+              ),
+              draft,
+            ) && (
+              <span
+                className="resume-unsaved-dot"
+                aria-label="组合未保存"
+                title="组合未保存"
+              />
+            )}
+          </button>
+          <div className="row header-actions">
+            {activeJobs.length > 0 && (
+              <span className="subtle header-job-status">
+                <LoaderCircle className="spin" size={14} /> {activeJobs.length}{" "}
+                个任务进行中
+              </span>
+            )}
             <button
-              id="sidebar-expand"
               className="icon-button"
-              aria-label="展开项目库"
-              title="展开项目库"
-              aria-expanded={false}
-              aria-controls="project-sidebar"
-              onClick={toggleSidebar}
+              aria-label="重置布局"
+              title="重置各区域大小"
+              onClick={() => {
+                setLayout({ ...DEFAULT_LAYOUT });
+                setSidebar(!matchMedia("(max-width: 760px)").matches);
+                setPreviewFocused(false);
+              }}
             >
-              <PanelLeftOpen size={19} />
+              <RotateCcw size={16} />
             </button>
-          )}
-          <strong>Resume Maker</strong>
-        </div>
-        <nav className="area-navigation" aria-label="主要功能区">
-          {(
-            [
-              {
-                id: "projects",
-                label: "项目经历",
-                icon: PanelsTopLeft,
-              },
-              {
-                id: "personal",
-                label: "个人信息",
-                icon: UserRound,
-              },
-              {
-                id: "structure",
-                label: "栏目编排",
-                icon: ListTree,
-              },
-              ...pluginNavigation().map((item) => ({
-                id: item.slot,
-                label: item.title,
-                icon: item.icon,
-              })),
-            ] as const
-          ).map(
-            /* 每个功能区共享当前简历草稿，切换前刷新项目编辑 */ (item) => (
-              <button
-                key={item.id}
-                className={!page && area === item.id ? "active" : ""}
-                aria-current={!page && area === item.id ? "page" : undefined}
-                onClick={
-                  /* 切换主要功能区并退出放大预览 */ () =>
-                    run(
-                      /* 保存待处理草稿后导航 */ async () => {
-                        setPage("");
-                        setArea(item.id);
-                        setPreviewFocused(false);
-                      },
-                    )
-                }
-              >
-                <item.icon size={18} />
-                <span>{item.label}</span>
-              </button>
-            ),
-          )}
-          {pages.map((item) => (
             <button
-              key={item.id}
-              className={page === item.id ? "active" : ""}
-              aria-current={page === item.id ? "page" : undefined}
+              className="icon-button"
+              aria-label="刷新数据"
               onClick={() =>
                 run(async () => {
-                  setPage(item.id);
-                  setArea("projects");
-                  setPreviewFocused(false);
+                  await reload();
+                  changed();
                 })
               }
             >
-              {item.icon && <item.icon size={18} />}
-              <span>{item.title}</span>
+              <RefreshCw size={17} />
             </button>
-          ))}
-        </nav>
-        <button
-          className="resume-library-trigger"
-          aria-label={`导出与模板：${draft.name || "未命名方案"}，打开简历库`}
-          aria-haspopup="dialog"
-          aria-expanded={resumeLibraryOpen}
-          title={`导出与模板 · ${draft.name || "未命名方案"}`}
-          onClick={() => setResumeLibraryOpen(true)}
+          </div>
+        </header>
+        <div
+          className={`guide-container ${layout.guideCollapsed ? "guide-collapsed" : ""}`}
+          hidden={!hasPlugin("ext.workflow")}
         >
-          <FileDown size={17} />
-          <span className="resume-trigger-copy">
-            <b>{exporting ? "正在导出…" : "导出与模板"}</b>
-            <small>{draft.name || "未命名方案"}</small>
-          </span>
-          {!sameComposition(
-            state.resumes.find(
-              /* 顶部提示当前方案是否仍有未保存的修改 */ (item) =>
-                item.id === draft.id,
-            ),
-            draft,
-          ) && (
-            <span
-              className="resume-unsaved-dot"
-              aria-label="组合未保存"
-              title="组合未保存"
+          <Workflow
+            input={workflow}
+            activeStep={
+              resumeLibraryOpen
+                ? 5
+                : area === "templates"
+                  ? 0
+                  : area === "personal"
+                    ? 1
+                    : area === "honors"
+                      ? 3
+                      : area === "structure"
+                        ? 4
+                        : 2
+            }
+            onNavigate={followGuide}
+            collapsed={layout.guideCollapsed}
+            onToggle={
+              /* 处理 onToggle 回调，将变化同步到工作台状态 */ () =>
+                resize("guideCollapsed", !layout.guideCollapsed)
+            }
+          />
+          {!layout.guideCollapsed && (
+            <ResizeHandle
+              className="guide-resize"
+              label="调整制作指引高度"
+              axis="y"
+              value={clamp(layout.guide, guideMin, guideMax)}
+              min={guideMin}
+              max={guideMax}
+              onChange={(value) => resize("guide", value)}
+              onReset={() => resize("guide", DEFAULT_LAYOUT.guide)}
             />
           )}
-        </button>
-        <div className="row header-actions">
-          {activeJobs.length > 0 && (
-            <span className="subtle header-job-status">
-              <LoaderCircle className="spin" size={14} /> {activeJobs.length}{" "}
-              个任务进行中
-            </span>
-          )}
-          <ThemeSwitch />
-          <button
-            className="icon-button"
-            aria-label="重置布局"
-            title="重置各区域大小"
-            onClick={() => {
-              setLayout({ ...DEFAULT_LAYOUT });
-              setSidebar(!matchMedia("(max-width: 600px)").matches);
-              setPreviewFocused(false);
-            }}
-          >
-            <RotateCcw size={16} />
-          </button>
-          <button
-            className="icon-button"
-            aria-label="刷新数据"
-            onClick={() =>
-              run(async () => {
-                await reload();
-                changed();
-              })
-            }
-          >
-            <RefreshCw size={17} />
-          </button>
-          <button
-            className="icon-button"
-            aria-label="打开设置"
-            onClick={() => setModal("settings")}
-          >
-            <SettingsIcon size={18} />
-          </button>
         </div>
-      </header>
-      <div
-        className={`guide-container ${layout.guideCollapsed ? "guide-collapsed" : ""}`}
-        hidden={!hasPlugin("ext.workflow")}
-      >
-        <Workflow
-          input={workflow}
-          activeStep={
-            resumeLibraryOpen
-              ? 5
-              : area === "templates"
-                ? 0
-                : area === "personal"
-                  ? 1
-                  : area === "honors"
-                    ? 3
-                    : area === "structure"
-                      ? 4
-                      : 2
-          }
-          onNavigate={followGuide}
-          collapsed={layout.guideCollapsed}
-          onToggle={
-            /* 处理 onToggle 回调，将变化同步到工作台状态 */ () =>
-              resize("guideCollapsed", !layout.guideCollapsed)
-          }
-        />
-        {!layout.guideCollapsed && (
-          <ResizeHandle
-            className="guide-resize"
-            label="调整制作指引高度"
-            axis="y"
-            value={clamp(layout.guide, guideMin, guideMax)}
-            min={guideMin}
-            max={guideMax}
-            onChange={(value) => resize("guide", value)}
-            onReset={() => resize("guide", DEFAULT_LAYOUT.guide)}
-          />
-        )}
-      </div>
-      <div className="workbench" ref={workbench}>
-        <ProjectSidebar
-          onCollapse={toggleSidebar}
-          sortedSidebar={sortedSidebar}
-          sidebarSort={sidebarSort}
-          onSortChange={setSidebarSort}
-          activeJobs={activeJobs}
-          items={draft.items}
-          activeProject={activeProject}
-          conversationId={conversationId}
-          mode={mode}
-          creatingConversation={creatingConversation}
-          folded={folded}
-          setFolded={setFolded}
-          onNavigate={navigate}
-          onToggleProject={toggleProject}
-          onNewConversation={
-            /* 新建会话后更新工作台状态 */ (id) =>
-              run(() => newConversation(id))
-          }
-          onArchive={
-            /* 处理 onArchive 回调，将变化同步到工作台状态 */ (projectId, id) =>
-              run(() => archiveConversation(projectId, id))
-          }
-          onDelete={setDeletingProject}
-          onImport={
-            /* 处理 onImport 回调，将变化同步到工作台状态 */ () =>
-              setModal("projects")
-          }
-        />
-        <ResizeHandle
-          className="sidebar-resize"
-          label="调整项目栏宽度"
-          axis="x"
-          value={columns.sidebar}
-          min={160}
-          max={columns.sidebarMax}
-          onChange={(value) => resize("sidebar", value)}
-          onReset={() => resize("sidebar", DEFAULT_LAYOUT.sidebar)}
-        />
-        <main className="workspace">
-          {!loaded ? (
-            <div className="empty">
-              <LoaderCircle className="spin" />
-              正在读取本机数据…
-            </div>
-          ) : area === "personal" ? (
-            <ProfileEditor
-              honors={state.honors ?? []}
-              onEditHonor={editLinkedHonor}
-              key={draft.id}
-              value={draft.document ?? newDocument(state.resume_defaults)}
-              savedPersonal={
-                state.resumes.find(
-                  /* 读取正式保存的基本信息以区分待保存草稿 */ (resume) =>
-                    resume.id === draft.id,
-                )?.document?.personal
-              }
-              savedVersion={
-                state.resumes.find(
-                  /* 成功保存组合也应结束当前基本信息的编辑会话 */ (resume) =>
-                    resume.id === draft.id,
-                )?.version
-              }
-              onSave={savePersonalInfo}
-              onSaveEntry={saveSectionEntry}
-              savedSections={
-                state.resumes.find(
-                  /* 逐条比较资料是否匹配该方案的已保存内容 */ (resume) =>
-                    resume.id === draft.id,
-                )?.document?.sections
-              }
-              onChange={
-                /* 完整模板随资料编辑保留，项目区模板切换为内置版式 */ (
-                  document,
-                ) =>
+        <div className="workbench" ref={workbench}>
+          <main className="workspace">
+            {!loaded ? (
+              <div className="empty">
+                <LoaderCircle className="spin" />
+                正在读取本机数据…
+              </div>
+            ) : area === "personal" ? (
+              <ProfileEditor
+                honors={state.honors ?? []}
+                onEditHonor={editLinkedHonor}
+                key={draft.id}
+                value={draft.document ?? newDocument(state.resume_defaults)}
+                savedPersonal={
+                  state.resumes.find(
+                    /* 读取正式保存的基本信息以区分待保存草稿 */ (resume) =>
+                      resume.id === draft.id,
+                  )?.document?.personal
+                }
+                savedVersion={
+                  state.resumes.find(
+                    /* 成功保存组合也应结束当前基本信息的编辑会话 */ (resume) =>
+                      resume.id === draft.id,
+                  )?.version
+                }
+                onSave={savePersonalInfo}
+                onSaveEntry={saveSectionEntry}
+                savedSections={
+                  state.resumes.find(
+                    /* 逐条比较资料是否匹配该方案的已保存内容 */ (resume) =>
+                      resume.id === draft.id,
+                  )?.document?.sections
+                }
+                onChange={
+                  /* 完整模板随资料编辑保留，项目区模板切换为内置版式 */ (
+                    document,
+                  ) =>
+                    setDraft(
+                      /* 使用最新方案以免照片读取期间覆盖其他设置 */ (
+                        current,
+                      ) => ({
+                        ...current,
+                        document,
+                      }),
+                    )
+                }
+                onStructure={
+                  /* 从资料编辑进入栏目编排 */ () => openArea("structure")
+                }
+                onProjects={() => run(async () => openProjects())}
+                onHonors={
+                  /* 添加证书进入荣誉库，保留当前简历草稿 */ () =>
+                    openArea("honors")
+                }
+                onSortSection={
+                  /* 在编排页定位刚才查看的栏目 */ (sectionId) => {
+                    setStructureTarget(sectionId);
+                    openArea("structure");
+                  }
+                }
+              />
+            ) : area === "structure" ? (
+              <SectionOrganizer
+                onDefaults={/* 打开独立设置副本 */ () => setDefaultsOpen(true)}
+                honors={state.honors ?? []}
+                scrollTarget={structureTarget}
+                onScrolled={
+                  /* 消费一次定位请求，普通切换不重复跳动 */ () =>
+                    setStructureTarget(null)
+                }
+                key={draft.id}
+                value={draft.document ?? newDocument(state.resume_defaults)}
+                onEditHonor={
+                  /* 关联来源读取最新资料，手动条目只编辑当前简历 */ (
+                    sectionId,
+                    entry,
+                  ) =>
+                    void editLinkedHonor(honorSourceId(entry), sectionId, entry)
+                }
+                projects={
+                  <ProjectOrder
+                    draft={draft}
+                    revisions={revisionCache}
+                    sources={previewSources}
+                    onChange={setDraft}
+                    onEdit={
+                      /* 从栏目内选中项目并返回其经历编辑区 */ (id) =>
+                        followGuide("experience-use", id)
+                    }
+                  />
+                }
+                onChange={(document) =>
                   setDraft(
-                    /* 使用最新方案以免照片读取期间覆盖其他设置 */ (
-                      current,
-                    ) => ({
+                    /* 保留栏目编辑期间的其他简历设置 */ (current) => ({
                       ...current,
                       document,
                     }),
                   )
-              }
-              onStructure={
-                /* 从资料编辑进入栏目编排 */ () => setArea("structure")
-              }
-              onProjects={() => setArea("projects")}
-              onHonors={
-                /* 添加证书进入荣誉库，保留当前简历草稿 */ () =>
-                  setArea("honors")
-              }
-              onSortSection={
-                /* 在编排页定位刚才查看的栏目 */ (sectionId) => {
-                  setStructureTarget(sectionId);
-                  setArea("structure");
                 }
-              }
+                onInfo={() => openArea("personal")}
+              />
+            ) : !project ? (
+              <div className="empty welcome">
+                <span className="eyebrow">从你的项目开始</span>
+                <h1>把项目积累，变成可复用的经历。</h1>
+                <p>
+                  {hasPlugin("ext.source-code") &&
+                  hasPlugin("ext.ai-conversation")
+                    ? "可以手工填写经历和亮点，也可以导入源码让 AI 整理。手工填写无需连接模型。"
+                    : "新建项目，填写经历和亮点，保存版本后组合成简历。"}
+                </p>
+                <button
+                  className="primary"
+                  onClick={() => setModal("projects")}
+                >
+                  <FolderPlus size={17} />
+                  新建手工项目
+                </button>
+                {hasPlugin("ext.source-code") && (
+                  <button onClick={() => setModal("projects")}>
+                    导入源码项目
+                  </button>
+                )}
+              </div>
+            ) : (
+              <>
+                <header className="workspace-header">
+                  <div>
+                    {parentProject ? (
+                      <button
+                        className="project-parent-link"
+                        title={`返回整体项目 ${parentProject.name}`}
+                        onClick={
+                          /* 返回原有整体项目经历、对话 */ () =>
+                            navigate(parentProject.id)
+                        }
+                      >
+                        {parentProject.name} / 子项目
+                      </button>
+                    ) : project.roots.length > 1 ? (
+                      <span className="project-scope-hint">
+                        整体项目 · {project.roots.length} 个子项目
+                      </span>
+                    ) : null}
+                    <h1
+                      title={
+                        remoteProject.data?.working.content.title ||
+                        project.name
+                      }
+                    >
+                      {remoteProject.data?.working.content.title ||
+                        project.name}
+                    </h1>
+                  </div>
+                  <nav className="tabs workspace-tabs" aria-label="项目工作区">
+                    <button
+                      className={mode === "edit" ? "active" : ""}
+                      aria-current={mode === "edit" ? "page" : undefined}
+                      onClick={() =>
+                        run(async () => {
+                          setRefresh((value) => value + 1);
+                          setMode("edit");
+                        })
+                      }
+                    >
+                      <EditIcon size={16} />
+                      经历编辑
+                    </button>
+                    <button
+                      hidden={!hasPlugin("ext.ai-conversation")}
+                      className={mode === "chat" ? "active" : ""}
+                      aria-current={mode === "chat" ? "page" : undefined}
+                      onClick={() =>
+                        run(async () => {
+                          await ensureConversation();
+                          setMode("chat");
+                        })
+                      }
+                    >
+                      <ChatIcon size={16} />
+                      AI 会话
+                    </button>
+                  </nav>
+                  <button
+                    hidden={!hasPlugin("ext.ai-conversation")}
+                    data-guide="analysis"
+                    aria-label={
+                      remoteProject.data?.working.content.highlights.length
+                        ? "重新分析源码"
+                        : "分析项目"
+                    }
+                    title={
+                      remoteProject.data?.working.content.highlights.length
+                        ? "重新分析源码"
+                        : "分析项目"
+                    }
+                    disabled={!!currentJob || !remoteProject.data}
+                    onClick={() =>
+                      run(() =>
+                        send(
+                          "请读取当前项目源码和材料，生成有证据支持的完整项目经历草稿。未确认的个人贡献、参与日期和量化成果请列为问题。",
+                          "all",
+                          "analysis",
+                        ),
+                      )
+                    }
+                  >
+                    <Sparkles size={16} />
+                    <span className="analysis-label">
+                      {remoteProject.data?.working.content.highlights.length
+                        ? "重新分析源码"
+                        : "分析项目"}
+                    </span>
+                  </button>
+                </header>
+                <div className="workspace-scroll">
+                  {error && <div className="error-panel">{error}</div>}
+                  {!remoteProject.data ? (
+                    <div className="empty compact">正在读取项目…</div>
+                  ) : mode === "edit" ? (
+                    remoteProject.ready ? (
+                      <Editor
+                        definitions={
+                          draft.document?.sections.find(
+                            /* 当前简历保留独立项目字段结构 */ (section) =>
+                              section.kind === "projects",
+                          )?.field_definitions
+                        }
+                        key={`${activeProject}.${revisionId}.${refresh}`}
+                        detail={remoteProject.data}
+                        revisionId={revisionId}
+                        hasLocalChanges={hasExperienceChanges}
+                        usedRevision={
+                          revisionCache[
+                            draft.items.find(
+                              (item) => item.project_id === activeProject,
+                            )?.revision_id ?? ""
+                          ]
+                        }
+                        included={
+                          draft.items.find(
+                            (i) => i.project_id === activeProject,
+                          )?.highlight_ids ?? []
+                        }
+                        visibility={
+                          draft.document?.project_visibility?.[activeProject] ??
+                          {}
+                        }
+                        onVisibility={changeProjectVisibility}
+                        run={run}
+                        onSave={saveRevision}
+                        onDiscard={discardChanges}
+                        onRefresh={changed}
+                        onRevision={
+                          /* 处理 onRevision 回调，将变化同步到工作台状态 */ (
+                            id,
+                          ) =>
+                            run(async () =>
+                              setSelectedRevisions((v) => ({
+                                ...v,
+                                [activeProject]: id,
+                              })),
+                            )
+                        }
+                        onUseVersion={applyVersion}
+                        onAsk={ask}
+                        onToggle={toggleHighlight}
+                        onPreview={updateWorkingPreview}
+                      />
+                    ) : (
+                      <div className="empty compact">正在读取草稿…</div>
+                    )
+                  ) : remoteChat.data ? (
+                    <Chat
+                      key={conversationId}
+                      inputHeight={layout.chatInput}
+                      onInputHeight={
+                        /* 处理 onInputHeight 回调，将变化同步到工作台状态 */ (
+                          value,
+                        ) => resize("chatInput", value)
+                      }
+                      detail={remoteChat.data}
+                      project={remoteProject.data}
+                      activeJob={currentJob}
+                      run={run}
+                      onSend={send}
+                      onAdopt={adopt}
+                      onRefresh={changed}
+                    />
+                  ) : (
+                    <div className="empty compact">正在读取会话…</div>
+                  )}
+                </div>
+              </>
+            )}
+          </main>
+          <ResizeHandle
+            className="composer-resize"
+            label="调整简历区宽度"
+            axis="x"
+            reverse
+            value={columns.composer}
+            min={300}
+            max={columns.composerMax}
+            onChange={(value) => resize("composer", value)}
+            onReset={() => resize("composer", DEFAULT_LAYOUT.composer)}
+          />
+          <ResizeHandle
+            className="stack-resize"
+            label="调整编辑区高度"
+            axis="y"
+            value={clamp(layout.editor, 280, 1000)}
+            min={280}
+            max={1000}
+            onChange={(value) => resize("editor", value)}
+            onReset={() => resize("editor", DEFAULT_LAYOUT.editor)}
+          />
+          <Composer
+            previewFocused={previewFocused}
+            onFocusPreview={() => setPreviewFocused(!previewFocused)}
+            state={state}
+            draft={draft}
+            revisions={revisionCache}
+            previewSources={previewSources}
+            run={run}
+          />
+        </div>
+        <RecruitmentPage active={area === "recruitment"} />
+        {selectedPage && (
+          <PluginBoundary key={selectedPage.id} owner={selectedPage.id}>
+            <selectedPage.component
+              active
+              openSettings={setModal}
+              settingsVersion={settingsVersion}
             />
-          ) : area === "structure" ? (
-            <SectionOrganizer
-              onDefaults={/* 打开独立设置副本 */ () => setDefaultsOpen(true)}
-              honors={state.honors ?? []}
-              scrollTarget={structureTarget}
-              onScrolled={
-                /* 消费一次定位请求，普通切换不重复跳动 */ () =>
-                  setStructureTarget(null)
-              }
-              key={draft.id}
-              value={draft.document ?? newDocument(state.resume_defaults)}
-              onEditHonor={
-                /* 关联来源读取最新资料，手动条目只编辑当前简历 */ (
-                  sectionId,
-                  entry,
-                ) =>
-                  void editLinkedHonor(honorSourceId(entry), sectionId, entry)
-              }
-              projects={
-                <ProjectOrder
-                  draft={draft}
-                  revisions={revisionCache}
-                  sources={previewSources}
-                  onChange={setDraft}
-                  onEdit={
-                    /* 从栏目内选中项目并返回其经历编辑区 */ (id) =>
-                      followGuide("experience-use", id)
+          </PluginBoundary>
+        )}
+        {resumeLibraryOpen && (
+          <ResumeLibrary
+            notice={toast}
+            onDismissNotice={() => setToast(null)}
+            state={state}
+            draft={draft}
+            previewChanged={previewChanged}
+            unsavedDraft={loadLocal<Resume | null>("rm.resume.v2.new", null)}
+            recoveryDrafts={loadLocal<Resume[]>("rm.resume.recoveries", [])}
+            onRecover={(copy) => {
+              const unsaved = loadLocal<Resume | null>(
+                "rm.resume.v2.new",
+                null,
+              );
+              if (unsaved) preserveResumeCopy(unsaved);
+              if (!draft.id) preserveResumeCopy(draft);
+              storage.setItem(
+                `rm.resume.v2.${draft.id || "new"}`,
+                JSON.stringify(draft),
+              );
+              const restored = restoreResume(
+                { ...copy, id: "", draft_id: crypto.randomUUID(), version: 0 },
+                state,
+              );
+              setDraft(restored.draft);
+              setExported(null);
+            }}
+            result={exported}
+            exporting={exporting}
+            deleting={deleting}
+            onClose={
+              /* 关闭简历库，保留当前方案、所有本机草稿 */ () =>
+                setResumeLibraryOpen(false)
+            }
+            onChange={setDraft}
+            onChoose={
+              /* 处理 onChoose 回调，将变化同步到工作台状态 */ (id) =>
+                run(async () => {
+                  const resume = state.resumes.find((r) => r.id === id);
+                  const selected =
+                    resume ??
+                    (!id
+                      ? loadLocal<Resume | null>("rm.resume.v2.new", null)
+                      : null);
+                  if (selected) {
+                    const recovered = restoreResume(
+                      loadLocal(`rm.resume.v2.${id || "new"}`, selected),
+                      state,
+                    );
+                    setDraft(recovered.draft);
+                    if (recovered.changed)
+                      setToast({
+                        text: "失效引用已隔离，原稿保存在恢复副本中。",
+                      });
+                    setExported(null);
                   }
-                />
-              }
-              onChange={(document) =>
+                })
+            }
+            onSave={
+              /* 处理 onSave 回调，将变化同步到工作台状态 */ () =>
+                run(async () => {
+                  await saveComposition();
+                  setToast({ text: "简历组合已保存，引用版本已固定。" });
+                })
+            }
+            onExport={
+              /* 处理 onExport 回调，将变化同步到工作台状态 */ () =>
+                run(exportResume)
+            }
+            onNew={
+              /* 处理 onNew 回调，将变化同步到工作台状态 */ () =>
+                run(async () => {
+                  const value = await api<Resume>("/resumes", "POST", {
+                    name: "新简历",
+                    template_id: null,
+                    items: [],
+                    document: newDocument(state.resume_defaults),
+                  });
+                  await reload();
+                  setDraft(value);
+                  setExported(null);
+                })
+            }
+            onDelete={
+              /* 先刷新项目草稿，再删除用户确认的方案 */ (resume) =>
+                run(
+                  /* 执行方案删除及后续切换 */ () => deleteComposition(resume),
+                )
+            }
+            onTemplates={
+              /* 处理 onTemplates 回调，将变化同步到工作台状态 */ () =>
+                run(
+                  /* 保存草稿后打开完整模板工作区 */ async () => {
+                    setResumeLibraryOpen(false);
+                    openArea("templates");
+                    setPreviewFocused(false);
+                  },
+                )
+            }
+          />
+        )}
+        <HonorLibrary
+          onSaved={honorSaved}
+          active={area === "honors"}
+          document={draft.document}
+          resumeName={draft.name}
+          onRemove={
+            /* 荣誉库移除入口只更新当前草稿，保留来源、其他简历 */ (id) =>
+              setDraft(
+                /* 使用最新草稿以免覆盖其他未保存设置 */ (current) => ({
+                  ...current,
+                  document: current.document
+                    ? removeHonor(current.document, id)
+                    : current.document,
+                }),
+              )
+          }
+          onAdd={
+            /* 将已确认的荣誉复制到当前简历草稿，保留其他资料 */ (
+              honors,
+              target,
+            ) => {
+              const document = addHonors(
+                draft.document ?? newDocument(state.resume_defaults),
+                honors,
+                target,
+              );
+              setDraft({ ...draft, document });
+            }
+          }
+        />
+        {defaultsOpen && (
+          <DefaultsDialog
+            document={draft.document}
+            projects={[
+              ...Object.values(revisionCache).map(
+                /* 不改写不可变版本且只用于判断是否需要删除确认 */ (revision) =>
+                  revision.content,
+              ),
+              ...Object.values(workingPreviews),
+              ...(remoteProject.data
+                ? [remoteProject.data.working.content]
+                : []),
+            ]}
+            initial={state.resume_defaults}
+            onClose={() => setDefaultsOpen(false)}
+            onSave={
+              /* 先校验应用结果，再保存默认设置并更新当前草稿 */ async (
+                settings,
+              ) => {
+                const document = applyResumeDefaults(
+                  draft.document ?? newDocument(),
+                  settings,
+                  state.resume_defaults ?? undefined,
+                );
+                const saved = await api<ResumeDefaults>(
+                  "/settings/resume-defaults",
+                  "PUT",
+                  settings,
+                );
+                ++stateRequests.current;
+                setState(
+                  /* 使新建简历立即使用新设置 */ (current) => ({
+                    ...current,
+                    resume_defaults: saved,
+                  }),
+                );
                 setDraft(
-                  /* 保留栏目编辑期间的其他简历设置 */ (current) => ({
+                  /* 模态期间保留当前简历其他元信息 */ (current) => ({
                     ...current,
                     document,
                   }),
-                )
+                );
               }
-              onInfo={() => setArea("personal")}
-            />
-          ) : !project ? (
-            <div className="empty welcome">
-              <span className="eyebrow">从你的项目开始</span>
-              <h1>把项目积累，变成可复用的经历。</h1>
-              <p>
-                {hasPlugin("ext.source-code") &&
-                hasPlugin("ext.ai-conversation")
-                  ? "可以手工填写经历和亮点，也可以导入源码让 AI 整理。手工填写无需连接模型。"
-                  : "新建项目，填写经历和亮点，保存版本后组合成简历。"}
-              </p>
-              <button className="primary" onClick={() => setModal("projects")}>
-                <FolderPlus size={17} />
-                新建手工项目
-              </button>
-              {hasPlugin("ext.source-code") && (
-                <button onClick={() => setModal("projects")}>
-                  导入源码项目
-                </button>
-              )}
-            </div>
-          ) : (
-            <>
-              <header className="workspace-header">
-                <div>
-                  {parentProject ? (
-                    <button
-                      className="project-parent-link"
-                      title={`返回整体项目 ${parentProject.name}`}
-                      onClick={
-                        /* 返回原有整体项目经历、对话 */ () =>
-                          navigate(parentProject.id)
-                      }
-                    >
-                      {parentProject.name} / 子项目
-                    </button>
-                  ) : project.roots.length > 1 ? (
-                    <span className="project-scope-hint">
-                      整体项目 · {project.roots.length} 个子项目
-                    </span>
-                  ) : null}
-                  <h1
-                    title={
-                      remoteProject.data?.working.content.title || project.name
-                    }
-                  >
-                    {remoteProject.data?.working.content.title || project.name}
-                  </h1>
-                </div>
-                <nav className="tabs workspace-tabs" aria-label="项目工作区">
-                  <button
-                    className={mode === "edit" ? "active" : ""}
-                    aria-current={mode === "edit" ? "page" : undefined}
-                    onClick={() => run(async () => setMode("edit"))}
-                  >
-                    <FilePenLine size={14} aria-hidden="true" />
-                    经历编辑
-                  </button>
-                  <button
-                    hidden={!hasPlugin("ext.ai-conversation")}
-                    className={mode === "chat" ? "active" : ""}
-                    aria-current={mode === "chat" ? "page" : undefined}
-                    onClick={() =>
-                      run(async () => {
-                        await ensureConversation();
-                        setMode("chat");
-                      })
-                    }
-                  >
-                    <Sparkles size={14} aria-hidden="true" />
-                    AI 会话
-                  </button>
-                </nav>
-                <button
-                  hidden={!hasPlugin("ext.ai-conversation")}
-                  data-guide="analysis"
-                  aria-label={
-                    remoteProject.data?.working.content.highlights.length
-                      ? "重新分析源码"
-                      : "分析项目"
-                  }
-                  title={
-                    remoteProject.data?.working.content.highlights.length
-                      ? "重新分析源码"
-                      : "分析项目"
-                  }
-                  disabled={!!currentJob || !remoteProject.data}
-                  onClick={() =>
-                    run(() =>
-                      send(
-                        "请读取当前项目源码和材料，生成有证据支持的完整项目经历草稿。未确认的个人贡献、参与日期和量化成果请列为问题。",
-                        "all",
-                        "analysis",
-                      ),
-                    )
-                  }
-                >
-                  <Sparkles size={16} />
-                  <span className="analysis-label">
-                    {remoteProject.data?.working.content.highlights.length
-                      ? "重新分析源码"
-                      : "分析项目"}
-                  </span>
-                </button>
-              </header>
-              <div className="workspace-scroll">
-                {error && <div className="error-panel">{error}</div>}
-                {!remoteProject.data ? (
-                  <div className="empty compact">正在读取项目…</div>
-                ) : mode === "edit" ? (
-                  remoteProject.ready ? (
-                    <Editor
-                      definitions={
-                        draft.document?.sections.find(
-                          /* 当前简历保留独立项目字段结构 */ (section) =>
-                            section.kind === "projects",
-                        )?.field_definitions
-                      }
-                      key={`${activeProject}.${revisionId}.${refresh}`}
-                      detail={remoteProject.data}
-                      revisionId={revisionId}
-                      hasLocalChanges={hasExperienceChanges}
-                      usedRevision={
-                        revisionCache[
-                          draft.items.find(
-                            (item) => item.project_id === activeProject,
-                          )?.revision_id ?? ""
-                        ]
-                      }
-                      included={
-                        draft.items.find((i) => i.project_id === activeProject)
-                          ?.highlight_ids ?? []
-                      }
-                      visibility={
-                        draft.document?.project_visibility?.[activeProject] ??
-                        {}
-                      }
-                      onVisibility={changeProjectVisibility}
-                      run={run}
-                      onSave={saveRevision}
-                      onDiscard={discardChanges}
-                      onRefresh={changed}
-                      onRevision={
-                        /* 处理 onRevision 回调，将变化同步到工作台状态 */ (
-                          id,
-                        ) =>
-                          run(async () =>
-                            setSelectedRevisions((v) => ({
-                              ...v,
-                              [activeProject]: id,
-                            })),
-                          )
-                      }
-                      onUseVersion={applyVersion}
-                      onAsk={ask}
-                      onToggle={toggleHighlight}
-                      onPreview={updateWorkingPreview}
-                    />
-                  ) : (
-                    <div className="empty compact">正在读取草稿…</div>
-                  )
-                ) : remoteChat.data ? (
-                  <Chat
-                    key={conversationId}
-                    inputHeight={layout.chatInput}
-                    onInputHeight={
-                      /* 处理 onInputHeight 回调，将变化同步到工作台状态 */ (
-                        value,
-                      ) => resize("chatInput", value)
-                    }
-                    detail={remoteChat.data}
-                    project={remoteProject.data}
-                    activeJob={currentJob}
-                    run={run}
-                    onSend={send}
-                    onAdopt={adopt}
-                    onRefresh={changed}
-                  />
-                ) : (
-                  <div className="empty compact">正在读取会话…</div>
-                )}
-              </div>
-            </>
-          )}
-        </main>
-        <ResizeHandle
-          className="composer-resize"
-          label="调整简历区宽度"
-          axis="x"
-          reverse
-          value={columns.composer}
-          min={300}
-          max={columns.composerMax}
-          onChange={(value) => resize("composer", value)}
-          onReset={() => resize("composer", DEFAULT_LAYOUT.composer)}
-        />
-        <ResizeHandle
-          className="stack-resize"
-          label="调整编辑区高度"
-          axis="y"
-          value={clamp(layout.editor, 280, 1000)}
-          min={280}
-          max={1000}
-          onChange={(value) => resize("editor", value)}
-          onReset={() => resize("editor", DEFAULT_LAYOUT.editor)}
-        />
-        <Composer
-          previewFocused={previewFocused}
-          onFocusPreview={() => setPreviewFocused(!previewFocused)}
-          state={state}
-          draft={draft}
-          revisions={revisionCache}
-          previewSources={previewSources}
-          run={run}
-        />
-      </div>
-      <RecruitmentPage active={area === "recruitment"} />
-      {selectedPage && (
-        <PluginBoundary key={selectedPage.id} owner={selectedPage.id}>
-          <selectedPage.component
-            active
-            openSettings={setModal}
-            settingsVersion={settingsVersion}
+            }
           />
-        </PluginBoundary>
-      )}
-      {resumeLibraryOpen && (
-        <ResumeLibrary
-          notice={toast}
-          onDismissNotice={() => setToast(null)}
-          state={state}
-          draft={draft}
-          previewChanged={previewChanged}
-          unsavedDraft={loadLocal<Resume | null>("rm.resume.v2.new", null)}
-          recoveryDrafts={loadLocal<Resume[]>("rm.resume.recoveries", [])}
-          onRecover={(copy) => {
-            const unsaved = loadLocal<Resume | null>("rm.resume.v2.new", null);
-            if (unsaved) preserveResumeCopy(unsaved);
-            if (!draft.id) preserveResumeCopy(draft);
-            storage.setItem(
-              `rm.resume.v2.${draft.id || "new"}`,
-              JSON.stringify(draft),
-            );
-            const restored = restoreResume(
-              { ...copy, id: "", draft_id: crypto.randomUUID(), version: 0 },
-              state,
-            );
-            setDraft(restored.draft);
-            setExported(null);
-          }}
-          result={exported}
-          exporting={exporting}
-          deleting={deleting}
-          onClose={
-            /* 关闭简历库，保留当前方案、所有本机草稿 */ () =>
-              setResumeLibraryOpen(false)
-          }
-          onChange={setDraft}
-          onChoose={
-            /* 处理 onChoose 回调，将变化同步到工作台状态 */ (id) =>
-              run(async () => {
-                const resume = state.resumes.find((r) => r.id === id);
-                const selected =
-                  resume ??
-                  (!id
-                    ? loadLocal<Resume | null>("rm.resume.v2.new", null)
-                    : null);
-                if (selected) {
-                  const recovered = restoreResume(
-                    loadLocal(`rm.resume.v2.${id || "new"}`, selected),
-                    state,
-                  );
-                  setDraft(recovered.draft);
-                  if (recovered.changed)
-                    setToast({
-                      text: "失效引用已隔离，原稿保存在恢复副本中。",
-                    });
-                  setExported(null);
-                }
-              })
-          }
-          onSave={
-            /* 处理 onSave 回调，将变化同步到工作台状态 */ () =>
-              run(async () => {
-                await saveComposition();
-                setToast({ text: "简历组合已保存，引用版本已固定。" });
-              })
-          }
-          onExport={
-            /* 处理 onExport 回调，将变化同步到工作台状态 */ () =>
-              run(exportResume)
-          }
-          onNew={
-            /* 处理 onNew 回调，将变化同步到工作台状态 */ () =>
-              run(async () => {
-                const value = await api<Resume>("/resumes", "POST", {
-                  name: "新简历",
-                  template_id: null,
-                  items: [],
-                  document: newDocument(state.resume_defaults),
-                });
-                await reload();
-                setDraft(value);
-                setExported(null);
-              })
-          }
-          onDelete={
-            /* 先刷新项目草稿，再删除用户确认的方案 */ (resume) =>
-              run(/* 执行方案删除及后续切换 */ () => deleteComposition(resume))
-          }
-          onTemplates={
-            /* 处理 onTemplates 回调，将变化同步到工作台状态 */ () =>
-              run(
-                /* 保存草稿后打开完整模板工作区 */ async () => {
-                  setResumeLibraryOpen(false);
-                  setArea("templates");
-                  setPreviewFocused(false);
-                },
-              )
-          }
-        />
-      )}
-      <HonorLibrary
-        onSaved={honorSaved}
-        active={area === "honors"}
-        document={draft.document}
-        resumeName={draft.name}
-        onRemove={
-          /* 荣誉库移除入口只更新当前草稿，保留来源、其他简历 */ (id) =>
-            setDraft(
-              /* 使用最新草稿以免覆盖其他未保存设置 */ (current) => ({
-                ...current,
-                document: current.document
-                  ? removeHonor(current.document, id)
-                  : current.document,
-              }),
-            )
-        }
-        onAdd={
-          /* 将已确认的荣誉复制到当前简历草稿，保留其他资料 */ (
-            honors,
-            target,
-          ) => {
-            const document = addHonors(
-              draft.document ?? newDocument(state.resume_defaults),
-              honors,
-              target,
-            );
-            setDraft({ ...draft, document });
-          }
-        }
-      />
-      {defaultsOpen && (
-        <DefaultsDialog
-          document={draft.document}
-          projects={[
-            ...Object.values(revisionCache).map(
-              /* 不改写不可变版本且只用于判断是否需要删除确认 */ (revision) =>
-                revision.content,
-            ),
-            ...Object.values(workingPreviews),
-            ...(remoteProject.data ? [remoteProject.data.working.content] : []),
-          ]}
-          initial={state.resume_defaults}
-          onClose={() => setDefaultsOpen(false)}
-          onSave={
-            /* 先校验应用结果，再保存默认设置并更新当前草稿 */ async (
-              settings,
-            ) => {
-              const document = applyResumeDefaults(
-                draft.document ?? newDocument(),
-                settings,
-                state.resume_defaults ?? undefined,
-              );
-              const saved = await api<ResumeDefaults>(
-                "/settings/resume-defaults",
-                "PUT",
-                settings,
-              );
-              ++stateRequests.current;
-              setState(
-                /* 使新建简历立即使用新设置 */ (current) => ({
-                  ...current,
-                  resume_defaults: saved,
-                }),
-              );
-              setDraft(
-                /* 模态期间保留当前简历其他元信息 */ (current) => ({
-                  ...current,
-                  document,
-                }),
-              );
+        )}
+        {editingHonor && (
+          <HonorEditor
+            key={`${editingHonor.resumeId}:${editingHonor.entry.id}`}
+            honor={editingHonor.honor}
+            draftScope={editingHonor.resumeId || "new-resume"}
+            resumeEntry={editingHonor.entry}
+            onSaveEntry={
+              /* 只提交当前荣誉条目的草稿 */ async (entry) => {
+                if (draft.id !== editingHonor.resumeId)
+                  throw new Error("当前简历已切换，请关闭后重新编辑。");
+                await saveSectionEntry(editingHonor.sectionId, entry.id, entry);
+              }
             }
-          }
-        />
-      )}
-      {editingHonor && (
-        <HonorEditor
-          key={`${editingHonor.resumeId}:${editingHonor.entry.id}`}
-          honor={editingHonor.honor}
-          draftScope={editingHonor.resumeId || "new-resume"}
-          resumeEntry={editingHonor.entry}
-          onSaveEntry={
-            /* 只提交当前荣誉条目的草稿 */ async (entry) => {
-              if (draft.id !== editingHonor.resumeId)
-                throw new Error("当前简历已切换，请关闭后重新编辑。");
-              await saveSectionEntry(editingHonor.sectionId, entry.id, entry);
+            onClose={() => setEditingHonor(null)}
+            onSaved={
+              /* 来源成功而简历保存失败时，表单继续使用已确认的新版本重试 */ (
+                honor,
+              ) => {
+                honorSaved(honor);
+                setEditingHonor(
+                  /* 保留本次简历设置、打开时的取消基线 */ (current) =>
+                    current?.honor?.id === honor.id
+                      ? { ...current, honor }
+                      : current,
+                );
+              }
             }
-          }
-          onClose={() => setEditingHonor(null)}
-          onSaved={
-            /* 来源成功而简历保存失败时，表单继续使用已确认的新版本重试 */ (
-              honor,
-            ) => {
-              honorSaved(honor);
-              setEditingHonor(
-                /* 保留本次简历设置、打开时的取消基线 */ (current) =>
-                  current?.honor?.id === honor.id
-                    ? { ...current, honor }
-                    : current,
-              );
-            }
-          }
-        />
-      )}
-      <div
-        className="template-workspace"
-        hidden={area !== "templates"}
-        data-guide="template-select"
-        tabIndex={-1}
-      >
-        <TemplateAdapter
-          active={area === "templates"}
-          layout={layout}
-          onResize={resize}
-          resume={draft}
-          revisions={revisionCache}
-          previewSources={previewSources}
-          onSelected={(id) =>
-            setDraft(
-              /* 采用新模板时保留全部个人资料、项目选择 */ (current) => ({
-                ...current,
-                template_id: id,
-                document:
-                  current.document ?? newDocument(state.resume_defaults),
-              }),
-            )
-          }
-          templates={state.templates}
-          onChanged={
-            /* 保存模板后刷新模板库 */ async () => {
-              await reload();
-              changed();
-            }
-          }
-        />
-      </div>
-      {deletingProject && (
-        <DeleteProjectDialog
-          project={deletingProject}
-          childCount={deletingProjectIds.size - 1}
-          blocker={deletionBlocker}
-          onClose={() => setDeletingProject(null)}
-          onDelete={deleteProject}
-        />
-      )}
-      {modal && (
-        <Settings
-          initial={modal}
-          activityPreferences={activityPreferences}
-          onActivityDeleted={() => setSettingsVersion((value) => value + 1)}
-          onClose={
-            /* 处理 onClose 回调，将变化同步到工作台状态 */ () => setModal(null)
-          }
-          onChanged={
-            /* 处理 onChanged 回调，将变化同步到工作台状态 */ async () => {
-              await reload();
-              changed();
-            }
-          }
-          run={run}
-        />
-      )}
-      {toast && !resumeLibraryOpen && (
+          />
+        )}
         <div
-          className={`toast ${toast.error ? "error" : ""}`}
-          role={toast.error ? "alert" : "status"}
+          className="template-workspace"
+          hidden={area !== "templates"}
+          data-guide="template-select"
+          tabIndex={-1}
         >
-          <span>{toast.text}</span>
-          <button
-            className="icon-button"
-            aria-label="关闭提示"
-            onClick={() => setToast(null)}
-          >
-            <X size={16} />
-          </button>
+          <TemplateAdapter
+            active={area === "templates"}
+            layout={layout}
+            onResize={resize}
+            resume={draft}
+            revisions={revisionCache}
+            previewSources={previewSources}
+            onSelected={(id) =>
+              setDraft(
+                /* 采用新模板时保留全部个人资料、项目选择 */ (current) => ({
+                  ...current,
+                  template_id: id,
+                  document:
+                    current.document ?? newDocument(state.resume_defaults),
+                }),
+              )
+            }
+            templates={state.templates}
+            onChanged={
+              /* 保存模板后刷新模板库 */ async () => {
+                await reload();
+                changed();
+              }
+            }
+          />
         </div>
-      )}
+        {deletingProject && (
+          <DeleteProjectDialog
+            project={deletingProject}
+            childCount={deletingProjectIds.size - 1}
+            blocker={deletionBlocker}
+            onClose={() => setDeletingProject(null)}
+            onDelete={deleteProject}
+          />
+        )}
+        {modal && (
+          <Settings
+            initial={modal}
+            activityPreferences={activityPreferences}
+            onActivityDeleted={() => setSettingsVersion((value) => value + 1)}
+            onClose={
+              /* 处理 onClose 回调，将变化同步到工作台状态 */ () =>
+                setModal(null)
+            }
+            onChanged={
+              /* 处理 onChanged 回调，将变化同步到工作台状态 */ async () => {
+                await reload();
+                changed();
+              }
+            }
+            run={run}
+          />
+        )}
+        {toast && !resumeLibraryOpen && (
+          <div
+            className={`toast ${toast.error ? "error" : ""}`}
+            role={toast.error ? "alert" : "status"}
+          >
+            <span>{toast.text}</span>
+            <button
+              className="icon-button"
+              aria-label="关闭提示"
+              onClick={() => setToast(null)}
+            >
+              <X size={16} />
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

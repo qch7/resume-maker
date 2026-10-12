@@ -1,4 +1,4 @@
-import { FileScan } from "lucide-react";
+import { TemplatesIcon } from "@resume-maker/plugin-sdk/shared/components/NavigationIcon";
 import style0 from "./templates.css?inline";
 import TemplateAdapter from "./TemplateAdapter";
 import type { ClientContext } from "@resume-maker/plugin-sdk/plugins/contracts";
@@ -9,7 +9,7 @@ export function activate(context: ClientContext) {
     slot: "templates",
     title: "Word 模板",
     order: 50,
-    icon: FileScan,
+    icon: TemplatesIcon,
   });
   context.style(style0);
 
