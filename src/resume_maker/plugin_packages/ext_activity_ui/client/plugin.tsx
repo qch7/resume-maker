@@ -1,5 +1,5 @@
 import css from "./activity.css?inline";
-import { Activity as ActivityIcon } from "lucide-react";
+import { ActivityIcon } from "@resume-maker/plugin-sdk/shared/components/NavigationIcon";
 import Activity from "./Activity";
 import type {
   ClientContext,

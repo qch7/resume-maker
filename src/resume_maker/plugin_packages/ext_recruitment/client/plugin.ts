@@ -1,4 +1,4 @@
-import { Bookmark } from "lucide-react";
+import { RecruitmentIcon } from "@resume-maker/plugin-sdk/shared/components/NavigationIcon";
 import RecruitmentSettings from "./RecruitmentSettings";
 import style0 from "./recruitment.css?inline";
 import RecruitmentPage from "./RecruitmentPage";
@@ -10,14 +10,14 @@ export function activate(context: ClientContext) {
     slot: "recruitment",
     title: "招聘收藏夹",
     order: 60,
-    icon: Bookmark,
+    icon: RecruitmentIcon,
   });
   context.style(style0);
 
   context.settingsPage({
     id: context.id + "/settings",
     title: "收藏",
-    icon: Bookmark,
+    icon: RecruitmentIcon,
     order: 80,
     component: RecruitmentSettings,
   });

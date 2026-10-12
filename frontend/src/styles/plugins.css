@@ -10,8 +10,9 @@
   position: fixed;
   inset: 0 0 auto;
   padding: 16px;
-  background: var(--surface, #fff);
-  border-bottom: 2px solid #b38b33;
+  background: var(--warning-soft);
+  color: var(--warning);
+  border-bottom: 1px solid var(--warning);
   z-index: 60;
 }
 .plugin-manager .settings-body {
@@ -22,8 +23,8 @@
   display: flex;
   gap: 12px;
   align-items: center;
-  padding: 10px;
-  border-bottom: 1px solid #ddd;
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
 }
 .plugin-choice input {
   width: auto;

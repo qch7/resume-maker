@@ -1,11 +1,11 @@
+import { X } from "lucide-react";
 import {
-  DatabaseBackup,
-  FolderOpen,
-  ScrollText,
-  ShieldCheck,
-  SlidersHorizontal,
-  X,
-} from "lucide-react";
+  ActivityIcon,
+  BackupIcon,
+  PrivacyIcon,
+  ProjectsIcon,
+  SettingsIcon,
+} from "@resume-maker/plugin-sdk/shared/components/NavigationIcon";
 import { useCallback, useEffect, useRef, useState } from "react";
 import PathInput from "@resume-maker/plugin-sdk/shared/components/PathInput";
 import { api } from "@resume-maker/plugin-sdk/shared/lib/api";
@@ -54,15 +54,15 @@ export default function Settings(props: Props) {
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const sections = [
-    { id: "projects", title: "项目", order: 10, icon: FolderOpen },
-    { id: "privacy", title: "隐私", order: 40, icon: ShieldCheck },
-    { id: "settings", title: "备份", order: 50, icon: DatabaseBackup },
-    { id: "activity", title: "日志", order: 60, icon: ScrollText },
+    { id: "projects", title: "项目", order: 10, icon: ProjectsIcon },
+    { id: "privacy", title: "隐私", order: 40, icon: PrivacyIcon },
+    { id: "settings", title: "备份", order: 50, icon: BackupIcon },
+    { id: "activity", title: "日志", order: 60, icon: ActivityIcon },
     ...pages
       .filter((page) => !page.group)
       .map((page) => ({
         ...page,
-        icon: page.icon ?? SlidersHorizontal,
+        icon: page.icon ?? SettingsIcon,
       })),
   ].sort(
     (left, right) =>

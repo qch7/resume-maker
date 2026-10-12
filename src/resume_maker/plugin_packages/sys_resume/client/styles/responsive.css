@@ -1,11 +1,4 @@
-/* 窄屏适配、放大预览、无障碍动效偏好，置后以覆盖基础布局 */
-.sidebar-hidden .workbench {
-  grid-template-columns: minmax(320px, 1fr) 8px var(--composer-width);
-}
-.sidebar-hidden .sidebar,
-.sidebar-hidden .sidebar-resize {
-  display: none;
-}
+/* 内容宽度决定工作区分栏，侧边导航始终留在左侧 */
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -16,39 +9,38 @@
     opacity: 0.25;
   }
 }
-@media (max-width: 1250px) {
+@container app-content (max-width: 980px) {
+  .app-header {
+    gap: 10px;
+    padding-inline: 18px;
+  }
+  .header-context,
+  .header-job-status {
+    display: none;
+  }
+  .workflow-overview {
+    width: 120px;
+  }
+  .workflow-steps {
+    gap: 4px;
+  }
+  .workflow-steps small,
+  .workflow-steps li::after {
+    display: none;
+  }
   .editor,
   .chat-title {
-    padding-left: 20px;
-    padding-right: 20px;
+    padding-inline: 20px;
   }
 }
-@media (max-width: 980px) {
-  .app-shell {
-    overflow: visible;
-    height: auto;
-    min-height: 100dvh;
-  }
+@container app-content (max-width: 740px) {
   .workbench {
     flex: none;
-    grid-template-columns: var(--sidebar-width) 8px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: var(--editor-height) 8px auto;
   }
-  .app-header {
-    position: sticky;
-    top: 0;
-    z-index: 10;
-  }
-  .sidebar {
-    grid-row: 1 / 4;
-    grid-column: 1;
-  }
-  .sidebar-resize {
-    grid-row: 1 / 4;
-    grid-column: 2;
-  }
   .workspace {
-    grid-column: 3;
+    grid-column: 1;
     grid-row: 1;
   }
   .composer-resize {
@@ -56,53 +48,33 @@
   }
   .stack-resize {
     display: flex;
-    grid-column: 3;
+    grid-column: 1;
     grid-row: 2;
   }
   .composition-pane {
-    grid-column: 3;
+    grid-column: 1;
     grid-row: 3;
     height: max(580px, 85dvh);
-  }
-  .sidebar-hidden .workbench {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .sidebar-hidden .composition-pane,
-  .sidebar-hidden .workspace,
-  .sidebar-hidden .stack-resize {
-    grid-column: 1;
   }
   .printed-page,
   .resume-paper {
     max-width: 650px;
-    margin-left: auto;
-    margin-right: auto;
+    margin-inline: auto;
   }
-  .workflow {
-    gap: 10px;
+  .app-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
   }
-  .workflow-overview {
-    width: 150px;
+  .header-actions {
+    gap: 0;
   }
-  .workflow-steps {
-    gap: 4px;
+  .header-location strong {
+    font-size: 13px;
   }
-  .workflow-steps li::after {
-    display: none;
-  }
-  .workflow-steps small {
-    display: none;
-  }
-  .workflow-steps button {
-    padding: 7px;
-    gap: 6px;
-  }
-  .workflow-next {
-    align-items: flex-start;
-  }
-  .header-job-status {
-    display: none;
-  }
+}
+.app-content:has(.workbench) {
+  overflow-y: auto;
 }
 @media (max-width: 760px) {
   .app-subtitle {
@@ -159,72 +131,20 @@
     font-size: 10px;
   }
 }
-@media (max-width: 1180px) {
-  .workflow-steps small,
-  .workflow-steps li::after {
-    display: none;
-  }
+@media (max-width: 600px) {
   .app-header {
-    grid-template-columns: max-content minmax(0, 1fr) max-content;
-    gap: 12px;
-  }
-  .area-resume-name {
-    display: none;
-  }
-}
-@media (max-width: 1000px) {
-  .app-header {
-    height: 96px;
-    min-height: 96px;
-    grid-template-columns: max-content minmax(0, 1fr);
-    grid-template-rows: 51px 44px;
-    gap: 0 8px;
+    padding: 8px 12px;
+    gap: 6px;
+    min-height: 60px;
   }
   .header-actions {
-    grid-column: 2;
-    grid-row: 1;
-    justify-self: end;
+    gap: 0;
   }
-  .area-navigation {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    align-self: stretch;
-    gap: 3px;
-    border-top: 1px solid var(--line);
-  }
-  .area-navigation > button {
-    flex: 1;
-  }
-}
-@media (max-width: 600px) {
-  .workbench {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .sidebar-resize {
+  .header-context {
     display: none;
   }
-  .sidebar {
-    position: fixed;
-    left: 0;
-    top: 96px;
-    bottom: 0;
-    width: 220px;
-    z-index: 9;
-    box-shadow: 15px 0 45px #1a2d2525;
-  }
-  .workspace,
-  .composition-pane,
-  .stack-resize {
-    grid-column: 1;
-  }
-  .app-header {
-    padding: 0 12px;
-  }
-  .app-header .row {
-    gap: 5px;
-  }
-  .app-header strong {
-    font-size: 13px;
+  .header-location strong {
+    font-size: 12px;
   }
   .project-meta {
     padding: 8px 0 20px;
@@ -235,12 +155,6 @@
   .project-meta .section-heading {
     flex-wrap: wrap;
     gap: 6px;
-  }
-  .theme-switch button {
-    padding: 6px;
-  }
-  .theme-switch button span {
-    display: none;
   }
   .workflow {
     padding: 6px 12px;
@@ -308,13 +222,15 @@
   height: 100dvh;
   overflow: hidden;
 }
+.app-shell.preview-focused .app-content {
+  overflow: hidden;
+}
 .app-shell.preview-focused .workbench {
   flex: 1;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
 }
 .preview-focused .guide-container,
-.preview-focused .sidebar,
 .preview-focused .workspace,
 .preview-focused .workbench > .resize-handle,
 .preview-focused .composition-header,
@@ -329,22 +245,5 @@
 }
 .preview-focused .export-result {
   max-width: 840px;
-  margin-left: auto;
-  margin-right: auto;
-}
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation: none !important;
-    transition: none !important;
-  }
-}
-:root[data-theme="dark"] {
-  color-scheme: dark;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]):not([data-theme="dark"]) {
-    color-scheme: dark;
-  }
+  margin-inline: auto;
 }

@@ -71,7 +71,7 @@
   },
   "config_schema": {
     "additionalProperties": false,
-    "description": "等待证书识别和取消真正结束后释放资源",
+    "description": "等待证书识别、取消真正结束后释放资源",
     "properties": {
       "close_timeout_seconds": {
         "default": 10,

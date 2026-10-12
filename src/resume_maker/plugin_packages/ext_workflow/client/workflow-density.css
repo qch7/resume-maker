@@ -72,27 +72,23 @@
     display: none;
   }
   .workflow:not(.collapsed) .workflow-steps {
-    gap: 2px;
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+  .workflow:not(.collapsed) .workflow-steps li {
+    flex-shrink: 0;
   }
   .workflow:not(.collapsed) .workflow-steps button {
     width: 100%;
     justify-content: center;
-    padding: 6px 1px;
+    padding: 6px 8px;
   }
   .workflow:not(.collapsed) .workflow-steps strong {
     font-size: 11px;
   }
   .workflow:not(.collapsed) .workflow-toggle {
     padding: 4px;
-  }
-}
-
-/* 手机项目库从指引下方展开以免最简导航被侧栏遮挡 */
-@media (max-width: 600px) {
-  .sidebar {
-    top: calc(96px + var(--guide-height) + 8px);
-  }
-  .app-shell:has(.guide-collapsed) .sidebar {
-    top: 136px;
   }
 }

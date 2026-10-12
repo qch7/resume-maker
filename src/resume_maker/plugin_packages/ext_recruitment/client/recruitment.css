@@ -31,7 +31,7 @@
   justify-content: flex-start;
   border: 0;
   background: transparent;
-  border-radius: 6px;
+  border-radius: 8px;
   margin-bottom: 4px;
   padding: 11px 12px;
 }
@@ -46,7 +46,7 @@
   color: var(--subtle);
 }
 .recruitment-sidebar > button.selected {
-  color: var(--accent);
+  color: var(--text);
   background: var(--selected);
   font-weight: 600;
 }
@@ -71,8 +71,9 @@
   color: var(--subtle);
 }
 .recruitment-content {
+  container: recruitment-results / inline-size;
   overflow: auto;
-  padding: 24px 28px 36px;
+  padding: 24px;
   min-width: 0;
   background: var(--panel);
 }
@@ -97,7 +98,7 @@
   flex: 1;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: 10px;
   padding: 0 13px;
   color: var(--subtle);
   margin: 0;
@@ -106,14 +107,14 @@
 .recruitment-sort {
   width: auto;
   min-height: 36px;
-  border-radius: 6px;
+  border-radius: 8px;
 }
 .recruitment-view-toggle {
   display: flex;
   gap: 2px;
   padding: 3px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 8px;
   background: var(--surface);
 }
 .recruitment-view-toggle button {
@@ -150,7 +151,7 @@
 .recruitment-filter-row button {
   border: 0;
   background: transparent;
-  border-radius: 5px;
+  border-radius: 8px;
   padding: 7px 13px;
 }
 .recruitment-filter-row button.selected {
@@ -167,15 +168,14 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(290px, 100%), 1fr));
   align-items: start;
-  gap: 12px;
+  gap: 16px;
 }
 .recruitment-card {
   min-width: 0;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 9px;
-  padding: 14px 14px 8px;
-  box-shadow: 0 2px 3px #00000003;
+  border-radius: 12px;
+  padding: 20px 20px 12px;
 }
 .recruitment-info > header {
   display: flex;
@@ -202,18 +202,10 @@
   height: 40px;
   flex-shrink: 0;
   border-radius: 9px;
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--muted);
+  color: var(--text);
   font-size: 20px;
   font-weight: 600;
-}
-.recruitment-monogram.medium {
-  background: var(--success-soft);
-  color: var(--success);
-}
-.recruitment-monogram.small {
-  background: var(--warning-soft);
-  color: var(--warning);
 }
 .recruitment-summary {
   margin-top: 10px;
@@ -250,7 +242,7 @@
   align-items: center;
   gap: 7px;
   border: 1px solid var(--line);
-  border-radius: 5px;
+  border-radius: 8px;
   padding: 7px 9px;
   font-size: 11px;
   text-decoration: none;
@@ -401,7 +393,7 @@
 .recruitment-notice,
 .recruitment-error {
   padding: 10px 12px;
-  border-radius: 5px;
+  border-radius: 8px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   margin-bottom: 16px;
@@ -433,7 +425,7 @@
   overflow: auto;
 }
 .recruitment-dialog::backdrop {
-  background: #0f172a66;
+  background: #0007;
 }
 .recruitment-dialog > header {
   padding: 19px 24px;
@@ -465,7 +457,7 @@
 .recruitment-fields select,
 .recruitment-fields textarea {
   width: 100%;
-  border-radius: 5px;
+  border-radius: 8px;
 }
 .recruitment-fields input[type="checkbox"] {
   width: auto;
@@ -496,11 +488,11 @@
   align-items: center;
 }
 .recruitment-upload {
-  border: 1px dashed var(--accent);
-  border-radius: 8px;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
   padding: 24px;
   align-items: center;
-  background: var(--accent-soft);
+  background: var(--panel);
   text-align: center;
   cursor: pointer;
 }
@@ -559,12 +551,12 @@
   border-bottom: 1px solid var(--line);
   font-size: 12px;
 }
-@media (max-width: 900px) {
+@container app-content (max-width: 900px) {
   .recruitment-content {
     padding: 20px 16px;
   }
 }
-@media (max-width: 760px) {
+@container recruitment-results (max-width: 680px) {
   .recruitment-list .recruitment-card {
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas: "info actions" "links links";
@@ -573,7 +565,7 @@
     margin-left: 41px;
   }
 }
-@media (max-width: 600px) {
+@container app-content (max-width: 600px) {
   .recruitment-search {
     flex-basis: 100%;
   }
@@ -614,6 +606,8 @@
   .recruitment-filter-row button {
     padding: 7px 10px;
   }
+}
+@media (max-width: 600px) {
   .recruitment-fields {
     padding: 18px;
   }

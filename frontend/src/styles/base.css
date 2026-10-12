@@ -1,29 +1,46 @@
 /* 主题变量、基础排版、通用表单控件 */
 :root {
-  font-family: "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+  font-family:
+    "Inter", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
   color-scheme: light;
   color: var(--text);
   background: var(--background);
   font-synthesis: none;
-  --surface: light-dark(#fff, #202225);
-  --text: light-dark(#292d32, #e5e7eb);
-  --background: light-dark(#e9ebee, #151719);
-  --subtle: light-dark(#6a717b, #a0a6ae);
-  --line: light-dark(#e1e4e8, #34373c);
-  --muted: light-dark(#f0f1f3, #2a2d31);
-  --accent: light-dark(#365fa4, #91b0de);
-  --accent-soft: light-dark(#f0f4fa, #262e38);
-  --primary: light-dark(#426aa8, #496fa9);
-  --primary-ink: #fff;
-  --sidebar: light-dark(#f6f7f8, #191b1e);
-  --selected: light-dark(#e9edf2, #2c323a);
-  --panel: light-dark(#f5f6f7, #1b1d20);
+  --surface: light-dark(#fff, #212121);
+  --text: light-dark(#252525, #ececec);
+  --background: light-dark(#f7f7f8, #171717);
+  --subtle: light-dark(#707070, #ababab);
+  --line: light-dark(#e7e7e9, #383838);
+  --line-strong: light-dark(#c7c7cc, #565656);
+  --muted: light-dark(#f1f1f3, #2c2c2c);
+  --accent: light-dark(#353535, #e0e0e0);
+  --accent-soft: light-dark(#f3f3f5, #2b2b2b);
+  --primary: light-dark(#252525, #ececec);
+  --primary-ink: light-dark(#fff, #212121);
+  --sidebar: light-dark(#f7f7f8, #171717);
+  --selected: light-dark(#eaeaec, #303030);
+  --panel: light-dark(#fafafa, #1c1c1c);
   --success: light-dark(#3b755e, #94bca8);
   --success-soft: light-dark(#eef5f0, #28332e);
   --warning: light-dark(#946016, #edc27a);
   --warning-soft: light-dark(#fff5df, #3e3324);
   --danger: light-dark(#b34351, #ffa4af);
   --error-soft: light-dark(#fff0f2, #3c2632);
+  --focus: light-dark(#506b99, #a4bde7);
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --shadow-sm: 0 4px 20px light-dark(#0000000a, #00000029);
+  --shadow-dialog: 0 24px 80px light-dark(#00000026, #00000066);
+  --backdrop: light-dark(#00000040, #00000070);
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-theme="dark"]) {
+    color-scheme: dark;
+  }
 }
 * {
   box-sizing: border-box;
@@ -32,6 +49,7 @@
 }
 body {
   margin: 0;
+  -webkit-font-smoothing: antialiased;
 }
 .persistence-status {
   position: fixed;
@@ -45,7 +63,7 @@ body {
   max-width: min(640px, calc(100vw - 24px));
   padding: 4px 8px;
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--subtle);
   font-size: 11px;
@@ -71,14 +89,14 @@ button {
   justify-content: center;
   gap: 7px;
   border: 1px solid var(--line);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
   color: inherit;
   padding: 8px 12px;
   cursor: pointer;
   line-height: 1.5;
 }
-button:hover {
+button:not(:disabled):hover {
   background: var(--muted);
 }
 button:disabled {
@@ -91,8 +109,9 @@ button.primary {
   color: var(--primary-ink);
   font-weight: 600;
 }
-button.primary:hover {
-  filter: brightness(1.08);
+button.primary:not(:disabled):hover {
+  background: color-mix(in srgb, var(--primary) 88%, var(--surface));
+  border-color: color-mix(in srgb, var(--primary) 88%, var(--surface));
 }
 button.icon-button {
   border: 0;
@@ -119,7 +138,7 @@ select {
   width: 100%;
   min-width: 0;
   border: 1px solid var(--line);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
   color: inherit;
   padding: 9px 11px;
@@ -127,6 +146,23 @@ select {
 }
 textarea {
   resize: vertical;
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--subtle);
+  opacity: 0.8;
+}
+input:not(:disabled):hover,
+textarea:not(:disabled):hover,
+select:not(:disabled):hover {
+  border-color: var(--line-strong);
+}
+input:disabled,
+textarea:disabled,
+select:disabled {
+  color: var(--subtle);
+  background: var(--muted);
+  cursor: not-allowed;
 }
 input[type="checkbox"] {
   width: 15px;
@@ -137,11 +173,11 @@ input[type="checkbox"] {
   cursor: pointer;
 }
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
 [data-guide]:focus {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus);
   outline-offset: 3px;
 }
 label {
@@ -222,8 +258,8 @@ pre {
   font-size: 10px;
   color: var(--subtle);
   background: var(--muted);
-  border-radius: 2px;
-  padding: 3px 6px;
+  border-radius: 6px;
+  padding: 3px 7px;
 }
 .eyebrow {
   display: block;

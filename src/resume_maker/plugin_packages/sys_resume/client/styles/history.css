@@ -49,13 +49,13 @@
   padding: 0;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 12px;
   background: var(--surface);
   color: var(--text);
-  box-shadow: 0 25px 100px #10271f50;
+  box-shadow: 0 20px 64px #0003;
 }
 .history-dialog::backdrop {
-  background: #101c2875;
+  background: #0007;
   backdrop-filter: blur(3px);
 }
 .history-title {
@@ -97,7 +97,7 @@
   height: 76px;
   width: 100%;
   border: 0;
-  border-radius: 6px;
+  border-radius: 8px;
   background: transparent;
   text-align: left;
   display: flex;
@@ -111,8 +111,8 @@
   background: var(--accent-soft);
 }
 .history-node.selected {
-  background: var(--accent-soft);
-  box-shadow: inset 0 0 0 1px var(--accent);
+  background: var(--selected);
+  box-shadow: inset 0 0 0 1px var(--line);
 }
 .history-node-uncommitted {
   border: 1px dashed var(--line);
@@ -174,7 +174,7 @@
 .history-change-summary {
   padding: 9px 12px;
   background: var(--accent-soft);
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 12px;
 }
 .history-saved-content {
@@ -205,9 +205,9 @@
 }
 .history-branch-form {
   margin-bottom: 16px;
-  padding: 14px;
-  background: var(--accent-soft);
-  border-radius: 3px;
+  padding: 16px;
+  background: var(--panel);
+  border-radius: 10px;
 }
 .history-branch-form .check {
   display: flex;
