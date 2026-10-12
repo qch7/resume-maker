@@ -61,7 +61,7 @@
   },
   "config_schema": {
     "additionalProperties": false,
-    "description": "渲染和旧文档转换采用相同等待策略，配置切换保留进程排空屏障",
+    "description": "渲染、旧文档转换采用相同等待策略，配置切换保留进程排空屏障",
     "properties": {
       "render_timeout_seconds": {
         "default": 90,

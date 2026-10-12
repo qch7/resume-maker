@@ -82,7 +82,7 @@
   },
   "config_schema": {
     "additionalProperties": false,
-    "description": "独立调用和宿主调度均使用同一份队列策略",
+    "description": "独立调用、宿主调度均使用同一份队列策略",
     "properties": {
       "close_timeout_seconds": {
         "default": 8,

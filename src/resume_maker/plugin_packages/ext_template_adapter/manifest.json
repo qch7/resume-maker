@@ -84,7 +84,7 @@
   },
   "config_schema": {
     "additionalProperties": false,
-    "description": "关闭等待超时继续保留任务依赖和原件",
+    "description": "关闭等待超时继续保留任务依赖、原件",
     "properties": {
       "close_timeout_seconds": {
         "default": 8,
