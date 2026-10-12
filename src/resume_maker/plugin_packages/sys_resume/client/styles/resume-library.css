@@ -1,39 +1,4 @@
-/* 简历库入口、成品管理 */
-.resume-library-trigger {
-  min-width: 0;
-  max-width: 240px;
-  padding: 5px 12px;
-  gap: 9px;
-  color: var(--text);
-  background: var(--panel);
-}
-.resume-library-trigger > svg {
-  flex-shrink: 0;
-}
-.resume-trigger-copy {
-  display: grid;
-  text-align: left;
-  min-width: 0;
-  line-height: 1.4;
-}
-.resume-trigger-copy b {
-  font-size: 12px;
-  white-space: nowrap;
-}
-.resume-trigger-copy small {
-  font-size: 10px;
-  color: var(--subtle);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.resume-unsaved-dot {
-  width: 6px;
-  height: 6px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  background: var(--warning);
-}
+/* 简历库、成品管理 */
 .resume-library-dialog {
   width: min(1240px, 94vw);
   height: min(820px, 88dvh);
@@ -324,17 +289,6 @@
   }
 }
 @media (max-width: 600px) {
-  .resume-library-trigger {
-    padding: 5px 7px;
-    gap: 5px;
-  }
-  .resume-trigger-copy b {
-    font-size: 11px;
-  }
-  .resume-library-trigger > svg,
-  .resume-unsaved-dot {
-    display: none;
-  }
   .resume-library-dialog {
     width: 96vw;
     height: 92dvh;

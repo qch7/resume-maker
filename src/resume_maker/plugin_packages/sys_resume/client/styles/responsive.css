@@ -10,14 +10,6 @@
   }
 }
 @container app-content (max-width: 980px) {
-  .app-header {
-    gap: 10px;
-    padding-inline: 18px;
-  }
-  .header-context,
-  .header-job-status {
-    display: none;
-  }
   .workflow-overview {
     width: 120px;
   }
@@ -61,25 +53,11 @@
     max-width: 650px;
     margin-inline: auto;
   }
-  .app-header {
-    position: sticky;
-    top: 0;
-    z-index: 10;
-  }
-  .header-actions {
-    gap: 0;
-  }
-  .header-location strong {
-    font-size: 13px;
-  }
 }
 .app-content:has(.workbench) {
   overflow-y: auto;
 }
 @media (max-width: 760px) {
-  .app-subtitle {
-    display: none;
-  }
   .workflow-overview {
     width: auto;
     flex-direction: row;
@@ -132,20 +110,6 @@
   }
 }
 @media (max-width: 600px) {
-  .app-header {
-    padding: 8px 12px;
-    gap: 6px;
-    min-height: 60px;
-  }
-  .header-actions {
-    gap: 0;
-  }
-  .header-context {
-    display: none;
-  }
-  .header-location strong {
-    font-size: 12px;
-  }
   .project-meta {
     padding: 8px 0 20px;
   }

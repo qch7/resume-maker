@@ -1,7 +1,9 @@
 import type { ComponentType, KeyboardEvent, ReactNode } from "react";
+import { LoaderCircle, RefreshCw, RotateCcw } from "lucide-react";
 import {
   PanelLeftIcon,
   ResumeIcon,
+  ResumesIcon,
   SettingsIcon,
 } from "@resume-maker/plugin-sdk/shared/components/NavigationIcon";
 import ThemeSwitch from "@resume-maker/plugin-sdk/shared/components/ThemeSwitch";
@@ -18,6 +20,14 @@ interface Props {
   destinations: WorkspaceDestination[];
   pages: WorkspaceDestination[];
   children: ReactNode;
+  resumeName: string;
+  exporting: boolean;
+  resumeLibraryOpen: boolean;
+  unsaved: boolean;
+  activeJobCount: number;
+  onOpenResumeLibrary(): void;
+  onResetLayout(): void;
+  onRefresh(): void;
   onToggle(): void;
   onNavigate(id: string): void;
   onSettings(): void;
@@ -30,6 +40,14 @@ export default function WorkspaceSidebar({
   destinations,
   pages,
   children,
+  resumeName,
+  exporting,
+  resumeLibraryOpen,
+  unsaved,
+  activeJobCount,
+  onOpenResumeLibrary,
+  onResetLayout,
+  onRefresh,
   onToggle,
   onNavigate,
   onSettings,
@@ -113,14 +131,70 @@ export default function WorkspaceSidebar({
       </div>
       <div className="sidebar-utilities">
         <button
-          className="sidebar-settings"
-          aria-label="打开设置"
-          title="打开设置"
-          onClick={onSettings}
+          className="resume-library-trigger"
+          aria-label={`导出与模板：${resumeName}，打开简历库`}
+          aria-haspopup="dialog"
+          aria-expanded={resumeLibraryOpen}
+          title={`导出与模板 · ${resumeName}${unsaved ? " · 组合未保存" : ""}`}
+          onClick={onOpenResumeLibrary}
         >
-          <SettingsIcon size={20} />
-          <span className="navigation-label">设置</span>
+          <ResumesIcon size={20} />
+          <span className="resume-trigger-copy">
+            <b>{exporting ? "正在导出…" : "导出与模板"}</b>
+            <small>{resumeName}</small>
+          </span>
+          {unsaved && (
+            <span
+              className="resume-unsaved-dot"
+              aria-label="组合未保存"
+              title="组合未保存"
+            />
+          )}
         </button>
+        {activeJobCount > 0 && (
+          <span
+            className="sidebar-job-status"
+            role="status"
+            aria-label={`${activeJobCount} 个任务进行中`}
+            title={`${activeJobCount} 个任务进行中`}
+          >
+            <LoaderCircle className="spin" size={14} />
+            <span className="navigation-label">
+              {activeJobCount} 个任务进行中
+            </span>
+          </span>
+        )}
+        <div
+          className="sidebar-utility-actions"
+          role="group"
+          aria-label="工作台工具"
+        >
+          <button
+            className="sidebar-settings"
+            aria-label="打开设置"
+            title="打开设置"
+            onClick={onSettings}
+          >
+            <SettingsIcon size={20} />
+            <span className="navigation-label">设置</span>
+          </button>
+          <button
+            className="icon-button"
+            aria-label="重置布局"
+            title="重置各区域大小"
+            onClick={onResetLayout}
+          >
+            <RotateCcw size={17} />
+          </button>
+          <button
+            className="icon-button"
+            aria-label="刷新数据"
+            title="刷新数据"
+            onClick={onRefresh}
+          >
+            <RefreshCw size={17} />
+          </button>
+        </div>
         <ThemeSwitch />
       </div>
     </aside>
