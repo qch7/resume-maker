@@ -12,6 +12,7 @@
   align-items: center;
   gap: 10px;
   min-height: 64px;
+  flex-shrink: 0;
   padding: 12px 16px;
 }
 .brand-mark {
@@ -100,6 +101,74 @@
   border-top: 1px solid var(--line);
   background: var(--sidebar);
   flex-shrink: 0;
+  min-height: 0;
+  max-height: calc(100% - 64px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.resume-library-trigger {
+  position: relative;
+  justify-content: flex-start;
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  padding: 8px 12px;
+  gap: 12px;
+  border-radius: 9px;
+  color: var(--text);
+  background: var(--panel);
+}
+.resume-trigger-copy {
+  display: grid;
+  flex: 1;
+  text-align: left;
+  min-width: 0;
+  line-height: 1.4;
+}
+.resume-trigger-copy b {
+  font-size: 12px;
+  white-space: nowrap;
+}
+.resume-trigger-copy small {
+  font-size: 10px;
+  color: var(--subtle);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.resume-unsaved-dot {
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--warning);
+}
+.sidebar-job-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 0;
+  color: var(--subtle);
+  font-size: 11px;
+}
+.sidebar-job-status > svg {
+  flex-shrink: 0;
+}
+.sidebar-utility-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+}
+.sidebar-utility-actions .sidebar-settings {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+}
+.sidebar-utility-actions .icon-button {
+  width: 32px;
+  min-height: 36px;
+  color: var(--subtle);
 }
 .theme-switch {
   display: flex;
@@ -148,6 +217,7 @@
 .workspace-sidebar.collapsed .navigation-label,
 .workspace-sidebar.collapsed .navigation-caption,
 .workspace-sidebar.collapsed .brand-mark,
+.workspace-sidebar.collapsed .resume-trigger-copy,
 .workspace-sidebar.collapsed .theme-switch button span {
   display: none;
 }
@@ -159,12 +229,30 @@
   padding-inline: 10px;
 }
 .workspace-sidebar.collapsed .area-navigation > button,
-.workspace-sidebar.collapsed .sidebar-settings {
+.workspace-sidebar.collapsed .sidebar-settings,
+.workspace-sidebar.collapsed .resume-library-trigger,
+.workspace-sidebar.collapsed .sidebar-job-status {
   justify-content: center;
   padding-inline: 0;
 }
 .workspace-sidebar.collapsed .sidebar-utilities {
   padding-inline: 10px;
+}
+.workspace-sidebar.collapsed .resume-library-trigger {
+  min-height: 44px;
+}
+.workspace-sidebar.collapsed .resume-unsaved-dot {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+}
+.workspace-sidebar.collapsed .sidebar-utility-actions {
+  flex-direction: column;
+}
+.workspace-sidebar.collapsed .sidebar-settings,
+.workspace-sidebar.collapsed .sidebar-utility-actions .icon-button {
+  flex: none;
+  width: 100%;
 }
 .workspace-sidebar.collapsed .theme-switch {
   flex-direction: column;

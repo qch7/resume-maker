@@ -6,14 +6,7 @@ import {
 } from "@resume-maker/plugin-sdk/plugins/runtime";
 import { hasPlugin } from "@resume-maker/plugin-sdk/shared/lib/capabilities";
 import { registerWindowTitle } from "@resume-maker/plugin-sdk/plugins/window";
-import {
-  FolderPlus,
-  LoaderCircle,
-  RefreshCw,
-  RotateCcw,
-  Sparkles,
-  X,
-} from "lucide-react";
+import { FolderPlus, LoaderCircle, Sparkles, X } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -74,7 +67,6 @@ import {
   ProfileIcon,
   SectionsIcon,
   ActivityIcon,
-  ResumesIcon,
   EditIcon,
   ChatIcon,
 } from "@resume-maker/plugin-sdk/shared/components/NavigationIcon";
@@ -884,6 +876,31 @@ export default function ResumeWorkspace() {
           label: item.title,
           icon: item.icon ?? ActivityIcon,
         }))}
+        resumeName={draft.name || "未命名方案"}
+        exporting={exporting}
+        resumeLibraryOpen={resumeLibraryOpen}
+        unsaved={
+          !sameComposition(
+            state.resumes.find((item) => item.id === draft.id),
+            draft,
+          )
+        }
+        activeJobCount={activeJobs.length}
+        onOpenResumeLibrary={() => {
+          closeMobileSidebar();
+          setResumeLibraryOpen(true);
+        }}
+        onResetLayout={() => {
+          setLayout({ ...DEFAULT_LAYOUT });
+          setSidebar(!matchMedia("(max-width: 760px)").matches);
+          setPreviewFocused(false);
+        }}
+        onRefresh={() =>
+          run(async () => {
+            await reload();
+            changed();
+          })
+        }
         onToggle={toggleSidebar}
         onSettings={() => {
           closeMobileSidebar();
@@ -952,81 +969,6 @@ export default function ResumeWorkspace() {
         onReset={() => resize("sidebar", DEFAULT_LAYOUT.sidebar)}
       />
       <div className="app-content">
-        <header className="app-header">
-          <div className="header-location">
-            <span className="header-context">工作空间</span>
-            <strong>
-              {selectedPage?.title ??
-                {
-                  projects: "项目经历",
-                  personal: "个人信息",
-                  structure: "栏目编排",
-                  templates: "模板库",
-                  honors: "荣誉库",
-                  recruitment: "招聘收藏",
-                }[area]}
-            </strong>
-          </div>
-          <button
-            className="resume-library-trigger"
-            aria-label={`导出与模板：${draft.name || "未命名方案"}，打开简历库`}
-            aria-haspopup="dialog"
-            aria-expanded={resumeLibraryOpen}
-            title={`导出与模板 · ${draft.name || "未命名方案"}`}
-            onClick={() => setResumeLibraryOpen(true)}
-          >
-            <ResumesIcon size={17} />
-            <span className="resume-trigger-copy">
-              <b>{exporting ? "正在导出…" : "导出与模板"}</b>
-              <small>{draft.name || "未命名方案"}</small>
-            </span>
-            {!sameComposition(
-              state.resumes.find(
-                /* 顶部提示当前方案是否仍有未保存的修改 */ (item) =>
-                  item.id === draft.id,
-              ),
-              draft,
-            ) && (
-              <span
-                className="resume-unsaved-dot"
-                aria-label="组合未保存"
-                title="组合未保存"
-              />
-            )}
-          </button>
-          <div className="row header-actions">
-            {activeJobs.length > 0 && (
-              <span className="subtle header-job-status">
-                <LoaderCircle className="spin" size={14} /> {activeJobs.length}{" "}
-                个任务进行中
-              </span>
-            )}
-            <button
-              className="icon-button"
-              aria-label="重置布局"
-              title="重置各区域大小"
-              onClick={() => {
-                setLayout({ ...DEFAULT_LAYOUT });
-                setSidebar(!matchMedia("(max-width: 760px)").matches);
-                setPreviewFocused(false);
-              }}
-            >
-              <RotateCcw size={16} />
-            </button>
-            <button
-              className="icon-button"
-              aria-label="刷新数据"
-              onClick={() =>
-                run(async () => {
-                  await reload();
-                  changed();
-                })
-              }
-            >
-              <RefreshCw size={17} />
-            </button>
-          </div>
-        </header>
         <div
           className={`guide-container ${layout.guideCollapsed ? "guide-collapsed" : ""}`}
           hidden={!hasPlugin("ext.workflow")}
