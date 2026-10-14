@@ -140,3 +140,117 @@ def test_source_query_cannot_write_and_bad_pagination_is_rejected(tmp_path):
     )
     with pytest.raises(Problem, match="重复"):
         registry.browse("community.example/items")
+
+
+def test_many_documents_share_resolution_but_keep_independent_layouts(tmp_path):
+    """重复引用按提供方去重，多份简历的顺序、标签、显隐及引用副本独立"""
+    db = Database(tmp_path / "data.db")
+    calls, readers = [], []
+
+    def resolve(reader, ids):
+        """只发布仍存在的确认条目，缺失项由简历保留旧快照"""
+        calls.append(ids)
+        readers.append(reader)
+        return (
+            SourceItem(
+                id="shared",
+                version="2",
+                title="来源新值",
+                custom_fields=(SourceField(id="extra", label="来源标签", value="新字段值"),),
+            ),
+        )
+
+    entry = {
+        "id": "entry",
+        "title": "旧值",
+        "visible": False,
+        "hidden_fields": ["details"],
+        "source": {"provider": "community.example/items", "id": "shared", "version": "1"},
+        "custom_fields": [{"id": "note", "label": "备注", "value": "手工内容"}],
+        "field_definitions": [{"id": "extra", "label": "第一份标签", "visible": False}],
+    }
+    missing = {**deepcopy(entry), "id": "missing", "title": "缺失快照"}
+    missing["source"]["id"] = "missing"
+    unknown = {**deepcopy(entry), "id": "unknown", "title": "缺包快照"}
+    unknown["source"]["provider"] = "missing.source/items"
+    document = ResumeDocument(
+        sections=[
+            {"id": "projects", "kind": "projects", "title": "项目"},
+            {"id": "linked", "title": "第一份栏目", "entries": [entry, missing, unknown]},
+        ]
+    ).model_dump()
+    other = deepcopy(document)
+    other["sections"][1]["title"] = "第二份栏目"
+    other_entry = other["sections"][1]["entries"][0]
+    other_entry["visible"] = True
+    other_entry["hidden_fields"] = []
+    other_entry["field_definitions"][0]["label"] = "第二份标签"
+    other["sections"][1]["entries"].reverse()
+    before, other_before = deepcopy(document), deepcopy(other)
+    contribution = Contribution(
+        "community.example",
+        "resume.sources",
+        "community.example/items",
+        ResumeSource("合成资料", "1.0.0", lambda *_: SourcePage(items=()), resolve),
+    )
+    registry = ResumeSources(db, lambda _: [contribution])
+    first, second, repeated, empty = registry.resolve_many([document, other, document, None])
+    assert calls == [("shared", "missing")]
+    assert document == before and other == other_before and empty is None
+    assert first == repeated and first is not repeated
+    assert second["sections"][1]["title"] == "第二份栏目"
+    left = first["sections"][1]["entries"][0]
+    right = second["sections"][1]["entries"][-1]
+    assert left["title"] == right["title"] == "来源新值"
+    assert left["source"]["version"] == right["source"]["version"] == "2"
+    assert left["visible"] is False and right["visible"] is True
+    assert left["hidden_fields"] == ["details"] and right["hidden_fields"] == []
+    assert left["custom_fields"][-1]["label"] == "第一份标签"
+    assert right["custom_fields"][-1]["label"] == "第二份标签"
+    assert left["custom_fields"][0]["value"] == "手工内容"
+    assert first["sections"][1]["entries"][1:] == before["sections"][1]["entries"][1:]
+    left["source"]["version"] = "local edit"
+    left["custom_fields"][-1]["value"] = "独立修改"
+    assert right["source"]["version"] == "2"
+    assert repeated["sections"][1]["entries"][0]["custom_fields"][-1]["value"] == "新字段值"
+    with pytest.raises(Problem, match="关闭"):
+        readers[0].setting("unused")
+
+
+@pytest.mark.parametrize("returned", ["unknown", "duplicate"])
+def test_many_documents_reject_invalid_source_results_without_changing_inputs(tmp_path, returned):
+    """批量解析继续拒绝越界或重复身份，失败不能修改任何输入简历"""
+    db = Database(tmp_path / "data.db")
+    document = {
+        "sections": [
+            {
+                "entries": [
+                    {
+                        "title": "旧快照",
+                        "source": {
+                            "provider": "community.example/items",
+                            "id": "shared",
+                            "version": "1",
+                        },
+                    }
+                ]
+            }
+        ]
+    }
+    original = deepcopy(document)
+    row = SourceItem(id="unknown" if returned == "unknown" else "shared", version="2", title="新值")
+    contribution = Contribution(
+        "community.example",
+        "resume.sources",
+        "community.example/items",
+        ResumeSource(
+            "合成资料",
+            "1.0.0",
+            lambda *_: SourcePage(items=()),
+            lambda *_: (row, row) if returned == "duplicate" else (row,),
+        ),
+    )
+    registry = ResumeSources(db, lambda _: [contribution])
+    with pytest.raises(Problem):
+        registry.resolve_many([document, document])
+    assert document == original

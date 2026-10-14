@@ -27,7 +27,7 @@ import ActivityTimeFilter from "./ActivityTimeFilter";
 import { DEFAULT_ACTIVITY_PREFERENCES } from "@resume-maker/plugin-sdk/shared/lib/activityPreferences";
 import {
   CATEGORIES,
-  eventPosition,
+  indexEvents,
   eventPhase,
   eventTime,
   isHiddenPolling,
@@ -120,6 +120,7 @@ export default function Activity({
   ]);
   const feed = useActivity(query, live, refreshVersion);
   const { events, page } = feed;
+  const indexed = useMemo(() => indexEvents(events), [events]);
   useEffect(() => {
     if (selected && isHiddenPolling(selected, new Set(page?.hidden_trace_ids)))
       setSelected(null);
@@ -148,7 +149,7 @@ export default function Activity({
   function locate(event: ActivityEvent) {
     setSelected(event);
     setFollow(false);
-    const index = events.findIndex((item) => item.id === event.id);
+    const index = indexed.byId.get(event.id)?.index ?? -1;
     if (scroll.current)
       scroll.current.scrollTop = Math.max(0, index * ROW_HEIGHT - 80);
   }
@@ -290,18 +291,18 @@ export default function Activity({
                   <small>{page?.counts[key] ?? 0}</small>
                 </button>
                 <div className="activity-track-lane">
-                  {events
-                    .filter((event) => event.category === key)
-                    .map((event) => (
+                  {(indexed.categories.get(key) ?? []).map(
+                    ({ event, position, time }) => (
                       <button
                         key={event.id}
                         className={`activity-mark cat-${key} ${event.level === "error" ? "has-error" : ""} ${selected?.id === event.id ? "selected" : ""}`}
-                        style={{ left: `${eventPosition(event, events)}%` }}
-                        title={`${eventTime(event.created_at)} ${event.title}`}
+                        style={{ left: `${position}%` }}
+                        title={`${time} ${event.title}`}
                         aria-label={`定位日志 ${event.id}：${event.title}`}
                         onClick={() => locate(event)}
                       />
-                    ))}
+                    ),
+                  )}
                 </div>
               </div>
             ))}
@@ -401,10 +402,10 @@ export default function Activity({
                   setSelected(event);
                   setFollow(false);
                 }}
-                aria-label={`${eventTime(event.created_at)} ${event.title}`}
+                aria-label={`${indexed.byId.get(event.id)!.time} ${event.title}`}
               >
                 <time dateTime={event.created_at}>
-                  {eventTime(event.created_at)}
+                  {indexed.byId.get(event.id)!.time}
                 </time>
                 <span className={`activity-badge cat-${event.category}`}>
                   {CATEGORIES[event.category as keyof typeof CATEGORIES] ??

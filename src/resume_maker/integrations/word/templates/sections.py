@@ -1,7 +1,6 @@
 """为新增大栏目复制现有标题样式并扩展普通经历条目的填写位置"""
 
 from copy import deepcopy
-from io import BytesIO
 
 from lxml import etree
 
@@ -16,7 +15,6 @@ from resume_maker.integrations.word.templates.flow import flow_paragraph
 from resume_maker.integrations.word.templates.layout import child_in
 from resume_maker.integrations.word.templates.mapping import (
     IMAGE_TAGS,
-    TemplatePackage,
     paragraph_text,
 )
 from resume_maker.integrations.word.templates.supplement import remap_plan
@@ -233,9 +231,7 @@ def supplement_sections(package, plan, document, projects):
         return package, plan, []
     if not package.review(plan)["ready"]:
         return package, plan, []
-    buffer = BytesIO()
-    package.write(buffer)
-    working = TemplatePackage(buffer)
+    working = package.clone()
     styles = ParagraphStyles(working)
     previous = dict(working.nodes)
     extensions, sections, notices = [], [], []

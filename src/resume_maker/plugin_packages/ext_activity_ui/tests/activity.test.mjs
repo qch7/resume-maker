@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { eventPosition, mergeEvents } from "../client/model.ts";
+import {
+  eventPosition,
+  eventTime,
+  indexEvents,
+  mergeEvents,
+} from "../client/model.ts";
 import {
   DEFAULT_ACTIVITY_PREFERENCES,
   hiddenRuleError,
@@ -28,6 +33,16 @@ test("实时跟随保留最新窗口，读取历史保留较早窗口", () => {
   assert.equal(mergeEvents([], values, true).at(-1).id, 3000);
 });
 
+test("空增量复用窗口，隐藏链路仍按规则撤回且无关链路不改变引用", () => {
+  const current = [
+    { ...event(1), category: "api", level: "info", trace_id: "poll" },
+  ];
+  assert.equal(mergeEvents(current, []), current);
+  assert.equal(mergeEvents(current, [], true), current);
+  assert.equal(mergeEvents(current, [], false, ["other"]), current);
+  assert.deepEqual(mergeEvents(current, [], false, ["poll"]), []);
+});
+
 test("活动轨道按真实时间定位且处理同毫秒事件", () => {
   const events = [
     event(1, "2026-09-21T01:00:00Z"),
@@ -38,6 +53,51 @@ test("活动轨道按真实时间定位且处理同毫秒事件", () => {
   assert.equal(eventPosition(events[1], events), 49.75);
   assert.equal(eventPosition(events[2], events), 99.5);
   assert.equal(eventPosition(event(1), [event(1)]), 50);
+});
+
+test("派生索引保留分类顺序、定位行号、时间比例，旧窗口索引不会被改写", () => {
+  const values = [
+    { ...event(1, "2026-09-21T01:00:00Z"), category: "api" },
+    { ...event(2, "2026-09-21T01:00:05Z"), category: "tool" },
+    { ...event(3, "2026-09-21T01:00:10Z"), category: "api" },
+  ];
+  const index = indexEvents(values);
+  assert.deepEqual(
+    index.categories.get("api").map((entry) => entry.event.id),
+    [1, 3],
+  );
+  assert.deepEqual(
+    [...index.byId.values()].map((entry) => entry.position),
+    [0, 49.75, 99.5],
+  );
+  assert.equal(index.byId.get(2).index, 1);
+  assert.equal(index.byId.get(2).time, eventTime(values[1].created_at));
+  const next = indexEvents(values.slice(1));
+  assert.equal(next.byId.get(2).index, 0);
+  assert.equal(next.byId.get(2).position, 0);
+  assert.equal(index.byId.get(2).position, 49.75);
+  assert.equal(indexEvents([values[0]]).byId.get(1).position, 50);
+  assert.equal(indexEvents([]).categories.size, 0);
+});
+
+test("共享时间格式器保留本地毫秒、跨日及无效时间的原显示", () => {
+  const options = {
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    fractionalSecondDigits: 3,
+  };
+  for (const value of [
+    "2026-10-14T15:59:59.999Z",
+    "2026-10-14T16:00:00.001Z",
+    "2026-11-01T06:00:00.001Z",
+    "invalid",
+  ])
+    assert.equal(
+      eventTime(value),
+      new Date(value).toLocaleTimeString("zh-CN", options),
+    );
 });
 
 test("成功轮询撤回缓存中的请求及响应，保留慢操作、异常和工具消息", () => {

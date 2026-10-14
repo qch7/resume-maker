@@ -18,14 +18,20 @@ export type ActivityPage = {
   hidden_trace_ids: string[];
 };
 
-/** 按持久游标去重并保持时间顺序，限制当前页面内存占用 */
+/** 合并已排序的当前窗口，空增量复用引用，新增事件按持久游标去重并限制内存 */
 export function mergeEvents(
   current: ActivityEvent[],
   incoming: ActivityEvent[],
   older = false,
   hiddenTraces: string[] = [],
 ): ActivityEvent[] {
+  if (!incoming.length && !hiddenTraces.length && current.length <= 3000)
+    return current;
   const hidden = new Set(hiddenTraces);
+  if (!incoming.length && current.length <= 3000) {
+    const visible = current.filter((event) => !isHiddenPolling(event, hidden));
+    return visible.length === current.length ? current : visible;
+  }
   const values = new Map(current.map((event) => [event.id, event]));
   for (const event of incoming) values.set(event.id, event);
   const sorted = [...values.values()]
@@ -74,23 +80,59 @@ export function eventPhase(event: ActivityEvent) {
 export function eventPosition(event: ActivityEvent, events: ActivityEvent[]) {
   const first = Date.parse(events[0]?.created_at ?? event.created_at);
   const last = Date.parse(events.at(-1)?.created_at ?? event.created_at);
+  return positionAt(Date.parse(event.created_at), first, last);
+}
+
+/** 共用一批日志的时间边界，同毫秒事件沿用居中的可选择位置 */
+function positionAt(timestamp: number, first: number, last: number) {
   if (last <= first) return 50;
   return Math.max(
     0,
-    Math.min(
-      99.5,
-      ((Date.parse(event.created_at) - first) / (last - first)) * 99.5,
-    ),
+    Math.min(99.5, ((timestamp - first) / (last - first)) * 99.5),
   );
 }
 
+const TIME_OPTIONS: Intl.DateTimeFormatOptions = {
+  hour12: false,
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  fractionalSecondDigits: 3,
+};
+const timeFormatter = new Intl.DateTimeFormat("zh-CN", TIME_OPTIONS);
+
 /** 将时间显示为本机毫秒时间，完整日期在详情中保留 */
 export function eventTime(value: string) {
-  return new Date(value).toLocaleTimeString("zh-CN", {
-    hour12: false,
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    fractionalSecondDigits: 3,
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? date.toLocaleTimeString("zh-CN", TIME_OPTIONS)
+    : timeFormatter.format(date);
+}
+
+interface IndexedActivity {
+  event: ActivityEvent;
+  index: number;
+  position: number;
+  time: string;
+}
+
+/** 一次归约分类、时间标签、轨道位置，滚动及选择变化直接复用当前窗口索引 */
+export function indexEvents(events: ActivityEvent[]) {
+  const byId = new Map<number, IndexedActivity>();
+  const categories = new Map<string, IndexedActivity[]>();
+  const first = Date.parse(events[0]?.created_at ?? "");
+  const last = Date.parse(events.at(-1)?.created_at ?? "");
+  events.forEach((event, index) => {
+    const entry = {
+      event,
+      index,
+      position: positionAt(Date.parse(event.created_at), first, last),
+      time: eventTime(event.created_at),
+    };
+    byId.set(event.id, entry);
+    const group = categories.get(event.category) ?? [];
+    group.push(entry);
+    categories.set(event.category, group);
   });
+  return { byId, categories };
 }

@@ -17,6 +17,7 @@ from resume_maker.integrations.privacy_text import (
     known_pattern,
     known_variants,
     labeled_values,
+    literal_spans,
 )
 from resume_maker.sdk.model import ProviderError
 
@@ -127,10 +128,9 @@ class Redactor:
     @staticmethod
     def pattern(candidates):
         """保持原有最长候选优先及短数字边界"""
+        candidates = sorted((value for value in candidates if value), key=len, reverse=True)
         return (
-            re.compile(
-                "|".join(literal_pattern(v) for v in sorted(candidates, key=len, reverse=True) if v)
-            )
+            re.compile("|".join(literal_pattern(value) for value in candidates))
             if candidates
             else None
         )
@@ -231,11 +231,9 @@ class Redactor:
                 value = value.replace(secret_value, "[凭据已移除]")
         candidates, known, pattern = self.matchers()
         dynamic = known_variants(value, known) | formatted_values(value, PATTERNS)
-        if dynamic - candidates:
-            pattern = self.pattern(candidates | dynamic)
+        dynamic_pattern = self.pattern(dynamic - candidates)
         spans = identifier_spans(value)
-        if pattern is not None:
-            spans.extend((match.start(), match.end()) for match in pattern.finditer(value))
+        spans.extend(literal_spans(value, pattern, dynamic_pattern))
         merged = []
         for start, end in sorted(spans):
             if merged and start < merged[-1][1]:

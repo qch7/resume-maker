@@ -464,3 +464,165 @@ def test_search_query_is_reused_until_privacy_generation_changes(tmp_path, monke
         assert [row["line"] for row in first["results"] + rest] == list(range(1, 241))
         assert query not in json.dumps(rest)
         assert all(row["text"] == query for row in access.redactor.restore(rest))
+
+
+@pytest.mark.parametrize("newline", ["\n", "\r\n", "\r"])
+def test_search_preserves_identity_protected_across_source_lines(tmp_path, newline):
+    """全文识别出的跨行身份不会在搜索时还原成不再匹配的明文片段"""
+    with access_at(tmp_path, ["星桥测试大学"]) as access:
+        (tmp_path / "first" / "many.py").write_bytes(
+            f"find 星桥{newline}测试大学{newline}".encode()
+        )
+        matches = pages(access, "search_sources", {"query": "find"})
+        assert len(matches) == 1 and "星桥" not in json.dumps(matches, ensure_ascii=False)
+        assert access.redactor.restore(matches)[0]["text"] == "find 星桥"
+        assert pages(access, "search_sources", {"query": "大学"}) == []
+
+
+def test_search_unchanged_private_copy_avoids_per_line_redaction(tmp_path, monkeypatch):
+    """同代次安全正文直接匹配，重复扫描不会逐行恢复或重新脱敏"""
+    with access_at(tmp_path) as access:
+        line = "const ordinary = 1;\n"
+        (tmp_path / "first" / "many.py").write_text(line * 1200, encoding="utf-8")
+        access.prepared("source-0", "many.py")
+        text, restore = access.redactor.text, access.redactor.restore
+        redacted, restored = [], []
+
+        def counted_text(value):
+            """记录搜索阶段的隐私处理输入"""
+            redacted.append(value)
+            return text(value)
+
+        def counted_restore(value):
+            """正文行不应为了搜索被重新展开"""
+            restored.append(value)
+            return restore(value)
+
+        monkeypatch.setattr(access.redactor, "text", counted_text)
+        monkeypatch.setattr(access.redactor, "restore", counted_restore)
+        assert pages(access, "search_sources", {"query": "absent", "glob": "many.py"}) == []
+        assert line not in redacted and line not in restored
+        assert len(redacted) < 50
+
+
+def test_new_rules_refresh_preloaded_and_deferred_matches_without_unmasking(tmp_path):
+    """响应字数留下的命中、百行缓冲都刷新完整副本，已有跨行保护继续保留"""
+    with access_at(tmp_path, ["星桥测试大学"]) as access:
+        (tmp_path / "first" / "many.py").write_text(
+            ("find " + "q = 0; " * 110 + "星桥\n测试大学 find NewSyntheticIdentity\n") * 120,
+            encoding="utf-8",
+        )
+        (tmp_path / "first" / "identity.txt").write_text(
+            "姓名：NewSyntheticIdentity", encoding="utf-8"
+        )
+        args = {"query": "find", "glob": "many.py"}
+        first = access.call("search_sources", args)
+        assert 0 < len(first["results"]) < 100 and not first["complete"]
+        assert "星桥" not in json.dumps(first, ensure_ascii=False)
+        access.call("read_source", {"source": "source-0", "path": "identity.txt"})
+        rest = pages(access, "search_sources", {**args, "cursor": first["next_cursor"]})
+        assert [row["line"] for row in first["results"] + rest] == list(range(1, 241))
+        safe = json.dumps(rest, ensure_ascii=False)
+        assert all(value not in safe for value in ("星桥", "测试大学", "NewSyntheticIdentity"))
+        assert any("NewSyntheticIdentity" in row["text"] for row in access.redactor.restore(rest))
+
+
+def test_later_file_rules_protect_earlier_matches_in_same_page(tmp_path):
+    """同页后读取的身份材料也作用于尚未返回的旧命中，保留跨行完整性"""
+    with access_at(tmp_path) as access:
+        (tmp_path / "first" / "a.py").write_text("find 星桥\n测试大学 find\n", encoding="utf-8")
+        (tmp_path / "first" / "z.txt").write_text("学校：星桥测试大学", encoding="utf-8")
+        result = access.call("search_sources", {"query": "find", "source": "source-0"})
+        assert result["complete"] and len(result["results"]) == 2
+        assert "星桥" not in json.dumps(result, ensure_ascii=False)
+        assert "测试大学" not in json.dumps(result, ensure_ascii=False)
+        assert [row["text"] for row in access.redactor.restore(result)["results"]] == [
+            "find 星桥",
+            "测试大学 find",
+        ]
+
+
+def test_refreshed_matches_that_expand_beyond_budget_continue_completely(tmp_path):
+    """新规则使已收集行膨胀时重新分配响应预算，后续命中保留在游标中"""
+    with access_at(tmp_path) as access:
+        (tmp_path / "first" / "a.py").write_text(
+            ("find " + "私密 " * 20 + "\n") * 50, encoding="utf-8"
+        )
+        (tmp_path / "first" / "z.txt").write_text("姓名：私密", encoding="utf-8")
+        args = {"query": "find", "source": "source-0"}
+        first = access.call("search_sources", args)
+        assert 0 < len(first["results"]) < 50 and not first["complete"]
+        assert len(json.dumps(first, ensure_ascii=False)) <= 24000
+        rest = pages(access, "search_sources", {**args, "cursor": first["next_cursor"]})
+        rows = first["results"] + rest
+        assert [row["line"] for row in rows] == list(range(1, 51))
+        assert "私密" not in json.dumps(rows, ensure_ascii=False)
+
+
+def test_path_credentials_are_learned_before_reading_or_publishing_text(tmp_path):
+    """文件名中新发现的凭据保护该文件正文，也重核同页先前的命中"""
+    with access_at(tmp_path) as access:
+        name = "z-password=SampleSecret.py"
+        (tmp_path / "first" / name).write_text("find SampleSecret.py", encoding="utf-8")
+        direct = access.call("read_source", {"source": "source-0", "path": name})
+        assert "SampleSecret.py" not in json.dumps(direct)
+        assert "SampleSecret.py" not in json.dumps(access.redactor.restore(direct))
+    with access_at(tmp_path) as access:
+        (tmp_path / "first" / "a.py").write_text("find SampleSecret.py", encoding="utf-8")
+        result = access.call("search_sources", {"query": "find", "source": "source-0"})
+        assert result["complete"] and len(result["results"]) == 2
+        assert "SampleSecret.py" not in json.dumps(result)
+        assert "SampleSecret.py" not in json.dumps(access.redactor.restore(result))
+
+
+def test_deferred_search_match_can_disappear_after_cross_line_rule(tmp_path):
+    """字数边界推迟的命中在新规则下消失时直接跳过，不发布旧片段"""
+    with access_at(tmp_path) as access:
+        (tmp_path / "first" / "many.py").write_text(
+            ("find" + " " * 950 + "\nSurname\n") * 120, encoding="utf-8"
+        )
+        args = {"query": "find", "glob": "many.py"}
+        first = access.call("search_sources", args)
+        assert 0 < len(first["results"]) < 100 and not first["complete"]
+        access.redactor.values.add("findSurname")
+        assert pages(access, "search_sources", {**args, "cursor": first["next_cursor"]}) == []
+
+
+def test_deferred_match_expansion_recounts_each_page_budget(tmp_path):
+    """跨调用新增短敏感词使推迟命中明显变长，仍按最新字数完整续页"""
+    with access_at(tmp_path) as access:
+        (tmp_path / "first" / "many.py").write_text(
+            ("find " + "q = 0; " * 42 + "私密 " * 20 + "\n") * 120, encoding="utf-8"
+        )
+        args = {"query": "find", "glob": "many.py"}
+        first = access.call("search_sources", args)
+        assert 0 < len(first["results"]) < 100 and not first["complete"]
+        access.redactor.values.add("私密")
+        rest = pages(access, "search_sources", {**args, "cursor": first["next_cursor"]})
+        assert len(rest[0]["text"]) > len(first["results"][0]["text"])
+        assert [row["line"] for row in first["results"] + rest] == list(range(1, 121))
+        assert "私密" not in json.dumps(rest, ensure_ascii=False)
+
+
+def test_json_budget_preserves_escaped_unicode_rows_across_pages(tmp_path):
+    """按实际 JSON 转义长度分页，引号、反斜杠、制表符、中文均完整返回"""
+    with access_at(tmp_path) as access:
+        unit = '\\"\t中文'
+        lines = [f"find 第{number}行 " + unit * 130 for number in range(90)]
+        raw = "".join(text + ("\n", "\r\n", "\r")[index % 3] for index, text in enumerate(lines))
+        (tmp_path / "first" / "escaped.py").write_bytes(raw.encode())
+        args = {"source": "source-0", "path": "escaped.py", "line_count": 200}
+        received = []
+        for _ in range(20):
+            result = access.call("read_source", args)
+            assert len(json.dumps(result, ensure_ascii=False)) <= 24000
+            received.extend(result["lines"])
+            if result["eof"]:
+                break
+            args.update(result["next"])
+        else:
+            pytest.fail("转义文字读取未完成")
+        assert received == [{"line": index + 1, "text": text} for index, text in enumerate(lines)]
+        matches = pages(access, "search_sources", {"query": "find", "glob": "escaped.py"})
+        assert [row["line"] for row in matches] == list(range(1, 91))
+        assert [row["text"] for row in matches] == lines

@@ -69,3 +69,40 @@ def test_search_marks_large_file_unavailable_and_cursor_eviction_releases_iterat
             access.call("list_source_files", {"glob": "0", "cursor": cursors[0]})
         assert access.call("list_source_files", {"glob": "0"})["next_cursor"]
     assert len(closed) == 4
+
+
+def test_response_budget_serializes_each_row_without_repeating_prefix(tmp_path, monkeypatch):
+    """读取、列表只编码单条记录计算预算，避免对已有结果反复序列化"""
+    root = tmp_path / "source"
+    root.mkdir()
+    (root / "many.py").write_text("ordinary\n" * 250, encoding="utf-8")
+    with SourceAccess(
+        [{"id": "source-0", "path": str(root)}], tmp_path / "data", Redactor(), threading.Event()
+    ) as access:
+        access.prepared("source-0", "many.py")
+        original, visits = source_access.json.dumps, []
+
+        def counted(value, **kwargs):
+            """编码器应只见到空响应外壳或单条记录"""
+            if isinstance(value, list):
+                assert not value
+            if isinstance(value, dict):
+                assert not value.get("lines")
+                visits.append(value)
+            return original(value, **kwargs)
+
+        monkeypatch.setattr(source_access.json, "dumps", counted)
+        result = access.call(
+            "read_source", {"source": "source-0", "path": "many.py", "line_count": 200}
+        )
+        assert len(result["lines"]) == 200 and result["next"]["start_line"] == 201
+        assert len(visits) <= 202
+        visits.clear()
+
+        def listing(*_):
+            """生成短条目，确保达到条数边界而非字数边界"""
+            yield from ({"source": "source-0", "path": f"part-{i}.py"} for i in range(110))
+
+        monkeypatch.setattr(access, "listing", listing)
+        result = access.call("list_source_files", {})
+        assert len(result["results"]) == 100 and len(visits) == 100

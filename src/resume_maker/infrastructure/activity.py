@@ -33,6 +33,7 @@ SECRET_TEXT = re.compile(
     r"-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?-----END [^-]*PRIVATE KEY-----"
 )
 MAX_DETAIL = MAX_DETAIL_CHARS
+MAX_COUNTS_DELTA = 2000
 SUMMARY_COLUMNS = (
     "id,created_at,category,level,source,event,title,trace_id,span_id,parent_span_id,"
     "job_id,conversation_id,project_id,duration_ms"
@@ -176,13 +177,14 @@ class ActivityLog:
     def _prune(self, conn):
         """清理超龄及超量记录，自动递增游标始终不会复用"""
         cutoff = (datetime.now(UTC) - timedelta(days=self.retention_days)).isoformat()
-        conn.execute("DELETE FROM activity WHERE created_at < ?", (cutoff,))
-        conn.execute(
+        deleted = conn.execute("DELETE FROM activity WHERE created_at < ?", (cutoff,)).rowcount
+        deleted += conn.execute(
             "DELETE FROM activity WHERE id <= "
             "(SELECT id FROM activity ORDER BY id DESC LIMIT 1 OFFSET ?)",
             (self.max_records,),
-        )
-        self._advance_counts(conn)
+        ).rowcount
+        if deleted:
+            self._advance_counts(conn)
 
     def _advance_counts(self, conn):
         """删除推进持久计数代次，其他日志实例也会立即失效缓存"""
@@ -362,9 +364,15 @@ class ActivityLog:
         hide_polling=False,
         hidden_rules=None,
         since_id=None,
+        until_id=None,
+        row_bounds=None,
+        trace_ids=None,
+        trace_id="",
         **_,
     ):
-        """从成功响应识别轮询链路，路径只支持星号且其余字符按字面匹配"""
+        """从成功响应识别轮询链路，增量只检查候选行的链路及请求范围"""
+        if not hide_polling or trace_id:
+            return "", []
         hidden_rules = "\n".join(self.policy.hidden_rules) if hidden_rules is None else hidden_rules
         patterns = []
         if hide_polling:
@@ -379,28 +387,140 @@ class ActivityLog:
                     )
         responses = [item for pattern in patterns for item in (pattern, pattern[:-3] + "304")]
         matches = " OR ".join("title LIKE ? ESCAPE '\\'" for _ in responses) or "0"
+        response_scope, response_args, request_scope, request_args = [], [], [], []
+        if trace_ids is not None:
+            clause = f"trace_id IN ({','.join('?' for _ in trace_ids)})"
+            response_scope.append(clause)
+            request_scope.append(clause)
+            response_args.extend(trace_ids)
+            request_args.extend(trace_ids)
+        elif row_bounds is not None:
+            response_scope.append(
+                "trace_id IN (SELECT trace_id FROM activity WHERE id>? AND id<=? AND trace_id<>'')"
+            )
+            response_args.extend(row_bounds)
+        if row_bounds is not None:
+            request_scope.append("id>? AND id<=?")
+            request_args.extend(row_bounds)
+        if since_id is not None:
+            response_scope.append("id>?")
+            response_args.append(since_id)
+        if until_id is not None:
+            response_scope.append("id<=?")
+            response_args.append(until_id)
+            request_scope.append("id<=?")
+            request_args.append(until_id)
+        response_index = (
+            "INDEXED BY activity_trace " if trace_ids is not None or row_bounds is not None else ""
+        )
+        request_index = "INDEXED BY activity_trace " if trace_ids is not None else ""
         cte = (
-            "WITH hidden_polling AS (SELECT trace_id,MAX(id) AS completed_id FROM activity "
+            "WITH hidden_polling AS (SELECT trace_id,MAX(id) AS completed_id "
+            f"FROM activity {response_index}"
             "WHERE category='api' AND event='response' AND level='info' AND trace_id<>'' "
             f"AND ({matches}) "
             "AND COALESCE(json_extract(payload_json,'$.error'),'') IN ('',0,'[]','{}') "
             "AND COALESCE(json_extract(payload_json,'$.response.body.errors'),'') "
             "IN ('',0,'[]','{}') "
-            + ("AND id>? " if since_id is not None else "")
+            + ("AND " + " AND ".join(response_scope) + " " if response_scope else "")
             + "GROUP BY trace_id) "
         )
         args = list(responses)
-        if since_id is not None:
-            args.append(since_id)
+        args.extend(response_args)
         endpoints = [pattern.removesuffix(" · 200") for pattern in patterns]
         starts = " OR ".join("title LIKE ? ESCAPE '\\'" for _ in endpoints) or "0"
         cte += (
-            ", polling_request_starts AS (SELECT id FROM activity WHERE category='api' "
+            f", polling_request_starts AS (SELECT id FROM activity {request_index}"
+            "WHERE category='api' "
             "AND event='request' AND level='info' AND COALESCE(duration_ms,0)<1000 "
-            f"AND ({starts})) "
+            f"AND ({starts}) "
+            + ("AND " + " AND ".join(request_scope) if request_scope else "")
+            + ") "
         )
         args.extend(endpoints)
+        args.extend(request_args)
         return cte, args
+
+    def _count_rows(self, conn, where, args, cte, polling_args, upper, lower=None, traces=None):
+        """统计指定快照或增量范围，旧行撤回按链路索引定位"""
+        bounds, values = "id<=?", [upper]
+        if lower is not None:
+            bounds += " AND id>?"
+            values.append(lower)
+        if traces is not None:
+            bounds += f" AND trace_id IN ({','.join('?' for _ in traces)})"
+            values.extend(traces)
+        index = " INDEXED BY activity_trace" if traces is not None else ""
+        return dict(
+            conn.execute(
+                cte + f"SELECT category,COUNT(*) FROM activity{index} WHERE {where} "
+                f"AND {bounds} GROUP BY category",
+                (*polling_args, *args, *values),
+            ).fetchall()
+        )
+
+    def _delta_counts(self, conn, baseline, snapshot, where, args, filters):
+        """追加新行并扣回晚到成功响应隐藏的旧行，维护父关系变化时重新全算"""
+        previous, saved = baseline
+        hidden = filters.get("hide_polling") and not filters.get("trace_id")
+        if (
+            hidden
+            and conn.execute(
+                "SELECT 1 FROM activity WHERE id>? AND id<=? AND category='service' "
+                "AND source='template_library.purge_expired' AND span_id<>'' LIMIT 1",
+                (previous, snapshot),
+            ).fetchone()
+        ):
+            return None
+        cte, polling_args = self.polling_cte(row_bounds=(previous, snapshot), **filters)
+        counts = dict(saved)
+        for category, count in self._count_rows(
+            conn, where, args, cte, polling_args, snapshot, previous
+        ).items():
+            counts[category] = counts.get(category, 0) + count
+        if hidden:
+            changed_cte, changed_args = self.polling_cte(since_id=previous, **filters)
+            traces = [
+                row[0]
+                for row in conn.execute(
+                    changed_cte + "SELECT trace_id FROM hidden_polling", changed_args
+                )
+            ]
+            if traces:
+                # 只比较新增成功响应涉及的旧链路，既有隐藏链路的差额自然为零
+                for upper, sign in ((previous, -1), (snapshot, 1)):
+                    cte, polling_args = self.polling_cte(
+                        trace_ids=traces, row_bounds=(0, previous), until_id=upper, **filters
+                    )
+                    for category, count in self._count_rows(
+                        conn, where, args, cte, polling_args, previous, traces=traces
+                    ).items():
+                        counts[category] = counts.get(category, 0) + sign * count
+        return {category: count for category, count in counts.items() if count}
+
+    def _counts(self, conn, snapshot, where, args, cte, polling_args, filters):
+        """每种筛选保留有界计数基线，晚完成的旧快照不得覆盖较新的基线"""
+        revision = conn.execute("SELECT value FROM metadata WHERE key='counts_revision'").fetchone()
+        key = (revision[0] if revision else "0", where, tuple(args), cte, tuple(polling_args))
+        with self.counts_lock:
+            baseline = self.counts_cache.get(key)
+            if baseline:
+                self.counts_cache.move_to_end(key)
+                if baseline[0] == snapshot:
+                    return dict(baseline[1])
+        counts = None
+        if baseline and 0 < snapshot - baseline[0] <= MAX_COUNTS_DELTA:
+            counts = self._delta_counts(conn, baseline, snapshot, where, args, filters)
+        if counts is None:
+            counts = self._count_rows(conn, where, args, cte, polling_args, snapshot)
+        with self.counts_lock:
+            current = self.counts_cache.get(key)
+            if current is None or current[0] <= snapshot:
+                self.counts_cache[key] = snapshot, counts
+                self.counts_cache.move_to_end(key)
+                while len(self.counts_cache) > 32:
+                    self.counts_cache.popitem(last=False)
+        return dict(counts)
 
     def page(self, *, after=None, before=0, limit=200, **filters):
         """返回稳定游标分页，初次读取最近记录，增量读取保持顺序且不漏页"""
@@ -409,6 +529,11 @@ class ActivityLog:
         with closing(self.connect()) as conn:
             conn.execute("BEGIN")
             snapshot = self._cursor(conn)
+            page_cte, page_args = (
+                self.polling_cte(row_bounds=(after, snapshot), **filters)
+                if after is not None and after < snapshot
+                else (cte, polling_args)
+            )
             bounds, values = "id<=?", [snapshot]
             if after is not None:
                 bounds += " AND id>?"
@@ -421,41 +546,16 @@ class ActivityLog:
                 []
                 if after is not None and after >= snapshot
                 else conn.execute(
-                    cte + f"SELECT {SUMMARY_COLUMNS} FROM activity WHERE {where} AND {bounds} "
+                    page_cte + f"SELECT {SUMMARY_COLUMNS} FROM activity WHERE {where} AND {bounds} "
                     f"ORDER BY id {direction} LIMIT ?",
-                    (*polling_args, *args, *values, limit + 1),
+                    (*page_args, *args, *values, limit + 1),
                 ).fetchall()
             )
             more = len(rows) > limit
             rows = rows[:limit]
             if after is None:
                 rows = rows[::-1]
-            revision = conn.execute(
-                "SELECT value FROM metadata WHERE key='counts_revision'"
-            ).fetchone()
-            cache_key = (
-                snapshot,
-                revision[0] if revision else "0",
-                where,
-                tuple(args),
-                cte,
-                tuple(polling_args),
-            )
-            with self.counts_lock:
-                counts = self.counts_cache.get(cache_key)
-                if counts is None:
-                    counts = dict(
-                        conn.execute(
-                            cte + f"SELECT category,COUNT(*) FROM activity WHERE {where} "
-                            "AND id<=? GROUP BY category",
-                            (*polling_args, *args, snapshot),
-                        ).fetchall()
-                    )
-                    self.counts_cache[cache_key] = counts
-                    while len(self.counts_cache) > 32:
-                        self.counts_cache.popitem(last=False)
-                self.counts_cache.move_to_end(cache_key)
-                counts = dict(counts)
+            counts = self._counts(conn, snapshot, where, args, cte, polling_args, filters)
             cursor = rows[-1]["id"] if after is not None and more else snapshot
             hidden = []
             if (
@@ -497,7 +597,8 @@ class ActivityLog:
                 (before,) if before is not None else (),
             )
             deleted = cursor.rowcount
-            self._advance_counts(conn)
+            if deleted:
+                self._advance_counts(conn)
             conn.execute("INSERT OR REPLACE INTO metadata VALUES ('history_imported','1')")
             conn.commit()
         return deleted

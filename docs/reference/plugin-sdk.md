@@ -221,6 +221,8 @@ def activate(context):
 
 `sdk/sources.py` 的 `ResumeSource` 注册到 `resume.sources`。`browse(reader, cursor, query, limit)` 返回 `SourcePage`，每页最多 100 条；`resolve(reader, ids)` 只返回明确请求的 `SourceItem`。提供方只发布已核对资料，查询共用简历保存或读取事务的只读快照，不拥有提交权限。
 
+工作台读取、停用前固化会跨简历汇总引用，同一提供方一次接收去重后的全部标识。提供方应批量读取，并按底层数据库参数上限分块；返回结果仍逐条校验，缺失项保留各简历快照。
+
 `GET /api/resume-sources` 列出来源，`GET /api/resume-source-items?provider=<贡献ID>` 支持 cursor、query 和 limit。栏目编辑器的“从资料来源添加”直接消费该接口，选择只进入草稿。条目保存 `source: {provider,id,version}`，内容存入原有文字字段，因此缺包后仍能预览和导出。
 
 来源同步只改变所属文字及自定义字段的值和来源版本，简历保留显隐、顺序、手工字段和自定标签。未返回的条目保留原快照；停用前系统固化最后确认内容并递增简历版本，旧草稿仍走冲突检查。来源删除应在同一事务调用公开的 `resume.preserve_sources(conn)`。荣誉库使用相同协议，条目通过 `source.provider = "ext.honors/library"` 及明确的来源 ID 关联，不从条目标识推断来源。

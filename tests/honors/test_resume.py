@@ -11,6 +11,7 @@ from lxml import etree
 
 from resume_maker.api import create_app
 from resume_maker.core.config import Config
+from resume_maker.core.errors import Problem
 from resume_maker.domain.honors import HonorFields
 from resume_maker.domain.resume import ResumeDocument, ResumeSection, SectionEntry
 from resume_maker.infrastructure.assets import Assets
@@ -241,6 +242,162 @@ def test_only_confirmed_matching_sources_update_entries(catalog):
     assert updated["personal"] == document["personal"]
     assert document == before
     assert registry.resolve(updated) == updated
+
+
+def store_resume_snapshots(db, documents):
+    """登记来源更新前的合成快照，性能统计只覆盖随后读取或保留阶段"""
+    with db.transaction() as conn:
+        conn.executemany(
+            "INSERT INTO resumes "
+            "(id,name,template_id,items_json,version,created_at,updated_at,document_json) "
+            "VALUES (?, ?, NULL, '[]', 1, '2026-10-14', '2026-10-14', ?)",
+            [
+                (f"resume-{index}", f"合成简历{index}", dump(doc))
+                for index, doc in enumerate(documents)
+            ],
+        )
+
+
+def test_workspace_batches_shared_honors_across_fifty_resumes(catalog):
+    """五十份简历共用二十条荣誉时仅查询简历、荣誉各一次，读取不改持久快照"""
+    documents = []
+    for number in range(50):
+        document = linked_document("honor-0")
+        seed = document["sections"][1]["entries"][0]
+        seed["custom_fields"] = [{"id": "note", "label": "备注", "value": str(number)}]
+        entries = []
+        for index in range(20):
+            entry = deepcopy(seed)
+            entry["id"] = f"entry-{index}"
+            entry["source"]["id"] = f"honor-{index}"
+            entries.append(entry)
+        document["sections"][1]["entries"] = entries
+        documents.append(document)
+    store_resume_snapshots(catalog.db, documents)
+    with catalog.db.transaction() as conn:
+        conn.executemany(
+            "INSERT INTO settings VALUES (?,?)",
+            [
+                (
+                    f"honor:honor-{index}",
+                    dump(
+                        {
+                            "id": f"honor-{index}",
+                            "fields": fields(f"当前荣誉{index}"),
+                            "reviewed": True,
+                            "version": 2,
+                        }
+                    ),
+                )
+                for index in range(20)
+            ],
+        )
+    service = Resumes(
+        catalog, storage=catalog.db, assets=catalog.assets, sources=honor_registry(catalog.db)
+    )
+    statements = []
+    with catalog.db.connect() as conn:
+        conn.execute("BEGIN")
+        conn.set_trace_callback(statements.append)
+        state = service.workspace_state(conn)
+        conn.set_trace_callback(None)
+    selects = [sql for sql in statements if sql.lstrip().upper().startswith("SELECT")]
+    assert len(selects) == 2
+    assert len(state["resumes"]) == 50
+    for resume in state["resumes"]:
+        entries = resume["document"]["sections"][1]["entries"]
+        assert [entry["title"] for entry in entries] == [f"当前荣誉{index}" for index in range(20)]
+        assert all(entry["source"]["version"] == "2" for entry in entries)
+        assert all(entry["visible"] is False for entry in entries)
+        assert resume["version"] == 1
+    first = state["resumes"][0]["document"]["sections"][1]["entries"][0]
+    first["custom_fields"][-1]["value"] = "仅修改当前结果"
+    assert (
+        state["resumes"][1]["document"]["sections"][1]["entries"][0]["custom_fields"][-1]["value"]
+        != "仅修改当前结果"
+    )
+    assert catalog.db.one("SELECT * FROM resumes WHERE id='resume-0'")["document"] == documents[0]
+
+
+@pytest.mark.parametrize("count", [0, 501, 1001])
+def test_honor_source_resolves_large_batches_and_keeps_requested_order(catalog, count):
+    """超过单批参数上限时分块查询，重复、缺失及未复核条目不污染返回顺序"""
+    identifiers = [f"honor-{index:04}" for index in range(count)]
+    with catalog.db.transaction() as conn:
+        conn.executemany(
+            "INSERT INTO settings VALUES (?,?)",
+            [
+                (
+                    f"honor:{identifier}",
+                    dump(
+                        {
+                            "id": identifier,
+                            "fields": fields(identifier),
+                            "reviewed": index != 1,
+                            "version": 2,
+                        }
+                    ),
+                )
+                for index, identifier in enumerate(identifiers)
+                if index != 2
+            ],
+        )
+        requested = list(reversed(identifiers))
+        requested += requested[:3]
+        statements = []
+        conn.set_trace_callback(statements.append)
+        reader = catalog.db.read_session(conn)
+        try:
+            result = resume_source().resolve(reader, tuple(requested))
+        finally:
+            reader.close()
+            conn.set_trace_callback(None)
+    selects = [sql for sql in statements if sql.lstrip().upper().startswith("SELECT")]
+    assert len(selects) == (count + 499) // 500
+    assert [item.id for item in result] == [
+        identifier for identifier in reversed(identifiers) if identifier not in identifiers[1:3]
+    ]
+    assert all(item.version == "2" for item in result)
+
+
+def test_preserve_many_honor_snapshots_uses_callers_transaction(catalog):
+    """保留多个快照读取未提交荣誉，异常时整批回滚，删除后仍留下最后确认资料"""
+    original = {"id": "linked", "fields": fields("初始资料"), "reviewed": True, "version": 1}
+    catalog.db.set_setting("honor:linked", original)
+    documents = [linked_document("linked"), linked_document("linked"), linked_document("missing")]
+    store_resume_snapshots(catalog.db, documents)
+    service = Resumes(
+        catalog, storage=catalog.db, assets=catalog.assets, sources=honor_registry(catalog.db)
+    )
+    current = {**original, "fields": fields("事务内最新资料"), "version": 2}
+    with pytest.raises(RuntimeError, match="回滚"):
+        with catalog.db.transaction() as conn:
+            conn.execute(
+                "UPDATE settings SET value_json=? WHERE key='honor:linked'", (dump(current),)
+            )
+            service.preserve_sources(conn)
+            saved = json.loads(
+                conn.execute("SELECT document_json FROM resumes WHERE id='resume-0'").fetchone()[0]
+            )
+            assert saved["sections"][1]["entries"][0]["title"] == "事务内最新资料"
+            raise RuntimeError("回滚")
+    assert catalog.db.setting("honor:linked") == original
+    assert catalog.db.one("SELECT * FROM resumes WHERE id='resume-0'")["document"] == documents[0]
+    assert catalog.db.one("SELECT * FROM resumes WHERE id='resume-1'")["version"] == 1
+    with catalog.db.transaction() as conn:
+        conn.execute("UPDATE settings SET value_json=? WHERE key='honor:linked'", (dump(current),))
+        service.preserve_sources(conn)
+        conn.execute("DELETE FROM settings WHERE key='honor:linked'")
+    for index in range(2):
+        saved = catalog.db.one("SELECT * FROM resumes WHERE id=?", (f"resume-{index}",))
+        assert saved["version"] == 2
+        assert saved["document"]["sections"][1]["entries"][0]["title"] == "事务内最新资料"
+    missing = catalog.db.one("SELECT * FROM resumes WHERE id='resume-2'")
+    assert missing["version"] == 1 and missing["document"] == documents[2]
+    with pytest.raises(Problem, match="其他窗口"):
+        service.save_resume(
+            "过时修改", None, [], "resume-0", 1, ResumeDocument.model_validate(documents[0])
+        )
 
 
 @pytest.mark.parametrize("template_id", [None, "mapped"])
