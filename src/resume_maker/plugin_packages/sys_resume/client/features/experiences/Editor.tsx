@@ -44,7 +44,7 @@ const PROFILE_LABELS = [
 /** 编辑经历元信息、来源、亮点，内容草稿、简历展示设置独立保存 */
 export default function Editor(props: EditorProps) {
   const { detail, revisionId, run } = props;
-  const current = detail.revisions.find((r) => r.id === revisionId)!;
+  const current = detail.revision;
   const snapshot = detail.revision_snapshot;
   const rootsKey = `rm.sources.${detail.project.id}`;
   const sources = useFormDraft(

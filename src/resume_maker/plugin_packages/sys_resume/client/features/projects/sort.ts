@@ -97,22 +97,37 @@ export function sortSidebar(
         activity.get(b.id) ?? 0,
       ),
   );
+  const sortedConversations = [...conversations].sort((a, b) =>
+    compare(
+      a,
+      b,
+      a.title,
+      b.title,
+      timestamp(a.updated_at),
+      timestamp(b.updated_at),
+    ),
+  );
+  const childrenByParent = new Map<string, Project[]>();
+  for (const project of sortedProjects) {
+    if (!project.parent_id) continue;
+    const children = childrenByParent.get(project.parent_id) ?? [];
+    children.push(project);
+    childrenByParent.set(project.parent_id, children);
+  }
+  const conversationsByProject = new Map<string, Conversation[]>();
+  for (const conversation of sortedConversations) {
+    const group = conversationsByProject.get(conversation.project_id) ?? [];
+    group.push(conversation);
+    conversationsByProject.set(conversation.project_id, group);
+  }
   return {
     projects: sortedProjects,
     rootProjects: sortedProjects.filter(
       /* 缺失父项的项目也保留顶层入口，导航、默认选择共用此顺序 */ (p) =>
         !p.parent_id || !byId.has(p.parent_id),
     ),
-    conversations: [...conversations].sort(
-      /* 复制列表后稳定排序 */ (a, b) =>
-        compare(
-          a,
-          b,
-          a.title,
-          b.title,
-          timestamp(a.updated_at),
-          timestamp(b.updated_at),
-        ),
-    ),
+    conversations: sortedConversations,
+    childrenByParent,
+    conversationsByProject,
   };
 }

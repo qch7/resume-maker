@@ -4,6 +4,7 @@ import {
   historyGraph,
   revisionChanges,
 } from "../../src/resume_maker/plugin_packages/sys_resume/client/features/experiences/history.ts";
+import { createRevisionReader } from "../../src/resume_maker/plugin_packages/sys_resume/client/features/experiences/revisionReader.ts";
 
 test("uncommitted nodes belong to their own baseline and never consume revision numbers", /* 多个分支的草稿分别连接到对应的历史节点 */ () => {
   const revisions = [
@@ -134,4 +135,68 @@ test("revision summary distinguishes metadata, edits and deleted highlights", /*
     "删除 1 条亮点",
   ]);
   assert.deepEqual(revisionChanges({ content }, { content }), ["经历内容未变"]);
+});
+
+test("只有摘要时仍保留完整父边、草稿基线及分支头", () => {
+  const graph = historyGraph(
+    [
+      { id: "r1", number: 1, parent_id: null, branch_id: "main" },
+      { id: "r2", number: 2, parent_id: "r1", branch_id: "main" },
+      { id: "r3", number: 3, parent_id: "r1", branch_id: "fork" },
+    ],
+    [
+      { id: "main", head_revision: "r2" },
+      { id: "fork", head_revision: "r3" },
+    ],
+    [{ base_revision: "r2", content: { title: "草稿" }, updated_at: "now" }],
+  );
+  assert.deepEqual(
+    graph.edges.map((edge) => [edge.from, edge.to]),
+    [
+      ["r3", "r1"],
+      ["working:r2", "r2"],
+      ["r2", "r1"],
+    ],
+  );
+  assert.equal(graph.byId.get("r2").revision.content, undefined);
+  assert.equal(graph.byId.get("working:r2").revision.content.title, "草稿");
+  assert.deepEqual([...graph.heads], ["r2", "r3"]);
+});
+
+test("历史正文按需读取并复用当前版本及已访问版本", async () => {
+  const requested = [];
+  const initial = { id: "current", content: { title: "当前正文" } };
+  const read = createRevisionReader(
+    async (id) => {
+      requested.push(id);
+      return { id, content: { title: id } };
+    },
+    [initial],
+  );
+  assert.equal(await read("current"), initial);
+  const historical = await read("previous");
+  assert.equal(await read("previous"), historical);
+  assert.deepEqual(requested, ["previous"]);
+});
+
+test("切换或关闭后迟到正文不能写入版本缓存，失败后可以重读", async () => {
+  let resolve;
+  let requests = 0;
+  const read = createRevisionReader(async (id) => {
+    requests++;
+    if (requests === 1)
+      return new Promise((done) => {
+        resolve = done;
+      });
+    if (requests === 2) throw new Error("读取失败");
+    return { id, content: { title: "重新读取" } };
+  });
+  const controller = new AbortController();
+  const pending = read("old", controller.signal);
+  controller.abort();
+  resolve({ id: "old", content: { title: "迟到" } });
+  await assert.rejects(pending, { name: "AbortError" });
+  await assert.rejects(read("old"), /读取失败/);
+  assert.equal((await read("old")).content.title, "重新读取");
+  assert.equal(requests, 3);
 });

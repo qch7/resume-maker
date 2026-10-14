@@ -74,6 +74,7 @@ import WorkspaceSidebar from "./WorkspaceSidebar";
 import { useRemote } from "@resume-maker/plugin-sdk/shared/hooks/useRemote";
 import { api, request } from "@resume-maker/plugin-sdk/shared/lib/api";
 import { createStateReader } from "./stateReader";
+import { useRevisionBodies } from "./useRevisionBodies";
 import { bindStatePolling, createStatePolling } from "./statePolling";
 import { flushDrafts } from "@resume-maker/plugin-sdk/shared/lib/draftRegistry";
 import {
@@ -453,31 +454,20 @@ export default function ResumeWorkspace() {
     [activeProject, firstProject, loaded, state.projects],
   );
   useEffect(() => {
-    if (remoteProject.data)
-      setRevisionCache((old) => ({
-        ...old,
-        ...Object.fromEntries(
-          remoteProject.data!.revisions.map((r) => [r.id, r]),
-        ),
-      }));
+    const revision = remoteProject.data?.revision;
+    if (revision)
+      setRevisionCache((old) =>
+        old[revision.id]
+          ? old
+          : {
+              ...old,
+              [revision.id]: revision,
+            },
+      );
   }, [remoteProject.data]);
-  useEffect(() => {
-    const missing = draft.items.filter((i) => !revisionCache[i.revision_id]);
-    if (missing.length)
-      void Promise.all(
-        missing.map((i) => api<Revision>(`/revisions/${i.revision_id}`)),
-      )
-        .then((values) =>
-          setRevisionCache((previous) => ({
-            ...previous,
-            ...Object.fromEntries(values.map((r) => [r.id, r])),
-          })),
-        )
-        .catch(
-          /* 取消后忽略迟到的错误 */ (e) =>
-            setToast({ text: e.message, error: true }),
-        );
-  }, [draft.items, revisionCache]);
+  useRevisionBodies(draft.items, revisionCache, setRevisionCache, (error) =>
+    setToast({ text: error.message, error: true }),
+  );
   useEffect(() => {
     if (!toast || toast.error) return;
     const timer = setTimeout(

@@ -59,12 +59,13 @@ export default function ProjectSidebar({
   onDelete,
   onImport,
 }: Props) {
+  const selectedProjects = new Set(items.map((item) => item.project_id));
+  const activeConversations = new Set(
+    activeJobs.map((job) => job.conversation_id),
+  );
   /** 按来源分组递归显示项目，整体、子项目分别持有选择状态、会话 */
   function renderProject(p: Project) {
-    const children = sortedSidebar.projects.filter(
-      /* 子项目始终留在所属整体项目下，组内沿用当前排序 */ (child) =>
-        child.parent_id === p.id,
-    );
+    const children = sortedSidebar.childrenByParent.get(p.id) ?? [];
     const collapsed = folded[p.id] ?? !!p.parent_id;
     return (
       <section
@@ -82,7 +83,7 @@ export default function ProjectSidebar({
                 ? "勾选整体经历；子项目可分别勾选"
                 : "将该项目单独加入简历"
             }
-            checked={items.some((i) => i.project_id === p.id)}
+            checked={selectedProjects.has(p.id)}
             onChange={() => onToggleProject(p.id)}
           />
           <button
@@ -131,9 +132,8 @@ export default function ProjectSidebar({
               <div className="project-scope-label">整体对话</div>
             )}
             <div className="session-list">
-              {sortedSidebar.conversations
-                .filter((c) => c.project_id === p.id)
-                .map((c) => (
+              {(sortedSidebar.conversationsByProject.get(p.id) ?? []).map(
+                (c) => (
                   <div
                     className={`session-row ${c.id === conversationId && activeProject === p.id && mode === "chat" ? "selected" : ""}`}
                     key={c.id}
@@ -150,7 +150,7 @@ export default function ProjectSidebar({
                       onClick={() => onNavigate(p.id, c.id)}
                     >
                       {c.title}
-                      {activeJobs.some((j) => j.conversation_id === c.id) && (
+                      {activeConversations.has(c.id) && (
                         <span className="activity-dot" />
                       )}
                     </button>
@@ -165,7 +165,8 @@ export default function ProjectSidebar({
                       </div>
                     </details>
                   </div>
-                ))}
+                ),
+              )}
             </div>
             {children.length > 0 && (
               <div className="subproject-list">

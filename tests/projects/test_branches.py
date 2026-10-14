@@ -94,6 +94,9 @@ def test_branch_api_validation_and_graph(tmp_path):
         assert len(detail["branches"]) == 2
         assert detail["revisions"][0]["parent_id"] == parent["head_revision"]
         assert detail["revisions"][0]["branch_id"] == branch["id"]
+        assert all("content" not in row for row in detail["revisions"])
+        assert detail["revision"] == client.get(f"/api/revisions/{branch['head_revision']}").json()
+        assert client.get(f"/api/revisions/{parent['head_revision']}").json()["content"]
         assert client.get("/api/state").json()["branches"]
 
 

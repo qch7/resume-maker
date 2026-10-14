@@ -120,3 +120,25 @@ test("missing timestamps and equal names have deterministic ordering", /* 验证
   assert.equal(restoreSidebarSort("desc"), "desc");
   assert.equal(restoreSidebarSort("invalid"), "recent");
 });
+
+test("分组索引沿用排序结果并保留孤立父项入口", () => {
+  const rows = [
+    ...projects,
+    { id: "child10", parent_id: "a", name: "子项目 10" },
+    { id: "child2", parent_id: "a", name: "子项目 2" },
+    { id: "orphan", parent_id: "deleted", name: "孤立项目" },
+  ];
+  const before = structuredClone(rows);
+  const result = sortSidebar(rows, conversations, "asc");
+  assert.deepEqual(
+    result.childrenByParent.get("a").map((item) => item.id),
+    ["child2", "child10"],
+  );
+  assert.deepEqual(
+    result.conversationsByProject.get("a").map((item) => item.id),
+    ["second", "first"],
+  );
+  assert.equal(result.conversationsByProject.has("b"), false);
+  assert.ok(result.rootProjects.some((item) => item.id === "orphan"));
+  assert.deepEqual(rows, before);
+});
