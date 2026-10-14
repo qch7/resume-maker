@@ -618,25 +618,22 @@ class ActivityLog:
         """以固定快照分批导出 JSONL，导出过程中新增记录留给下次导出"""
         where, args = self.filters(**filters)
         cte, polling_args = self.polling_cte(**filters)
-        # 流式迭代逐批串行执行，框架可将下一批调度到其他线程
+        # 单个游标固定过滤结果，分批取回时不重新扫描轮询链路；线程切换仍串行
         with closing(self.connect(check_same_thread=False)) as conn:
             conn.execute("BEGIN")
             snapshot = self._cursor(conn)
-            after = 0
-            while True:
-                rows = conn.execute(
-                    cte + f"SELECT * FROM activity WHERE {where} AND id>? AND id<=? "
-                    "ORDER BY id LIMIT ?",
-                    (*polling_args, *args, after, snapshot, HISTORY_BATCH_SIZE),
-                ).fetchall()
-                if not rows:
-                    return
-                for row in rows:
-                    value = dict(row)
-                    value["payload"] = json.loads(value.pop("payload_json"))
-                    value.pop("origin_key")
-                    yield dump(value) + "\n"
-                after = rows[-1]["id"]
+            with closing(
+                conn.execute(
+                    cte + f"SELECT * FROM activity WHERE {where} AND id<=? ORDER BY id",
+                    (*polling_args, *args, snapshot),
+                )
+            ) as cursor:
+                while rows := cursor.fetchmany(HISTORY_BATCH_SIZE):
+                    for row in rows:
+                        value = dict(row)
+                        value["payload"] = json.loads(value.pop("payload_json"))
+                        value.pop("origin_key")
+                        yield dump(value) + "\n"
 
     def import_history(self, db):
         """按原时间补录历史，写入失败留待重启重试，已成功记录按来源去重"""

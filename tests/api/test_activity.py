@@ -368,6 +368,48 @@ def test_filtered_export_keeps_snapshot_when_stream_worker_changes(tmp_path):
     assert log.page(hide_polling=True)["total"] == 201
 
 
+def test_filtered_export_executes_one_query_and_releases_abandoned_snapshot(tmp_path, monkeypatch):
+    """跨批次导出只过滤一次，提前结束下载立即归还游标及读取连接"""
+    log = ActivityLog(tmp_path / "export.sqlite")
+    with closing(log.connect()) as conn, conn:
+        conn.executemany(
+            "INSERT INTO activity(created_at,category,level,source,event,title,trace_id,"
+            "payload_json) "
+            "VALUES (?,?,'info','synthetic',?,?,?,'{}')",
+            [
+                (now(), category, event, title, f"trace-{index}")
+                for index in range(601)
+                for category, event, title in (
+                    ("api", "response", "GET /api/state · 200"),
+                    ("ai", "message", f"message-{index}"),
+                )
+            ],
+        )
+    queries, connections = [], []
+    original = log.connect
+
+    def connect(**kwargs):
+        """记录实际导出连接，不改变查询或快照边界"""
+        conn = original(**kwargs)
+        conn.set_trace_callback(queries.append)
+        connections.append(conn)
+        return conn
+
+    monkeypatch.setattr(log, "connect", connect)
+    exported = [json.loads(line) for line in log.export(hide_polling=True)]
+    assert [row["title"] for row in exported] == [f"message-{i}" for i in range(601)]
+    assert sum("SELECT * FROM activity WHERE" in query for query in queries) == 1
+    with pytest.raises(sqlite3.ProgrammingError, match="closed"):
+        connections[-1].execute("SELECT 1")
+    stream = log.export(hide_polling=True)
+    next(stream)
+    connection = connections[-1]
+    assert connection.in_transaction
+    stream.close()
+    with pytest.raises(sqlite3.ProgrammingError, match="closed"):
+        connection.execute("SELECT 1")
+
+
 def test_maintenance_filter_covers_existing_and_live_service_records(tmp_path, monkeypatch):
     """隐藏例行检查及内部读取，保留独立读取、实际删除、失败链路"""
     app = create_logged_app(Config(data_dir=tmp_path, token="synthetic-token"))

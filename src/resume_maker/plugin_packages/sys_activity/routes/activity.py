@@ -4,7 +4,6 @@ from datetime import UTC
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
-from fastapi.responses import StreamingResponse
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator
 
 from resume_maker.api.dependencies import service
@@ -15,6 +14,7 @@ from resume_maker.domain.activity import (
     normalize_hidden_rules,
 )
 from resume_maker.infrastructure.database import Database
+from resume_maker.plugin_packages.sys_activity.routes.export_response import ActivityExportResponse
 from resume_maker.plugin_packages.sys_activity.services.activity import (
     capture_settings,
     save_capture_settings,
@@ -88,7 +88,7 @@ def export_activity(
     dep_db: Annotated[Database, Depends(service("db"))], query: Annotated[ActivityQuery, Query()]
 ):
     """导出匹配筛选的脱敏 JSONL 快照，响应不包含实例令牌"""
-    return StreamingResponse(
+    return ActivityExportResponse(
         dep_db.activity.export(**query.model_dump()),
         media_type="application/x-ndjson",
         headers={"Content-Disposition": 'attachment; filename="system-activity.jsonl"'},
