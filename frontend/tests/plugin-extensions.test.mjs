@@ -100,8 +100,34 @@ test("忽略取消的命令使清理明确失败，实际结束后可重试清�
   await dispose();
 });
 
-test("步骤读取冻结快照，单个状态错误不影响其他贡献和工作区输入", async () => {
+test("没有状态贡献时不读取工作区资料，缺失贡献的步骤仍显示状态", () => {
   const registry = createClientExtensions();
+  const input = {
+    get draft() {
+      throw new Error("不应复制未消费的资料");
+    },
+  };
+  assert.deepEqual(registry.workflow(input), []);
+  const id = "community.example/check";
+  registry.contribute(
+    descriptor({ "workflow.steps": [id] }),
+    "workflow.steps",
+    id,
+    {
+      title: "合成步骤",
+      state: "community.example/missing",
+      command: "community.example/open",
+    },
+  );
+  const [step] = registry.workflow(input);
+  assert.equal(step.available, false);
+  assert.equal(step.status.done, false);
+  assert.match(step.status.text, /贡献不可用/);
+});
+
+test("步骤共用一次独立深冻结快照，单个状态错误不影响其他贡献和工作区输入", async () => {
+  const registry = createClientExtensions();
+  const snapshots = [];
   const owner = descriptor({
     commands: ["community.example/open"],
     "workflow.steps": ["community.example/check", "community.example/bad"],
@@ -122,6 +148,7 @@ test("步骤读取冻结快照，单个状态错误不影响其他贡献和工�
     "community.example/state",
     {
       evaluate(input) {
+        snapshots.push(input);
         return { done: input.draft.name === "Synthetic", text: "已核对" };
       },
     },
@@ -132,7 +159,8 @@ test("步骤读取冻结快照，单个状态错误不影响其他贡献和工�
     "community.example/bad-state",
     {
       evaluate(input) {
-        input.draft.name = "mutated";
+        snapshots.push(input);
+        input.draft.metadata.labels.push("mutated");
         return { done: true, text: "不会采用" };
       },
     },
@@ -152,8 +180,29 @@ test("步骤读取冻结快照，单个状态错误不影响其他贡献和工�
       },
       order,
     );
-  const input = { draft: { name: "Synthetic" } };
+  const draft = { name: "Synthetic", metadata: { labels: ["original"] } };
+  let reads = 0;
+  const input = {
+    get draft() {
+      reads++;
+      return draft;
+    },
+  };
   const steps = registry.workflow(input);
+  assert.equal(reads, 1);
+  assert.equal(snapshots.length, 2);
+  assert.equal(snapshots[0], snapshots[1]);
+  assert.notEqual(snapshots[0].draft, draft);
+  for (const value of [
+    snapshots[0],
+    snapshots[0].draft,
+    snapshots[0].draft.metadata,
+    snapshots[0].draft.metadata.labels,
+  ])
+    assert.equal(Object.isFrozen(value), true);
+  assert.equal(Object.isFrozen(draft), false);
+  assert.equal(Object.isFrozen(draft.metadata.labels), false);
+  assert.deepEqual(draft.metadata.labels, ["original"]);
   assert.equal(steps[0].status.done, true);
   assert.equal(steps[1].status.done, false);
   assert.match(steps[1].status.text, /暂不可用/);

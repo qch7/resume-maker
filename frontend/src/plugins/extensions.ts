@@ -275,11 +275,15 @@ export function createClientExtensions(
 
   /** 独立计算步骤状态，失败只影响当前贡献且不回显资料正文 */
   function workflow(input: WorkflowInput) {
-    const snapshot = freeze(JSON.parse(JSON.stringify(input)) as WorkflowInput);
+    const contributors = list("workflow.state_contributors");
+    // 无状态贡献时不遍历工作区资料，多个贡献仍共用一次独立冻结副本
+    const snapshot = contributors.length
+      ? freeze(JSON.parse(JSON.stringify(input)) as WorkflowInput)
+      : undefined;
     const states = new Map<string, WorkflowStatus>();
-    for (const item of list("workflow.state_contributors")) {
+    for (const item of contributors) {
       try {
-        const state = item.value.evaluate(snapshot);
+        const state = item.value.evaluate(snapshot!);
         if (
           typeof state?.done !== "boolean" ||
           typeof state.text !== "string" ||
