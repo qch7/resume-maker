@@ -11,7 +11,13 @@ from resume_maker.integrations.privacy_identifiers import (
     identifier_values,
     literal_pattern,
 )
-from resume_maker.integrations.privacy_text import formatted_values, known_variants, labeled_values
+from resume_maker.integrations.privacy_terms import PrivacyTerms
+from resume_maker.integrations.privacy_text import (
+    formatted_values,
+    known_pattern,
+    known_variants,
+    labeled_values,
+)
 from resume_maker.sdk.model import ProviderError
 
 TOKEN = re.compile(r"\[\[RM_[a-f0-9]{12}_\d+\]\]")
@@ -90,11 +96,51 @@ class Redactor:
         """初始化独立随机命名空间以防跨请求关联及占位符碰撞"""
         self.prefix = secrets.token_hex(6)
         self.mapping = {}
-        self.secrets = set()
-        self.values = set(
+        self.reverse = {}
+        self.secrets = PrivacyTerms()
+        self.values = PrivacyTerms(
             value.strip() for value in values if isinstance(value, str) and value.strip()
         )
         self.count = 0
+        self._values_generation = self._secrets_generation = -1
+        self._candidates, self._known_pattern, self._pattern = set(), None, None
+        self._secret_values = ()
+
+    @property
+    def generation(self):
+        """词表变化使源码副本、搜索查询在下一次使用前重新脱敏"""
+        return self.values.generation, self.secrets.generation
+
+    def matchers(self):
+        """缓存固定词表的编码变体及匹配器，动态格式命中仍逐段发现"""
+        if self._values_generation != self.values.generation:
+            candidates = set(self.values)
+            for candidate in self.values:
+                candidates.add(json.dumps(candidate, ensure_ascii=True)[1:-1])
+                candidates.add(quote(candidate, safe=""))
+            self._candidates = candidates
+            self._known_pattern = known_pattern(self.values)
+            self._pattern = self.pattern(candidates)
+            self._values_generation = self.values.generation
+        return self._candidates, self._known_pattern, self._pattern
+
+    @staticmethod
+    def pattern(candidates):
+        """保持原有最长候选优先及短数字边界"""
+        return (
+            re.compile(
+                "|".join(literal_pattern(v) for v in sorted(candidates, key=len, reverse=True) if v)
+            )
+            if candidates
+            else None
+        )
+
+    def secret_values(self):
+        """凭据列表只在变化时重新排序，还原始终使用最新集合"""
+        if self._secrets_generation != self.secrets.generation:
+            self._secret_values = sorted(self.secrets, key=len, reverse=True)
+            self._secrets_generation = self.secrets.generation
+        return self._secret_values
 
     def learn(self, value, *, personal=False):
         """按字段语义登记身份，通用名称、专业等业务信息不自动加入敏感词"""
@@ -150,16 +196,16 @@ class Redactor:
             )
         if value not in self.mapping:
             self.mapping[value] = f"[[RM_{self.prefix}_{len(self.mapping) + 1}]]"
+            self.reverse[self.mapping[value]] = value
         self.count += 1
         return self.mapping[value]
 
     def text(self, value):
         """先移除凭据再替换已知值、常见身份格式，编码附件直接拦截"""
         if TOKEN.search(value):
-            registered = set(self.mapping.values())
             parts, offset = [], 0
             for match in TOKEN.finditer(value):
-                if match[0] not in registered:
+                if match[0] not in self.reverse:
                     raise ProviderError("输入含未知隐私占位符，请使用原始本地资料。")
                 parts.extend([self.text(value[offset : match.start()]), match[0]])
                 offset = match.end()
@@ -180,20 +226,15 @@ class Redactor:
 
         value = SECRET.sub(secret, value)
         value = re.sub(r"\bsk-[A-Za-z0-9_-]{16,}\b", "[凭据已移除]", value)
-        for secret_value in sorted(self.secrets, key=len, reverse=True):
+        for secret_value in self.secret_values():
             if secret_value:
                 value = value.replace(secret_value, "[凭据已移除]")
-        candidates = set(self.values)
-        candidates.update(known_variants(value, self.values))
-        for candidate in self.values:
-            candidates.add(json.dumps(candidate, ensure_ascii=True)[1:-1])
-            candidates.add(quote(candidate, safe=""))
-        candidates.update(formatted_values(value, PATTERNS))
+        candidates, known, pattern = self.matchers()
+        dynamic = known_variants(value, known) | formatted_values(value, PATTERNS)
+        if dynamic - candidates:
+            pattern = self.pattern(candidates | dynamic)
         spans = identifier_spans(value)
-        if candidates:
-            pattern = re.compile(
-                "|".join(literal_pattern(v) for v in sorted(candidates, key=len, reverse=True) if v)
-            )
+        if pattern is not None:
             spans.extend((match.start(), match.end()) for match in pattern.finditer(value))
         merged = []
         for start, end in sorted(spans):
@@ -281,14 +322,13 @@ class Redactor:
 
     def restore(self, value):
         """单次替换响应占位符，拒绝模型编造的未知标识"""
-        reverse = {token: original for original, token in self.mapping.items()}
 
         def replace(match):
             """仅还原本轮登记的非凭据值"""
-            if match[0] not in reverse:
+            if match[0] not in self.reverse:
                 raise ProviderError("模型返回了未知隐私占位符，结果未采用，请重试。")
-            original = reverse[match[0]]
-            for secret_value in sorted(self.secrets, key=len, reverse=True):
+            original = self.reverse[match[0]]
+            for secret_value in self.secret_values():
                 if secret_value:
                     original = original.replace(secret_value, "[凭据已移除]")
             return original

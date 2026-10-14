@@ -5,6 +5,7 @@ import os
 import re
 import secrets
 import threading
+from array import array
 from collections import OrderedDict, deque
 from fnmatch import fnmatchcase
 from itertools import chain
@@ -20,6 +21,7 @@ MAX_SOURCE_FILE_BYTES = 32 * 1024 * 1024
 MAX_SOURCE_CACHE_BYTES = 128 * 1024 * 1024
 MAX_SOURCE_CACHE_ENTRIES = 256
 MAX_SOURCE_CURSORS = 128
+LINE_INDEX_STRIDE = 128
 
 
 class SourceBudgetExceeded(ProviderError):
@@ -146,7 +148,7 @@ class SourceAccess:
         if before.st_size > self.max_file_bytes:
             raise SourceBudgetExceeded("源码全文超过本轮内存预算，请拆分大文件后继续分析。")
         stamp = (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns)
-        version = (len(self.redactor.values), len(self.redactor.secrets))
+        version = self.redactor.generation
         cached = self.cache.get((source, path))
         if cached and cached[:2] == (stamp, version):
             self.cache.move_to_end((source, path))
@@ -175,7 +177,8 @@ class SourceAccess:
         self.redactor.learn(text)
         safe = self.redactor.text(text)
         self.check()
-        size = len(safe.encode("utf-8"))
+        encoded = safe.encode("utf-8")
+        size = len(encoded)
         if size > self.max_cache_bytes:
             raise SourceBudgetExceeded("脱敏源码超过本轮缓存预算，请拆分大文件后继续分析。")
         if cached:
@@ -183,19 +186,32 @@ class SourceAccess:
             cached[2].unlink(missing_ok=True)
         while self.cache and (
             len(self.cache) >= MAX_SOURCE_CACHE_ENTRIES
-            or sum(row[2].stat().st_size for row in self.cache.values()) + size
-            > self.max_cache_bytes
+            or sum(row[4] for row in self.cache.values()) + size > self.max_cache_bytes
         ):
             _, evicted = self.cache.popitem(last=False)
             evicted[2].unlink(missing_ok=True)
         destination = Path(self.directory.name) / f"{secrets.token_hex(12)}.txt"
-        destination.write_text(safe, encoding="utf-8", newline="")
+        offsets = array("Q", [0])
+        for number, match in enumerate(re.finditer(rb"\r\n|\r|\n", encoded), 1):
+            if number % LINE_INDEX_STRIDE == 0:
+                self.check()
+                offsets.append(match.end())
+        destination.write_bytes(encoded)
         self.cache[(source, path)] = (
             stamp,
-            (len(self.redactor.values), len(self.redactor.secrets)),
+            self.redactor.generation,
             destination,
+            offsets,
+            size,
         )
         return destination
+
+    def seek_line(self, stream, entry, line):
+        """定位到最近的稀疏索引，索引随同代次安全副本一起刷新或淘汰"""
+        offsets = self.cache[entry][3]
+        index = min((line - 1) // LINE_INDEX_STRIDE, len(offsets) - 1)
+        stream.seek(offsets[index])
+        return index * LINE_INDEX_STRIDE + 1
 
     def listing(self, source, pattern):
         """逐个返回脱敏文件名，枚举过程不读取正文"""
@@ -204,6 +220,7 @@ class SourceAccess:
 
     def searching(self, source, pattern, query):
         """遍历全部候选文件的脱敏正文，结果、未命中进度均可分页继续"""
+        query_generation, query_pattern = None, None
         for entry in self.entries(source, pattern):
             if not entry:
                 yield None
@@ -223,7 +240,8 @@ class SourceAccess:
                 current = self.prepared(*entry)
                 with current.open(encoding="utf-8", newline="") as stream:
                     if current != file:
-                        for _ in range(number):
+                        first = self.seek_line(stream, entry, number + 1)
+                        for _ in range(first, number + 1):
                             self.check()
                             stream.readline()
                         file = current
@@ -238,8 +256,11 @@ class SourceAccess:
                     self.check()
                     number += 1
                     safe_line = self.redactor.text(self.redactor.restore(line))
-                    safe_query = self.redactor.text(self.redactor.restore(query))
-                    match = re.search(re.escape(safe_query), safe_line, re.IGNORECASE)
+                    if query_generation != self.redactor.generation:
+                        safe_query = self.redactor.text(self.redactor.restore(query))
+                        query_pattern = re.compile(re.escape(safe_query), re.IGNORECASE)
+                        query_generation = self.redactor.generation
+                    match = query_pattern.search(safe_line)
                     if match:
                         start = max(0, match.start() - 120)
                         yield {
@@ -326,7 +347,8 @@ class SourceAccess:
         file = self.prepared(source, path)
         result = {**self.metadata(source, path), "lines": [], "next": None, "eof": True}
         with file.open(encoding="utf-8", newline="") as stream:
-            for number, line in enumerate(stream, 1):
+            first = self.seek_line(stream, (source, path), start)
+            for number, line in enumerate(stream, first):
                 # 跳过已有安全副本时按小批次检查，实际返回前仍核验最新隐私代次
                 if number >= start or number % 128 == 1:
                     self.check()

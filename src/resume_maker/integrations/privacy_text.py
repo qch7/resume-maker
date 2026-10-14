@@ -18,8 +18,8 @@ def normalized_text(value, *, compact=False):
     return "".join(text), positions
 
 
-def known_variants(value, known):
-    """定位已登记身份的 OCR 空白、字宽变体，返回可准确还原的原始片段"""
+def known_pattern(known):
+    """只在敏感词代次改变时准备 OCR 变体匹配器"""
     candidates = {
         normalized_text(candidate, compact=True)[0]
         for candidate in known
@@ -27,9 +27,15 @@ def known_variants(value, known):
     }
     candidates = {candidate for candidate in candidates if len(candidate) >= 2}
     if not candidates:
+        return None
+    return re.compile("|".join(re.escape(v) for v in sorted(candidates, key=len, reverse=True)))
+
+
+def known_variants(value, pattern):
+    """用本轮词表定位 OCR 变体，返回可准确还原的原始片段"""
+    if pattern is None:
         return set()
     text, positions = normalized_text(value, compact=True)
-    pattern = re.compile("|".join(re.escape(v) for v in sorted(candidates, key=len, reverse=True)))
     return {
         value[positions[match.start()] : positions[match.end() - 1] + 1]
         for match in pattern.finditer(text)
