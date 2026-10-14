@@ -1,10 +1,13 @@
 """验证请求内匹配缓存的复用、规则变更及凭据不可恢复"""
 
+import random
+
 import pytest
 
 from resume_maker.integrations import privacy
 from resume_maker.integrations.privacy import Redactor
 from resume_maker.integrations.privacy_terms import PrivacyTerms
+from resume_maker.integrations.privacy_text import literal_spans
 from resume_maker.sdk.model import ProviderError
 
 
@@ -80,3 +83,67 @@ def test_repeated_terms_keep_generation_and_pop_invalidates():
     terms.discard("missing")
     assert terms.generation == 0
     assert terms.pop() == "first" and terms.generation > 0
+
+
+def test_distinct_contacts_do_not_rebuild_fixed_matcher(monkeypatch):
+    """不同动态联系方式只准备自身候选，大量固定规则不会逐段重建"""
+    prepared, original = [], privacy.literal_pattern
+
+    def counted(value):
+        """按候选准备次数约束复杂度，避免依赖机器运行速度"""
+        prepared.append(value)
+        return original(value)
+
+    monkeypatch.setattr(privacy, "literal_pattern", counted)
+    redactor = Redactor([f"SyntheticIdentity{index:04}" for index in range(1000)])
+    for index in range(200):
+        original_text = f"联系：person{index}@example.invalid"
+        safe = redactor.text(original_text)
+        assert f"person{index}@example.invalid" not in safe
+        assert redactor.restore(safe) == original_text
+    assert sum(value.startswith("SyntheticIdentity") for value in prepared) == 1000
+    assert len(prepared) == 1200
+
+
+def test_split_matchers_keep_combined_longest_and_overlap_semantics():
+    """独立候选流使用正则联合表达式作参照，覆盖相互遮挡后的继续位置"""
+    randomizer = random.Random(47)
+    cases = [
+        ("abcde", {"abc"}, {"bcde", "de"}),
+        ("abcdabcd", {"ab", "abcd"}, {"abc", "cd"}),
+        ("21 2021 value21 0.21 ２１", {"21"}, {"２１", "2021"}),
+        ("星桥\n测试大学 星 桥", {"星桥"}, {"星桥\n测试大学", "星 桥"}),
+    ]
+    for _ in range(600):
+        text = "".join(randomizer.choices("abc 12", k=80))
+        values = {
+            text[start : start + randomizer.randint(1, 8)]
+            for start in randomizer.sample(range(70), 12)
+        }
+        fixed = set(randomizer.sample(sorted(values), len(values) // 2))
+        cases.append((text, fixed, values - fixed))
+    for text, fixed, dynamic in cases:
+        combined = Redactor.pattern(fixed | dynamic)
+        expected = [match.span() for match in combined.finditer(text)]
+        actual = list(literal_spans(text, Redactor.pattern(fixed), Redactor.pattern(dynamic)))
+        assert actual == expected, (text, fixed, dynamic, actual, expected)
+
+
+@pytest.mark.parametrize(
+    "known,text",
+    [
+        (["person"], "person@example.invalid"),
+        (["contact person@"], "contact person@example.invalid"),
+        (["21"], "21 person21@example.invalid value21 0.21"),
+        (["星桥测试大学"], "联系：person@example.invalid；星桥\n测试大学"),
+        (["http"], "https://example.invalid/person@example.invalid"),
+    ],
+)
+def test_dynamic_matches_restore_exact_text_with_overlapping_fixed_rules(known, text):
+    """动态格式、固定敏感词存在重叠时仍精确还原，完整邮箱不会露出后缀"""
+    redactor = Redactor(known)
+    safe = redactor.text(text)
+    assert redactor.restore(safe) == text
+    assert "@example.invalid" not in safe
+    if "value21" in text:
+        assert "value21 0.21" in safe

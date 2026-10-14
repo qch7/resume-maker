@@ -60,3 +60,22 @@ def formatted_values(value, patterns):
         for pattern in patterns
         for match in pattern.finditer(text)
     }
+
+
+def literal_spans(value, *patterns):
+    """合并独立匹配器，保持最早起点、同起点最长值及后续重新查找的语义"""
+    patterns = [pattern for pattern in patterns if pattern is not None]
+    if len(patterns) == 1:
+        yield from (match.span() for match in patterns[0].finditer(value))
+        return
+    matches = [pattern.search(value) for pattern in patterns]
+    while any(match is not None for match in matches):
+        selected = min(
+            (match for match in matches if match is not None),
+            key=lambda match: (match.start(), -match.end()),
+        )
+        yield selected.span()
+        for index, match in enumerate(matches):
+            # 被另一匹配覆盖的候选须从新边界重查，不能跳过内部的下一条合法命中
+            if match is not None and match.start() < selected.end():
+                matches[index] = patterns[index].search(value, selected.end())

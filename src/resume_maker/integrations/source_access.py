@@ -28,6 +28,32 @@ class SourceBudgetExceeded(ProviderError):
     """明确报告无法在本轮预算内提供的文件，不能把结果当成完整来源"""
 
 
+class SourceRow(dict):
+    """结果只序列化公开字段，本机位置用于规则换代后重新核验完整原文"""
+
+    def __init__(self, value, entry, generation, *, line=None, query=None):
+        """推迟发布的命中保留行号，不从已截取的片段恢复隐私原文"""
+        super().__init__(value)
+        self.entry, self.generation = entry, generation
+        self.line, self.query = line, query
+
+
+class SourceQuery:
+    """同一搜索游标按规则代次复用查询表达式"""
+
+    def __init__(self, value):
+        """原始查询只在当前受信任任务中保存"""
+        self.value, self.generation, self.pattern = value, None, None
+
+    def prepare(self, redactor):
+        """查询自身发现的凭据也先登记，再读取安全副本"""
+        if self.generation != redactor.generation:
+            safe = redactor.text(redactor.restore(self.value))
+            self.pattern = re.compile(re.escape(safe), re.IGNORECASE)
+            self.generation = redactor.generation
+        return self.pattern
+
+
 class SourceAccess:
     """本轮来源、脱敏表共用生命周期，分页只限制单次工作量、返回量"""
 
@@ -216,28 +242,95 @@ class SourceAccess:
     def listing(self, source, pattern):
         """逐个返回脱敏文件名，枚举过程不读取正文"""
         for entry in self.entries(source, pattern):
-            yield self.metadata(*entry) if entry else None
+            yield self.source_row(self.metadata(*entry), entry) if entry else None
+
+    def source_row(self, value, entry, *, line=None, query=None):
+        """记录当前结果的隐私代次，内部定位信息不进入 JSON"""
+        return SourceRow(value, entry, self.redactor.generation, line=line, query=query)
+
+    def match_row(self, line, number, entry, query, metadata):
+        """仅在完整安全副本中匹配，跨行保护不会因逐行还原而消失"""
+        match = query.pattern.search(line)
+        if match is None:
+            return None
+        start = max(0, match.start() - 120)
+        return self.source_row(
+            {
+                **metadata,
+                "line": number,
+                "column": start + 1,
+                "text": line.rstrip("\r\n")[start : start + 1000],
+            },
+            entry,
+            line=number,
+            query=query,
+        )
+
+    def refresh_row(self, row):
+        """刷新推迟发布的旧代次结果，完整文件负责跨行身份识别"""
+        if not isinstance(row, SourceRow) or row.generation == self.redactor.generation:
+            return row
+        metadata = self.metadata(*row.entry)
+        if row.line is None:
+            return self.source_row({**row, **metadata}, row.entry)
+        row.query.prepare(self.redactor)
+        try:
+            file = self.prepared(*row.entry)
+            row.query.prepare(self.redactor)
+            metadata = self.metadata(*row.entry)
+            with file.open(encoding="utf-8", newline="") as stream:
+                first = self.seek_line(stream, row.entry, row.line)
+                for _ in range(first, row.line):
+                    self.check()
+                    stream.readline()
+                self.check()
+                return self.match_row(stream.readline(), row.line, row.entry, row.query, metadata)
+        except SourceBudgetExceeded as exc:
+            return self.source_row({**metadata, "unavailable": str(exc)}, row.entry)
+        except (OSError, UnicodeError, ValueError, ProviderError):
+            self.check()
+            return self.source_row(
+                {**metadata, "unavailable": "该文件无法提供可用的脱敏文字"}, row.entry
+            )
+
+    def refresh_rows(self, rows):
+        """同页后读文件发现新身份时，先前收集的命中也必须使用最新完整副本"""
+        for _ in range(3):
+            generation = self.redactor.generation
+            rows = [updated for row in rows if (updated := self.refresh_row(row)) is not None]
+            if self.redactor.generation == generation:
+                return rows
+        raise ProviderError("读取期间隐私规则持续变化，请重新搜索。")
 
     def searching(self, source, pattern, query):
         """遍历全部候选文件的脱敏正文，结果、未命中进度均可分页继续"""
-        query_generation, query_pattern = None, None
+        query = SourceQuery(query)
+        query.prepare(self.redactor)
         for entry in self.entries(source, pattern):
             if not entry:
                 yield None
                 continue
             try:
+                self.metadata(*entry)
                 file = self.prepared(*entry)
             except SourceBudgetExceeded as exc:
-                yield {**self.metadata(*entry), "unavailable": str(exc)}
+                yield self.source_row({**self.metadata(*entry), "unavailable": str(exc)}, entry)
                 continue
             except (OSError, UnicodeError, ValueError, ProviderError):
                 self.check()
-                yield {**self.metadata(*entry), "unavailable": "该文件无法提供可用的脱敏文字"}
+                yield self.source_row(
+                    {**self.metadata(*entry), "unavailable": "该文件无法提供可用的脱敏文字"}, entry
+                )
                 continue
             position, number = 0, 0
             while True:
                 self.check()
+                query.prepare(self.redactor)
+                metadata = self.metadata(*entry)
                 current = self.prepared(*entry)
+                query.prepare(self.redactor)
+                metadata = self.metadata(*entry)
+                generation = self.redactor.generation
                 with current.open(encoding="utf-8", newline="") as stream:
                     if current != file:
                         first = self.seek_line(stream, entry, number + 1)
@@ -254,24 +347,18 @@ class SourceAccess:
                     if not line:
                         break
                     self.check()
+                    if (
+                        generation != self.redactor.generation
+                        or (cached := self.cache.get(entry)) is None
+                        or cached[2] != file
+                    ):
+                        # 预读批次在其他工具发现身份或淘汰副本后，从尚未发布的行重新定位
+                        break
                     number += 1
-                    safe_line = self.redactor.text(self.redactor.restore(line))
-                    if query_generation != self.redactor.generation:
-                        safe_query = self.redactor.text(self.redactor.restore(query))
-                        query_pattern = re.compile(re.escape(safe_query), re.IGNORECASE)
-                        query_generation = self.redactor.generation
-                    match = query_pattern.search(safe_line)
-                    if match:
-                        start = max(0, match.start() - 120)
-                        yield {
-                            **self.metadata(*entry),
-                            "line": number,
-                            "column": start + 1,
-                            "text": safe_line.rstrip("\r\n")[start : start + 1000],
-                        }
-                    else:
-                        yield None
-                if not lines[-1]:
+                    yield self.match_row(line, number, entry, query, metadata)
+                else:
+                    continue
+                if not line:
                     break
 
     def page(self, name, args):
@@ -302,7 +389,7 @@ class SourceAccess:
             iterator = (
                 self.searching(source, pattern, query) if query else self.listing(source, pattern)
             )
-        rows, complete = [], False
+        rows, complete, size = [], False, 2
         for _ in range(1000):
             self.check()
             try:
@@ -312,12 +399,30 @@ class SourceAccess:
                 break
             if row is None:
                 continue
-            if len(json.dumps(rows + [row], ensure_ascii=False)) > MAX_RESULT - 200:
+            row = self.refresh_row(row)
+            if row is None:
+                continue
+            extra = len(json.dumps(row, ensure_ascii=False)) + (2 if rows else 0)
+            if size + extra > MAX_RESULT - 200:
                 iterator = chain([row], iterator)
                 break
             rows.append(row)
+            size += extra
             if len(rows) == 100:
                 break
+        if any(
+            isinstance(row, SourceRow) and row.generation != self.redactor.generation
+            for row in rows
+        ):
+            refreshed, rows, size = self.refresh_rows(rows), [], 2
+            for index, row in enumerate(refreshed):
+                extra = len(json.dumps(row, ensure_ascii=False)) + (2 if rows else 0)
+                if size + extra > MAX_RESULT - 200:
+                    iterator = chain(refreshed[index:], iterator)
+                    complete = False
+                    break
+                rows.append(row)
+                size += extra
         next_cursor = None
         if not complete:
             while len(self.cursors) >= MAX_SOURCE_CURSORS:
@@ -344,8 +449,11 @@ class SourceAccess:
         ):
             raise ValueError("读取范围不受支持")
         source, path, _ = self.resolve(args.get("source"), args.get("path"))
+        # 路径可能首次登记凭据，必须先处理路径再准备正文
+        self.metadata(source, path)
         file = self.prepared(source, path)
         result = {**self.metadata(source, path), "lines": [], "next": None, "eof": True}
+        size = len(json.dumps(result, ensure_ascii=False))
         with file.open(encoding="utf-8", newline="") as stream:
             first = self.seek_line(stream, (source, path), start)
             for number, line in enumerate(stream, first):
@@ -359,18 +467,14 @@ class SourceAccess:
                 if offset > len(text):
                     raise ValueError("读取列号超出当前行")
                 row = {"line": number, "text": text[offset : offset + 2000]}
-                if (
-                    len(result["lines"]) == count
-                    or len(
-                        json.dumps({**result, "lines": [*result["lines"], row]}, ensure_ascii=False)
-                    )
-                    > MAX_RESULT - 200
-                ):
+                extra = len(json.dumps(row, ensure_ascii=False)) + (2 if result["lines"] else 0)
+                if len(result["lines"]) == count or size + extra > MAX_RESULT - 200:
                     result.update(
                         next={"start_line": number, "start_column": offset + 1}, eof=False
                     )
                     break
                 result["lines"].append(row)
+                size += extra
                 if offset + len(row["text"]) < len(text):
                     result.update(
                         next={"start_line": number, "start_column": offset + len(row["text"]) + 1},
