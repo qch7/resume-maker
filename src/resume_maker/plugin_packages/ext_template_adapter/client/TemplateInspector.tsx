@@ -1,25 +1,19 @@
 import { useState } from "react";
 import { Crosshair, ListTree, Plus, Trash2 } from "lucide-react";
 import type { ResumeDocument } from "@resume-maker/plugin-sdk/shared/types/index";
-import type { TemplateNode, TemplatePlan, TextBinding } from "./types";
+import type { TemplatePlan, TextBinding } from "./types";
 import {
   ENTRY_LABELS,
   newBinding,
   nodeLabel,
   personalTargets,
 } from "./mapping";
-import {
-  clearNodes,
-  descendants,
-  nodeMapping,
-  REGION_LABELS,
-  repeatNodes,
-} from "./visual";
+import { clearNodes, REGION_LABELS } from "./visual";
+import { templateSelection, type TemplateSnapshot } from "./visualSnapshot";
 import BindingEditor from "./BindingEditor";
 
 interface Props {
-  nodes: TemplateNode[];
-  plan: TemplatePlan;
+  snapshot: TemplateSnapshot;
   document: ResumeDocument;
   selected: string[];
   advanced?: boolean;
@@ -30,8 +24,7 @@ interface Props {
 
 /** 编辑当前选区的字段、照片用途、重复范围 */
 export default function TemplateInspector({
-  nodes,
-  plan,
+  snapshot,
   document,
   selected,
   advanced = false,
@@ -42,10 +35,9 @@ export default function TemplateInspector({
   const [warning, setWarning] = useState("");
   const [section, setSection] = useState("projects");
   const [targetRegion, setTargetRegion] = useState(0);
-  const node = nodes.find(
-    /* 定位选区的第一个节点 */ (item) => item.id === selected[0],
-  );
-  if (!node)
+  const { nodes, plan } = snapshot;
+  const selection = templateSelection(snapshot, selected);
+  if (!selection)
     return (
       <div className="template-selection-empty">
         <Crosshair size={28} />
@@ -54,38 +46,21 @@ export default function TemplateInspector({
         <p className="subtle">其他文字和图片可在下方高级选项中查找。</p>
       </div>
     );
-  const ids = new Set(descendants(nodes, selected));
-  const info = nodeMapping(nodes, plan, node);
-  const region = plan.repeats[info.region];
-  const touched = plan.repeats.map(
-    /* 判断选区是否同时跨越多个栏目 */ (_, index) =>
-      repeatNodes(nodes, plan, index).some(
-        /* 检测选区中的任意位置 */ (id) => ids.has(id),
-      ),
-  );
-  const hasRepeat = touched.some(Boolean);
-  const sampleIds = new Set(repeatNodes(nodes, plan, info.region, true));
-  const inSample =
-    !hasRepeat ||
-    (!!region &&
-      [...ids].every(
-        /* 所有选中内容必须属于同一个单条样本 */ (id) => sampleIds.has(id),
-      ));
+  const {
+    node,
+    ids,
+    info,
+    region,
+    touched,
+    hasRepeat,
+    inSample,
+    available,
+    fields,
+    canRange,
+  } = selection;
   const selectedRegion = region
     ? info.region
     : Math.min(targetRegion, plan.repeats.length - 1);
-  const available = nodes.filter(
-    /* 只在选区内提供能映射的文字位置 */ (item) =>
-      ids.has(item.id) && item.kind === "p" && (item.text || item.can_insert),
-  );
-  const fields = (region ? region.fields : plan.fields).filter(
-    /* 所选容器内的字段一起调整 */ (field) => ids.has(field.node),
-  );
-  const canRange = selected.every(
-    /* 图片不能作为重复区边界 */ (id) =>
-      nodes.find(/* 定位选中的节点 */ (item) => item.id === id)?.kind !==
-      "image",
-  );
   /** 更新选区的字段集合，保留所有其他位置的映射 */
   function updateFields(value: TextBinding[]) {
     if (

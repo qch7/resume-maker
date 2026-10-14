@@ -10,6 +10,7 @@ interface ChoiceGroup {
 export function adjustmentChoices(
   nodes: TemplateNode[],
   plan: TemplatePlan,
+  mappings = mappingIndex(nodes, plan),
 ): ChoiceGroup[] {
   const available = new Set(
     nodes.map(/* 收集仍然存在的位置 */ (node) => node.id),
@@ -54,7 +55,6 @@ export function adjustmentChoices(
         }),
       ),
   });
-  const mappings = mappingIndex(nodes, plan);
   groups.push({
     label: "待确认内容",
     choices: nodes

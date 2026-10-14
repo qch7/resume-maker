@@ -9,6 +9,10 @@ import {
   repeatNodes,
   templateChildren,
 } from "../client/visual.ts";
+import {
+  templateSnapshot,
+  templateSelection,
+} from "../client/visualSnapshot.ts";
 
 /** 构造包含多个单元格、图片、页眉的脱敏模板结构 */
 function fixture() {
@@ -175,4 +179,153 @@ test("重新分类撤销覆盖当前节点的删除标记，保留其他区域�
   assert.deepEqual(cleared.fields, value.fields);
   assert.deepEqual(cleared.repeats, value.repeats);
   assert.deepEqual(value.photos, ["photo"]);
+});
+
+test("共享选区索引保留全部区域归属、样本限制及文档顺序", () => {
+  const nodes = fixture();
+  const value = plan();
+  value.repeats.push({
+    ...value.repeats[0],
+    section: "重叠栏目",
+    start: "row2",
+    end: "row2",
+    sample_start: "row2",
+    sample_end: "row2",
+    fields: [],
+  });
+  const before = structuredClone({ nodes, value });
+  const snapshot = templateSnapshot(nodes, value);
+  assert.deepEqual(snapshot.mappings, mappingIndex(nodes, value));
+  assert.deepEqual(snapshot.children, templateChildren(nodes));
+  const sample = templateSelection(snapshot, ["row1"]);
+  assert.equal(sample.info, snapshot.mappings.get("row1"));
+  assert.deepEqual(sample.touched, [true, false]);
+  assert.equal(sample.inSample, true);
+  assert.deepEqual(
+    sample.fields.map((field) => field.node),
+    ["school"],
+  );
+  assert.deepEqual(
+    sample.available.map((node) => node.id),
+    ["school", "degree"],
+  );
+  const overlap = templateSelection(snapshot, ["row2"]);
+  assert.deepEqual(snapshot.memberships.get("other"), [0, 1]);
+  assert.equal(overlap.info.region, 0);
+  assert.deepEqual(overlap.touched, [true, true]);
+  assert.equal(overlap.inSample, false);
+  const reversed = templateSelection(snapshot, ["row2", "row1"]);
+  assert.deepEqual(
+    [...reversed.ids],
+    ["row1", "school", "degree", "row2", "other"],
+  );
+  assert.deepEqual(
+    reversed.available.map((node) => node.id),
+    ["school", "degree", "other"],
+  );
+  assert.equal(templateSelection(snapshot, ["photo"]).canRange, false);
+  assert.equal(templateSelection(snapshot, ["picture"]).canRange, true);
+  assert.equal(templateSelection(snapshot, []), null);
+  assert.equal(templateSelection(snapshot, ["missing"]), null);
+  assert.equal(templateSelection(snapshot, ["row1"]).inSample, true);
+  assert.deepEqual({ nodes, value }, before);
+});
+
+test("共享区域索引沿用父级、部件及图片端点限制", () => {
+  const nodes = fixture();
+  const value = plan();
+  value.repeats = [
+    ["school", "degree"],
+    ["name", "header"],
+    ["photo", "photo"],
+    ["missing", "row1"],
+  ].map(([start, end]) => ({
+    section: "无效范围",
+    start,
+    end,
+    sample_start: start,
+    sample_end: end,
+    fields: [],
+  }));
+  const snapshot = templateSnapshot(nodes, value);
+  assert.equal(snapshot.memberships.size, 0);
+  assert.equal(
+    snapshot.samples.every((sample) => sample.size === 0),
+    true,
+  );
+  assert.deepEqual(templateSelection(snapshot, ["table"]).touched, [
+    false,
+    false,
+    false,
+    false,
+  ]);
+});
+
+test("编辑方案、替换节点后重建快照，先前选区不会残留分类", () => {
+  const nodes = fixture();
+  const value = plan();
+  const original = templateSnapshot(nodes, value);
+  const changed = {
+    ...value,
+    repeats: value.repeats.map((region) => ({
+      ...region,
+      start: "row2",
+      sample_start: "row2",
+      sample_end: "row2",
+      fields: [],
+    })),
+    fields: [],
+    photos: [],
+    remove: ["picture"],
+  };
+  const next = templateSnapshot(nodes, changed);
+  assert.equal(templateSelection(next, ["row1"]).hasRepeat, false);
+  assert.equal(templateSelection(next, ["row2"]).inSample, true);
+  assert.equal(next.mappings.get("name").kind, "unresolved");
+  assert.equal(next.mappings.get("photo").kind, "remove");
+  assert.equal(original.mappings.get("photo").kind, "photo");
+  assert.equal(templateSelection(original, ["row1"]).hasRepeat, true);
+  const replaced = templateSnapshot(
+    nodes.filter((node) => node.id !== "photo"),
+    changed,
+  );
+  assert.equal(templateSelection(replaced, ["photo"]), null);
+});
+
+test("重复选择只扫描一次节点后代，不重新展开每个区域", () => {
+  let ancestorReads = 0;
+  const nodes = Array.from({ length: 1000 }, (_, index) => ({
+    id: `node-${index}`,
+    parent: "body",
+    part: "word/document.xml",
+    kind: "p",
+    text: "合成原文",
+    can_insert: false,
+    get ancestors() {
+      ancestorReads++;
+      return [];
+    },
+  }));
+  const value = {
+    ...plan(),
+    fields: [],
+    photos: [],
+    keep: [],
+    repeats: Array.from({ length: 20 }, (_, index) => ({
+      section: "合成栏目",
+      start: `node-${index * 50}`,
+      end: `node-${index * 50 + 49}`,
+      sample_start: `node-${index * 50}`,
+      sample_end: `node-${index * 50}`,
+      fields: [],
+    })),
+  };
+  const snapshot = templateSnapshot(nodes, value);
+  ancestorReads = 0;
+  for (let index = 0; index < 20; index++) {
+    const selection = templateSelection(snapshot, [`node-${index * 50}`]);
+    assert.equal(selection.inSample, true);
+    assert.equal(selection.touched.filter(Boolean).length, 1);
+  }
+  assert.equal(ancestorReads, 20 * (nodes.length - 1));
 });
