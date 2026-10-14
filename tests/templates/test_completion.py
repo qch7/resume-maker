@@ -5,12 +5,15 @@ import threading
 from copy import deepcopy
 
 import pytest
+from docx import Document
 from fastapi.testclient import TestClient
 
 from resume_maker.api import create_app
 from resume_maker.core.config import Config
 from resume_maker.core.errors import Problem
 from resume_maker.domain.models import ProjectVisibility, ProviderSettings
+from resume_maker.domain.resume import ResumeDocument
+from resume_maker.domain.templates import TemplatePlan, TextBinding
 from resume_maker.infrastructure.database import dump, now
 from resume_maker.integrations.sources import digest
 from resume_maker.integrations.word.templates.completion import complete_template
@@ -31,6 +34,52 @@ from tests.support.document_services import use_renderer
 from tests.support.documents import photo_bytes
 from tests.support.layouts import generic_content, generic_template, visible_text
 from tests.support.templates import TemplateProvider, completed
+
+
+@pytest.mark.parametrize("alias", [False, True])
+def test_fill_reuses_initial_review_until_heading_mapping_changes(tmp_path, monkeypatch, alias):
+    """补位复用紧邻的结构检查，标题别名改写后必须重新检查"""
+    source, output = tmp_path / "source.docx", tmp_path / "output.docx"
+    doc = Document()
+    doc.add_paragraph("Old name")
+    doc.add_paragraph("Old heading")
+    doc.save(source)
+    package = TemplatePackage(source)
+    paragraphs = [row for row in package.inventory()["nodes"] if row["kind"] == "p"]
+    plan = TemplatePlan(
+        summary="校验复用测试",
+        fields=[
+            TextBinding(node=paragraphs[0]["id"], quote="Old name", target="personal.name"),
+            TextBinding(
+                node=paragraphs[1]["id"],
+                quote="Old heading",
+                target="section-title:" + ("projects" if alias else "Renamed"),
+            ),
+        ],
+        repeats=[],
+        photos=[],
+        keep=[],
+        remove=[],
+        warnings=[],
+    )
+    content = ResumeDocument(
+        personal={"name": "New name"},
+        sections=[{"id": "projects", "kind": "projects", "title": "Renamed"}],
+    )
+    review = TemplatePackage.review
+    checked = []
+
+    def counted_review(package, plan):
+        """保留真实校验并记录实际检查过的映射"""
+        checked.append(plan.model_dump())
+        return review(package, plan)
+
+    monkeypatch.setattr(TemplatePackage, "review", counted_review)
+    fill_template(source, output, plan, content.model_dump(), [])
+    assert len(checked) == (3 if alias else 2)
+    assert checked[-1]["fields"][1]["target"] == "section-title:Renamed"
+    assert "New name" in visible_text(output)
+    assert plan.fields[1].target == "section-title:" + ("projects" if alias else "Renamed")
 
 
 @pytest.mark.parametrize("layout", ["body", "rows", "cells"])

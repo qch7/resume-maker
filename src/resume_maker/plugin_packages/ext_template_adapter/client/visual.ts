@@ -21,6 +21,18 @@ export const REGION_LABELS: Record<RegionKind, string> = {
   container: "结构容器",
 };
 
+/** 按最近可见祖先线性分组，保留正文、表格、文本框内部顺序 */
+export function templateChildren(nodes: TemplateNode[]) {
+  const children = new Map<string, TemplateNode[]>();
+  for (const node of nodes) {
+    const parent = node.ancestors[0] ?? node.part;
+    const group = children.get(parent) ?? [];
+    group.push(node);
+    children.set(parent, group);
+  }
+  return children;
+}
+
 /** 仅允许同一容器内同级节点组成闭区间 */
 export function siblingRange(
   nodes: TemplateNode[],

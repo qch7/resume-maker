@@ -12,8 +12,14 @@ from lxml import etree
 from resume_maker.domain.resume import ResumeDocument
 from resume_maker.domain.templates import TemplatePlan, TextBinding
 from resume_maker.integrations.word.ooxml import NS, w
+from resume_maker.integrations.word.templates import record_columns
+from resume_maker.integrations.word.templates.entry_layout import ParagraphStyles
 from resume_maker.integrations.word.templates.fill import fill_template
 from resume_maker.integrations.word.templates.mapping import TemplatePackage, paragraph_text
+from resume_maker.integrations.word.templates.record_columns import (
+    RecordColumnWidths,
+    prepare_record_columns,
+)
 from resume_maker.integrations.word.templates.supplement import supplement_personal_fields
 from tests.support.documents import record_content, record_plan
 
@@ -186,6 +192,78 @@ def test_generated_columns_respect_the_aligned_body_indent(tmp_path):
     table = Document(output).tables[0]
     assert table._tbl.find("w:tblPr/w:tblInd", NS).get(w("w")) == "740"
     assert sum(column.width for column in table.columns) == Pt(432 - 37)
+
+
+@pytest.mark.parametrize("count", [1, 10, 100])
+def test_repeat_column_measurements_grow_linearly(tmp_path, monkeypatch, count):
+    """完整填充只按记录数测量两列，长日期仍决定所有条目的共同列宽"""
+    source, output = tmp_path / "source.docx", tmp_path / "result.docx"
+    doc = Document()
+    literal = "Old title        Old period"
+    doc.add_paragraph(literal)
+    doc.save(source)
+    plan = record_plan(source, [(literal, "Old title", "title"), (literal, "Old period", "period")])
+    content = record_content(
+        [{"id": str(index), "title": f"Result {index}", "period": "2026"} for index in range(count)]
+    )
+    content.sections[0].entries[-1].period = "2025.01 – 2026.10"
+    calls = []
+    measure = record_columns.text_width
+
+    def counted_width(text, size):
+        """统计真实测量次数，不依赖机器速度设定耗时阈值"""
+        calls.append((text, size))
+        return measure(text, size)
+
+    monkeypatch.setattr(record_columns, "text_width", counted_width)
+    fill_template(source, output, plan, content.model_dump(), [])
+    tables = Document(output).tables
+    assert len(tables) == count
+    assert len(calls) == 2 * count
+    assert len({tuple(column.width for column in table.columns) for table in tables}) == 1
+    assert [table.cell(0, 1).text for table in tables] == [
+        entry.period for entry in content.sections[0].entries
+    ]
+
+
+def test_column_aggregation_keeps_clone_labels_fonts_and_indents_independent(tmp_path):
+    """共享记录测量时，克隆的固定标签、字号、可用宽度仍各自生效"""
+    source = tmp_path / "source.docx"
+    doc = Document()
+    literal = "Old title        Old period"
+    doc.add_paragraph(literal)
+    doc.save(source)
+    package = TemplatePackage(source)
+    plan = record_plan(source, [(literal, "Old title", "title"), (literal, "Old period", "period")])
+    fields = plan.repeats[0].fields
+    original = package.node(fields[0].node)
+    styles = ParagraphStyles(package)
+    widths = RecordColumnWidths([{"title": "Result", "period": "2025.01 – 2026.10"}])
+    grids = []
+    for label, size, indent in [("", 11, 0), ("Period: ", 11, 0), ("", 15, 37)]:
+        clone = deepcopy(original)
+        original.addprevious(clone)
+        props = etree.Element(w("pPr"))
+        clone.insert(0, props)
+        etree.SubElement(props, w("ind")).set(w("left"), str(indent * 20))
+        run = clone.find(w("r"))
+        run_props = etree.Element(w("rPr"))
+        run.insert(0, run_props)
+        etree.SubElement(run_props, w("sz")).set(w("val"), str(size * 2))
+        run.find(w("t")).text = literal.replace("Old period", label + "Old period")
+        nodes = {fields[0].node: clone}
+        prepared = prepare_record_columns(styles, nodes, fields, widths, package.nodes)
+        table = original.getprevious()
+        assert table.tag == w("tbl")
+        grid = [int(value) for value in table.xpath("w:tblGrid/w:gridCol/@w:w", namespaces=NS)]
+        assert sum(grid) == (432 - indent) * 20
+        assert table.find("w:tblPr/w:tblInd", NS).get(w("w")) == str(indent * 20)
+        date = next(field for field in prepared if field.target == "period")
+        assert paragraph_text(nodes[date.node]) == label + "Old period"
+        assert nodes[date.node].find(".//w:rPr/w:sz", NS).get(w("val")) == str(size * 2)
+        grids.append(grid)
+    assert grids[1][1] > grids[0][1]
+    assert grids[2][1] > grids[0][1]
 
 
 @pytest.mark.parametrize("after", [False, True])
