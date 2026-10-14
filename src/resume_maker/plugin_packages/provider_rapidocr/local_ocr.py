@@ -1,6 +1,5 @@
 """使用随包模型在本机提取中英文文字、坐标，不连接云端 OCR"""
 
-import math
 import threading
 import time
 from io import BytesIO
@@ -23,11 +22,14 @@ from resume_maker.integrations.ocr_support import (
     native_blocks,
 )
 from resume_maker.plugin_packages.provider_rapidocr.configuration import Settings
+from resume_maker.plugin_packages.provider_rapidocr.refinement import (
+    blocks_from_rows,
+    refine_blocks,
+)
 from resume_maker.sdk.model import ProviderError
 
 MAX_PIXELS = SOURCE_IMAGE_MAX_PIXELS
 LOCK_POLL_SECONDS = 0.1
-RETRY_CONFIDENCE_TOLERANCE = 0.03
 OVERLAP_RATIO = 0.3
 NATIVE_TEXT_MIN_CHARS = 12
 PDF_IMAGE_AREA_RATIO = 0.15
@@ -105,6 +107,7 @@ def recognize(image, cancelled, *, adaptive=True, backend=None):
         check_cancelled(cancelled)
         reader = selected.engine() if backend is not None else engine()
         result, _ = reader(pixels)
+        blocks = blocks_from_rows(result, image.size)
         refined = False
         small_text = any(
             max(p[1] for p in row[0]) - min(p[1] for p in row[0]) <= settings.small_text_height
@@ -125,34 +128,13 @@ def recognize(image, cancelled, *, adaptive=True, backend=None):
             larger = original.copy()
             larger.thumbnail((settings.retry_side, settings.retry_side))
             alternate, _ = reader(np.asarray(larger))
-            # 高分辨率复核只在覆盖率不降且平均置信度提升时替换首次结果
-            if alternate and (
-                not result
-                or (
-                    len(alternate) >= len(result)
-                    and sum(r[2] for r in alternate) / len(alternate)
-                    >= sum(r[2] for r in result) / len(result) - RETRY_CONFIDENCE_TOLERANCE
-                )
-            ):
-                result = alternate
-                image = larger
+            # 坐标归一化后验证旧文字的覆盖，未覆盖区域不能因框数增加而被丢弃
+            blocks = refine_blocks(blocks, blocks_from_rows(alternate, larger.size), cancelled)
+            image = larger
             refined = True
         check_cancelled(cancelled)
     finally:
         lock.release()
-    blocks = []
-    for points, text, score, *_ in result or []:
-        if not text.strip():
-            continue
-        xs, ys = [float(p[0]) for p in points], [float(p[1]) for p in points]
-        box = [
-            max(0, min(xs) / image.width),
-            max(0, min(ys) / image.height),
-            min(1, max(xs) / image.width),
-            min(1, max(ys) / image.height),
-        ]
-        if all(math.isfinite(v) for v in [*box, score]) and box[0] < box[2] and box[1] < box[3]:
-            blocks.append({"text": text.strip(), "box": box, "confidence": round(float(score), 4)})
     return {
         "width": image.width,
         "height": image.height,

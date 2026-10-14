@@ -40,15 +40,138 @@ def test_retry_recovers_small_text_and_composites_alpha(monkeypatch):
         """模拟初次漏掉小字且复核恢复两行的情况"""
         sizes.append(pixels.shape)
         assert (pixels[0, 0] == 255).all()
-        rows = [[[[0, 0], [100, 0], [100, 40], [0, 40]], "Title", 0.99]]
+        height, width = pixels.shape[:2]
+        rows = [
+            [
+                [[0, 0], [width * 0.3, 0], [width * 0.3, height * 0.04], [0, height * 0.04]],
+                "Title",
+                0.99,
+            ]
+        ]
         if len(sizes) == 2:
-            rows.append([[[0, 50], [100, 50], [100, 80], [0, 80]], "small text", 0.98])
+            rows.append(
+                [
+                    [
+                        [0, height * 0.1],
+                        [width * 0.3, height * 0.1],
+                        [width * 0.3, height * 0.13],
+                        [0, height * 0.13],
+                    ],
+                    "small text",
+                    0.98,
+                ]
+            )
         return rows, []
 
     monkeypatch.setattr(local_ocr, "engine", lambda: reader)
     result = local_ocr.recognize(Image.new("RGBA", (1600, 2400)), threading.Event())
     assert len(sizes) == 2 and sizes[1][0] > sizes[0][0]
     assert result["blocks"][1]["text"] == "small text"
+
+
+def retry_result(monkeypatch, previous, alternate):
+    """把归一化合成文字框转换到每轮真实图片尺寸后执行完整复核流程"""
+    calls = []
+
+    def reader(pixels):
+        """两轮返回同一纸面坐标中的可控文字，不加载识别模型"""
+        blocks = previous if not calls else alternate
+        calls.append(pixels.shape)
+        height, width = pixels.shape[:2]
+        return [
+            [
+                [
+                    [x0 * width, y0 * height],
+                    [x1 * width, y0 * height],
+                    [x1 * width, y1 * height],
+                    [x0 * width, y1 * height],
+                ],
+                text,
+                score,
+            ]
+            for text, (x0, y0, x1, y1), score in blocks
+        ], []
+
+    monkeypatch.setattr(local_ocr, "engine", lambda: reader)
+    result = local_ocr.recognize(Image.new("RGB", (1600, 2400), "white"), threading.Event())
+    assert len(calls) == 2
+    return result["blocks"]
+
+
+def test_retry_preserves_missing_text_and_adds_disjoint_regions(monkeypatch):
+    """新增高分短行不能挤掉首次长正文，低分新区域不参与保守补充"""
+    previous = [("Original important paragraph", (0.1, 0.1, 0.9, 0.2), 0.96)]
+    alternate = [
+        ("new heading", (0.1, 0.3, 0.5, 0.4), 0.99),
+        ("new date", (0.1, 0.5, 0.5, 0.6), 0.99),
+        ("uncertain", (0.1, 0.7, 0.5, 0.8), 0.4),
+    ]
+    blocks = retry_result(monkeypatch, previous, alternate)
+    assert [block["text"] for block in blocks] == [
+        "Original important paragraph",
+        "new heading",
+        "new date",
+    ]
+    assert blocks[0]["box"] == pytest.approx(previous[0][1])
+
+
+@pytest.mark.parametrize("split", [True, False])
+def test_retry_accepts_split_or_merged_rows(monkeypatch, split):
+    """空间覆盖及文字一致时允许拆行或合行，结果数量不决定是否采用"""
+    whole = [("First Second", (0.1, 0.1, 0.9, 0.2), 0.96)]
+    parts = [
+        ("First", (0.1, 0.1, 0.5, 0.2), 0.98),
+        ("Second", (0.5, 0.1, 0.9, 0.2), 0.98),
+    ]
+    previous, alternate = (whole, parts) if split else (parts, whole)
+    blocks = retry_result(monkeypatch, previous, alternate)
+    assert [block["text"] for block in blocks] == [row[0] for row in alternate]
+
+
+@pytest.mark.parametrize("case", ["partial", "different", "confidence"])
+def test_retry_rejects_incomplete_or_worse_region(monkeypatch, case):
+    """重复框不能累加覆盖面积，同位置无关文字或低分结果不得覆盖可靠原文"""
+    previous = [("Reliable original text", (0.1, 0.1, 0.9, 0.2), 0.99)]
+    alternate = {
+        "partial": [("Reliable original text", (0.1, 0.1, 0.5, 0.2), 0.99)] * 3,
+        "different": [("Something else", (0.1, 0.1, 0.9, 0.2), 0.99)],
+        "confidence": [("Reliable original text", (0.1, 0.1, 0.9, 0.2), 0.7)],
+    }[case]
+    blocks = retry_result(monkeypatch, previous, alternate)
+    assert len(blocks) == 1 and blocks[0]["text"] == previous[0][0]
+    assert blocks[0]["box"] == pytest.approx(previous[0][1])
+    assert blocks[0]["confidence"] == previous[0][2]
+
+
+def test_retry_can_correct_uncertain_text_in_same_region(monkeypatch):
+    """低分旧行有完整空间对应时允许复核纠正文字"""
+    previous = [("uncertain", (0.1, 0.1, 0.9, 0.2), 0.4)]
+    alternate = [("Recovered text", (0.1, 0.1, 0.9, 0.2), 0.99)]
+    blocks = retry_result(monkeypatch, previous, alternate)
+    assert [block["text"] for block in blocks] == ["Recovered text"]
+
+
+def test_retry_neighbor_cannot_hide_degraded_line_confidence(monkeypatch):
+    """擦边的长高分邻行不能掩盖原文字区域内置信度明显下降"""
+    previous = [("Reliable original text", (0.1, 0.1, 0.9, 0.2), 0.99)]
+    alternate = [
+        ("Reliable original text", (0.1, 0.1, 0.9, 0.2), 0.1),
+        ("Neighbor " * 120, (0.899, 0.1, 1, 0.2), 0.99),
+    ]
+    blocks = retry_result(monkeypatch, previous, alternate)
+    assert len(blocks) == 1 and blocks[0]["text"] == previous[0][0]
+    assert blocks[0]["confidence"] == 0.99
+
+
+def test_retry_merged_line_cannot_drop_digit_from_reliable_text(monkeypatch):
+    """合行虽覆盖原区域，也不能丢弃已有高置信号码中的任意一位"""
+    previous = [
+        ("Phone 13800138000", (0.1, 0.1, 0.9, 0.2), 0.99),
+        ("School", (0.1, 0.2, 0.9, 0.3), 0.99),
+    ]
+    alternate = [("Phone 1380013800 School", (0.1, 0.1, 0.9, 0.3), 0.99)]
+    blocks = retry_result(monkeypatch, previous, alternate)
+    assert [block["text"] for block in blocks] == [row[0] for row in previous]
 
 
 def test_document_limits_and_cancel(tmp_path):
