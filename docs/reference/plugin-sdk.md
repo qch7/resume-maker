@@ -203,6 +203,8 @@ def activate(context):
 
 持久资源使用 `assets.stage(owner, bytes, media_type)`，之后在业务数据库事务内 `assets.publish(conn, staged, references)`。未提交的暂存记录不允许读取；读取通过 `lease()` 保持摘要和生命周期。历史模板、荣誉和证据目录仍由各插件的持久描述枚举，不能以插件停用为由清理它们。
 
+本地资源后端的 `read_file()` 只读取一次原件，摘要校验作用于实际返回字节。路径租约分块计算摘要，不为校验分配整份附件内存；校验前已固定状态及租约，失败也归还。HTTP 下载在工作线程校验，取消后等待实际校验及租约清理完成，传输期间继续阻止回收。
+
 业务删除引用时，在同一事务调用 `assets.release_reference(conn, id, owner, reference)`；没有引用和读取租约后才可 `tombstone(id, owner)`。失败暂存、墓碑及无登记的 UUID 资源目录默认保留至少 24 小时，停机通过 `--asset-gc-plan` 生成精确回收计划，再用 `--asset-gc-apply <文件> --confirm-digest <摘要>` 确认。回收持有备份共用的数据库写锁，复核所有记录和文件摘要后才删除。已发布资源不会因关闭插件或长期未访问而回收。
 
 工作台查询使用 `workspace.queries` 贡献，接收已有读取事务和返回字典。仅依赖事务快照的查询可用 `sdk.storage.database_query` 标记，数据库没有提交且贡献未变时复用聚合；查询若依赖内存、时间或外部状态，不加此标记，保持每轮执行。修改已有简历来源时保留历史确认快照；不要让关闭扩展导致普通保存删去未知内容。

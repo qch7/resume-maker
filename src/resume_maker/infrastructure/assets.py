@@ -179,24 +179,39 @@ class Assets:
     @contextmanager
     def open_file(self, key, name):
         """读取期间持有实际资源租约，删除业务记录也不回收在途下载"""
-        with self.lock:
-            identifier = self.file_id(key, name)
-            lease = self.lease(identifier)
-            path = lease.__enter__()
-        try:
+        with self._hold(key=key, name=name) as (path, expected):
+            self._verify_file(path, expected)
             yield path
-        finally:
-            lease.__exit__(None, None, None)
 
     def read_file(self, key, name):
-        """在资源租约内返回不可变字节，不泄露可写原件路径"""
-        with self.open_file(key, name) as path:
-            return path.read_bytes()
+        """只读取一次原件，校验实际返回的字节并保持读取期间的资源租约"""
+        with self._hold(key=key, name=name) as (path, expected):
+            data = path.read_bytes()
+            if hashlib.sha256(data).hexdigest() != expected:
+                raise Problem("资源摘要不匹配。", 409)
+            return data
 
     @contextmanager
     def lease(self, identifier: str):
         """读取前核验状态、摘要，释放前阻止清理文件"""
+        with self._hold(identifier) as (path, expected):
+            self._verify_file(path, expected)
+            yield path
+
+    @staticmethod
+    def _verify_file(path, expected):
+        """分块计算摘要，路径租约不为校验分配整份附件内存"""
+        with path.open("rb") as stream:
+            checksum = hashlib.file_digest(stream, "sha256").hexdigest()
+        if checksum != expected:
+            raise Problem("资源摘要不匹配。", 409)
+
+    @contextmanager
+    def _hold(self, identifier=None, *, key=None, name=None):
+        """原子固定逻辑引用、状态及租约，昂贵读取在锁外进行，失败也释放租约"""
         with self.lock:
+            if identifier is None:
+                identifier = self.file_id(key, name)
             record = self.db.setting(f"asset:{identifier}")
             if not record or record["state"] != "published":
                 raise Problem("资源不存在或尚未发布。", 404)
@@ -205,11 +220,9 @@ class Assets:
                 raise Problem("资源位置无效。", 409)
             if not path.is_file():
                 raise Problem("资源原件缺失，请从备份恢复。", 409)
-            if hashlib.sha256(path.read_bytes()).hexdigest() != record["sha256"]:
-                raise Problem("资源摘要不匹配。", 409)
             self.leases[identifier] += 1
         try:
-            yield path
+            yield path, record["sha256"]
         finally:
             with self.lock:
                 self.leases[identifier] -= 1
