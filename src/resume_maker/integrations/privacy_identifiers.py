@@ -56,9 +56,9 @@ WRAPPED = re.compile(r"(?<!\d)(?<!\d\.)\d{5,}(?:[ \t]*[\r\n]+[ \t]*\d{5,})+(?!\d
 VERIFICATION = re.compile(r"(?<![a-z0-9])[a-z0-9]{4}(?:[ \t-]+[a-z0-9]{4}){3,7}(?![a-z0-9])", re.I)
 
 
-def identifier_spans(value):
+def identifier_spans(value, *, normalized=None):
     """覆盖长数字、明确标签、分组校验串，避免把独立成绩及日期拼成编号"""
-    text, positions = normalized_text(value)
+    text, positions = normalized_text(value) if normalized is None else normalized
     spans = []
     for pattern in (LONG_NUMBER, GROUPED, WRAPPED, VERIFICATION, LABELED):
         for match in pattern.finditer(text):
@@ -80,10 +80,10 @@ def identifier_spans(value):
     return spans
 
 
-def identifier_values(value):
+def identifier_values(value, *, normalized=None):
     """登记完整编号及已确定的分块，防止正文遮盖后 OCR 小块仍泄漏"""
     values = set()
-    for start, end in identifier_spans(value):
+    for start, end in identifier_spans(value, normalized=normalized):
         original = value[start:end]
         values.add(original)
         normalized, positions = normalized_text(original)

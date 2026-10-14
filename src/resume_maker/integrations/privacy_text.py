@@ -2,20 +2,39 @@
 
 import re
 import unicodedata
+from array import array
+from io import StringIO
+from itertools import repeat
 
 
 def normalized_text(value, *, compact=False):
     """为归一化字符记录原文位置，删除格式控制符并按需忽略空白"""
-    text, positions = [], []
-    for index, character in enumerate(value):
-        if unicodedata.category(character) == "Cf":
-            continue
-        for normalized in unicodedata.normalize("NFKC", character):
-            if compact and normalized.isspace():
+    if value.isascii():
+        view = value, range(len(value))
+    else:
+        text, positions = StringIO(), array("I" if len(value) <= 0xFFFFFFFF else "Q")
+        for index, character in enumerate(value):
+            if unicodedata.category(character) == "Cf":
                 continue
-            text.append(normalized)
-            positions.append(index)
-    return "".join(text), positions
+            # 保持逐字符归一化，不能让相邻组合字符跨原文位置合成
+            normalized = unicodedata.normalize("NFKC", character)
+            text.write(normalized)
+            positions.extend(repeat(index, len(normalized)))
+        view = text.getvalue(), positions
+    return compact_text(view) if compact else view
+
+
+def compact_text(view):
+    """从普通视图去除空白，沿用展开字符、格式符对应的原文坐标"""
+    text, original = view
+    if not re.search(r"\s", text):
+        return view
+    parts = StringIO()
+    positions = array("I" if not original or original[-1] <= 0xFFFFFFFF else "Q")
+    for match in re.finditer(r"\S+", text):
+        parts.write(match[0])
+        positions.extend(original[match.start() : match.end()])
+    return parts.getvalue(), positions
 
 
 def known_pattern(known):
@@ -31,20 +50,22 @@ def known_pattern(known):
     return re.compile("|".join(re.escape(v) for v in sorted(candidates, key=len, reverse=True)))
 
 
-def known_variants(value, pattern):
+def known_variants(value, pattern, *, normalized=None):
     """用本轮词表定位 OCR 变体，返回可准确还原的原始片段"""
     if pattern is None:
         return set()
-    text, positions = normalized_text(value, compact=True)
+    text, positions = (
+        normalized_text(value, compact=True) if normalized is None else compact_text(normalized)
+    )
     return {
         value[positions[match.start()] : positions[match.end() - 1] + 1]
         for match in pattern.finditer(text)
     }
 
 
-def labeled_values(value, pattern):
+def labeled_values(value, pattern, *, normalized=None):
     """在统一字宽后的标签中发现身份，并返回原文值用于后续替换"""
-    text, positions = normalized_text(value)
+    text, positions = normalized_text(value) if normalized is None else normalized
     return {
         value[positions[match.start(1)] : positions[match.end(1) - 1] + 1].strip().strip("\"'")
         for match in pattern.finditer(text)
@@ -52,9 +73,9 @@ def labeled_values(value, pattern):
     }
 
 
-def formatted_values(value, patterns):
+def formatted_values(value, patterns, *, normalized=None):
     """对未登记的联系方式也按统一字宽匹配，避免 OCR 全角字符绕过规则"""
-    text, positions = normalized_text(value)
+    text, positions = normalized_text(value) if normalized is None else normalized
     return {
         value[positions[match.start()] : positions[match.end() - 1] + 1]
         for pattern in patterns

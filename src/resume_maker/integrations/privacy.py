@@ -18,6 +18,7 @@ from resume_maker.integrations.privacy_text import (
     known_variants,
     labeled_values,
     literal_spans,
+    normalized_text,
 )
 from resume_maker.sdk.model import ProviderError
 
@@ -103,6 +104,7 @@ class Redactor:
             value.strip() for value in values if isinstance(value, str) and value.strip()
         )
         self.count = 0
+        self._token_length = 0
         self._values_generation = self._secrets_generation = -1
         self._candidates, self._known_pattern, self._pattern = set(), None, None
         self._secret_values = ()
@@ -180,10 +182,11 @@ class Redactor:
             for child in value:
                 self.learn(child)
         elif isinstance(value, str):
-            self.values.update(identifier_values(value))
+            normalized = normalized_text(value)
+            self.values.update(identifier_values(value, normalized=normalized))
             for match in SECRET.finditer(value):
                 self.secrets.add(match[2].strip().strip("\"'"))
-            self.values.update(labeled_values(value, LABEL))
+            self.values.update(labeled_values(value, LABEL, normalized=normalized))
             for match in NAMED_PERSON.finditer(value):
                 self.values.add(next(group for group in match.groups() if group))
 
@@ -197,8 +200,23 @@ class Redactor:
         if value not in self.mapping:
             self.mapping[value] = f"[[RM_{self.prefix}_{len(self.mapping) + 1}]]"
             self.reverse[self.mapping[value]] = value
+            self._token_length = max(self._token_length, len(self.mapping[value]))
         self.count += 1
         return self.mapping[value]
+
+    def slice_bounds(self, value, start, limit):
+        """安全正文按完整占位符切片，手工起点落在内部时回到其开头"""
+        end = min(len(value), start + limit)
+        if self._token_length:
+            # 只检查边界附近，长行续读不能反复扫描已经返回的前缀
+            first = max(0, start - self._token_length + 1)
+            last = min(len(value), end + self._token_length)
+            for match in TOKEN.finditer(value, first, last):
+                if match.start() < start < match.end():
+                    start = match.start()
+                if match.start() < end < match.end():
+                    end = match.start() if match.start() > start else match.end()
+        return start, end
 
     def text(self, value):
         """先移除凭据再替换已知值、常见身份格式，编码附件直接拦截"""
@@ -230,9 +248,12 @@ class Redactor:
             if secret_value:
                 value = value.replace(secret_value, "[凭据已移除]")
         candidates, known, pattern = self.matchers()
-        dynamic = known_variants(value, known) | formatted_values(value, PATTERNS)
+        normalized = normalized_text(value)
+        dynamic = known_variants(value, known, normalized=normalized) | formatted_values(
+            value, PATTERNS, normalized=normalized
+        )
         dynamic_pattern = self.pattern(dynamic - candidates)
-        spans = identifier_spans(value)
+        spans = identifier_spans(value, normalized=normalized)
         spans.extend(literal_spans(value, pattern, dynamic_pattern))
         merged = []
         for start, end in sorted(spans):
