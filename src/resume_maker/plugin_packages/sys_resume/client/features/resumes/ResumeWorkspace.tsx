@@ -465,8 +465,12 @@ export default function ResumeWorkspace() {
             },
       );
   }, [remoteProject.data]);
-  useRevisionBodies(draft.items, revisionCache, setRevisionCache, (error) =>
-    setToast({ text: error.message, error: true }),
+  useRevisionBodies(
+    draft.items,
+    revisionCache,
+    setRevisionCache,
+    (error) => setToast({ text: error.message, error: true }),
+    refresh,
   );
   useEffect(() => {
     if (!toast || toast.error) return;

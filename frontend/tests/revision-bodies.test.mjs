@@ -20,6 +20,7 @@ async function application() {
       export function flushEffects() { for (const effect of effects.splice(0)) effect(); }
       export function dispose() { for (const cleanup of cleanups) cleanup?.(); }`,
     api: `export const requests = [];
+      export class ApiError extends Error { constructor(message, status) { super(message); this.status = status; } }
       export function api(path, method, body, signal) {
         return new Promise((resolve, reject) => requests.push({path, signal, resolve, reject}));
       }`,
@@ -28,13 +29,16 @@ async function application() {
     stdin: {
       contents: `export {useRevisionBodies} from "../src/resume_maker/plugin_packages/sys_resume/client/features/resumes/useRevisionBodies";
         export {begin, flushEffects, dispose} from "react";
-        export {requests} from "@resume-maker/plugin-sdk/shared/lib/api";`,
+        export {requests, ApiError} from "@resume-maker/plugin-sdk/shared/lib/api";`,
       resolveDir: fileURLToPath(new URL("../", import.meta.url)),
     },
     bundle: true,
     platform: "browser",
     format: "esm",
     write: false,
+    banner: {
+      js: "const window = new EventTarget(); export { window as browser };",
+    },
     plugins: [
       {
         name: "revision-body-fixtures",
@@ -60,9 +64,16 @@ async function application() {
 }
 
 /** 执行一轮渲染及提交后副作用，沿用 React 按依赖清理旧请求的顺序 */
-function render(module, items, cache, receive, onError = assert.fail) {
+function render(
+  module,
+  items,
+  cache,
+  receive,
+  onError = assert.fail,
+  refresh = 0,
+) {
   module.begin();
-  module.useRevisionBodies(items, cache, receive, onError);
+  module.useRevisionBodies(items, cache, receive, onError, refresh);
   module.flushEffects();
 }
 
@@ -176,4 +187,113 @@ test("新增引用从最新缓存补齐，取消后尚未应用的状态更新�
   assert.equal(module.requests.length, 1);
   assert.equal(updates[0](cache), cache);
   module.dispose();
+});
+
+test("部分成功立即回填，只有失败版本有限退避后继续读取", async (t) => {
+  const module = await application();
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  t.after(() => module.dispose());
+  let cache = {};
+  render(
+    module,
+    [{ revision_id: "a" }, { revision_id: "b" }],
+    cache,
+    (update) => {
+      cache = update(cache);
+    },
+  );
+  module.requests[0].resolve({ id: "a" });
+  module.requests[1].reject(new module.ApiError("暂时不可用", 503));
+  await settle();
+  assert.deepEqual(cache, { a: { id: "a" } });
+  t.mock.timers.tick(499);
+  assert.equal(module.requests.length, 2);
+  t.mock.timers.tick(1);
+  assert.equal(module.requests.length, 3);
+  assert.equal(module.requests[2].path, "/revisions/b");
+  module.requests[2].resolve({ id: "b" });
+  await settle();
+  assert.deepEqual(cache, { a: { id: "a" }, b: { id: "b" } });
+  t.mock.timers.tick(60000);
+  assert.equal(module.requests.length, 3);
+});
+
+test("自动重试耗尽后等待联网或已有刷新唤醒，唤醒不打断慢请求", async (t) => {
+  const module = await application();
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  t.after(() => module.dispose());
+  let cache = {};
+  const errors = [];
+  const items = [{ revision_id: "retry" }, { revision_id: "slow" }];
+  const receive = (update) => {
+    cache = update(cache);
+  };
+  const onError = (error) => errors.push(error.message);
+  render(module, items, cache, receive, onError);
+  for (const delay of [500, 1500, 4000]) {
+    module.requests
+      .filter((request) => request.path.endsWith("retry"))
+      .at(-1)
+      .reject(new TypeError("断网"));
+    await settle();
+    t.mock.timers.tick(delay);
+  }
+  module.requests.at(-1).reject(new TypeError("断网"));
+  await settle();
+  assert.deepEqual(errors, ["断网"]);
+  const attempts = module.requests.length;
+  t.mock.timers.tick(60000);
+  assert.equal(module.requests.length, attempts);
+  module.browser.dispatchEvent(new Event("online"));
+  assert.equal(module.requests.length, attempts + 1);
+  module.requests.at(-1).reject(new TypeError("再次断网"));
+  await settle();
+  render(
+    module,
+    items.map((item) => ({ ...item })),
+    cache,
+    receive,
+    onError,
+    1,
+  );
+  assert.equal(module.requests.length, attempts + 2);
+  assert.equal(
+    module.requests.filter((request) => request.path.endsWith("slow")).length,
+    1,
+  );
+  assert.equal(module.requests[1].signal.aborted, false);
+  module.requests.at(-1).resolve({ id: "retry" });
+  module.requests[1].resolve({ id: "slow" });
+  await settle();
+  t.mock.timers.tick(60000);
+  assert.equal(module.requests.length, attempts + 2);
+  assert.deepEqual(Object.keys(cache).sort(), ["retry", "slow"]);
+});
+
+test("不存在的版本不自动重试，离开后清理重试计时器及联网监听", async (t) => {
+  const module = await application();
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const errors = [];
+  const items = [{ revision_id: "missing" }, { revision_id: "retry" }];
+  const receive = () => assert.fail("失败请求不能回填");
+  const onError = (error) => errors.push(error.message);
+  render(module, items, {}, receive, onError);
+  module.requests[0].reject(new module.ApiError("不存在", 404));
+  module.requests[1].reject(new TypeError("断网"));
+  await settle();
+  module.browser.dispatchEvent(new Event("online"));
+  render(module, items, {}, receive, onError, 1);
+  assert.equal(
+    module.requests.filter((request) => request.path.endsWith("missing"))
+      .length,
+    1,
+  );
+  module.requests.at(-1).reject(new TypeError("仍断网"));
+  await settle();
+  module.dispose();
+  const attempts = module.requests.length;
+  t.mock.timers.tick(60000);
+  module.browser.dispatchEvent(new Event("online"));
+  assert.equal(module.requests.length, attempts);
+  assert.deepEqual(errors, ["不存在"]);
 });
