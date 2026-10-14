@@ -33,16 +33,14 @@ LABELS = {
 }
 
 
-def empty_project_range(text, fields, binding, start, end):
+def empty_project_range(text, fields, binding, start, end, ranges):
     """移走同段正文时一并清除其字段标签及前导分隔符，边界不触及标题、时间"""
     if binding.target not in BODY_TARGETS:
         return start, end
     preceding = [
-        quote_range(text, field)[1]
+        ranges[id(field)][1]
         for field in fields
-        if field.node == binding.node
-        and field is not binding
-        and quote_range(text, field)[1] <= start
+        if field.node == binding.node and field is not binding and ranges[id(field)][1] <= start
     ]
     left = max(preceding, default=0)
     prefix = text[left:start]
