@@ -1,6 +1,7 @@
 """提取模板的稳定节点清单，校验精确引文、重复区域、完整覆盖"""
 
 import posixpath
+from copy import deepcopy
 from io import BytesIO
 from pathlib import Path
 from urllib.parse import unquote
@@ -134,6 +135,21 @@ class TemplatePackage:
             self.reindex()
         except (BadZipFile, etree.XMLSyntaxError, KeyError) as exc:
             raise Problem("文件不是有效的 Word DOCX 模板。") from exc
+
+    def clone(self):
+        """克隆已规范化的工作包，保留内存编辑；外部文件仍须经过构造器校验"""
+        from resume_maker.integrations.document_limits import DOCX_MAX_UNCOMPRESSED_BYTES
+
+        files = self._files_snapshot()
+        if sum(map(len, files.values())) > DOCX_MAX_UNCOMPRESSED_BYTES:
+            raise Problem("模板解压后超过 100 MB。")
+        working = object.__new__(TemplatePackage)
+        working.files = files
+        # bytes 可安全共享，XML、索引及提示必须属于各自副本
+        working.parts = {name: deepcopy(root) for name, root in self.parts.items()}
+        working.notices = list(self.notices)
+        working.reindex()
+        return working
 
     def reindex(self):
         """结构变动后按序重建编号，使顺序匹配写回后重新读取的结果"""
@@ -407,13 +423,18 @@ class TemplatePackage:
             "ready": not errors and not unresolved,
         }
 
-    def write(self, output: Path):
-        """重写已修改的 XML 部件，其他样式、页设置、资源保持原样"""
+    def _files_snapshot(self):
+        """将当前 XML 编辑合入独立文件清单，原字节清单保持不变"""
         files = dict(self.files)
         for name, root in self.parts.items():
             files[name] = etree.tostring(
                 root, xml_declaration=True, encoding="UTF-8", standalone=True
             )
+        return files
+
+    def write(self, output: Path):
+        """重写已修改的 XML 部件，其他样式、页设置、资源保持原样"""
+        files = self._files_snapshot()
         with ZipFile(output, "w") as archive:
             for name, content in files.items():
                 archive.writestr(name, content)

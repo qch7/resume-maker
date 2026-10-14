@@ -1,7 +1,6 @@
 """为已完成识别且缺少个人资料位置的模板补充可复用填写段落"""
 
 from copy import deepcopy
-from io import BytesIO
 
 from lxml import etree
 
@@ -15,10 +14,7 @@ from resume_maker.integrations.word.templates.contact_style import (
 )
 from resume_maker.integrations.word.templates.flow import flow_paragraph
 from resume_maker.integrations.word.templates.layout import child_in
-from resume_maker.integrations.word.templates.mapping import (
-    TemplatePackage,
-    paragraph_text,
-)
+from resume_maker.integrations.word.templates.mapping import paragraph_text
 from resume_maker.integrations.word.templates.values import missing_targets, personal_values
 
 PERSONAL_LABELS = {
@@ -264,9 +260,7 @@ def supplement_personal_fields(package, plan, document, projects, source=None):
         return package, plan, []
     labels = [PERSONAL_LABELS.get(target, target.partition(":")[2]) for target in missing]
     # 先在完整副本中新增并校验，预览、导出不能修改已保存的模板及映射
-    buffer = BytesIO()
-    package.write(buffer)
-    working = TemplatePackage(buffer)
+    working = package.clone()
     previous = dict(working.nodes)
     body, position, donor = personal_insertion(working, base, document)
     style_donor = (
