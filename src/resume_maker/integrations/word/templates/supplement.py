@@ -6,6 +6,7 @@ from lxml import etree
 
 from resume_maker.core.errors import Problem
 from resume_maker.domain.templates import TextBinding
+from resume_maker.infrastructure.filesystem import replace_file
 from resume_maker.integrations.word.ooxml import NS, w
 from resume_maker.integrations.word.templates.contact_style import (
     SLOT_VERSION,
@@ -294,6 +295,6 @@ def supplement_personal_fields(package, plan, document, projects, source=None):
     if source is not None:
         temporary = source.with_name("supplemented.docx")
         working.write(temporary)
-        temporary.replace(source)
+        replace_file(temporary, source)
     working.notices = [*package.notices, notice]
     return working, updated, [notice]
