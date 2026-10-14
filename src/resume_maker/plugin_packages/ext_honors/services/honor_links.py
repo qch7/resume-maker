@@ -8,9 +8,22 @@ def resume_source():
     from resume_maker.sdk.sources import ResumeSource, SourcePage
 
     def resolve(reader, identifiers):
-        """仅返回本轮明确请求且已经人工核对的荣誉"""
-        values = (reader.setting("honor:" + identifier) for identifier in identifiers)
-        return tuple(source_item(value) for value in values if value and value["reviewed"])
+        """分批读取本轮唯一引用，缺失或未核对的荣誉不覆盖简历快照"""
+        keys = tuple(dict.fromkeys("honor:" + identifier for identifier in identifiers))
+        values = {}
+        # 参数数量不依赖当前 SQLite 编译上限，大批量引用仍保持有界查询
+        for offset in range(0, len(keys), 500):
+            batch = keys[offset : offset + 500]
+            rows = reader.all(
+                "SELECT key,value_json FROM settings WHERE key IN ("
+                + ",".join("?" for _ in batch)
+                + ")",
+                batch,
+            )
+            values.update((row["key"], row["value"]) for row in rows)
+        return tuple(
+            source_item(values[key]) for key in keys if key in values and values[key]["reviewed"]
+        )
 
     def browse(reader, cursor, query, limit):
         """按稳定标识分页，搜索不把证书原文、识别建议传给客户端"""

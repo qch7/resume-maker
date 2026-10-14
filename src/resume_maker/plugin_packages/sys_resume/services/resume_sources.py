@@ -70,21 +70,30 @@ class ResumeSources:
         """仅刷新明确关联的来源字段，来源缺失、未核对时保留原值"""
         if not document:
             return document
+        return self.resolve_many([document], conn)[0]
+
+    def resolve_many(self, documents, conn=None):
+        """同一快照汇总多份简历的来源引用，每个提供方只解析一次唯一标识"""
         if conn is None:
             with self.db.connect() as connection:
                 connection.execute("BEGIN")
-                return self.resolve(document, connection)
-        result = deepcopy(document)
-        for identifier, item in self.entries().items():
-            matched = []
-            for section in result["sections"]:
+                return self.resolve_many(documents, connection)
+        # 即使输入多次引用同一个字典，各份简历仍持有独立编排副本
+        result = [deepcopy(document) for document in documents]
+        providers = self.entries()
+        grouped = {}
+        for document in result:
+            if not document:
+                continue
+            for section in document["sections"]:
                 for entry in section.get("entries", []):
                     link = entry.get("source")
-                    if link and link.get("provider") == identifier:
-                        matched.append((entry, link["id"]))
-            if not matched:
-                continue
+                    if link and link.get("provider") in providers:
+                        grouped.setdefault(link["provider"], []).append((entry, link["id"]))
+        for identifier, matched in grouped.items():
+            item = providers[identifier]
             identifiers = tuple(dict.fromkeys(key for _, key in matched))
+            requested = set(identifiers)
             reader = self.db.read_session(conn)
             try:
                 rows = tuple(item.value.resolve(reader, identifiers))
@@ -95,7 +104,7 @@ class ResumeSources:
             values = {}
             for raw in rows:
                 row = SourceItem.model_validate(raw)
-                if row.id not in identifiers or row.id in values:
+                if row.id not in requested or row.id in values:
                     raise Problem("资料来源身份不符合请求。", 409)
                 values[row.id] = row
             for entry, key in matched:

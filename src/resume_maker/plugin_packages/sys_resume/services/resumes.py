@@ -28,8 +28,12 @@ class Resumes:
                 )
             ],
         }
-        for resume in result["resumes"]:
-            resume["document"] = self.resolve_document(resume["document"], conn)
+        if self.sources is not None:
+            documents = self.sources.resolve_many(
+                [resume["document"] for resume in result["resumes"]], conn
+            )
+            for resume, document in zip(result["resumes"], documents, strict=True):
+                resume["document"] = document
         return result
 
     def template_bytes(self, template):
@@ -73,10 +77,16 @@ class Resumes:
         if conn is None:
             with self.db.transaction() as connection:
                 return self.preserve_sources(connection)
-        rows = conn.execute("SELECT id,document_json FROM resumes WHERE document_json IS NOT NULL")
-        for row in rows.fetchall():
-            resume = unpack(row)
-            updated = self.resolve_document(resume["document"], conn)
+        resumes = [
+            unpack(row)
+            for row in conn.execute(
+                "SELECT id,document_json FROM resumes WHERE document_json IS NOT NULL"
+            )
+        ]
+        documents = [resume["document"] for resume in resumes]
+        if self.sources is not None:
+            documents = self.sources.resolve_many(documents, conn)
+        for resume, updated in zip(resumes, documents, strict=True):
             if updated != resume["document"]:
                 ResumeDocument.model_validate(updated)
                 conn.execute(
