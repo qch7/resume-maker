@@ -12,13 +12,11 @@ from resume_maker.integrations.word.templates.mapping import paragraph_text, quo
 from resume_maker.integrations.word.templates.personal import paragraph_stream, slice_paragraph
 
 
-def metadata_separator(paragraph, binding, fields, values):
+def metadata_separator(index, binding, fields, values, ranges):
     """日期、名称原本紧贴时补可见间距，保留已有空格、制表符及换行"""
     if binding.target not in {"title", "period"} or not values.get(binding.target):
         return ""
-    text = paragraph_text(paragraph)
-    _, end = quote_range(text, binding)
-    stream, positions = paragraph_stream(paragraph)
+    _, end = ranges[id(binding)]
     for other in fields:
         if (
             other.node != binding.node
@@ -26,11 +24,8 @@ def metadata_separator(paragraph, binding, fields, values):
             or not values.get(other.target)
         ):
             continue
-        start, _ = quote_range(text, other)
-        if (
-            0 < end == start < len(positions)
-            and not stream[positions[end - 1] + 1 : positions[start]]
-        ):
+        start, _ = ranges[id(other)]
+        if 0 < end == start < len(index.text) and end not in index.boundaries:
             return "\u2002"
     return ""
 

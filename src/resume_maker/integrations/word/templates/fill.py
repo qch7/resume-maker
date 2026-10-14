@@ -27,7 +27,6 @@ from resume_maker.integrations.word.templates.mapping import (
     TemplatePackage,
     image_container,
     paragraph_text,
-    paragraph_texts,
     quote_range,
     relationship_part,
     relationship_target,
@@ -43,6 +42,7 @@ from resume_maker.integrations.word.templates.record_columns import (
     metadata_separator,
     prepare_record_columns,
 )
+from resume_maker.integrations.word.templates.text_ranges import ParagraphTextIndex
 from resume_maker.integrations.word.templates.values import (
     missing_targets,
     personal_values,
@@ -50,21 +50,6 @@ from resume_maker.integrations.word.templates.values import (
 )
 
 CONTENT_TYPES = "http://schemas.openxmlformats.org/package/2006/content-types"
-
-
-def set_text(node, value: str):
-    """保留原文本片段样式，把用户换行转换为 Word 换行节点"""
-    parent, index = node.getparent(), node.getparent().index(node)
-    parent.remove(node)
-    for offset, line in enumerate(value.split("\n")):
-        if offset:
-            parent.insert(index, etree.Element(w("br")))
-            index += 1
-        text = etree.Element(w("t"))
-        text.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
-        text.text = line
-        parent.insert(index, text)
-        index += 1
 
 
 def empty_entry_range(text, start, end):
@@ -99,29 +84,38 @@ def fill_fields(nodes: dict, fields: list[TextBinding], values: dict):
     """保留样式替换引文并按顺序分配亮点，返回所有失去内容且可安全收起的字段段落"""
     grouped = {}
     field_counts = Counter(field.node for field in fields)
+    indexes = {identifier: ParagraphTextIndex(nodes[identifier]) for identifier in field_counts}
+    ranges = {id(field): quote_range(indexes[field.node].text, field) for field in fields}
     order = {identifier: index for index, identifier in enumerate(nodes)}
     highlight_fields = sorted(
         [field for field in fields if field.target == "highlights"],
         key=lambda field: (
             order[field.node],
-            quote_range(paragraph_text(nodes[field.node]), field),
+            ranges[id(field)],
         ),
     )
+    highlight_positions = {}
+    for position, field in enumerate(highlight_fields):
+        highlight_positions.setdefault(
+            (field.node, field.quote, field.target, field.occurrence), position
+        )
     for binding in fields:
-        node = nodes[binding.node]
-        start, end = quote_range(paragraph_text(node), binding)
+        index = indexes[binding.node]
+        start, end = ranges[id(binding)]
         value = str(values.get(binding.target, ""))
         if binding.target == "highlights" and "_highlight_items" in values:
-            position = highlight_fields.index(binding)
+            position = highlight_positions[
+                (binding.node, binding.quote, binding.target, binding.occurrence)
+            ]
             # 位置不足时将余下亮点合并到最后一处，位置过多时不重复填充整组内容
             stop = position + 1 if position < len(highlight_fields) - 1 else None
             value = "\n".join(values["_highlight_items"][position:stop])
         if not value.strip():
-            start, end = hidden_personal_range(paragraph_text(node), binding.target, start, end)
+            start, end = hidden_personal_range(index.text, binding.target, start, end)
             if values.get("_body_ordered"):
-                start, end = empty_project_range(paragraph_text(node), fields, binding, start, end)
+                start, end = empty_project_range(index.text, fields, binding, start, end, ranges)
             if binding.target in ENTRY_TARGETS and field_counts[binding.node] == 1:
-                start, end = empty_entry_range(paragraph_text(node), start, end)
+                start, end = empty_entry_range(index.text, start, end)
         if value and not binding.quote and binding.target.startswith("personal.custom:"):
             value = binding.target.partition(":")[2] + "：" + value
         colon = binding.quote.find("：")
@@ -135,58 +129,10 @@ def fill_fields(nodes: dict, fields: list[TextBinding], values: dict):
                 ]
             )
         else:
-            value += metadata_separator(node, binding, fields, values)
+            value += metadata_separator(index, binding, fields, values, ranges)
             grouped.setdefault(binding.node, []).append((start, end, value))
     for identifier, replacements in grouped.items():
-        paragraph = nodes[identifier]
-        modified_links = set()
-        for start, end, value in sorted(replacements, reverse=True):
-            if start == end == 0:
-                run = next(iter(paragraph.findall(w("r"))), None)
-                if run is None:
-                    run = etree.SubElement(paragraph, w("r"))
-                set_text(etree.SubElement(run, w("t")), value)
-                continue
-            # 清除被整段引文覆盖的旧换行、制表符以免旧样本空行留在新正文中
-            position = 0
-            for child in list(paragraph.iter()):
-                if next(child.iterancestors(w("p")), None) is not paragraph:
-                    continue
-                if child.tag == w("t"):
-                    position += len(child.text or "")
-                elif child.tag in {w("br"), w("cr"), w("tab")} and start < position < end:
-                    child.getparent().remove(child)
-            texts = paragraph_texts(paragraph)
-            position, preferred = 0, None
-            for text in texts:
-                original = text.text or ""
-                limit = position + len(original)
-                if position < end and start < limit:
-                    if preferred is None:
-                        preferred = text
-                    if original[max(0, start - position) : end - position].strip():
-                        preferred = text
-                        break
-                position = limit
-            position = 0
-            for text in texts:
-                original = text.text or ""
-                limit = position + len(original)
-                if position < end and start < limit:
-                    link = next(text.iterancestors(w("hyperlink")), None)
-                    if link is not None:
-                        modified_links.add(link)
-                    prefix = original[: max(0, start - position)]
-                    suffix = original[max(0, end - position) :]
-                    set_text(text, prefix + (value if text is preferred else "") + suffix)
-                position = limit
-        for link in modified_links:
-            if next(link.iterancestors(w("p")), None) is not paragraph:
-                continue
-            parent = link.getparent()
-            for child in list(link):
-                parent.insert(parent.index(link), child)
-            parent.remove(link)
+        indexes[identifier].apply(replacements)
     return [nodes[key] for key in grouped if empty_field_paragraph(nodes[key])]
 
 

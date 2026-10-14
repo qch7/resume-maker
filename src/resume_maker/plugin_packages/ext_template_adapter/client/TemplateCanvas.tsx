@@ -1,17 +1,11 @@
-import { useEffect, useMemo, useRef } from "react";
-import type { TemplateNode, TemplatePlan } from "./types";
-import {
-  highlightedText,
-  mappingIndex,
-  templateChildren,
-  REGION_LABELS,
-  targetLabel,
-} from "./visual";
+import { useEffect, useRef } from "react";
+import type { TemplateNode } from "./types";
+import type { TemplateSnapshot } from "./visualSnapshot";
+import { highlightedText, REGION_LABELS, targetLabel } from "./visual";
 import TemplateImage from "./TemplateImage";
 
 interface Props {
-  nodes: TemplateNode[];
-  plan: TemplatePlan;
+  snapshot: TemplateSnapshot;
   taskId: string;
   selected: string[];
   onSelect: (id: string, extend?: boolean) => void;
@@ -22,17 +16,9 @@ interface Props {
 /** 根据映射展示可点击的文档结构、字段高亮 */
 export default function TemplateCanvas(props: Props) {
   const root = useRef<HTMLDivElement>(null);
-  const tree = useMemo(
-    /* 节点清单未变时复用结构索引 */ () => templateChildren(props.nodes),
-    [props.nodes],
-  );
-  const mappings = useMemo(
-    /* 预先计算映射状态供递归渲染使用 */ () =>
-      mappingIndex(props.nodes, props.plan),
-    [props.nodes, props.plan],
-  );
+  const { nodes, children: tree, mappings } = props.snapshot;
   const parts = [
-    ...new Set(props.nodes.map(/* 提取各 Word 文字部件 */ (node) => node.part)),
+    ...new Set(nodes.map(/* 提取各 Word 文字部件 */ (node) => node.part)),
   ].sort(
     /* 页眉在正文前，页脚在正文后 */ (left, right) =>
       orderPart(left) - orderPart(right),

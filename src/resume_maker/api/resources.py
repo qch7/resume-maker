@@ -1,5 +1,6 @@
 """资源下载期间持有租约，断开或异常同样归还"""
 
+import anyio
 from starlette.responses import FileResponse, Response
 
 
@@ -27,11 +28,46 @@ class AssetResponse(Response):
         self.file_media_type, self.file_headers = media_type, headers
 
     async def __call__(self, scope, receive, send):
-        """用异常安全的租约覆盖完整 ASGI 文件传输"""
-        with self.assets.lease(self.identifier) as path:
-            await FileResponse(
-                path,
-                filename=self.filename,
-                media_type=self.file_media_type,
-                headers=self.file_headers,
-            )(scope, receive, send)
+        """在工作线程校验资源，取消后等待校验及租约收尾，不阻塞事件循环"""
+        failure = None
+
+        async def transfer():
+            """子任务持有实际线程的生命周期，获取租约后再次检查请求取消"""
+            nonlocal failure
+            entered = False
+            try:
+                await anyio.lowlevel.checkpoint()
+                lease = self.assets.lease(self.identifier)
+                with anyio.CancelScope(shield=True):
+                    path = await anyio.to_thread.run_sync(lease.__enter__)
+                    entered = True
+                await anyio.lowlevel.checkpoint()
+                await FileResponse(
+                    path,
+                    filename=self.filename,
+                    media_type=self.file_media_type,
+                    headers=self.file_headers,
+                )(scope, receive, send)
+            except BaseException as exc:
+                failure = exc
+            finally:
+                if entered:
+                    # 归还不争用下载线程额度，父请求取消也不能跳过租约释放
+                    with anyio.CancelScope(shield=True):
+                        try:
+                            suppressed = await anyio.to_thread.run_sync(
+                                lease.__exit__,
+                                type(failure) if failure is not None else None,
+                                failure,
+                                failure.__traceback__ if failure is not None else None,
+                                limiter=anyio.CapacityLimiter(1),
+                            )
+                            if suppressed:
+                                failure = None
+                        except BaseException as exc:
+                            failure = exc
+
+        async with anyio.create_task_group() as group:
+            group.start_soon(transfer)
+        if failure is not None:
+            raise failure

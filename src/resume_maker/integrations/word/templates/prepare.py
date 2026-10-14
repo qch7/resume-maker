@@ -9,6 +9,20 @@ from resume_maker.integrations.word.templates.fields import freeze_fields
 COMMENT_RELATIONS = {"comments", "commentsExtended", "commentsIds", "commentsExtensible", "people"}
 COMMENT_MARKS = {w("commentRangeStart"), w("commentRangeEnd"), w("commentReference")}
 MC = "http://schemas.openxmlformats.org/markup-compatibility/2006"
+WORD_NAMESPACE = f"{{{NS['w']}}}"
+INSERTED_REVISIONS = {w("ins"), w("moveTo")}
+REMOVED_REVISIONS = {w("del"), w("moveFrom")}
+EDIT_BINDINGS = {
+    w(tag)
+    for tag in (
+        "dataBinding",
+        "lock",
+        "updateFields",
+        "trackRevisions",
+        "documentProtection",
+        "writeProtection",
+    )
+}
 
 
 def normalize_document_kind(files):
@@ -60,6 +74,7 @@ def prepare_parts(files: dict[str, bytes]) -> list[str]:
     }
     changed = False
     fields, revisions, bindings, missing_notes = set(), 0, 0, 0
+    note_identifiers = {}
     for name in list(files):
         if name in removed:
             del files[name]
@@ -102,7 +117,12 @@ def prepare_parts(files: dict[str, bytes]) -> list[str]:
         for node in list(root.iter()):
             if node.getparent() is None:
                 continue
-            if node.tag in {w("ins"), w("moveTo")}:
+            local = (
+                node.tag[len(WORD_NAMESPACE) :]
+                if isinstance(node.tag, str) and node.tag.startswith(WORD_NAMESPACE)
+                else ""
+            )
+            if node.tag in INSERTED_REVISIONS:
                 parent, position = node.getparent(), node.getparent().index(node)
                 for child in list(node):
                     parent.insert(position, child)
@@ -110,26 +130,13 @@ def prepare_parts(files: dict[str, bytes]) -> list[str]:
                 parent.remove(node)
                 revisions += 1
                 dirty = True
-            elif node.tag in {w("del"), w("moveFrom")} or (
-                isinstance(node.tag, str)
-                and node.tag.startswith(f"{{{NS['w']}}}")
-                and (
-                    etree.QName(node).localname.endswith("PrChange")
-                    or "Range" in etree.QName(node).localname
-                    and "move" in etree.QName(node).localname
-                )
+            elif node.tag in REMOVED_REVISIONS or (
+                local.endswith("PrChange") or "Range" in local and "move" in local
             ):
                 node.getparent().remove(node)
                 revisions += 1
                 dirty = True
-            elif node.tag in {
-                w("dataBinding"),
-                w("lock"),
-                w("updateFields"),
-                w("trackRevisions"),
-                w("documentProtection"),
-                w("writeProtection"),
-            }:
+            elif node.tag in EDIT_BINDINGS:
                 node.getparent().remove(node)
                 bindings += 1
                 dirty = True
@@ -138,20 +145,31 @@ def prepare_parts(files: dict[str, bytes]) -> list[str]:
         dirty |= bool(converted)
         for kind in ("footnote", "endnote"):
             note_data = files.get(f"word/{kind}s.xml")
-            notes = (
-                etree.fromstring(
-                    note_data, etree.XMLParser(resolve_entities=False, no_network=True)
+            cached = note_identifiers.get(kind)
+            # 当前循环可能接受脚注部件的修订，序列化后须让旧身份集合失效
+            if cached is None or cached[0] is not note_data:
+                notes = (
+                    etree.fromstring(
+                        note_data, etree.XMLParser(resolve_entities=False, no_network=True)
+                    )
+                    if note_data
+                    else []
                 )
-                if note_data
-                else []
-            )
-            identifiers = {node.get(w("id")) for node in notes}
+                cached = note_data, {node.get(w("id")) for node in notes}
+                note_identifiers[kind] = cached
+            identifiers = cached[1]
             for node in list(root.iter(w(f"{kind}Reference"))):
                 if node.get(w("id")) not in identifiers:
                     node.getparent().remove(node)
                     missing_notes += 1
                     dirty = True
-        for node in list(root.iter()):
+        # 关系及内容类型按属性清理，其他部件只需查看批注标记
+        candidates = (
+            root.iter()
+            if name.endswith(".rels") or name == "[Content_Types].xml"
+            else root.iter(*COMMENT_MARKS)
+        )
+        for node in list(candidates):
             if node.getparent() is None:
                 continue
             if (

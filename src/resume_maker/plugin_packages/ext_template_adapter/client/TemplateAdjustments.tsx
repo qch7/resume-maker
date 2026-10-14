@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import type { ResumeDocument } from "@resume-maker/plugin-sdk/shared/types/index";
 import type { TemplateNode, TemplatePlan } from "./types";
 import { adjustmentChoices } from "./adjustments";
+import { templateSnapshot } from "./visualSnapshot";
 import AdvancedMapping from "./AdvancedMapping";
 import TemplateCanvas from "./TemplateCanvas";
 import TemplateInspector from "./TemplateInspector";
@@ -32,9 +33,15 @@ export default function TemplateAdjustments({
 }) {
   const [advanced, setAdvanced] = useState(false);
   const [showBlanks, setShowBlanks] = useState(false);
-  const groups = useMemo(
-    /* 修改用途后同步更新分类 */ () => adjustmentChoices(nodes, plan),
+  const snapshot = useMemo(
+    /* 编辑方案、替换节点时重建，选择变化共用已有索引 */ () =>
+      templateSnapshot(nodes, plan),
     [nodes, plan],
+  );
+  const groups = useMemo(
+    /* 修改用途后同步更新分类 */ () =>
+      adjustmentChoices(nodes, plan, snapshot.mappings),
+    [nodes, plan, snapshot],
   );
   const known = groups.some(
     /* 高级选区可能对应自定义位置 */ (group) =>
@@ -42,8 +49,7 @@ export default function TemplateAdjustments({
   );
   const inspector = (
     <TemplateInspector
-      nodes={nodes}
-      plan={plan}
+      snapshot={snapshot}
       document={document}
       selected={selected}
       advanced={advanced}
@@ -81,12 +87,8 @@ export default function TemplateAdjustments({
                   /* 重复用途以原文摘要区分位置 */ (choice) => (
                     <option value={choice.id} key={choice.id}>
                       {choice.label} ·{" "}
-                      {nodes
-                        .find(
-                          /* 获取当前位置的原文 */ (node) =>
-                            node.id === choice.id,
-                        )
-                        ?.text.slice(0, 32) || "图片或空位"}
+                      {snapshot.byId.get(choice.id)?.text.slice(0, 32) ||
+                        "图片或空位"}
                     </option>
                   ),
                 )}
@@ -129,8 +131,7 @@ export default function TemplateAdjustments({
             )}
             <div className="template-structure-picker">
               <TemplateCanvas
-                nodes={nodes}
-                plan={plan}
+                snapshot={snapshot}
                 taskId={taskId}
                 selected={selected}
                 onSelect={onSelect}

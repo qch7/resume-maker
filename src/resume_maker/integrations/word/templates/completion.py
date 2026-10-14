@@ -4,6 +4,7 @@ from pydantic import ValidationError
 
 from resume_maker.core.errors import Problem
 from resume_maker.domain.templates import TemplatePlan
+from resume_maker.infrastructure.filesystem import replace_file
 from resume_maker.integrations.word.templates.sections import (
     defer_empty_sections,
     supplement_sections,
@@ -45,5 +46,5 @@ def complete_template(package, plan, document, projects, source=None, *, review=
     if notices and source is not None:
         temporary = source.with_name("completed-template.docx")
         package.write(temporary)
-        temporary.replace(source)
+        replace_file(temporary, source)
     return package, plan, notices

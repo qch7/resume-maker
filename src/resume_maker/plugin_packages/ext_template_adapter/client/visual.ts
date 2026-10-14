@@ -92,11 +92,17 @@ export function repeatNodes(
 }
 
 /** 预先建立节点用途索引以避免画布逐节点扫描重复区 */
-export function mappingIndex(nodes: TemplateNode[], plan: TemplatePlan) {
+export function mappingIndex(
+  nodes: TemplateNode[],
+  plan: TemplatePlan,
+  repeatMembers = plan.repeats.map((_, index) =>
+    repeatNodes(nodes, plan, index),
+  ),
+) {
   const regions = new Map<string, number>();
-  plan.repeats.forEach(
+  repeatMembers.forEach(
     /* 按方案顺序标记区域归属，重叠仍由校验报告 */ (_, index) => {
-      for (const id of repeatNodes(nodes, plan, index))
+      for (const id of repeatMembers[index])
         if (!regions.has(id)) regions.set(id, index);
     },
   );

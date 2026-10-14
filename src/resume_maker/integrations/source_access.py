@@ -253,13 +253,14 @@ class SourceAccess:
         match = query.pattern.search(line)
         if match is None:
             return None
-        start = max(0, match.start() - 120)
+        text = line.rstrip("\r\n")
+        start, end = self.redactor.slice_bounds(text, max(0, match.start() - 120), 1000)
         return self.source_row(
             {
                 **metadata,
                 "line": number,
                 "column": start + 1,
-                "text": line.rstrip("\r\n")[start : start + 1000],
+                "text": text[start:end],
             },
             entry,
             line=number,
@@ -404,6 +405,8 @@ class SourceAccess:
                 continue
             extra = len(json.dumps(row, ensure_ascii=False)) + (2 if rows else 0)
             if size + extra > MAX_RESULT - 200:
+                if not rows:
+                    raise SourceBudgetExceeded("完整源码片段超过单次响应预算，请缩小查询范围。")
                 iterator = chain([row], iterator)
                 break
             rows.append(row)
@@ -418,6 +421,8 @@ class SourceAccess:
             for index, row in enumerate(refreshed):
                 extra = len(json.dumps(row, ensure_ascii=False)) + (2 if rows else 0)
                 if size + extra > MAX_RESULT - 200:
+                    if not rows:
+                        raise SourceBudgetExceeded("完整源码片段超过单次响应预算，请缩小查询范围。")
                     iterator = chain(refreshed[index:], iterator)
                     complete = False
                     break
@@ -466,18 +471,21 @@ class SourceAccess:
                 offset = column - 1 if number == start else 0
                 if offset > len(text):
                     raise ValueError("读取列号超出当前行")
-                row = {"line": number, "text": text[offset : offset + 2000]}
+                offset, end = self.redactor.slice_bounds(text, offset, 2000)
+                row = {"line": number, "text": text[offset:end]}
                 extra = len(json.dumps(row, ensure_ascii=False)) + (2 if result["lines"] else 0)
                 if len(result["lines"]) == count or size + extra > MAX_RESULT - 200:
+                    if not result["lines"]:
+                        raise SourceBudgetExceeded("完整源码片段超过单次响应预算，请缩小读取范围。")
                     result.update(
                         next={"start_line": number, "start_column": offset + 1}, eof=False
                     )
                     break
                 result["lines"].append(row)
                 size += extra
-                if offset + len(row["text"]) < len(text):
+                if end < len(text):
                     result.update(
-                        next={"start_line": number, "start_column": offset + len(row["text"]) + 1},
+                        next={"start_line": number, "start_column": end + 1},
                         eof=False,
                     )
                     break

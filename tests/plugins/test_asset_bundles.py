@@ -1,6 +1,7 @@
 """不可变原件、原子引用、统一资源恢复的用户行为验收"""
 
 from io import BytesIO
+from pathlib import Path
 from zipfile import ZipFile
 
 import pytest
@@ -8,11 +9,41 @@ from fastapi.testclient import TestClient
 
 from resume_maker.api import create_app
 from resume_maker.core.config import Config
+from resume_maker.core.errors import Problem
 from resume_maker.infrastructure.assets import Assets
 from resume_maker.infrastructure.database import Database
 from resume_maker.infrastructure.storage import create_backup, restore_backup
 from resume_maker.plugin_packages.ext_honors.services.honors import Honors
 from tests.support.honors import certificate_bytes
+
+
+def test_read_file_checks_returned_bytes_once_and_releases_failed_lease(tmp_path, monkeypatch):
+    """完整原件只读一次，摘要校验作用于返回字节，原件损坏也不遗留租约"""
+    assets = Assets(Database(tmp_path / "resume.db"), tmp_path)
+    raw = b"synthetic attachment" * 5000
+    staged = assets.stage_bundle("example", {"original": raw})
+    with assets.db.transaction() as conn:
+        assets.publish_bundle(conn, "example", "examples/one", staged)
+    identifier = staged["original"]["id"]
+    original, reads = Path.read_bytes, []
+
+    def read(path):
+        """实际读取期间必须先持有租约，计数不依赖运行耗时"""
+        if path.name == "payload":
+            reads.append(path)
+            assert assets.leases[identifier] == 1
+        return original(path)
+
+    monkeypatch.setattr(Path, "read_bytes", read)
+    assert assets.read_file("examples/one", "original") == raw
+    assert len(reads) == 1 and assets.leases[identifier] == 0
+    reads[0].write_bytes(b"changed")
+    with pytest.raises(Problem, match="摘要不匹配"):
+        assets.read_file("examples/one", "original")
+    assert len(reads) == 2 and assets.leases[identifier] == 0
+    with pytest.raises(Problem, match="摘要不匹配"), assets.lease(identifier):
+        pytest.fail("损坏原件不能取得已验证路径")
+    assert len(reads) == 2 and assets.leases[identifier] == 0
 
 
 def test_certificate_backup_restores_without_optional_plugin(tmp_path):

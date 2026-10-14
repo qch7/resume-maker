@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from resume_maker.integrations.word.ooxml import w
 
 STORIES = {w(tag) for tag in ("txbxContent", "footnote", "endnote")}
+FIELD_CONTENT = (w("fldChar"), w("instrText"), w("t"))
 
 
 def field_kind(code: str) -> str:
@@ -34,7 +35,7 @@ class ComplexField:
 def complex_fields(root) -> list[ComplexField]:
     """按正文、文本框及独立脚注分别匹配域边界以免跨故事或嵌套指令被误删"""
     stacks, fields = {}, []
-    for node in root.iter():
+    for node in root.iter(*FIELD_CONTENT):
         story = next((parent for parent in node.iterancestors() if parent.tag in STORIES), root)
         stack = stacks.setdefault(story, [])
         if node.tag == w("fldChar"):
