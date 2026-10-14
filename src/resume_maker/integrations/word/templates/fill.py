@@ -39,6 +39,7 @@ from resume_maker.integrations.word.templates.project_order import (
 )
 from resume_maker.integrations.word.templates.project_slots import prepare_project_slots
 from resume_maker.integrations.word.templates.record_columns import (
+    RecordColumnWidths,
     metadata_separator,
     prepare_record_columns,
 )
@@ -379,7 +380,7 @@ def fill_template(
             "模板映射尚未完成：" + "；".join(review["errors"] or ["还有未处理的原文或图片"])
         )
     document = ResumeDocument.model_validate(content)
-    package, plan, notices = complete_template(package, plan, document, projects)
+    package, plan, notices = complete_template(package, plan, document, projects, review=review)
     missing = missing_targets(document, plan, projects)
     if missing:
         raise Problem("模板未覆盖这些已填写资料，请补充映射或在资料中隐藏：" + "、".join(missing))
@@ -406,6 +407,7 @@ def fill_template(
             region_values(record, region.fields)
             for record in section_records(document, region.section, projects)
         ]
+        column_widths = RecordColumnWidths(records)
         has_sections = any(list(node.iter(w("sectPr"))) for node in sample)
         closing = (
             effective_section(sample[0])
@@ -436,7 +438,7 @@ def fill_template(
                 position += 1
             fields, blank_slots = prepare_project_slots(nodes, region.fields, record, plan.keep)
             align_record(styles, nodes, fields)
-            fields = prepare_record_columns(styles, nodes, fields, records, package.nodes)
+            fields = prepare_record_columns(styles, nodes, fields, column_widths, package.nodes)
             record, blank_labels = arrange_project_body(nodes, fields, record, styles)
             blank_fields = fill_fields(nodes, fields, record)
             for blank in dict.fromkeys([*blank_slots, *blank_labels, *blank_fields]):

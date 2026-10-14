@@ -9,9 +9,7 @@ export default function VersionControl({ props }: { props: EditorProps }) {
   const [dialog, setDialog] = useState<"history" | "create" | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const submission = useRef(false);
-  const current = detail.revisions.find(
-    /* 显示当前编辑的具体版本 */ (revision) => revision.id === revisionId,
-  )!;
+  const current = detail.revision;
   const historical = detail.branch.head_revision !== revisionId;
   const pending = props.hasLocalChanges;
   return (

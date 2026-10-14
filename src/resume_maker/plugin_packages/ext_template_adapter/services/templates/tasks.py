@@ -535,7 +535,7 @@ class Templates:
                     initial,
                     feedback,
                 )
-            review = check_trial(source, plan, review, document, projects)
+                review = check_trial(source, plan, review, document, projects)
             # 自动补位置会重新编号，结果清单必须读取同一份新快照，旧源文件不能复用新编号缓存
             inventory = TemplatePackage(source).inventory()
             with self.lock:

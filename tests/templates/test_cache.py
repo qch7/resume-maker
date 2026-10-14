@@ -9,6 +9,7 @@ from resume_maker.api import create_app
 from resume_maker.core.config import Config
 from resume_maker.infrastructure.assets import Assets
 from resume_maker.integrations.word.templates.mapping import TemplatePackage
+from resume_maker.integrations.word.templates.review import check_trial
 from resume_maker.plugin_packages.ext_template_adapter.services.templates.tasks import Templates
 from resume_maker.plugin_packages.ext_template_ai.services.templates.analysis import (
     compact_inventory,
@@ -69,7 +70,7 @@ def test_repair_reuses_only_its_own_session(catalog, tmp_path):
     assert provider.calls[2]["thread_id"] is None
 
 
-def test_cache_survives_restart_but_rechecks_changed_requirements(catalog, tmp_path):
+def test_cache_survives_restart_but_rechecks_changed_requirements(catalog, tmp_path, monkeypatch):
     """资料值变化可复用，新增待填字段必须重识别，人工要求不能被缓存吞掉"""
     source = tmp_path / "source.docx"
     simple_template(source)
@@ -94,9 +95,21 @@ def test_cache_survives_restart_but_rechecks_changed_requirements(catalog, tmp_p
     )
     doc = simple_document()
     doc.personal.name = "另一位使用者"
+    trials = []
+
+    def counted_trial(source, plan, review, document, projects):
+        """缓存命中仍按当前资料试填，成功后不得重复生成同一副本"""
+        trials.append(document.model_dump())
+        return check_trial(source, plan, review, document, projects)
+
+    monkeypatch.setattr(
+        "resume_maker.plugin_packages.ext_template_adapter.services.templates.tasks.check_trial",
+        counted_trial,
+    )
     second = completed(service, service.analyze(source, doc)["id"])
     assert second["reused"] and second["attempts"] == 0 and len(provider.calls) == 1
     assert second["plan"] == first["plan"] and second["review"]["ready"]
+    assert trials == [doc.model_dump()]
     doc.personal.phone = "10000000000"
     third = completed(service, service.analyze(source, doc)["id"])
     assert not third["reused"] and third["review"]["ready"]

@@ -1,14 +1,28 @@
 import { GitBranch, GitCommitHorizontal, Plus, X } from "lucide-react";
-import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { createPortal } from "react-dom";
 import { api } from "@resume-maker/plugin-sdk/shared/lib/api";
 import { flushDrafts } from "@resume-maker/plugin-sdk/shared/lib/draftRegistry";
 import type {
   Branch,
   ProjectDetail,
+  Revision,
 } from "@resume-maker/plugin-sdk/shared/types/index";
 import type { EditorProps } from "./types";
-import { historyGraph, revisionChanges, revisionOrigin } from "./history";
+import {
+  historyGraph,
+  revisionChanges,
+  revisionOrigin,
+  type HistoryRevision,
+} from "./history";
+import { createRevisionReader } from "./revisionReader";
 
 /** 在历史树中预览不可变版本，或从任意节点创建独立分支 */
 export default function HistoryDialog({
@@ -30,23 +44,57 @@ export default function HistoryDialog({
   const [includeDrafts, setIncludeDrafts] = useState(true);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
-  const graph = historyGraph(
-    detail.revisions,
-    detail.branches,
-    detail.uncommitted,
+  const [previewError, setPreviewError] = useState("");
+  const [preview, setPreview] = useState<{
+    source: HistoryRevision;
+    revision: Revision;
+    parent?: Revision;
+  } | null>(null);
+  const [readRevision] = useState(() =>
+    createRevisionReader(
+      (id, signal) =>
+        api<Revision>(`/revisions/${id}`, "GET", undefined, signal),
+      [props.detail.revision],
+    ),
   );
-  const current = graph.nodes.find(
-    /* 草稿节点使用工作副本，正式节点仍使用不可变内容 */ (node) =>
-      node.revision.id === selected,
-  )!.revision;
+  const graph = useMemo(
+    /* 选择、输入分支名不会改变历史结构 */ () =>
+      historyGraph(detail.revisions, detail.branches, detail.uncommitted),
+    [detail.revisions, detail.branches, detail.uncommitted],
+  );
+  const current = (graph.byId.get(selected) ?? graph.byId.get(revisionId)!)
+    .revision;
   const baseId = current.uncommitted ? current.parent_id! : current.id;
-  const parent = detail.revisions.find(
-    /* 展示可核对的分叉来源 */ (revision) => revision.id === current.parent_id,
-  );
+  const parent = graph.byId.get(current.parent_id ?? "")?.revision;
+  const loaded = preview?.source === current ? preview : null;
   const branch = detail.branches.find(
     /* 识别当前节点所属分支及其最新指针 */ (item) =>
       item.id === current.branch_id,
   )!;
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setPreviewError("");
+    void Promise.all([
+      current.uncommitted
+        ? Promise.resolve(current)
+        : readRevision(current.id, controller.signal),
+      current.parent_id
+        ? readRevision(current.parent_id, controller.signal)
+        : Promise.resolve(undefined),
+    ])
+      .then(([revision, parent]) => {
+        if (!controller.signal.aborted)
+          setPreview({ source: current, revision, parent });
+      })
+      .catch((reason) => {
+        if (!controller.signal.aborted)
+          setPreviewError(
+            reason instanceof Error ? reason.message : "无法读取版本正文。",
+          );
+      });
+    return () => controller.abort();
+  }, [current, readRevision]);
 
   useEffect(
     /* 使用原生模态焦点约束，关闭时归还焦点 */ () => {
@@ -229,10 +277,7 @@ export default function HistoryDialog({
                 revision,
                 color,
               }) => {
-                const atHead = detail.branches.some(
-                  /* 在分支最新节点展示指针标签 */ (item) =>
-                    item.head_revision === revision.id,
-                );
+                const atHead = graph.heads.has(revision.id);
                 return (
                   <button
                     key={revision.id}
@@ -390,40 +435,56 @@ export default function HistoryDialog({
                 父版本 r{parent.number} · {parent.branch_name}
               </button>
             )}
-            <p className="history-change-summary">
+            {previewError && (
+              <p className="warning" role="alert">
+                {previewError}
+              </p>
+            )}
+            <p className="history-change-summary" role="status">
               {current.origin === "branch"
                 ? current.note
-                : revisionChanges(current, parent).join(" · ")}
+                : loaded
+                  ? revisionChanges(loaded.revision, loaded.parent).join(" · ")
+                  : previewError
+                    ? "版本正文尚未载入"
+                    : "正在读取版本正文…"}
             </p>
-            <div className="history-saved-content">
-              <h3>{current.content.title}</h3>
-              <p className="subtle">
-                {[current.content.period, current.content.role]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </p>
-              <p>{current.content.stack.join(" · ")}</p>
-              <p>{current.content.description || "尚未填写项目描述"}</p>
-              {(current.content.custom_fields ?? []).map(
-                /* 历史详情展示保存的自定义原文，隐藏项仍可核对、恢复 */ (
-                  field,
-                ) => (
-                  <p key={field.id}>
-                    <b>{field.label || "未命名条目"}：</b>
-                    {field.value || "未填写"}
-                    {!field.visible && <span className="tag">已隐藏</span>}
-                  </p>
-                ),
-              )}
-              {current.content.highlights.map(
-                /* 只展示保存内容，切换浏览不会改变原始版本 */ (point) => (
-                  <div className="history-highlight" key={point.id}>
-                    <b>{point.title}</b>
-                    <p>{point.text}</p>
-                  </div>
-                ),
-              )}
-            </div>
+            {loaded && (
+              <div className="history-saved-content">
+                <h3>{loaded.revision.content.title}</h3>
+                <p className="subtle">
+                  {[
+                    loaded.revision.content.period,
+                    loaded.revision.content.role,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+                <p>{loaded.revision.content.stack.join(" · ")}</p>
+                <p>
+                  {loaded.revision.content.description || "尚未填写项目描述"}
+                </p>
+                {(loaded.revision.content.custom_fields ?? []).map(
+                  /* 历史详情展示保存的自定义原文，隐藏项仍可核对、恢复 */ (
+                    field,
+                  ) => (
+                    <p key={field.id}>
+                      <b>{field.label || "未命名条目"}：</b>
+                      {field.value || "未填写"}
+                      {!field.visible && <span className="tag">已隐藏</span>}
+                    </p>
+                  ),
+                )}
+                {loaded.revision.content.highlights.map(
+                  /* 只展示保存内容，切换浏览不会改变原始版本 */ (point) => (
+                    <div className="history-highlight" key={point.id}>
+                      <b>{point.title}</b>
+                      <p>{point.text}</p>
+                    </div>
+                  ),
+                )}
+              </div>
+            )}
           </div>
         </section>
       </div>

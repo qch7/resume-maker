@@ -62,6 +62,7 @@ export interface Revision {
   branch_id: string;
   branch_name: string;
 }
+export type RevisionSummary = Omit<Revision, "content">;
 export interface Branch {
   id: string;
   project_id: string;
@@ -105,7 +106,8 @@ export interface ProjectDetail {
   project: Project;
   branch: Branch;
   branches: Branch[];
-  revisions: Revision[];
+  revision: Revision;
+  revisions: RevisionSummary[];
   working: Working;
   uncommitted?: UncommittedRevision[];
   snapshots: Snapshot[];

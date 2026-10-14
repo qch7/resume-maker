@@ -372,3 +372,95 @@ def test_changed_file_and_mid_scan_cancellation(tmp_path, monkeypatch):
         with pytest.raises(Cancelled):
             access.call("search_sources", {"query": "after"})
     assert not cache.exists()
+
+
+def test_paged_source_read_visits_only_nearby_lines(tmp_path, monkeypatch):
+    """连续分页读取的扫描量保持线性，中文及混合换行仍按原行号返回"""
+    with access_at(tmp_path) as access:
+        lines = [f"行号 {index}: 普通代码" for index in range(2048)]
+        original = "".join(text + ("\r\n", "\r", "\n")[i % 3] for i, text in enumerate(lines))
+        (tmp_path / "first" / "many.py").write_bytes(original.encode("utf-8"))
+        safe = access.prepared("source-0", "many.py")
+        opened, visited = Path.open, []
+
+        class CountedStream:
+            """记录真实安全副本的行访问次数，其他文件读取保持原样"""
+
+            def __init__(self, stream):
+                """仅包装当前已打开的安全副本"""
+                self.stream = stream
+
+            def __enter__(self):
+                """在读取作用域内提供计数迭代器"""
+                return self
+
+            def __exit__(self, *args):
+                """仍由本次作用域关闭底层句柄"""
+                return self.stream.__exit__(*args)
+
+            def seek(self, position):
+                """保持原始字节定位行为"""
+                return self.stream.seek(position)
+
+            def __iter__(self):
+                """按读取行为计数，不依赖稀疏索引的内部结构"""
+                for line in self.stream:
+                    visited.append(1)
+                    yield line
+
+        def counted(path, *args, **kwargs):
+            """只统计分页阶段对安全副本的扫描"""
+            stream = opened(path, *args, **kwargs)
+            return CountedStream(stream) if path == safe else stream
+
+        monkeypatch.setattr(Path, "open", counted)
+        args, received = {"source": "source-0", "path": "many.py", "line_count": 200}, []
+        for _ in range(30):
+            result = access.call("read_source", args)
+            received.extend(row["text"] for row in result["lines"])
+            if result["eof"]:
+                break
+            args.update(result["next"])
+        assert received == lines
+        assert len(visited) < len(lines) * 2
+
+
+def test_source_index_refreshes_when_same_size_rules_change(tmp_path):
+    """词表替换为相同数量的新规则后，旧安全副本及行索引不能继续命中"""
+    with access_at(tmp_path, ["OldSyntheticIdentity"]) as access:
+        path = tmp_path / "first" / "many.py"
+        path.write_text("ordinary\n" * 200 + "NewSyntheticIdentity", encoding="utf-8")
+        args = {"source": "source-0", "path": "many.py", "start_line": 201}
+        assert access.call("read_source", args)["lines"][0]["text"] == "NewSyntheticIdentity"
+        access.redactor.values.remove("OldSyntheticIdentity")
+        access.redactor.values.add("NewSyntheticIdentity")
+        result = access.call("read_source", args)
+        assert "NewSyntheticIdentity" not in json.dumps(result)
+        assert access.redactor.restore(result)["lines"] == [
+            {"line": 201, "text": "NewSyntheticIdentity"}
+        ]
+
+
+def test_search_query_is_reused_until_privacy_generation_changes(tmp_path, monkeypatch):
+    """同一查询只按代次处理，续页新发现的敏感查询仍匹配并遮盖"""
+    with access_at(tmp_path) as access:
+        query = "SyntheticPrivate"
+        (tmp_path / "first" / "many.py").write_text((query + "\n") * 240, encoding="utf-8")
+        original, queries = access.redactor.text, []
+
+        def counted(value):
+            """区分查询短串及源码整行，统计重复脱敏"""
+            if value == query:
+                queries.append(value)
+            return original(value)
+
+        monkeypatch.setattr(access.redactor, "text", counted)
+        args = {"query": query, "glob": "many.py"}
+        first = access.call("search_sources", args)
+        assert len(queries) == 1
+        access.redactor.values.add(query)
+        rest = pages(access, "search_sources", {**args, "cursor": first["next_cursor"]})
+        assert len(queries) == 2
+        assert [row["line"] for row in first["results"] + rest] == list(range(1, 241))
+        assert query not in json.dumps(rest)
+        assert all(row["text"] == query for row in access.redactor.restore(rest))

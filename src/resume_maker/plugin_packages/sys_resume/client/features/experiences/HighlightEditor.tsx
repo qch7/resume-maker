@@ -26,9 +26,7 @@ export default function HighlightEditor({
 }) {
   const { detail, revisionId, run } = props;
   const field = `highlight:${item.id}`;
-  const base = detail.revisions.find(
-    /* 读取当前不可变基线 */ (revision) => revision.id === revisionId,
-  )!.content;
+  const base = detail.revision.content;
   const editor = useField(
     detail.project.id,
     revisionId,

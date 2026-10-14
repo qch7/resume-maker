@@ -12,8 +12,8 @@ from resume_maker.integrations.word.templates.supplement import supplement_perso
 from resume_maker.integrations.word.templates.values import missing_targets
 
 
-def complete_template(package, plan, document, projects, source=None):
-    """仅扩展已确认结构的独立副本，需要落盘时将新节点、映射一并保存到任务快照"""
+def complete_template(package, plan, document, projects, source=None, *, review=None):
+    """补位独立副本；review 仅复用同一包、映射紧邻完成的结构检查"""
     # projects 是重复区的公开别名，模型也可能用它标识标题，需统一到实际栏目名称
     if not any(section.title == "projects" for section in document.sections):
         project_title = next(
@@ -21,10 +21,11 @@ def complete_template(package, plan, document, projects, source=None):
         )
         if any(field.target == "section-title:projects" for field in plan.fields):
             plan = plan.model_copy(deep=True)
+            review = None
             for field in plan.fields:
                 if field.target == "section-title:projects":
                     field.target = f"section-title:{project_title}"
-    if not package.review(plan)["ready"]:
+    if not (review if review is not None else package.review(plan))["ready"]:
         return package, plan, []
     original_package, original_plan = package, plan
     try:

@@ -184,7 +184,9 @@ def test_material_boundaries_and_line_numbers(tmp_path, newline):
     )
     rows = json.loads(call(root, "read_material", {"file": "source-0001.txt", "start_line": 2}))
     assert rows == [{"line": 2, "text": "needle"}, {"line": 3, "text": "last"}]
-    assert json.loads(call(root, "search_materials", {"query": "needle"}))[0]["line"] == 2
+    assert (
+        json.loads(call(root, "search_materials", {"query": "needle"}))["results"][0]["line"] == 2
+    )
     for name in (
         "../original.txt",
         str(tmp_path / "original.txt"),

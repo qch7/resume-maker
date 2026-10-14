@@ -88,6 +88,28 @@ def text_width(text, size):
     )
 
 
+class RecordColumnWidths:
+    """在一个重复区内归约列宽需求，样式或固定标签变化时分别测量"""
+
+    def __init__(self, records):
+        """记录在本轮填充内保持不变，聚合结果不跨重复区或请求复用"""
+        self.records = records
+        self.requirements = {}
+
+    def maximum(self, target, prefix, suffix, size):
+        """同字段、标签、字号只遍历一次全部记录，保留逐条文字测量的取整规则"""
+        key = target, prefix, suffix, size
+        if key not in self.requirements:
+            self.requirements[key] = max(
+                (
+                    text_width(prefix + str(record.get(target, "")) + suffix, size)
+                    for record in self.records
+                ),
+                default=0,
+            )
+        return self.requirements[key]
+
+
 def font_size(styles, paragraph):
     """读取运行、继承样式中的字号上界以免日期标签比数值大时低估宽度"""
     sizes = paragraph.xpath(".//w:sz/@w:val", namespaces=NS)
@@ -181,7 +203,7 @@ def make_columns(paragraph, fragments, widths, left):
     paragraph.getparent().replace(paragraph, table)
 
 
-def prepare_record_columns(styles, nodes, fields, records, source_nodes=None):
+def prepare_record_columns(styles, nodes, fields, widths, source_nodes=None):
     """重复区使用全部记录的最大日期宽度，使不同长度名称共用列线"""
     grouped, result = defaultdict(list), list(fields)
     for field in fields:
@@ -208,17 +230,7 @@ def prepare_record_columns(styles, nodes, fields, records, source_nodes=None):
         for fragment, field in fragments:
             text = paragraph_text(fragment)
             start, end = quote_range(text, field)
-            requirements.append(
-                max(
-                    (
-                        text_width(
-                            text[:start] + str(record.get(field.target, "")) + text[end:], size
-                        )
-                        for record in records
-                    ),
-                    default=0,
-                )
-            )
+            requirements.append(widths.maximum(field.target, text[:start], text[end:], size))
         stops = {}
         for properties in styles.properties(paragraph):
             for node in properties.findall("w:tabs/w:tab", NS):

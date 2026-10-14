@@ -3,6 +3,7 @@ import type { TemplateNode, TemplatePlan } from "./types";
 import {
   highlightedText,
   mappingIndex,
+  templateChildren,
   REGION_LABELS,
   targetLabel,
 } from "./visual";
@@ -22,14 +23,7 @@ interface Props {
 export default function TemplateCanvas(props: Props) {
   const root = useRef<HTMLDivElement>(null);
   const tree = useMemo(
-    /* 将节点接到最近可见祖先，保留文本框、表格内部层级 */ () => {
-      const children = new Map<string, TemplateNode[]>();
-      for (const node of props.nodes) {
-        const parent = node.ancestors[0] ?? node.part;
-        children.set(parent, [...(children.get(parent) ?? []), node]);
-      }
-      return children;
-    },
+    /* 节点清单未变时复用结构索引 */ () => templateChildren(props.nodes),
     [props.nodes],
   );
   const mappings = useMemo(

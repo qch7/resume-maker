@@ -3,10 +3,13 @@
 import http.client
 import json
 import re
+import secrets
 import sys
+from collections import OrderedDict
 from pathlib import Path
 
 MAX_MESSAGE = 2 * 1024 * 1024
+MAX_CURSORS = 128
 NAMES = re.compile(r"context\.txt|source-[0-9]{4}\.txt")
 TOOLS = [
     {
@@ -28,10 +31,11 @@ TOOLS = [
     },
     {
         "name": "search_materials",
-        "description": "在脱敏副本中搜索普通文字，返回文件编号和行号",
+        "description": "在脱敏副本中搜索普通文字，返回文件编号和行号。"
+        "complete=false 时用 next_cursor 及相同 query 继续，空 results 不表示结束。",
         "inputSchema": {
             "type": "object",
-            "properties": {"query": {"type": "string"}},
+            "properties": {"query": {"type": "string"}, "cursor": {"type": "string"}},
             "required": ["query"],
             "additionalProperties": False,
         },
@@ -120,7 +124,7 @@ def source_call(endpoint, name, arguments):
         connection.close()
 
 
-def contents(root, name):
+def material_file(root, name):
     """文件名、链接、大小同时校验，读取范围始终限定在当前材料目录"""
     if not isinstance(name, str) or not NAMES.fullmatch(name):
         raise ValueError("文件编号不在允许范围内")
@@ -133,10 +137,104 @@ def contents(root, name):
         or file.stat().st_size > MAX_MESSAGE
     ):
         raise ValueError("材料文件不符合读取规则")
-    return file.read_text(encoding="utf-8").splitlines()
+    return file
 
 
-def call(root, name, args):
+def contents(root, name):
+    """读取已核验的有界脱敏材料，保留既有行号规则"""
+    return material_file(root, name).read_text(encoding="utf-8").splitlines()
+
+
+class MaterialSearch:
+    """当前材料进程独占游标，最多复用一份材料正文且不跨页持有句柄"""
+
+    def __init__(self, root):
+        """材料编号在任务开始后固定，首次搜索才枚举"""
+        self.root, self.files = root, None
+        self.cursors = OrderedDict()
+        self.cached = None
+
+    def close(self):
+        """断开任务后废弃所有继续位置"""
+        self.cursors.clear()
+        self.cached = None
+
+    def search(self, args):
+        """每页最多扫描千行或文件步骤，响应边界不会丢弃下一条命中"""
+        query, cursor = args.get("query"), args.get("cursor")
+        if (
+            set(args) - {"query", "cursor"}
+            or not isinstance(query, str)
+            or not 1 <= len(query) <= 200
+        ):
+            raise ValueError("搜索参数不受支持")
+        file_index, line_index, stamp = 0, 0, None
+        if cursor is not None:
+            if not isinstance(cursor, str) or cursor not in self.cursors:
+                raise ValueError("游标不属于当前材料请求")
+            previous_query, file_index, line_index, stamp = self.cursors[cursor]
+            if query != previous_query:
+                raise ValueError("继续搜索时不能更改查询条件")
+            self.cursors.pop(cursor)
+        if self.files is None:
+            self.files = sorted(
+                file.name for file in self.root.iterdir() if NAMES.fullmatch(file.name)
+            )
+        pattern = re.compile(re.escape(query), re.IGNORECASE)
+        rows, size, lines = [], 2, None
+        for _ in range(1000):
+            if file_index == len(self.files):
+                break
+            filename = self.files[file_index]
+            if lines is None:
+                file = material_file(self.root, filename)
+                stat = file.stat()
+                current = (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns)
+                if stamp is not None and current != stamp:
+                    raise ValueError("继续搜索前材料已变化，请重新查询")
+                if self.cached is not None and self.cached[:2] == (filename, current):
+                    lines = self.cached[2]
+                else:
+                    lines = contents(self.root, filename)
+                    after = file.stat()
+                    if current != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns):
+                        raise ValueError("读取期间材料已变化，请重新查询")
+                    self.cached = (filename, current, lines)
+                stamp = current
+            if line_index == len(lines):
+                file_index, line_index, stamp, lines = file_index + 1, 0, None, None
+                continue
+            text = lines[line_index]
+            match = pattern.search(text)
+            if match:
+                offset = max(0, match.start() - 120)
+                row = {
+                    "file": filename,
+                    "line": line_index + 1,
+                    "column": offset + 1,
+                    "text": text[offset : offset + 1000],
+                }
+                extra = len(json.dumps(row, ensure_ascii=False)) + (2 if rows else 0)
+                if size + extra > 23800:
+                    break
+                rows.append(row)
+                size += extra
+            line_index += 1
+            if len(rows) == 100:
+                break
+        complete = file_index == len(self.files)
+        next_cursor = None
+        if not complete:
+            while len(self.cursors) >= MAX_CURSORS:
+                self.cursors.popitem(last=False)
+            next_cursor = secrets.token_hex(16)
+            self.cursors[next_cursor] = (query, file_index, line_index, stamp)
+        return json.dumps(
+            {"results": rows, "next_cursor": next_cursor, "complete": complete}, ensure_ascii=False
+        )
+
+
+def call(root, name, args, *, searches=None):
     """限制搜索、读取的参数、次数及输出长度，不执行材料中的指令"""
     if name == "read_material":
         if set(args) - {"file", "start_line", "start_column", "line_count"}:
@@ -166,29 +264,10 @@ def call(root, name, args):
             if "next_column" in row:
                 break
     elif name == "search_materials":
-        query = args.get("query")
-        if set(args) != {"query"} or not isinstance(query, str) or not 1 <= len(query) <= 200:
-            raise ValueError("搜索参数不受支持")
-        value = []
-        for file in sorted(root.iterdir()):
-            if not NAMES.fullmatch(file.name):
-                continue
-            for i, text in enumerate(contents(root, file.name)):
-                match = re.search(re.escape(query), text, re.IGNORECASE)
-                if match:
-                    offset = max(0, match.start() - 120)
-                    value.append(
-                        {
-                            "file": file.name,
-                            "line": i + 1,
-                            "column": offset + 1,
-                            "text": text[offset : offset + 1000],
-                        }
-                    )
-                    if len(value) == 100:
-                        break
-            if len(value) == 100:
-                break
+        searches = searches or MaterialSearch(root)
+        if searches.root != root:
+            raise ValueError("游标不属于当前材料目录")
+        return searches.search(args)
     else:
         raise ValueError("工具不在允许范围内")
     rows, size = [], 2
@@ -202,7 +281,7 @@ def call(root, name, args):
     return "[" + ", ".join(rows) + "]"
 
 
-def dispatch(root, request, endpoint=None):
+def dispatch(root, request, endpoint=None, *, searches=None):
     """实现必要的 MCP 方法，所有未知方法均显式拒绝"""
     method = request.get("method")
     if method == "initialize":
@@ -222,7 +301,7 @@ def dispatch(root, request, endpoint=None):
             text = (
                 source_call(endpoint, name, arguments)
                 if name in {tool["name"] for tool in SOURCE_TOOLS}
-                else call(root, name, arguments)
+                else call(root, name, arguments, searches=searches)
             )
             return {"content": [{"type": "text", "text": text}]}
         except (OSError, ValueError, TypeError, AttributeError, http.client.HTTPException):
@@ -253,27 +332,31 @@ def main():
         ):
             raise SystemExit(1)
         endpoint = json.loads(config.read_text(encoding="utf-8"))
-    while True:
-        line = sys.stdin.buffer.readline(MAX_MESSAGE + 1)
-        if not line or len(line) > MAX_MESSAGE:
-            return
-        try:
-            request = json.loads(line)
-            if not isinstance(request, dict) or "id" not in request:
-                continue
-            reply = {
-                "jsonrpc": "2.0",
-                "id": request["id"],
-                "result": dispatch(root, request, endpoint),
-            }
-        except (ValueError, TypeError, AttributeError):
-            reply = {
-                "jsonrpc": "2.0",
-                "id": None,
-                "error": {"code": -32600, "message": "Invalid request"},
-            }
-        sys.stdout.write(json.dumps(reply, ensure_ascii=False) + "\n")
-        sys.stdout.flush()
+    searches = MaterialSearch(root)
+    try:
+        while True:
+            line = sys.stdin.buffer.readline(MAX_MESSAGE + 1)
+            if not line or len(line) > MAX_MESSAGE:
+                return
+            try:
+                request = json.loads(line)
+                if not isinstance(request, dict) or "id" not in request:
+                    continue
+                reply = {
+                    "jsonrpc": "2.0",
+                    "id": request["id"],
+                    "result": dispatch(root, request, endpoint, searches=searches),
+                }
+            except (ValueError, TypeError, AttributeError):
+                reply = {
+                    "jsonrpc": "2.0",
+                    "id": None,
+                    "error": {"code": -32600, "message": "Invalid request"},
+                }
+            sys.stdout.write(json.dumps(reply, ensure_ascii=False) + "\n")
+            sys.stdout.flush()
+    finally:
+        searches.close()
 
 
 if __name__ == "__main__":

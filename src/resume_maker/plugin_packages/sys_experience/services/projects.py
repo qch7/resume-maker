@@ -17,31 +17,56 @@ class Projects:
         self.catalog, self.db = catalog, catalog.db
 
     def get_project(self, project_id: str, revision_id: str | None = None):
-        """读取选定版本的工作副本、历史修订、来源快照供经历编辑器展示"""
-        project = self.catalog.project(project_id)
-        selected = revision_id or project["head_revision"]
-        return {
-            "project": project,
-            "branch": self.catalog.history.for_revision(project_id, selected),
-            "branches": self.catalog.history.branches(project_id),
-            "working": self.catalog.working(project_id, selected),
-            "uncommitted": self.uncommitted(project_id),
-            "revision_snapshot": self.db.one(
-                "SELECT * FROM snapshots WHERE id=?",
-                (self.catalog.revision(selected, project_id)["snapshot_id"],),
-            ),
-            "revisions": self.db.all(
-                "SELECT r.*,b.id AS branch_id,b.name AS branch_name FROM revisions r "
-                "JOIN revision_branches rb ON rb.revision_id=r.id "
-                "JOIN experience_branches b ON b.id=rb.branch_id "
-                "WHERE r.project_id=? ORDER BY r.number DESC",
-                (project_id,),
-            ),
-            "snapshots": self.db.all(
-                "SELECT * FROM snapshots WHERE project_id=? ORDER BY created_at DESC LIMIT 10",
-                (project_id,),
-            ),
-        }
+        """同一读取快照返回完整历史关系，仅携带选定版本、未提交工作副本正文"""
+        with self.db.connect() as conn:
+            conn.execute("BEGIN")
+            project = self.catalog.project(project_id, conn)
+            revision = self.catalog.revision(
+                revision_id or project["head_revision"], project_id, conn
+            )
+            branches = [
+                unpack(row)
+                for row in conn.execute(
+                    "SELECT * FROM experience_branches WHERE project_id=? "
+                    "ORDER BY is_default DESC,created_at,id",
+                    (project_id,),
+                )
+            ]
+            working, pending = self._draft_working(conn, project_id, revision)
+            return {
+                "project": project,
+                "branch": next(item for item in branches if item["id"] == revision["branch_id"]),
+                "branches": branches,
+                "revision": revision,
+                "working": working.get(
+                    revision["id"], {"content": revision["content"], "drafts": []}
+                ),
+                "uncommitted": pending,
+                "revision_snapshot": unpack(
+                    conn.execute(
+                        "SELECT * FROM snapshots WHERE id=?", (revision["snapshot_id"],)
+                    ).fetchone()
+                ),
+                "revisions": [
+                    unpack(row)
+                    for row in conn.execute(
+                        "SELECT r.id,r.project_id,r.parent_id,r.snapshot_id,r.number,"
+                        "r.origin,r.note,r.created_at,b.id AS branch_id,b.name AS branch_name "
+                        "FROM revisions r JOIN revision_branches rb ON rb.revision_id=r.id "
+                        "JOIN experience_branches b ON b.id=rb.branch_id "
+                        "WHERE r.project_id=? ORDER BY r.number DESC",
+                        (project_id,),
+                    )
+                ],
+                "snapshots": [
+                    unpack(row)
+                    for row in conn.execute(
+                        "SELECT * FROM snapshots WHERE project_id=? "
+                        "ORDER BY created_at DESC LIMIT 10",
+                        (project_id,),
+                    )
+                ],
+            }
 
     def delete(self, project_id: str) -> list[str]:
         """同一事务内检查简历引用、运行任务后删除项目组，不访问源码或历史导出文件"""
@@ -80,17 +105,45 @@ class Projects:
 
     def uncommitted(self, project_id: str) -> list[dict]:
         """列出各版本存在实际修改的工作副本供历史树展示"""
-        result = []
-        for row in self.db.all(
-            "SELECT base_revision,MAX(updated_at) AS updated_at FROM drafts "
-            "WHERE project_id=? GROUP BY base_revision",
+        with self.db.connect() as conn:
+            conn.execute("BEGIN")
+            return self._draft_working(conn, project_id)[1]
+
+    def _draft_working(self, conn, project_id, selected=None):
+        """批量读取草稿基线，按覆盖顺序合并，同一版本只计算一次工作副本"""
+        grouped = {}
+        for raw in conn.execute(
+            "SELECT * FROM drafts WHERE project_id=? ORDER BY base_revision,"
+            "CASE field WHEN 'experience' THEN 0 WHEN 'order' THEN 2 ELSE 1 END,updated_at",
             (project_id,),
         ):
-            base = self.catalog.revision(row["base_revision"], project_id)
-            content = self.catalog.working(project_id, base["id"])["content"]
-            if not same_experience(content, base["content"]):
-                result.append({**row, "content": content})
-        return result
+            draft = unpack(raw)
+            grouped.setdefault(draft["base_revision"], []).append(draft)
+        bases = {
+            row["id"]: row["content"]
+            for raw in conn.execute(
+                "SELECT id,content_json FROM revisions WHERE project_id=? AND id IN "
+                "(SELECT base_revision FROM drafts WHERE project_id=?) AND id<>?",
+                (project_id, project_id, selected["id"] if selected else ""),
+            )
+            if (row := unpack(raw))
+        }
+        if selected:
+            bases[selected["id"]] = selected["content"]
+        working, pending = {}, []
+        for identifier, drafts in grouped.items():
+            base = need(bases.get(identifier), "经历版本已不存在或其项目已删除。")
+            content = self.catalog._apply_drafts(base, drafts)
+            working[identifier] = {"content": content, "drafts": drafts}
+            if not same_experience(content, base):
+                pending.append(
+                    {
+                        "base_revision": identifier,
+                        "updated_at": max(draft["updated_at"] for draft in drafts),
+                        "content": content,
+                    }
+                )
+        return working, pending
 
     def save_profile(
         self, project_id: str, profile: ProjectProfile, expected_profile: ProjectProfile

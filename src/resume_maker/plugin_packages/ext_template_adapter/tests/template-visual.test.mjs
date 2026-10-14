@@ -7,6 +7,7 @@ import {
   highlightedText,
   clearNodes,
   repeatNodes,
+  templateChildren,
 } from "../client/visual.ts";
 
 /** 构造包含多个单元格、图片、页眉的脱敏模板结构 */
@@ -69,6 +70,33 @@ function plan() {
     warnings: [],
   };
 }
+
+test("结构索引保留最近可见祖先、部件及原始顺序", () => {
+  const nodes = fixture();
+  const before = structuredClone(nodes);
+  const children = templateChildren(nodes);
+  assert.deepEqual(
+    children.get("word/document.xml").map((node) => node.id),
+    ["name", "table", "picture"],
+  );
+  assert.deepEqual(
+    children.get("table").map((node) => node.id),
+    ["row1", "row2"],
+  );
+  assert.deepEqual(
+    children.get("row1").map((node) => node.id),
+    ["school", "degree"],
+  );
+  assert.deepEqual(
+    children.get("picture").map((node) => node.id),
+    ["photo"],
+  );
+  assert.deepEqual(
+    children.get("word/header1.xml").map((node) => node.id),
+    ["header"],
+  );
+  assert.deepEqual(nodes, before);
+});
 
 test("同级范围按原文排序，跨单元格、跨部件和图片范围不能拼接", /* 用户反向点击仍选取完整闭区间 */ () => {
   const nodes = fixture();

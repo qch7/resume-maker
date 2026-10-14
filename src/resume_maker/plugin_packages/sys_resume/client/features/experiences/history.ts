@@ -1,11 +1,14 @@
 import type {
   Branch,
+  Experience,
   Revision,
+  RevisionSummary,
   UncommittedRevision,
 } from "@resume-maker/plugin-sdk/shared/types/index";
 import { projectBodyOrder } from "@resume-maker/plugin-sdk/shared/resume/bodyOrder";
 
-export type HistoryRevision = Revision & { uncommitted?: boolean };
+export type HistoryRevision = RevisionSummary &
+  ({ uncommitted?: false } | { uncommitted: true; content: Experience });
 
 export const HISTORY_ROW_HEIGHT = 76;
 export const BRANCH_COLORS = [
@@ -19,19 +22,21 @@ export const BRANCH_COLORS = [
 
 /** 根据父修订关系计算历史图坐标 */
 export function historyGraph(
-  revisions: Revision[],
+  revisions: RevisionSummary[],
   branches: Branch[],
   working: UncommittedRevision[] = [],
 ) {
+  const drafts = new Map<string, UncommittedRevision>();
+  for (const draft of working)
+    if (!drafts.has(draft.base_revision))
+      drafts.set(draft.base_revision, draft);
+  const lanes = new Map(branches.map((branch, index) => [branch.id, index]));
   const saved = [...revisions].sort(
     /* 新版本排在上方，序号在项目内唯一 */ (a, b) => b.number - a.number,
   );
-  const ordered: HistoryRevision[] = saved.flatMap(
+  const ordered = saved.flatMap<HistoryRevision>(
     /* 草稿放在基线版本旁边并独立编号 */ (base) => {
-      const draft = working.find(
-        /* 将每份未提交工作副本连接到准确的基线 */ (item) =>
-          item.base_revision === base.id,
-      );
+      const draft = drafts.get(base.id);
       if (!draft) return [base];
       return [
         {
@@ -49,10 +54,7 @@ export function historyGraph(
   );
   const nodes = ordered.map(
     /* 同一分支使用固定泳道、颜色 */ (revision, index) => {
-      const lane = Math.max(
-        0,
-        branches.findIndex((branch) => branch.id === revision.branch_id),
-      );
+      const lane = lanes.get(revision.branch_id) ?? 0;
       return {
         revision,
         x: 18 + lane * 24,
@@ -90,6 +92,8 @@ export function historyGraph(
   );
   return {
     nodes,
+    byId,
+    heads: new Set(branches.map((branch) => branch.head_revision)),
     edges,
     width: Math.max(44, branches.length * 24 + 14),
     height: nodes.length * HISTORY_ROW_HEIGHT,
