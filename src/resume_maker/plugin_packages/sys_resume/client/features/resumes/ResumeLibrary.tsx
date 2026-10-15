@@ -186,8 +186,8 @@ export default function ResumeLibrary(props: ResumeLibraryProps) {
                         className={`tag ${item.id === draft.id && dirty ? "warning-tag" : "success-tag"}`}
                       >
                         {!item.id || (item.id === draft.id && dirty)
-                          ? "草稿已保留 · 方案未保存"
-                          : "组合已保存"}
+                          ? "草稿已保留 · 简历方案未保存"
+                          : "简历方案已保存"}
                       </span>
                     </span>
                   </button>

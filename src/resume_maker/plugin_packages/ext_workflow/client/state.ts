@@ -73,7 +73,7 @@ export function getWorkflow(
       : project.step < 2
         ? project
         : {
-            text: "项目经历已整理并保存，可继续选择荣誉，或在组合编排时调整引用版本与亮点。",
+            text: "经历版本已保存，可继续选择荣誉，或在简历编排时调整引用版本及亮点。",
             action: "选择荣誉",
             target: "honor-select",
           },
@@ -95,8 +95,8 @@ export function getWorkflow(
     project.step === 2
       ? project
       : {
-          text: "调整栏目顺序、项目亮点与内容显隐，确认预览后保存这份简历组合。",
-          action: "保存组合",
+          text: "调整栏目顺序、项目亮点及内容显隐，确认预览后点击“保存简历方案”。",
+          action: "保存简历方案",
           target: "composition-save",
         },
     project.step === 3 && templateReady

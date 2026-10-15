@@ -62,6 +62,7 @@ export default function MetaEditor({
   onReload,
   visibility: originalVisibility,
   onVisibility,
+  disabled = false,
 }: {
   value: Meta;
   definitions?: DefaultField[] | null;
@@ -72,6 +73,7 @@ export default function MetaEditor({
   onReload: () => Promise<Meta | undefined>;
   visibility: ProjectVisibility;
   onVisibility: (value: ProjectVisibility) => void;
+  disabled?: boolean;
 }) {
   const {
     value,
@@ -155,7 +157,7 @@ export default function MetaEditor({
   );
   /** 正文顺序进入元信息草稿，项目标题、参与时间不进入移动列表 */
   function move(from: number, to: number) {
-    if (from === to || to < 0 || to >= order.length) return;
+    if (disabled || from === to || to < 0 || to >= order.length) return;
     onChange({ ...value, body_order: arrayMove(order, from, to) });
   }
   /** 为排序操作提供字段名称，自定义信息改名后同步更新辅助说明 */
@@ -223,6 +225,7 @@ export default function MetaEditor({
       </div>
       <div className="project-info-body" role="group" aria-label="项目内容顺序">
         <SortableList
+          disabled={disabled || saving}
           items={order.map(
             /* 排序标识不随字段改名而变化 */ (id) => ({
               id,

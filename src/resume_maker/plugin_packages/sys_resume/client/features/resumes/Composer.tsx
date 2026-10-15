@@ -16,6 +16,7 @@ interface Props {
   draft: Resume;
   revisions: Record<string, Revision>;
   previewSources: Record<string, Revision>;
+  previewChanged?: boolean;
   run: (work: () => Promise<void>) => void;
 }
 
@@ -47,7 +48,15 @@ export default function Composer(props: Props) {
         <aside className="composition-pane">
           <section className="preview-pane" aria-label="简历预览">
             <div className="preview-toolbar">
-              <strong>简历预览</strong>
+              <strong
+                title={
+                  props.previewChanged
+                    ? "预览包含尚未用于当前简历的经历内容，请保存并用于当前简历，或采用已保存版本"
+                    : undefined
+                }
+              >
+                {props.previewChanged ? "经历预览 · 尚未用于简历" : "简历预览"}
+              </strong>
               {!templateUnavailable && draft.document && selector}
               <select
                 aria-label="预览缩放"

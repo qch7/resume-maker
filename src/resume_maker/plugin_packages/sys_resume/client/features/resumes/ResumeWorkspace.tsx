@@ -15,6 +15,7 @@ import {
   useState,
   type CSSProperties,
 } from "react";
+import { flushSync } from "react-dom";
 import { useActivityPreferences } from "@resume-maker/plugin-sdk/shared/hooks/useActivityPreferences";
 import Editor from "../experiences/Editor";
 import { clearLocalDrafts } from "../experiences/useField";
@@ -217,6 +218,9 @@ export default function ResumeWorkspace() {
   const [folded, setFolded] = useState<Record<string, boolean>>({});
   const [guideTarget, setGuideTarget] = useState<GuideTarget | null>(null);
   const [modal, setModal] = useState<string | null>(null);
+  const [savingRevision, setSavingRevision] = useState(false);
+  const revisionSubmission = useRef(false);
+  const pendingActions = useRef(new Set<Promise<void>>());
   useEffect(() => {
     /** 插件命令复用工作台设置入口，维护期间仍可进入管理页 */
     function openPlugins() {
@@ -270,6 +274,8 @@ export default function ResumeWorkspace() {
   );
   const revisionId =
     selectedRevisions[activeProject] ?? project?.head_revision ?? "";
+  const currentEditor = useRef({ projectId: activeProject, revisionId });
+  currentEditor.current = { projectId: activeProject, revisionId };
   const conversationId =
     selectedConversations[activeProject] ??
     state.conversations.find((c) => c.project_id === activeProject)?.id ??
@@ -483,14 +489,20 @@ export default function ResumeWorkspace() {
 
   /** 等待草稿保存后执行操作并显示异常提示 */
   function run(work: () => Promise<void>) {
-    void (async () => {
-      try {
-        await flushDrafts();
-        await work();
-      } catch (error) {
-        setToast({ text: (error as Error).message, error: true });
-      }
+    if (revisionSubmission.current) {
+      setToast({ text: "经历正在保存，请完成后再操作。" });
+      return;
+    }
+    const action = (async () => {
+      await flushDrafts();
+      await work();
     })();
+    pendingActions.current.add(action);
+    void action
+      .catch((error) =>
+        setToast({ text: (error as Error).message, error: true }),
+      )
+      .finally(() => pendingActions.current.delete(action));
   }
   /** 刷新项目详情、工作台数据，由当前内容重新计算编辑状态 */
   function changed() {
@@ -648,41 +660,67 @@ export default function ResumeWorkspace() {
     setMode("chat");
     changed();
   }
-  /** 发布工作副本并更新修订缓存 */
-  async function saveRevision() {
+  /** 保存本次经历版本，可同时更新发起时的当前简历草稿 */
+  async function saveRevision(useVersion = false) {
     const detail = remoteProject.data;
-    if (!detail) return;
-    const result = await api<Revision>(
-      `/projects/${activeProject}/revisions`,
-      "POST",
-      {
-        base_revision: revisionId,
-        expected_head: detail.branch.head_revision,
-      },
-    );
-    clearLocalDrafts(activeProject, revisionId);
-    setWorkingPreviews(
-      /* 提交后恢复旧基线的不可变内容 */ (values) => {
-        const next = { ...values };
-        delete next[revisionId];
-        return next;
-      },
-    );
-    setSelectedRevisions((v) => ({
-      ...v,
-      [activeProject]: result.id,
-    }));
-    setRevisionCache((v) => ({
-      ...v,
-      [result.id]: result,
-    }));
-    changed();
-    setToast({
-      text:
-        result.id === revisionId
-          ? `全部内容已保存，与 r${result.number} 一致，无需新建版本。`
-          : `已提交为 r${result.number}。点击“用于当前简历”可更新右侧组合。`,
-    });
+    if (!detail || revisionSubmission.current) return;
+    revisionSubmission.current = true;
+    const submitted = draft;
+    const projectId = activeProject;
+    const baseRevision = revisionId;
+    // 先禁用编辑控件，再收尾已有操作，避免发布后又向旧版本写入输入
+    flushSync(() => setSavingRevision(true));
+    try {
+      const actions = await Promise.allSettled([...pendingActions.current]);
+      const failed = actions.find((action) => action.status === "rejected");
+      if (failed?.status === "rejected") throw failed.reason;
+      await flushDrafts();
+      const result = await api<Revision>(
+        `/projects/${projectId}/revisions`,
+        "POST",
+        {
+          base_revision: baseRevision,
+          expected_head: detail.branch.head_revision,
+        },
+      );
+      clearLocalDrafts(projectId, baseRevision);
+      setWorkingPreviews(
+        /* 所有字段已收尾且编辑保持禁用，只清理本次发布的工作副本 */ (
+          values,
+        ) => {
+          const next = { ...values };
+          delete next[baseRevision];
+          return next;
+        },
+      );
+      setRevisionCache((values) => ({ ...values, [result.id]: result }));
+      const applied = useVersion && applyVersion(result, submitted);
+      if (
+        currentEditor.current.projectId === projectId &&
+        currentEditor.current.revisionId === baseRevision
+      ) {
+        flushSync(() => {
+          setSelectedRevisions((values) => ({
+            ...values,
+            [projectId]: result.id,
+          }));
+          setRefresh((value) => value + 1);
+        });
+      }
+      await reload();
+      setToast({
+        text: applied
+          ? `经历版本 r${result.number} 已用于当前简历草稿；保存简历方案或导出即可固定本次选择。`
+          : useVersion
+            ? `经历版本 r${result.number} 已保存。简历方案或项目选择已变化，请核对后重新用于需要的简历。`
+            : `经历版本 r${result.number} 已保存，简历继续使用原版本。`,
+      });
+    } catch (error) {
+      setToast({ text: (error as Error).message, error: true });
+    } finally {
+      revisionSubmission.current = false;
+      setSavingRevision(false);
+    }
   }
   /** 只撤销确认窗口对应版本的未提交改动 */
   async function discardChanges(versions: Record<string, number>) {
@@ -1159,6 +1197,7 @@ export default function ResumeWorkspace() {
                   <nav className="tabs workspace-tabs" aria-label="项目工作区">
                     <button
                       className={mode === "edit" ? "active" : ""}
+                      disabled={savingRevision}
                       aria-current={mode === "edit" ? "page" : undefined}
                       onClick={() =>
                         run(async () => {
@@ -1172,6 +1211,7 @@ export default function ResumeWorkspace() {
                     </button>
                     <button
                       hidden={!hasPlugin("ext.ai-conversation")}
+                      disabled={savingRevision}
                       className={mode === "chat" ? "active" : ""}
                       aria-current={mode === "chat" ? "page" : undefined}
                       onClick={() =>
@@ -1198,7 +1238,9 @@ export default function ResumeWorkspace() {
                         ? "重新分析源码"
                         : "分析项目"
                     }
-                    disabled={!!currentJob || !remoteProject.data}
+                    disabled={
+                      savingRevision || !!currentJob || !remoteProject.data
+                    }
                     onClick={() =>
                       run(() =>
                         send(
@@ -1234,6 +1276,7 @@ export default function ResumeWorkspace() {
                         detail={remoteProject.data}
                         revisionId={revisionId}
                         hasLocalChanges={hasExperienceChanges}
+                        saving={savingRevision}
                         usedRevision={
                           revisionCache[
                             draft.items.find(
@@ -1326,6 +1369,7 @@ export default function ResumeWorkspace() {
             draft={draft}
             revisions={revisionCache}
             previewSources={previewSources}
+            previewChanged={previewChanged}
             run={run}
           />
         </div>

@@ -26,10 +26,10 @@ import { recoverResume } from "@resume-maker/plugin-sdk/shared/resume/recovery";
 import { repairDefaultResume } from "@resume-maker/plugin-sdk/shared/resume/defaults/sections";
 import { entryComposition, replaceEntry } from "../profile/entry";
 import { personalComposition } from "../profile/personal";
+import { applyExperienceRevision } from "./experienceSave";
 import { syncHonorResume } from "@resume-maker/plugin-sdk/shared/resume/honors/sync";
 import {
   orderCompositionHighlights,
-  orderedHighlightIds,
   toggleHighlightSelection,
   acceptSavedComposition,
   identifyUnsavedResume,
@@ -228,31 +228,21 @@ export function useResumeComposition({
     );
   }
   /** 显式更新当前项目的引用版本并保留仍属于该版本的亮点选择 */
-  function applyVersion() {
-    const revision = revisionCache[revisionId];
-    if (!revision) return;
-    const previous = draft.items.find((i) => i.project_id === activeProject);
-    const validIds = revision.content.highlights.map((h) => h.id);
-    const hadHighlights =
-      previous &&
-      revisionCache[previous.revision_id]?.content.highlights.length;
-    const item = {
-      project_id: activeProject,
-      revision_id: revisionId,
-      highlight_ids:
-        previous && hadHighlights
-          ? orderedHighlightIds(
-              revision.content.highlights,
-              previous.highlight_ids,
-            )
-          : validIds,
-    };
-    setDraft({
-      ...draft,
-      items: previous
-        ? draft.items.map((i) => (i.project_id === activeProject ? item : i))
-        : [...draft.items, item],
-    });
+  function applyVersion(
+    revision = revisionCache[revisionId],
+    submitted = draft,
+  ) {
+    if (!revision) return false;
+    if (
+      applyExperienceRevision(currentDraft.current, submitted, revision) ===
+      currentDraft.current
+    )
+      return false;
+    setDraft(
+      /* 响应只更新发起时的方案，保留后续资料输入及亮点选择 */ (current) =>
+        applyExperienceRevision(current, submitted, revision),
+    );
+    return true;
   }
   /** 切换项目是否加入简历，新增时读取并固定其当前已保存版本 */
   function toggleProject(id: string) {

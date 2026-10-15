@@ -14,8 +14,9 @@ export interface EditorProps {
   onVisibility: (value: ProjectVisibility) => void;
   usedRevision?: Revision;
   hasLocalChanges: boolean;
+  saving: boolean;
   run: (work: () => Promise<void>) => void;
-  onSave: () => Promise<void>;
+  onSave: (useVersion?: boolean) => Promise<void>;
   onDiscard: (versions: Record<string, number>) => Promise<void>;
   onRefresh: () => void;
   onRevision: (id: string) => void;

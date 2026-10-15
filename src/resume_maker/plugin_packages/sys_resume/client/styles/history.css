@@ -1,4 +1,9 @@
 /* 经历分支工具栏、可键盘浏览的版本关系图 */
+fieldset.editor {
+  margin: 0;
+  border: 0;
+  min-inline-size: 0;
+}
 .version-control {
   display: flex;
   flex-wrap: wrap;

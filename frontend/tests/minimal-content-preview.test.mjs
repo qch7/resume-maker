@@ -253,3 +253,16 @@ test("缺失固定版本时等待加载，尚未填写资料时显示填写指�
   assert.ok(!html.includes("正在读取经历版本"));
   assert.ok(!html.includes("已切换为内容预览"));
 });
+
+test("未固定的经历内容明确提示尚未采用，应用后恢复简历预览", async () => {
+  const module = await composerPreview();
+  const props = fixture();
+  props.previewChanged = true;
+  const pending = module.render(props);
+  assert.ok(pending.includes("经历预览 · 尚未用于简历"));
+  assert.ok(pending.includes("或采用已保存版本"));
+  props.previewChanged = false;
+  const applied = module.render(props);
+  assert.ok(applied.includes(">简历预览</strong>"));
+  assert.ok(!applied.includes("经历预览 · 尚未用于简历"));
+});
