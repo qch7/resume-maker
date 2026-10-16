@@ -1471,6 +1471,9 @@ export default function ResumeWorkspace() {
             revisions={revisionCache}
             previewSources={previewSources}
             previewChanged={previewChanged}
+            onLayoutChange={(document) =>
+              setDraft((current) => ({ ...current, document }))
+            }
             run={run}
           />
         </div>

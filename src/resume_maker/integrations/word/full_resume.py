@@ -13,8 +13,10 @@ from docx.shared import Cm, Pt, RGBColor
 
 from resume_maker.core.errors import Problem
 from resume_maker.domain.experience import displayed_experience
+from resume_maker.domain.page_layout import layout_options
 from resume_maker.domain.project_layout import project_body_entries
 from resume_maker.domain.resume import CustomInfoField, ResumeDocument, ResumeSection
+from resume_maker.integrations.word.page_layout import apply_page_layout, inline_honor
 
 BLUE = "718DB5"
 
@@ -146,6 +148,7 @@ def displayed_entries(section: ResumeSection):
 def write_full_resume(output: Path, content: dict, projects: list[dict]):
     """按保存顺序生成 A4 Word 简历，隐藏父栏目时同时隐藏子栏目"""
     resume = ResumeDocument.model_validate(content)
+    layout = layout_options(resume.extensions)
     document = Document()
     page = document.sections[0]
     page.page_width, page.page_height = Cm(21), Cm(29.7)
@@ -194,6 +197,10 @@ def write_full_resume(output: Path, content: dict, projects: list[dict]):
             if member.parent_id and entries:
                 heading(document, member.title, child=True)
             for entry in entries:
+                inline = inline_honor(entry, member, layout.honors_inline)
+                if inline is not None:
+                    labeled(document, "", inline)
+                    continue
                 if entry.title or entry.subtitle or entry.period:
                     paragraph = document.add_paragraph()
                     paragraph.paragraph_format.keep_with_next = bool(
@@ -217,3 +224,4 @@ def write_full_resume(output: Path, content: dict, projects: list[dict]):
                 for field in entry.custom_fields:
                     labeled(document, field.label, field.value)
     document.save(output)
+    apply_page_layout(output, resume.extensions)
