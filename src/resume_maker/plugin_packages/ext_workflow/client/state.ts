@@ -103,7 +103,7 @@ export function getWorkflow(
       ? project
       : {
           text: "在当前简历中确认模板和内容，点击生成简历后下载 Word、可用的 PDF。",
-          action: "简历导出",
+          action: "生成简历",
           target: "export",
         },
   ];
