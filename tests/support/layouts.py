@@ -184,8 +184,8 @@ def visible_text(path):
 
 
 def template_body_text(path):
-    """读取文档正文顺序，包含表格、图形内的文字"""
-    return "\n".join(Document(path).element.body.xpath(".//w:t/text()"))
+    """按段落读取正文、表格及图形文字，字号拆分运行不应产生额外换行"""
+    return "\n".join(paragraph_text(node) for node in Document(path).element.body.iter(w("p")))
 
 
 def section_template(path, table=False):

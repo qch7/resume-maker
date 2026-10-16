@@ -16,6 +16,7 @@ from resume_maker.domain.experience import displayed_experience
 from resume_maker.domain.page_layout import layout_options
 from resume_maker.domain.project_layout import project_body_entries
 from resume_maker.domain.resume import CustomInfoField, ResumeDocument, ResumeSection
+from resume_maker.integrations.word.item_layout import mark_run, reference
 from resume_maker.integrations.word.page_layout import apply_page_layout, inline_honor
 
 BLUE = "718DB5"
@@ -28,7 +29,7 @@ def shade(element, color):
     element.append(fill)
 
 
-def add_text(paragraph, text, *, bold=False, size=10.5, color="343637"):
+def add_text(paragraph, text, *, bold=False, size=10.5, color="343637", ref=None):
     """以统一的中英文字体写入文本并保留用户输入的换行"""
     run = paragraph.add_run(text)
     run.bold = bold
@@ -36,10 +37,11 @@ def add_text(paragraph, text, *, bold=False, size=10.5, color="343637"):
     run.font.color.rgb = RGBColor.from_string(color)
     run.font.name = "Times New Roman"
     run._element.get_or_add_rPr().rFonts.set(qn("w:eastAsia"), "微软雅黑" if bold else "宋体")
+    mark_run(run._element, ref)
     return run
 
 
-def heading(document, title, child=False):
+def heading(document, title, child=False, ref=None):
     """大栏目使用色带，小栏目使用蓝色标题并、首条内容保持同页"""
     paragraph = document.add_paragraph()
     paragraph.paragraph_format.keep_with_next = True
@@ -47,20 +49,20 @@ def heading(document, title, child=False):
     paragraph.paragraph_format.space_after = Pt(5)
     if not child:
         shade(paragraph._p.get_or_add_pPr(), "ECECEC")
-        run = add_text(paragraph, f" {title}  ", bold=True, size=13, color="FFFFFF")
+        run = add_text(paragraph, f" {title}  ", bold=True, size=13, color="FFFFFF", ref=ref)
         shade(run._element.get_or_add_rPr(), BLUE)
     else:
-        add_text(paragraph, title, bold=True, size=10.5, color=BLUE)
+        add_text(paragraph, title, bold=True, size=10.5, color=BLUE, ref=ref)
 
 
-def labeled(document, label, text):
+def labeled(document, label, text, ref=None):
     """写入带加粗标签的正文，空内容自动省略"""
     if not text:
         return
     paragraph = document.add_paragraph()
     if label:
-        add_text(paragraph, label + "：", bold=True)
-    add_text(paragraph, text)
+        add_text(paragraph, label + "：", bold=True, ref=ref)
+    add_text(paragraph, text, ref=ref)
 
 
 def visible_custom_fields(fields: list[CustomInfoField]):
@@ -94,13 +96,34 @@ def write_header(document, personal):
     main = cells[-2].paragraphs[0]
     main.paragraph_format.space_before = Pt(14)
     if "name" not in personal.hidden_fields:
-        add_text(main, personal.name or "个人简历", bold=True, size=23, color="FFFFFF")
+        add_text(
+            main,
+            personal.name or "个人简历",
+            bold=True,
+            size=23,
+            color="FFFFFF",
+            ref=reference(("personal", "name"), "name"),
+        )
     age = personal.age + ("岁" if personal.age.isdigit() else "")
-    demographics = " ".join(value for value in [personal.gender, age] if value)
-    if demographics:
-        add_text(main, "  " + demographics, size=11, color="FFFFFF")
+    demographics = [
+        (field, value) for field, value in (("gender", personal.gender), ("age", age)) if value
+    ]
+    for index, (field, value) in enumerate(demographics):
+        add_text(
+            main,
+            (" " if index else "  ") + value,
+            size=11,
+            color="FFFFFF",
+            ref=reference(("personal", field), "personal"),
+        )
     if personal.job_title:
-        add_text(cells[-2].add_paragraph(), personal.job_title, size=13, color="FFFFFF")
+        add_text(
+            cells[-2].add_paragraph(),
+            personal.job_title,
+            size=13,
+            color="FFFFFF",
+            ref=reference(("personal", "job_title"), "job_title"),
+        )
     title = cells[-1].paragraphs[0]
     title.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     add_text(title, "个人简历", bold=True, size=24, color="FFFFFF")
@@ -108,20 +131,23 @@ def write_header(document, personal):
     subtitle.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     add_text(subtitle, "PERSONAL RESUME", size=12, color="FFFFFF")
     fields = [
-        ("专业成绩", personal.gpa),
-        ("电话", personal.phone),
-        ("邮箱", personal.email),
-        ("所在地", personal.location),
-        ("个人主页", personal.website),
-        *[(field.label, field.value) for field in visible_custom_fields(personal.custom_fields)],
+        ("专业成绩", personal.gpa, reference(("personal", "gpa"), "personal")),
+        ("电话", personal.phone, reference(("personal", "phone"), "personal")),
+        ("邮箱", personal.email, reference(("personal", "email"), "personal")),
+        ("所在地", personal.location, reference(("personal", "location"), "personal")),
+        ("个人主页", personal.website, reference(("personal", "website"), "personal")),
+        *[
+            (field.label, field.value, reference(("personal", "custom", field.id), "custom"))
+            for field in visible_custom_fields(personal.custom_fields)
+        ],
     ]
     document.add_paragraph().paragraph_format.space_after = Pt(1)
-    visible = [(label, value) for label, value in fields if value]
+    visible = [(label, value, ref) for label, value, ref in fields if value]
     for start in range(0, len(visible), 2):
         paragraph = document.add_paragraph()
         paragraph.paragraph_format.tab_stops.add_tab_stop(Cm(8.7))
-        for index, (label, value) in enumerate(visible[start : start + 2]):
-            add_text(paragraph, ("\t" if index else "") + label + "：" + value)
+        for index, (label, value, ref) in enumerate(visible[start : start + 2]):
+            add_text(paragraph, ("\t" if index else "") + label + "：" + value, ref=ref)
 
 
 def displayed_entries(section: ResumeSection):
@@ -176,9 +202,14 @@ def write_full_resume(output: Path, content: dict, projects: list[dict]):
             or any(displayed_entries(member) for member in group)
         ):
             continue
-        heading(document, section.title)
+        heading(
+            document,
+            section.title,
+            ref=reference(("section", section.id, "title"), "section_title"),
+        )
         if section.kind == "projects":
             for item in projects:
+                project_ref = ("project", item.get("project_id", ""))
                 settings = resume.project_visibility.get(item.get("project_id", ""))
                 value = displayed_experience(item["content"], settings, section.field_definitions)
                 if value["title"] or value["period"]:
@@ -187,19 +218,74 @@ def write_full_resume(output: Path, content: dict, projects: list[dict]):
                     paragraph.paragraph_format.tab_stops.add_tab_stop(
                         Cm(17.3), WD_TAB_ALIGNMENT.RIGHT
                     )
-                    add_text(paragraph, value["title"], bold=True, size=11)
+                    add_text(
+                        paragraph,
+                        value["title"],
+                        bold=True,
+                        size=11,
+                        ref=reference((*project_ref, "title")),
+                    )
                     if value["period"]:
-                        add_text(paragraph, "\t" + value["period"], bold=True, size=11)
+                        add_text(
+                            paragraph,
+                            "\t" + value["period"],
+                            bold=True,
+                            size=11,
+                            ref=reference((*project_ref, "period")),
+                        )
                 for entry in project_body_entries(value, item["highlight_ids"], settings):
-                    labeled(document, entry["label"], entry["text"])
+                    key = entry["key"]
+                    parts = (
+                        ("highlight", entry["id"])
+                        if key == "highlights"
+                        else ("custom", key[7:])
+                        if key.startswith("custom:")
+                        else (key,)
+                    )
+                    labeled(
+                        document,
+                        entry["label"],
+                        entry["text"],
+                        reference(
+                            (*project_ref, *parts),
+                            "highlight"
+                            if key == "highlights"
+                            else "custom"
+                            if key.startswith("custom:")
+                            else None,
+                        ),
+                    )
         for member in group:
             entries = displayed_entries(member)
             if member.parent_id and entries:
-                heading(document, member.title, child=True)
+                heading(
+                    document,
+                    member.title,
+                    child=True,
+                    ref=reference(("section", member.id, "title"), "section_title"),
+                )
             for entry in entries:
+                entry_ref = ("entry", member.id, entry.id)
                 inline = inline_honor(entry, member, layout.honors_inline)
                 if inline is not None:
-                    labeled(document, "", inline)
+                    paragraph = document.add_paragraph()
+                    pieces = [
+                        (field, getattr(entry, field)) for field in ("title", "subtitle", "period")
+                    ]
+                    pieces.extend(
+                        (("custom", field.id), f"{field.label}：{field.value}")
+                        for field in entry.custom_fields
+                    )
+                    pieces.append(("details", entry.details))
+                    for index, (field, value) in enumerate(pair for pair in pieces if pair[1]):
+                        parts = field if isinstance(field, tuple) else (field,)
+                        add_text(
+                            paragraph,
+                            (" · " if index else "") + value.replace("\n", "；"),
+                            ref=reference(
+                                (*entry_ref, *parts), "custom" if isinstance(field, tuple) else None
+                            ),
+                        )
                     continue
                 if entry.title or entry.subtitle or entry.period:
                     paragraph = document.add_paragraph()
@@ -209,19 +295,32 @@ def write_full_resume(output: Path, content: dict, projects: list[dict]):
                     if member.kind == "education":
                         paragraph.paragraph_format.tab_stops.add_tab_stop(Cm(5.7))
                         paragraph.paragraph_format.tab_stops.add_tab_stop(Cm(11.7))
-                        add_text(
-                            paragraph,
-                            "\t".join([entry.period, entry.title, entry.subtitle]),
-                            bold=True,
-                        )
+                        for index, field in enumerate(("period", "title", "subtitle")):
+                            add_text(
+                                paragraph,
+                                ("\t" if index else "") + getattr(entry, field),
+                                bold=True,
+                                ref=reference((*entry_ref, field)),
+                            )
                     else:
-                        add_text(
-                            paragraph,
-                            "   ".join(filter(None, [entry.title, entry.subtitle, entry.period])),
-                            bold=True,
-                        )
-                labeled(document, "", entry.details)
+                        for index, field in enumerate(
+                            field
+                            for field in ("title", "subtitle", "period")
+                            if getattr(entry, field)
+                        ):
+                            add_text(
+                                paragraph,
+                                ("   " if index else "") + getattr(entry, field),
+                                bold=True,
+                                ref=reference((*entry_ref, field)),
+                            )
+                labeled(document, "", entry.details, reference((*entry_ref, "details")))
                 for field in entry.custom_fields:
-                    labeled(document, field.label, field.value)
+                    labeled(
+                        document,
+                        field.label,
+                        field.value,
+                        reference((*entry_ref, "custom", field.id), "custom"),
+                    )
     document.save(output)
     apply_page_layout(output, resume.extensions)

@@ -67,6 +67,9 @@ export default function Composer(props: Props) {
               {draft.document && props.onLayoutChange && (
                 <LayoutSettings
                   document={draft.document}
+                  resumeId={draft.id}
+                  previewInput={previewInput}
+                  unavailable={templateUnavailable}
                   onChange={props.onLayoutChange}
                 />
               )}

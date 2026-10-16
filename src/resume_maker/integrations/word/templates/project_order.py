@@ -6,6 +6,7 @@ from copy import deepcopy
 from lxml import etree
 
 from resume_maker.core.errors import Problem
+from resume_maker.integrations.word.item_layout import mark_run
 from resume_maker.integrations.word.ooxml import w
 from resume_maker.integrations.word.templates.entry_layout import apply_indent, common_indent
 from resume_maker.integrations.word.templates.layout import CONTAINERS, child_in
@@ -85,6 +86,7 @@ def ordered_paragraph(entry, nodes, fields, styles):
         style = run_style(donor, offset)
         for index, line in enumerate(value.split("\n")):
             run = etree.SubElement(paragraph, w("r"))
+            mark_run(run, entry.get("ref"))
             if style is not None:
                 run.append(deepcopy(style))
             if index:

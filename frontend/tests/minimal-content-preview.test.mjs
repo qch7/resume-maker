@@ -290,3 +290,42 @@ test("生成入口保留在预览工具栏，模板缺失、经历未采用及�
   props.exporting = true;
   assert.ok(module.render(props).includes("正在生成简历…"));
 });
+
+test("内容预览逐项应用格式，版面设置显示同类联动及四种参数", async () => {
+  const module = await composerPreview();
+  const props = fixture();
+  props.onLayoutChange = () => {};
+  props.draft.document.extensions = {
+    "sys.resume.layout": {
+      display: { hidden: true },
+      options: {
+        target_pages: 1,
+        font_size: 10,
+        item_styles: {
+          types: {
+            name: { font_size: 18 },
+            highlight: {
+              font_size: 9.5,
+              space_before: 2,
+              space_after: 3,
+              line_spacing: 1.1,
+            },
+          },
+          items: { '["project","project","description"]': { font_size: 12 } },
+        },
+      },
+    },
+  };
+  const html = module.render(props);
+  assert.match(html, /<h1 style="font-size:18pt">示例姓名<\/h1>/);
+  assert.match(html, /<p style="font-size:12pt">正在编辑的正文<\/p>/);
+  assert.match(
+    html,
+    /<li style="font-size:9.5pt;margin-top:2pt;margin-bottom:3pt;line-height:1.1">/,
+  );
+  assert.match(html, /aria-label="断开同类联动" aria-pressed="true"/);
+  assert.match(html, /aria-label="所选项字号（磅）"/);
+  assert.match(html, /aria-label="所选项段前（磅）"/);
+  assert.match(html, /aria-label="所选项段后（磅）"/);
+  assert.match(html, /aria-label="所选项行距（倍）"/);
+});

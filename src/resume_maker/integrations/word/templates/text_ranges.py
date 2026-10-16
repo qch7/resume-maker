@@ -7,6 +7,7 @@ from itertools import pairwise
 
 from lxml import etree
 
+from resume_maker.integrations.word.item_layout import mark_run
 from resume_maker.integrations.word.ooxml import w
 
 TEXT = w("t")
@@ -32,11 +33,14 @@ def set_styled_text(node, prefix, value, suffix):
     first = None
     if prefix:
         first = set_text(etree.SubElement(run, TEXT), prefix)
-    for text, style in value.pieces:
+    for piece in value.pieces:
+        text, style, *metadata = piece
         added = etree.Element(w("r"))
         if style is not None:
             added.append(deepcopy(style))
         start = set_text(etree.SubElement(added, TEXT), text)
+        if metadata:
+            mark_run(added, metadata[0], boundary=bool(metadata[1]) if len(metadata) > 1 else False)
         first = first if first is not None else start
         parent.insert(position, added)
         position += 1
@@ -101,7 +105,11 @@ class ParagraphTextIndex:
             run = next(iter(self.paragraph.findall(w("r"))), None)
             if run is None:
                 run = etree.SubElement(self.paragraph, w("r"))
-            set_text(etree.SubElement(run, TEXT), value)
+            node = etree.SubElement(run, TEXT)
+            if isinstance(value, StyledText):
+                set_styled_text(node, "", value, "")
+            else:
+                set_text(node, value)
             return
         # 引文端点上的换行、制表符保留，只移除严格位于内部的旧控制节点
         left = bisect_right(self.control_positions, start)

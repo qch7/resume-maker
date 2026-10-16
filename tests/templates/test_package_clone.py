@@ -15,7 +15,7 @@ from resume_maker.integrations.word.templates import mapping
 from resume_maker.integrations.word.templates.fill import fill_template
 from resume_maker.integrations.word.templates.mapping import TemplatePackage, paragraph_text
 from tests.support.documents import add_annotation_part, photo_bytes
-from tests.support.layouts import generic_content, generic_template
+from tests.support.layouts import generic_content, generic_template, template_body_text
 
 
 def test_clone_preserves_current_parts_resources_and_independent_indexes():
@@ -121,7 +121,7 @@ def test_mixed_completion_normalizes_only_the_external_package(monkeypatch, layo
     assert len(preparations) == 1
     assert outputs == [output]
     assert len(notices) >= 3
-    text = "\n".join(Document(output).element.body.xpath(".//w:t/text()"))
+    text = template_body_text(output)
     assert document.personal.website in text
     assert "Repository：https://repo0.example.test" in text
     assert "Award 1" in text and "Date 1" in text and "Issuer：Institute 1" in text

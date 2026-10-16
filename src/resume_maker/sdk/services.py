@@ -359,6 +359,21 @@ class ResumePreviews(Protocol):
         """核验固定版本归属后使用当前资料、可选工作副本试填"""
         ...
 
+    def fit(
+        self,
+        template_id,
+        document,
+        items,
+        *,
+        engine_id=None,
+        renderer_id=None,
+        cancelled=None,
+        force=False,
+        timeout=None,
+    ):
+        """冻结一次输入并按真实页数选择预算内方案，未达标时明确返回状态"""
+        ...
+
     def file(self, identifier, filename):
         """只提供当前实例已生成的预览文件，模板源文件、任意路径均不可下载"""
         ...

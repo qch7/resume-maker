@@ -322,7 +322,9 @@
   z-index: 5;
   top: 100%;
   right: 12px;
-  width: min(330px, calc(100% - 24px));
+  width: min(390px, calc(100% - 24px));
+  max-height: min(760px, calc(100vh - 170px));
+  overflow-y: auto;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
@@ -342,9 +344,22 @@
   align-items: center;
 }
 .resume-layout-settings .actions,
+.resume-layout-settings .resume-layout-item-picker,
+.resume-layout-settings .resume-layout-link,
 .resume-layout-settings p {
   grid-column: 1 / -1;
   margin: 0;
   font-size: 12px;
   line-height: 1.6;
+}
+.resume-layout-settings .resume-layout-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
+}
+.resume-layout-settings input[type="number"],
+.resume-layout-settings select {
+  width: 100%;
+  min-width: 0;
 }

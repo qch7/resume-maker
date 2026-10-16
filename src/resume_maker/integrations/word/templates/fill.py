@@ -12,6 +12,7 @@ from lxml import etree
 from resume_maker.core.errors import Problem
 from resume_maker.domain.resume import ResumeDocument
 from resume_maker.domain.templates import TemplatePlan, TextBinding
+from resume_maker.integrations.word.item_layout import mark_run
 from resume_maker.integrations.word.ooxml import w
 from resume_maker.integrations.word.page_layout import apply_page_layout
 from resume_maker.integrations.word.pdf.geometry import clear_pdf_metadata
@@ -20,6 +21,7 @@ from resume_maker.integrations.word.pdf.titles import fit_pdf_titles
 from resume_maker.integrations.word.templates.completion import complete_template
 from resume_maker.integrations.word.templates.entry_layout import ParagraphStyles, align_record
 from resume_maker.integrations.word.templates.flow import effective_section
+from resume_maker.integrations.word.templates.item_values import detail_fragments
 from resume_maker.integrations.word.templates.layout import TemplateLayout
 from resume_maker.integrations.word.templates.mapping import (
     ENTRY_TARGETS,
@@ -81,6 +83,36 @@ def empty_field_paragraph(paragraph):
     return not any(node.tag in protected for node in paragraph.iter())
 
 
+def item_text(nodes, binding, fragments, start, end, *, split=False):
+    """为精确替换范围生成语义片段，保留亮点标签、正文各自的原字体"""
+    paragraph = nodes[binding.node]
+    title_style = run_style(paragraph, start)
+    colon = re.search(r"[:：]", binding.quote)
+    body_start = start + colon.end() if colon and 0 < colon.start() < 40 else start
+    text = paragraph_text(paragraph)
+    while body_start < end and text[body_start].isspace():
+        body_start += 1
+    body_style = run_style(paragraph, body_start)
+    aggregate = binding.target in {
+        "details",
+        "highlights",
+        "custom_fields",
+        "personal.custom_fields",
+    }
+    pieces = []
+    for index, fragment in enumerate(fragments):
+        if index and aggregate:
+            pieces.append(("\n", body_style, fragment["ref"], split))
+        value = fragment["text"]
+        separator = re.search(r"[:：]", value)
+        if aggregate and separator and separator.start() > 0:
+            pieces.append((value[: separator.end()], title_style, fragment["ref"]))
+            pieces.append((value[separator.end() :], body_style, fragment["ref"]))
+        else:
+            pieces.append((value, title_style, fragment["ref"]))
+    return StyledText(pieces)
+
+
 def fill_fields(nodes: dict, fields: list[TextBinding], values: dict):
     """保留样式替换引文并按顺序分配亮点，返回所有失去内容且可安全收起的字段段落"""
     grouped = {}
@@ -105,6 +137,7 @@ def fill_fields(nodes: dict, fields: list[TextBinding], values: dict):
         start, end = ranges[id(binding)]
         value = str(values.get(binding.target, ""))
         highlight_items = [value]
+        fragments = values.get("_layout", {}).get(binding.target)
         if binding.target == "highlights" and "_highlight_items" in values:
             position = highlight_positions[
                 (binding.node, binding.quote, binding.target, binding.occurrence)
@@ -113,6 +146,8 @@ def fill_fields(nodes: dict, fields: list[TextBinding], values: dict):
             stop = position + 1 if position < len(highlight_fields) - 1 else None
             highlight_items = values["_highlight_items"][position:stop]
             value = "\n".join(highlight_items)
+            if fragments is not None:
+                fragments = fragments[position:stop]
         if not value.strip():
             start, end = hidden_personal_range(index.text, binding.target, start, end)
             if values.get("_body_ordered"):
@@ -121,8 +156,26 @@ def fill_fields(nodes: dict, fields: list[TextBinding], values: dict):
                 start, end = empty_entry_range(index.text, start, end)
         if value and not binding.quote and binding.target.startswith("personal.custom:"):
             value = binding.target.partition(":")[2] + "：" + value
+            if fragments:
+                fragments = [{**fragments[0], "text": value}]
         colon = re.search(r"[:：]", binding.quote)
-        if binding.target == "highlights" and colon and 0 < colon.start() < 40 and value:
+        if value and fragments:
+            # 仅独占文本段落的聚合字段可展开，混排、标签列继续共用段距
+            prefix, suffix = index.text[:start], index.text[end:]
+            standalone = (
+                field_counts[binding.node] == 1
+                and not suffix.strip()
+                and (not prefix.strip() or re.fullmatch(r"\s*[^:：\n]{1,50}[:：]\s*", prefix))
+            )
+            styled = item_text(nodes, binding, fragments, start, end, split=bool(standalone))
+            separator = metadata_separator(index, binding, fields, values, ranges)
+            if separator:
+                styled.pieces.append((separator, run_style(nodes[binding.node], start)))
+            if standalone and len(fragments) == 1:
+                for run in nodes[binding.node].findall(w("r")):
+                    mark_run(run, fragments[0]["ref"])
+            grouped.setdefault(binding.node, []).append((start, end, styled))
+        elif binding.target == "highlights" and colon and 0 < colon.start() < 40 and value:
             body_start = start + colon.end()
             while body_start < end and index.text[body_start].isspace():
                 body_start += 1
@@ -161,12 +214,16 @@ def region_values(record, fields):
     }
     if "subtitle" in targets:
         targets.add("role")
-    return {
+    result = {
         **record,
         "details": "\n".join(
             value for target, value in content.items() if target not in targets and value
         ),
     }
+    if "_layout" in record:
+        fragments = detail_fragments(record, record["_layout"], targets)
+        result["_layout"] = {**record["_layout"], "details": fragments}
+    return result
 
 
 def remove_node(node):

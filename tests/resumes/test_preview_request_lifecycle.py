@@ -15,7 +15,11 @@ from resume_maker.api.schemas import ResumePreviewInput
 from resume_maker.core.config import Config
 from resume_maker.core.errors import Problem
 from resume_maker.plugin_packages.sys_documents.configuration import Settings
-from resume_maker.plugin_packages.sys_documents.routes.resumes import preview_resume, router
+from resume_maker.plugin_packages.sys_documents.routes.resumes import (
+    fit_resume,
+    preview_resume,
+    router,
+)
 from resume_maker.plugin_packages.sys_documents.services.resume_previews import ResumePreviews
 from resume_maker.plugin_packages.sys_resume.services.resumes import Resumes
 from resume_maker.sdk import documents
@@ -32,6 +36,12 @@ async def wait_flag(flag):
 async def connected():
     """请求保持连接，取消仅来自框架或截止"""
     return False
+
+
+@pytest.fixture(params=[preview_resume, fit_resume], ids=["preview", "fit"])
+def preview_endpoint(request):
+    """普通预览及自动压页必须遵守相同的 HTTP 生命周期"""
+    return request.param
 
 
 @pytest.fixture
@@ -63,7 +73,7 @@ def preview_service(catalog, tmp_path):
 
 @pytest.mark.parametrize("entrypoint", ["direct", "http"])
 def test_http_deadline_and_admission_include_threadpool_queue(
-    preview_service, monkeypatch, tmp_path, entrypoint
+    preview_service, monkeypatch, tmp_path, entrypoint, preview_endpoint
 ):
     """池槽被占满时提前拒绝积压，原截止到达后不启动渲染"""
     service, calls = preview_service
@@ -75,7 +85,7 @@ def test_http_deadline_and_admission_include_threadpool_queue(
     request = SimpleNamespace(headers={}, is_disconnected=connected)
     app = FastAPI()
     configure_middleware(app, Config(data_dir=tmp_path / "http", token="synthetic"))
-    route = next(route for route in router.routes if route.endpoint is preview_resume)
+    route = next(route for route in router.routes if route.endpoint is preview_endpoint)
     app.router.routes.append(route)
     app.state.route_owners = {id(route): "sys.documents"}
     app.state.contexts = {"sys.documents": SimpleNamespace(require=lambda _: service)}
@@ -99,8 +109,8 @@ def test_http_deadline_and_admission_include_threadpool_queue(
         async def invoke():
             """HTTP 分支执行真实依赖解析、鉴权、路由，不访问网络"""
             if entrypoint == "direct":
-                return await preview_resume(service, body, request)
-            response = await client.post("/api/resume-previews", json=body.model_dump())
+                return await preview_endpoint(service, body, request)
+            response = await client.post(route.path, json=body.model_dump())
             if response.status_code != 200:
                 raise Problem(response.json()["detail"], response.status_code)
             return response.json()
@@ -184,7 +194,7 @@ def test_preview_request_scope_is_instance_local(preview_service, tmp_path):
 
 @pytest.mark.parametrize("cancellation", ["scope", "task", "deadline"])
 def test_asgi_cancellation_signals_work_before_cleanup_finishes(
-    preview_service, monkeypatch, cancellation
+    preview_service, monkeypatch, cancellation, preview_endpoint
 ):
     """框架取消及时传到生成器，路由仍等待实际清理返回"""
     entered, release, finished = threading.Event(), threading.Event(), threading.Event()
@@ -214,7 +224,7 @@ def test_asgi_cancellation_signals_work_before_cleanup_finishes(
                     scopes.append(scope)
                     if cancellation == "task":
                         scopes[-1] = asyncio.current_task()
-                    results.append(await preview_resume(service, body, request))
+                    results.append(await preview_endpoint(service, body, request))
             except Exception as exc:
                 errors.append(type(exc))
             finally:
@@ -234,7 +244,7 @@ def test_asgi_cancellation_signals_work_before_cleanup_finishes(
                 await anyio.sleep(0.05)
                 observed = (flags[0].is_set(), finished.is_set(), len(service.requests))
                 with pytest.raises(Problem) as rejected:
-                    await preview_resume(service, body, request)
+                    await preview_endpoint(service, body, request)
                 assert rejected.value.status == 429
                 release.set()
                 await wait_flag(finished)
@@ -255,7 +265,9 @@ def test_asgi_cancellation_signals_work_before_cleanup_finishes(
 
 
 @pytest.mark.parametrize("cancellation", ["scope", "disconnect", "stop"])
-def test_cancelling_threadpool_waiter_releases_admission(preview_service, cancellation):
+def test_cancelling_threadpool_waiter_releases_admission(
+    preview_service, cancellation, preview_endpoint
+):
     """未进入工作线程的请求可取消并归还容量，之后仍能正常生成"""
     service, calls = preview_service
     occupied, release, finished = threading.Event(), threading.Event(), threading.Event()
@@ -289,7 +301,7 @@ def test_cancelling_threadpool_waiter_releases_admission(preview_service, cancel
             try:
                 with anyio.CancelScope() as scope:
                     scopes.append(scope)
-                    await preview_resume(service, body, request)
+                    await preview_endpoint(service, body, request)
             except Exception as exc:
                 errors.append(type(exc))
             finally:
@@ -316,11 +328,11 @@ def test_cancelling_threadpool_waiter_releases_admission(preview_service, cancel
                 assert calls == []
                 if cancellation == "stop":
                     with pytest.raises(Problem):
-                        await preview_resume(service, body, request)
+                        await preview_endpoint(service, body, request)
                     assert calls == []
                 else:
                     disconnected.clear()
-                    await preview_resume(service, body, request)
+                    await preview_endpoint(service, body, request)
                     assert calls == [1]
                 assert errors == ([] if cancellation == "scope" else [Cancelled])
         finally:

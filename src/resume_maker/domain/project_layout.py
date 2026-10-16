@@ -23,6 +23,7 @@ def project_body_entries(content: dict, selected: list[str], settings=None) -> l
             entries.extend(
                 {
                     "key": key,
+                    "id": identifier,
                     "label": points[identifier]["title"],
                     "text": points[identifier]["text"],
                 }
