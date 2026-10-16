@@ -421,42 +421,43 @@ export default function ResumeWorkspace() {
     mode,
     conversationId: mode === "chat" ? conversationId : "",
   };
-  const navigationReady = useWorkspaceNavigation({
-    loaded,
-    location,
-    state,
-    areas: [
-      "projects",
-      "personal",
-      "structure",
-      ...pluginNavigation().map((item) => item.slot),
-    ],
-    pages: pages.map((item) => item.id),
-    chatAvailable: hasPlugin("ext.ai-conversation"),
-    defaultProjectId: firstProject?.id ?? "",
-    blocked: () => revisionSubmission.current,
-    notify: setToast,
-    /** 恢复已核验的位置，原草稿仍按项目、版本及方案独立保留 */
-    onRestore(value) {
-      ++navigation.current;
-      setArea(value.area);
-      setPage(value.page);
-      setActiveProject(value.projectId);
-      setMode(value.mode);
-      setGuideTarget(null);
-      setResumeLibraryOpen(false);
-      setSelectedRevisions((current) => ({
-        ...current,
-        [value.projectId]: value.revisionId,
-      }));
-      if (value.conversationId)
-        setSelectedConversations((current) => ({
+  const { ready: navigationReady, cancelPending: cancelPendingNavigation } =
+    useWorkspaceNavigation({
+      loaded,
+      location,
+      state,
+      areas: [
+        "projects",
+        "personal",
+        "structure",
+        ...pluginNavigation().map((item) => item.slot),
+      ],
+      pages: pages.map((item) => item.id),
+      chatAvailable: hasPlugin("ext.ai-conversation"),
+      defaultProjectId: firstProject?.id ?? "",
+      blocked: () => revisionSubmission.current,
+      notify: setToast,
+      /** 恢复已核验的位置，原草稿仍按项目、版本及方案独立保留 */
+      onRestore(value) {
+        ++navigation.current;
+        setArea(value.area);
+        setPage(value.page);
+        setActiveProject(value.projectId);
+        setMode(value.mode);
+        setGuideTarget(null);
+        setResumeLibraryOpen(false);
+        setSelectedRevisions((current) => ({
           ...current,
-          [value.projectId]: value.conversationId,
+          [value.projectId]: value.revisionId,
         }));
-      setRefresh((current) => current + 1);
-    },
-  });
+        if (value.conversationId)
+          setSelectedConversations((current) => ({
+            ...current,
+            [value.projectId]: value.conversationId,
+          }));
+        setRefresh((current) => current + 1);
+      },
+    });
   useWorkspaceScroll(
     workspaceScrollKey(location),
     navigationReady &&
@@ -545,6 +546,7 @@ export default function ResumeWorkspace() {
       return;
     }
     const action = (async () => {
+      await cancelPendingNavigation();
       await flushDrafts();
       await work();
     })();

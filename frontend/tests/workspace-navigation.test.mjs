@@ -266,15 +266,24 @@ async function harness(
     notify: (notice) => notices.push(notice),
   };
   /** 执行一次真实钩子的状态、监听收尾 */
+  let navigation;
+  /** 执行一次真实钩子的状态、监听收尾 */
   function render() {
     module.begin();
-    module.useWorkspaceNavigation(options);
+    navigation = module.useWorkspaceNavigation(options);
     module.flushEffects();
   }
   render();
   await settle();
   render();
-  return { module, instance, options, notices, render };
+  return {
+    module,
+    instance,
+    options,
+    notices,
+    render,
+    cancelPending: () => navigation.cancelPending(),
+  };
 }
 
 /** 处理微任务、草稿屏障及导航回调 */
@@ -373,4 +382,48 @@ test("连续后退只采用最后一次目标，迟到草稿响应不能抢回�
   render();
   assert.equal(options.location.area, "personal");
   assert.match(instance.window.location.href, /workspace=personal/);
+});
+
+test("后退等待草稿时新点击取消旧导航，保留原历史且迟到结果不能覆盖新位置", async (t) => {
+  const { module, instance, options, render, cancelPending } = await harness(t);
+  options.location = { ...options.location, area: "structure" };
+  render();
+  module.control.delayed = true;
+  instance.history.go(-1);
+  await settle();
+  await cancelPending();
+  assert.match(instance.window.location.href, /workspace=structure/);
+  options.location = { ...options.location, area: "projects" };
+  render();
+  module.control.waiting[0]();
+  await settle();
+  render();
+  assert.equal(options.location.area, "projects");
+  assert.match(instance.window.location.href, /workspace=projects/);
+  assert.equal(instance.entries.length, 3);
+  assert.equal(instance.history.state.resumeWorkspace.index, 2);
+  module.control.delayed = false;
+  instance.history.go(-1);
+  await settle();
+  render();
+  assert.equal(options.location.area, "structure");
+});
+
+test("无需等待的工作区切换也会取消迟到的后退恢复", async (t) => {
+  const { module, instance, options, render } = await harness(t);
+  options.location = { ...options.location, area: "structure" };
+  render();
+  module.control.delayed = true;
+  instance.history.go(-1);
+  await settle();
+  options.location = { ...options.location, area: "projects" };
+  render();
+  await settle();
+  render();
+  module.control.waiting[0]();
+  await settle();
+  render();
+  assert.equal(options.location.area, "projects");
+  assert.match(instance.window.location.href, /workspace=projects/);
+  assert.equal(instance.entries.length, 3);
 });

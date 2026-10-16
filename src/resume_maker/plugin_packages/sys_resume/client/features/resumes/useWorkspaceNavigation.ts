@@ -33,6 +33,7 @@ export function useWorkspaceNavigation(options: Options) {
   const current = useRef(options);
   current.current = options;
   const [ready, setReady] = useState(false);
+  const [historyVersion, setHistoryVersion] = useState(0);
   const initialized = useRef(false);
   const serial = useRef(0);
   const restoring = useRef(false);
@@ -44,7 +45,35 @@ export function useWorkspaceNavigation(options: Options) {
   const last = useRef("");
   const href = useRef(window.location.href);
   const reverting = useRef(false);
+  const reversal = useRef<Promise<void> | null>(null);
+  const finishReversal = useRef<(() => void) | null>(null);
   const signature = JSON.stringify(options.location);
+
+  /** 恢复原历史位置后才允许新操作继续，避免异步回退覆盖后续点击 */
+  function revert() {
+    if (reversal.current) return reversal.current;
+    const targetIndex = history.state?.resumeWorkspace?.index ?? index.current;
+    const offset = index.current - targetIndex;
+    if (!offset) {
+      history.replaceState(history.state, "", href.current);
+      return Promise.resolve();
+    }
+    const pending = new Promise<void>((done) => {
+      finishReversal.current = done;
+    });
+    reversal.current = pending;
+    reverting.current = true;
+    history.go(offset);
+    return pending;
+  }
+
+  /** 新操作立即取消尚未采用的浏览器导航，并等待地址回到当前页面 */
+  function cancelPending() {
+    if (!restoring.current) return reversal.current ?? Promise.resolve();
+    ++serial.current;
+    restoring.current = false;
+    return revert();
+  }
 
   /** 历史修订需核对项目归属，删除或失效时采用该项目最新版本 */
   async function resolve(requested: WorkspaceLocation) {
@@ -100,7 +129,15 @@ export function useWorkspaceNavigation(options: Options) {
   }, [options.loaded]);
 
   useEffect(() => {
-    if (!ready || restoring.current) return;
+    if (!ready) return;
+    if (restoring.current) {
+      if (last.current !== signature)
+        void cancelPending().then(() =>
+          setHistoryVersion((value) => value + 1),
+        );
+      return;
+    }
+    if (reversal.current) return;
     const initial = !history.state?.resumeWorkspace;
     if (!initial && last.current !== signature) index.current++;
     const url = workspaceUrl(window.location.href, options.location);
@@ -114,22 +151,17 @@ export function useWorkspaceNavigation(options: Options) {
     href.current = window.location.href;
     last.current = signature;
     saveWorkspaceSession("navigation", options.location);
-  }, [ready, signature]);
+  }, [ready, signature, historyVersion]);
 
   useEffect(() => {
     if (!ready) return;
-    /** 拒绝导航时恢复原历史位置，保留可用的前进、后退记录 */
-    function revert(targetIndex: number) {
-      const offset = index.current - targetIndex;
-      if (offset) {
-        reverting.current = true;
-        history.go(offset);
-      } else history.replaceState(history.state, "", href.current);
-    }
     /** 仅采用最后一次前进后退，迟到解析不能覆盖新的导航 */
     async function pop(event: PopStateEvent) {
       if (reverting.current) {
         reverting.current = false;
+        reversal.current = null;
+        finishReversal.current?.();
+        finishReversal.current = null;
         return;
       }
       const request = ++serial.current;
@@ -156,7 +188,7 @@ export function useWorkspaceNavigation(options: Options) {
         current.current.onRestore(location);
       } catch (error) {
         if (request !== serial.current) return;
-        revert(targetIndex);
+        await revert();
         current.current.notify({ text: (error as Error).message, error: true });
       } finally {
         if (request === serial.current) restoring.current = false;
@@ -167,9 +199,10 @@ export function useWorkspaceNavigation(options: Options) {
     window.addEventListener("popstate", listener);
     return () => {
       ++serial.current;
+      finishReversal.current?.();
       window.removeEventListener("popstate", listener);
     };
   }, [ready]);
 
-  return ready;
+  return { ready, cancelPending };
 }
