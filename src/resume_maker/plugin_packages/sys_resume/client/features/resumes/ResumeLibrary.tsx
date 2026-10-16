@@ -60,7 +60,7 @@ export default function ResumeLibrary(props: ResumeLibraryProps) {
       item.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()),
   );
   useEffect(
-    /* 模态窗口关闭后将焦点恢复到顶部入口 */ () => {
+    /* 模态窗口关闭后将焦点恢复到触发入口 */ () => {
       const element = dialog.current!;
       const trigger = document.activeElement;
       element.showModal();
@@ -94,11 +94,11 @@ export default function ResumeLibrary(props: ResumeLibraryProps) {
       <header className="library-titlebar">
         <div>
           <FileDown size={22} />
-          <h2 id={titleId}>简历库</h2>
+          <h2 id={titleId}>当前简历</h2>
         </div>
         <button
           className="icon-button"
-          aria-label="关闭简历库"
+          aria-label="关闭当前简历"
           onClick={props.onClose}
         >
           <X size={19} />

@@ -1474,6 +1474,12 @@ export default function ResumeWorkspace() {
             onLayoutChange={(document) =>
               setDraft((current) => ({ ...current, document }))
             }
+            exporting={exporting}
+            deleting={deleting}
+            onGenerate={() => {
+              setResumeLibraryOpen(true);
+              run(exportResume);
+            }}
             run={run}
           />
         </div>

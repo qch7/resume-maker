@@ -197,7 +197,7 @@ test("export completion compares actual composition, not just existence or save 
   state.draft.items[0].highlight_ids.push("h1");
   assert.equal(isCurrentExport(state.result, state.draft), false);
   state.saved = structuredClone(state.draft);
-  assert.match(getWorkflow(state).text, /上次导出仍是旧内容/);
+  assert.match(getWorkflow(state).text, /上次成品仍是旧内容/);
 });
 
 test("historical exports cannot complete a new resume or an empty composition", /* 验证其他简历或空组合不能复用历史导出的完成状态 */ () => {
@@ -231,7 +231,8 @@ test("export in progress has no invented percentage and generated Word needs no 
     manifest: { resume: structuredClone(state.draft) },
   };
   assert.equal(getWorkflow(state).done[5], true);
-  assert.match(getWorkflow(state).text, /Word 已生成/);
+  assert.match(getWorkflow(state).text, /当前简历已生成/);
+  assert.equal(getWorkflow(state).action, "查看生成记录");
 });
 
 test("personal guidance locates missing basic, education and skills content", /* 姓名、联系方式就绪后，按具体栏目引导补全资料 */ () => {

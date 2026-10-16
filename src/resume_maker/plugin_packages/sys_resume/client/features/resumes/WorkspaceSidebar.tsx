@@ -132,15 +132,15 @@ export default function WorkspaceSidebar({
       <div className="sidebar-utilities">
         <button
           className="resume-library-trigger"
-          aria-label={`导出与模板：${resumeName}，打开简历库`}
+          aria-label={`当前简历：${resumeName}，管理方案和生成记录`}
           aria-haspopup="dialog"
           aria-expanded={resumeLibraryOpen}
-          title={`导出与模板 · ${resumeName}${unsaved ? " · 草稿已保留 · 简历方案未保存" : ""}`}
+          title={`当前简历 · ${resumeName}${unsaved ? " · 草稿已保留 · 简历方案未保存" : ""}`}
           onClick={onOpenResumeLibrary}
         >
           <ResumesIcon size={20} />
           <span className="resume-trigger-copy">
-            <b>{exporting ? "正在导出…" : "导出与模板"}</b>
+            <b>{exporting ? "正在生成简历…" : "当前简历"}</b>
             <small>{resumeName}</small>
           </span>
           {unsaved && (
