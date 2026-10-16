@@ -182,7 +182,8 @@ def test_public_progress_hides_details_and_updates_do_not_replace_final_message(
     )
     assert json.loads(result) == {"reply": "final-result"}
     assert ("usage", {"input_tokens": 12, "output_tokens": 3}) in emitted
-    assert sum(kind == "activity" for kind, _ in emitted) == 3
+    assert sum(kind == "activity" for kind, _ in emitted) == 2
+    assert ("activity", {"type": "material_read", "text": "正在读取脱敏材料"}) in emitted
     visible = json.dumps(emitted)
     assert all(
         value not in visible

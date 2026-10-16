@@ -10,7 +10,7 @@ from resume_maker.sdk.model import ProviderError
 
 
 @contextmanager
-def source_broker(access):
+def source_broker(access, *, on_read=None):
     """随机凭据只供本轮 MCP 进程使用，退出时先停止原件读取再关闭连接"""
     if access is None:
         yield None
@@ -44,6 +44,8 @@ def source_broker(access):
                 if not isinstance(request, dict) or set(request) != {"name", "arguments"}:
                     raise ValueError("请求格式不支持")
                 result = {"result": access.call(request["name"], request["arguments"])}
+                if on_read:
+                    on_read(request["name"], request["arguments"])
             except (OSError, ValueError, TypeError, AttributeError, ProviderError):
                 result = {"error": "读取被拒绝或已取消，请检查授权来源、相对路径及本轮游标。"}
             raw = json.dumps(result, ensure_ascii=False).encode("utf-8")
