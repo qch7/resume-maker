@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { build } from "esbuild";
 import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
+import ts from "typescript";
 import {
   DEFAULT_LOCATION,
   normalizeWorkspaceLocation,
@@ -113,7 +115,35 @@ test("保存新版本沿用滚动位置，不同项目及会话独立恢复", ()
   );
 });
 
-/** 编译实际导航钩子，替换网络、草稿屏障及最小状态容器 */
+/** 提取真实创建回调，单独编译其依赖，避免启动工作台其他插件 */
+function creationCallback() {
+  const file = ts.createSourceFile(
+    "ResumeWorkspace.tsx",
+    readFileSync(
+      new URL(
+        "../../src/resume_maker/plugin_packages/sys_resume/client/features/resumes/ResumeWorkspace.tsx",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+  let callback;
+  /** 查找工作台实际交给创建对话框的提交回调 */
+  function visit(node) {
+    if (ts.isFunctionDeclaration(node) && node.name?.text === "createProject")
+      callback = node;
+    ts.forEachChild(node, visit);
+  }
+  visit(file);
+  if (!callback) throw new Error("未找到工作台创建回调");
+  return `import {api,flushDrafts,cancelPendingNavigation} from "fixture/services";
+    export ${callback.getText(file)}`;
+}
+
+/** 编译实际导航钩子、创建回调，替换网络、草稿屏障及最小状态容器 */
 async function application() {
   const fixtures = {
     react: `let values = [], index = 0, effects = [], cleanups = [];
@@ -133,20 +163,29 @@ async function application() {
       }
       export function flushEffects() { for (const effect of effects.splice(0)) effect(); }
       export function dispose() { for (const cleanup of cleanups) cleanup?.(); }`,
-    services: `export const saved = new Map(), control = {calls:0, failure:"", delayed:false, waiting:[],namespace:"synthetic"};
+    services: `export const saved = new Map(), control = {calls:0, failure:"", delayed:false, waiting:[],namespace:"synthetic",created:[],cancel:async()=>{}};
       export const storage = {namespace:()=>control.namespace,setItem:(key,value)=>saved.set(key,value)};
       export const loadLocal = (key,fallback) => saved.has(key) ? JSON.parse(saved.get(key)) : fallback;
-      export async function api() { return {project_id:"wrong-project"}; }
+      export const cancelPendingNavigation=()=>control.cancel();
+      export async function api(path,method,body) {
+        if (path === "/projects") {
+          control.created.push({method,body});
+          return {id:"created-project",head_revision:"created-revision",name:body.name};
+        }
+        return {project_id:"wrong-project"};
+      }
       export async function flushDrafts() {
         control.calls++;
         if (control.failure) throw new Error(control.failure);
         if (control.delayed) await new Promise(done => control.waiting.push(done));
       }`,
+    creation: creationCallback(),
   };
   const result = await build({
     stdin: {
       contents: `export {useWorkspaceNavigation} from "../src/resume_maker/plugin_packages/sys_resume/client/features/resumes/useWorkspaceNavigation";
         export * from "../src/resume_maker/plugin_packages/sys_resume/client/features/resumes/workspaceSession";
+        export * from "fixture/creation";
         export * from "react"; export * from "fixture/services";`,
       resolveDir: fileURLToPath(new URL("../", import.meta.url)),
     },
@@ -161,6 +200,10 @@ async function application() {
             path: "react",
             namespace: "fixture",
           }));
+          builder.onResolve({ filter: /^fixture\/creation$/ }, () => ({
+            path: "creation",
+            namespace: "fixture",
+          }));
           builder.onResolve(
             {
               filter:
@@ -170,7 +213,7 @@ async function application() {
           );
           builder.onLoad(
             { filter: /.*/, namespace: "fixture" },
-            ({ path }) => ({ contents: fixtures[path] }),
+            ({ path }) => ({ contents: fixtures[path], loader: "ts" }),
           );
         },
       },
@@ -426,4 +469,39 @@ test("无需等待的工作区切换也会取消迟到的后退恢复", async (t
   assert.equal(options.location.area, "projects");
   assert.match(instance.window.location.href, /workspace=projects/);
   assert.equal(instance.entries.length, 3);
+});
+
+test("创建对话框提交取消在途后退，新项目提交前到达的旧结果不能抢回位置", async (t) => {
+  const { module, instance, options, render, cancelPending } = await harness(t);
+  options.location = { ...options.location, area: "structure" };
+  render();
+  module.control.delayed = true;
+  module.control.cancel = cancelPending;
+  instance.history.go(-1);
+  await settle();
+  const pending = module.createProject("合成新项目");
+  await settle();
+  assert.equal(module.control.waiting.length, 2);
+  module.control.waiting[1]();
+  const created = await pending;
+  assert.deepEqual(module.control.created, [
+    { method: "POST", body: { name: "合成新项目", roots: [] } },
+  ]);
+  options.state.projects.push(created);
+  options.location = {
+    ...options.location,
+    area: "projects",
+    projectId: created.id,
+    revisionId: created.head_revision,
+    mode: "edit",
+    conversationId: "",
+  };
+  // React 尚未提交新选择时释放旧恢复，验证取消发生在创建入口而非后续渲染
+  module.control.waiting[0]();
+  await settle();
+  render();
+  assert.equal(options.location.projectId, created.id);
+  assert.equal(options.location.mode, "edit");
+  assert.match(instance.window.location.href, /project=created-project/);
+  assert.equal(instance.history.state.resumeWorkspace.index, 2);
 });

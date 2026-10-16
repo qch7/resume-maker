@@ -152,14 +152,14 @@ export function getProjectWorkflow(input: {
     return guide(
       3,
       "正在生成 Word 并计算实际页数，请稍候。",
-      "查看导出进展",
+      "查看生成进展",
       "export",
     );
   if (exported)
     return guide(
       3,
       result?.pages
-        ? `当前组合已导出，共 ${result.pages} 页。可下载 Word，或继续调整下一份简历。`
+        ? `当前简历已生成，共 ${result.pages} 页。可下载 Word、PDF，或继续调整下一份简历。`
         : "当前简历已生成，可在当前简历面板下载 Word；PDF 状态见生成记录。",
       "查看生成记录",
       "export",

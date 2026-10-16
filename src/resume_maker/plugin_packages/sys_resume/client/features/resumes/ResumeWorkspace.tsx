@@ -597,6 +597,7 @@ export default function ResumeWorkspace() {
   }
   /** 创建已确认的手工项目，原经历草稿必须先完成保存 */
   async function createProject(name: string) {
+    await cancelPendingNavigation();
     await flushDrafts();
     return api<Project>("/projects", "POST", { name, roots: [] });
   }
