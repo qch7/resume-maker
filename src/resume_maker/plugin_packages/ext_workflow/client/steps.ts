@@ -17,8 +17,8 @@ export const WORKFLOW_STEPS: {
   substeps: GuideSubstep[];
 }[] = [
   {
-    title: "模板识别",
-    detail: "识别模板 · 确认版式",
+    title: "模板选择",
+    detail: "内置版式 · 导入可选",
     target: "template-select",
     substeps: [],
   },
@@ -36,19 +36,19 @@ export const WORKFLOW_STEPS: {
   },
   {
     title: "项目经历",
-    detail: "导入项目 · AI 整理",
+    detail: "手工编辑 · 源码分析可选",
     target: "experience-save",
     substeps: [
-      { title: "导入项目", target: "projects" },
-      { title: "智能整理", target: "analysis" },
+      { title: "新建项目", target: "projects" },
+      { title: "编辑经历", target: "experience-save" },
     ],
   },
   {
     title: "荣誉证书",
-    detail: "识别证书 · 筛选荣誉",
+    detail: "手动录入 · 证书识别可选",
     target: "honor-recognize",
     substeps: [
-      { title: "识别荣誉", target: "honor-recognize" },
+      { title: "录入荣誉", target: "honor-recognize" },
       { title: "选择荣誉", target: "honor-select" },
     ],
   },
