@@ -100,6 +100,9 @@ import type {
   SectionEntry,
 } from "@resume-maker/plugin-sdk/shared/types/index";
 import { useWorkspaceLayout } from "./useWorkspaceLayout";
+import { useWorkspaceNavigation } from "./useWorkspaceNavigation";
+import { useWorkspaceScroll } from "./useWorkspaceScroll";
+import { workspaceScrollKey, type WorkspaceArea } from "./workspaceLocation";
 
 const PREVIEW_PROGRESS_POLL_MS = 1600;
 
@@ -125,14 +128,7 @@ export default function ResumeWorkspace() {
   const Workflow = pluginComponent("workflow");
   const activityPreferences = useActivityPreferences();
   const [settingsVersion, setSettingsVersion] = useState(0);
-  const [area, setArea] = useState<
-    | "projects"
-    | "personal"
-    | "structure"
-    | "templates"
-    | "honors"
-    | "recruitment"
-  >("projects");
+  const [area, setArea] = useState<WorkspaceArea>("projects");
   const [defaultsOpen, setDefaultsOpen] = useState(false);
   const [resumeLibraryOpen, setResumeLibraryOpen] = useState(false);
   const [structureTarget, setStructureTarget] = useState<string | null>(null);
@@ -417,6 +413,57 @@ export default function ResumeWorkspace() {
     run,
     notify: setToast,
   });
+  const location = {
+    area,
+    page,
+    projectId: activeProject,
+    revisionId,
+    mode,
+    conversationId: mode === "chat" ? conversationId : "",
+  };
+  const navigationReady = useWorkspaceNavigation({
+    loaded,
+    location,
+    state,
+    areas: [
+      "projects",
+      "personal",
+      "structure",
+      ...pluginNavigation().map((item) => item.slot),
+    ],
+    pages: pages.map((item) => item.id),
+    chatAvailable: hasPlugin("ext.ai-conversation"),
+    defaultProjectId: firstProject?.id ?? "",
+    blocked: () => revisionSubmission.current,
+    notify: setToast,
+    /** 恢复已核验的位置，原草稿仍按项目、版本及方案独立保留 */
+    onRestore(value) {
+      ++navigation.current;
+      setArea(value.area);
+      setPage(value.page);
+      setActiveProject(value.projectId);
+      setMode(value.mode);
+      setGuideTarget(null);
+      setResumeLibraryOpen(false);
+      setSelectedRevisions((current) => ({
+        ...current,
+        [value.projectId]: value.revisionId,
+      }));
+      if (value.conversationId)
+        setSelectedConversations((current) => ({
+          ...current,
+          [value.projectId]: value.conversationId,
+        }));
+      setRefresh((current) => current + 1);
+    },
+  });
+  useWorkspaceScroll(
+    workspaceScrollKey(location),
+    navigationReady &&
+      (area === "projects" && !selectedPage && activeProject
+        ? remoteProject.ready && (mode === "edit" || remoteChat.ready)
+        : loaded),
+  );
   const deletingProjectIds = projectDeletionIds(
     state.projects,
     deletingProject?.id ?? "",
@@ -443,7 +490,11 @@ export default function ResumeWorkspace() {
   }, [reload]);
   useEffect(
     /* 首次加载或当前项目被删除时选择有效项目 */ () => {
-      if (!loaded || state.projects.some((item) => item.id === activeProject))
+      if (
+        !loaded ||
+        !navigationReady ||
+        state.projects.some((item) => item.id === activeProject)
+      )
         return;
       if (firstProject) {
         setActiveProject(firstProject.id);
@@ -457,7 +508,7 @@ export default function ResumeWorkspace() {
         setMode("edit");
       }
     },
-    [activeProject, firstProject, loaded, state.projects],
+    [activeProject, firstProject, loaded, navigationReady, state.projects],
   );
   useEffect(() => {
     const revision = remoteProject.data?.revision;
@@ -1042,7 +1093,7 @@ export default function ResumeWorkspace() {
         </div>
         <div className="workbench" ref={workbench}>
           <main className="workspace">
-            {!loaded ? (
+            {!loaded || !navigationReady ? (
               <div className="empty">
                 <LoaderCircle className="spin" />
                 正在读取本机数据…
