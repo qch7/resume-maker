@@ -184,8 +184,18 @@ def visible_text(path):
 
 
 def template_body_text(path):
-    """按段落读取正文、表格及图形文字，字号拆分运行不应产生额外换行"""
-    return "\n".join(paragraph_text(node) for node in Document(path).element.body.iter(w("p")))
+    """保留段落、手工换行及制表符，字号拆分运行不应产生额外换行"""
+    paragraphs = []
+    for paragraph in Document(path).element.body.iter(w("p")):
+        parts = []
+        for node in paragraph.iter(w("t"), w("br"), w("cr"), w("tab")):
+            if next(node.iterancestors(w("p")), None) is not paragraph:
+                continue
+            parts.append(
+                (node.text or "") if node.tag == w("t") else "\t" if node.tag == w("tab") else "\n"
+            )
+        paragraphs.append("".join(parts))
+    return "\n".join(paragraphs)
 
 
 def section_template(path, table=False):
