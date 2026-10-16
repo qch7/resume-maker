@@ -145,7 +145,7 @@ Host/Client 依赖分别求序，remote 依赖只通过 DTO RPC 消费。`enhanc
 
 荣誉证书由 `plugin_packages/ext_honors/services/honors.py` 独立管理，每个条目以 `honor:<uuid>` 保存到现有 `settings` 表，事务内校验版本，不改变数据库结构。原件和解码后的 PNG 分页通过 assets bundle 发布，逻辑集合为 `honors/<uuid>`，纳入资源备份。二进制上传在 HTTP 层限制 20 MB；适配器按实际文件内容校验格式，PDF 限 12 页，单图限 4000 万像素。实例启动时运行单个识别队列，复用 Provider 的结构化图片输入及 `honor_recognition` 功能设置，取消、删除和退出后拒绝迟到结果；异常退出的在途条目在下次启动时转为可重试状态。识别结果先进入待核对资料，重识别保留已人工确认的字段，由用户选择是否采用新提取结果。
 
-前端 `plugin_packages/ext_honors/client/` 提供独立的全宽荣誉库、批量上传、分类搜索和原件核对表单。加入简历时生成带 `honor:<uuid>` 标识的普通条目并跨栏目去重，加入操作只改变当前草稿。已核对荣誉内容以库中记录为准，`domain/honor_entries.py` 按稳定来源标识统一投影到普通简历条目；工作台读取、保存、预览和正式导出共用 `plugin_packages/ext_honors/services/honor_links.py` 解析入口，既有缺字段条目也会补全。读取不写数据库，删除来源前在同一事务中保留最后核对资料；历史导出及清单保持不变。
+前端 `plugin_packages/ext_honors/client/` 提供独立的全宽荣誉库、批量上传、分类搜索和原件核对表单。加入简历时生成带 `honor:<uuid>` 标识的普通条目并跨栏目去重，加入操作只改变当前草稿。已核对荣誉内容以库中记录为准，`domain/honor_entries.py` 按稳定来源标识统一投影到普通简历条目；工作台读取、保存、预览和正式导出共用 `plugin_packages/ext_honors/services/honor_links.py` 解析入口，既有缺字段条目也会补全。读取不写数据库，删除来源前在同一事务中保留最后核对资料；历史导出及清单保持不变。荣誉保存响应通过简历公开服务在同一事务统计有效保存方案的来源引用，每份方案只计一次；关联数量仅作为响应元数据，不落入荣誉记录，不推进简历版本。
 
 荣誉类型由 `shared/types/honors.ts` 定义，荣誉库与个人信息共用 `features/honors/fields.ts` 的字段说明。`entry.ts` 将名称、单位、日期、说明逐项对应到普通条目的 `title/subtitle/period/details`，其余资料以稳定的 `honor-field:<key>` 标识保存在 `custom_fields`，不重复存储或拼接字段。新条目只显示名称和日期，库条目明确保存 `ext.honors/library` 来源及版本，手工荣誉使用 `honor:manual:<uuid>` 标识；移动或重命名栏目后字段语义不变。既有条目的内容同步，但整条显隐、各字段显隐、自定义备注和排序不变。五项固定荣誉信息不占用二十个用户自定义名额；条目最多保存二十五项，个人基本信息仍最多二十项。存储及模板填充沿用普通条目的显隐机制。
 

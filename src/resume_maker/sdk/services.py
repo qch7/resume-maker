@@ -169,6 +169,10 @@ class Resumes(Protocol):
         """读取来源的有界资料页"""
         ...
 
+    def source_usage(self, conn, provider, identifier):
+        """同一事务内统计来源关联的有效保存方案，重复引用只计一次"""
+        ...
+
     def preserve_sources(self, conn=None):
         """同一业务事务内保存最后核对的来源内容"""
         ...

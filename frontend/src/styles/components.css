@@ -1430,7 +1430,7 @@
 }
 .importer-select.compact {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 4px 8px;
   margin: 0;
@@ -1442,6 +1442,22 @@
 }
 .importer-select.compact small {
   grid-column: 1 / -1;
+}
+.importer-summary {
+  overflow-wrap: anywhere;
+}
+.importer-advanced > summary {
+  cursor: pointer;
+  color: var(--subtle);
+}
+.importer-advanced[open] {
+  grid-column: 1 / -1;
+}
+.importer-advanced > label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0 0;
 }
 .import-details {
   margin: 6px 0;

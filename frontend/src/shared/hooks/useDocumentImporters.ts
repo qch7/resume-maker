@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api } from "../lib/api";
+import { api, ApiError } from "../lib/api";
 import { storage } from "../lib/storage";
 
 import type { DocumentImporter } from "../types/imports";
@@ -11,9 +11,24 @@ export function useDocumentImporters(
 ) {
   const [items, setItems] = useState<DocumentImporter[]>([]);
   const selectionKey = `rm.document.importer.${purpose}`;
-  const [selected, setSelected] = useState(
+  const [selected, setSelection] = useState(
     () => storage.getItem(selectionKey) ?? "",
   );
+  const [conflict, setConflict] = useState("");
+  /** 只接受用户的明确选择，存量处理器缺失时保留原值 */
+  function setSelected(identifier: string) {
+    setSelection(identifier);
+    setConflict("");
+  }
+  /** 实际内容探测出现多项匹配时展开选择，普通失败仍由原表单报告 */
+  function reportError(reason: unknown) {
+    if (
+      reason instanceof ApiError &&
+      reason.status === 409 &&
+      reason.message.includes("多个导入器")
+    )
+      setConflict("多个处理器可以处理此文件，请明确选择后重试。");
+  }
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   useEffect(() => {
@@ -55,6 +70,8 @@ export function useDocumentImporters(
     items,
     selected,
     setSelected,
+    conflict,
+    reportError,
     error,
     loading,
     available,

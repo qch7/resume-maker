@@ -12,7 +12,7 @@ from lxml import etree
 from resume_maker.api import create_app
 from resume_maker.core.config import Config
 from resume_maker.core.errors import Problem
-from resume_maker.domain.honors import HonorFields
+from resume_maker.domain.honors import HonorFields, HonorSave
 from resume_maker.domain.resume import ResumeDocument, ResumeSection, SectionEntry
 from resume_maker.infrastructure.assets import Assets
 from resume_maker.infrastructure.database import dump
@@ -20,6 +20,7 @@ from resume_maker.integrations.word.full_resume import write_full_resume
 from resume_maker.integrations.word.ooxml import NS
 from resume_maker.integrations.word.templates.values import section_records
 from resume_maker.plugin_packages.ext_honors.services.honor_links import resume_source
+from resume_maker.plugin_packages.ext_honors.services.honors import Honors
 from resume_maker.plugin_packages.sys_resume.services.resume_sources import ResumeSources
 from resume_maker.plugin_packages.sys_resume.services.resumes import Resumes
 from resume_maker.runtime.host import Contribution
@@ -493,3 +494,41 @@ def test_preview_and_export_resolve_current_honors_and_invalidate_cache(
         )
     finally:
         service.stop()
+
+
+def test_save_reports_exact_saved_resume_links_without_publishing_drafts(catalog, tmp_path):
+    """保存响应统计实际来源关联，重复引用、其他提供方、删除方案不虚增数量"""
+    resumes = Resumes(catalog, storage=catalog.db, assets=catalog.assets)
+    honors = Honors(
+        catalog.db, tmp_path, None, assets=catalog.assets, source_usage=resumes.source_usage
+    )
+    source = honors.save(HonorSave(fields=HonorFields(name="合成证书")))
+    assert source["linked_resume_count"] == 0
+    document = linked_document(source["id"])
+    duplicate = deepcopy(document["sections"][1]["entries"][0])
+    duplicate["id"] = "duplicate-reference"
+    document["sections"][1]["entries"].append(duplicate)
+    first = resumes.save_resume(
+        "方案一", None, [], document=ResumeDocument.model_validate(document)
+    )
+    second = resumes.save_resume(
+        "方案二", None, [], document=ResumeDocument.model_validate(document)
+    )
+    other = deepcopy(document)
+    for entry in other["sections"][1]["entries"]:
+        entry["source"]["provider"] = "community.other/library"
+    resumes.save_resume("不同来源", None, [], document=ResumeDocument.model_validate(other))
+    updated = honors.save(
+        HonorSave(fields=HonorFields(name="核对后的证书"), version=source["version"]), source["id"]
+    )
+    assert updated["linked_resume_count"] == 2
+    assert "linked_resume_count" not in honors.get(source["id"])
+    assert catalog.db.one("SELECT version FROM resumes WHERE id=?", (first["id"],))["version"] == 1
+    resumes.delete_resume(second["id"], second["version"])
+    updated = honors.save(
+        HonorSave(fields=HonorFields(name="再次核对"), version=updated["version"]), source["id"]
+    )
+    assert updated["linked_resume_count"] == 1
+    with catalog.db.transaction() as conn:
+        conn.execute("DELETE FROM resumes WHERE id=?", (first["id"],))
+        assert resumes.source_usage(conn, "ext.honors/library", source["id"]) == 0
