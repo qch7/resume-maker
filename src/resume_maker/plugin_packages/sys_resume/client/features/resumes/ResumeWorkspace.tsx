@@ -22,6 +22,7 @@ import { clearLocalDrafts } from "../experiences/useField";
 import { experienceContent } from "@resume-maker/plugin-sdk/shared/resume/visibility";
 import ProjectSidebar from "../projects/ProjectSidebar";
 import DeleteProjectDialog from "../projects/DeleteProjectDialog";
+import CreateProjectDialog from "../projects/CreateProjectDialog";
 import {
   projectDeletionBlocker,
   projectDeletionIds,
@@ -213,6 +214,8 @@ export default function ResumeWorkspace() {
   >({});
   const [creatingConversation, setCreatingConversation] = useState("");
   const [deletingProject, setDeletingProject] = useState<Project | null>(null);
+  const [creatingProject, setCreatingProject] = useState(false);
+  const createdProjectFocus = useRef("");
   const conversationCreationPending = useRef(false);
   const [mode, setMode] = useState<"edit" | "chat">("edit");
   const [folded, setFolded] = useState<Record<string, boolean>>({});
@@ -296,6 +299,20 @@ export default function ResumeWorkspace() {
       : null,
     refresh,
   );
+  useEffect(() => {
+    if (
+      !remoteProject.ready ||
+      activeProject !== createdProjectFocus.current ||
+      mode !== "edit" ||
+      creatingProject
+    )
+      return;
+    const target =
+      document.getElementById("project-meta-description") ??
+      document.getElementById("project-meta-title");
+    createdProjectFocus.current = "";
+    target?.focus();
+  }, [activeProject, creatingProject, mode, remoteProject.ready]);
   const [chatRefresh, setChatRefresh] = useState(0);
   useEffect(() => {
     setChatRefresh((value) => value + 1);
@@ -524,6 +541,37 @@ export default function ResumeWorkspace() {
   function openProjects() {
     setRefresh((value) => value + 1);
     openArea("projects");
+  }
+  /** 创建已确认的手工项目，原经历草稿必须先完成保存 */
+  async function createProject(name: string) {
+    await flushDrafts();
+    return api<Project>("/projects", "POST", { name, roots: [] });
+  }
+  /** 成功后选中新项目，不改变当前简历的固定项目引用 */
+  function projectCreated(created: Project) {
+    ++navigation.current;
+    ++stateRequests.current;
+    setState((current) => ({
+      ...current,
+      projects: [
+        created,
+        ...current.projects.filter((item) => item.id !== created.id),
+      ],
+    }));
+    setSelectedRevisions((current) => ({
+      ...current,
+      [created.id]: created.head_revision,
+    }));
+    createdProjectFocus.current = created.id;
+    setActiveProject(created.id);
+    setMode("edit");
+    setPage("");
+    setCreatingProject(false);
+    openProjects();
+    closeMobileSidebar();
+    void reload().catch((error) =>
+      setToast({ text: (error as Error).message, error: true }),
+    );
   }
   /** 保存待处理草稿后切换项目或会话，用序号防止旧导航覆盖新选择 */
   function navigate(projectId: string, convId?: string) {
@@ -783,7 +831,7 @@ export default function ResumeWorkspace() {
       }
       openProjects();
       if (target === "projects" || (!project && !projectId)) {
-        setModal("projects");
+        setCreatingProject(true);
         return;
       }
       if (projectId) {
@@ -977,7 +1025,7 @@ export default function ResumeWorkspace() {
             onDelete={setDeletingProject}
             onImport={
               /* 处理 onImport 回调，将变化同步到工作台状态 */ () =>
-                setModal("projects")
+                run(async () => setCreatingProject(true))
             }
           />
         )}
@@ -1153,7 +1201,7 @@ export default function ResumeWorkspace() {
                 </p>
                 <button
                   className="primary"
-                  onClick={() => setModal("projects")}
+                  onClick={() => run(async () => setCreatingProject(true))}
                 >
                   <FolderPlus size={17} />
                   新建手工项目
@@ -1628,6 +1676,13 @@ export default function ResumeWorkspace() {
             blocker={deletionBlocker}
             onClose={() => setDeletingProject(null)}
             onDelete={deleteProject}
+          />
+        )}
+        {creatingProject && (
+          <CreateProjectDialog
+            onClose={() => setCreatingProject(false)}
+            onCreate={createProject}
+            onCreated={projectCreated}
           />
         )}
         {modal && (
