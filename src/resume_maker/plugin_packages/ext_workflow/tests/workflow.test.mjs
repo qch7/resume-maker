@@ -80,11 +80,12 @@ test("a saved and exported resume without projects completes independent steps",
   assert.deepEqual(getWorkflow(state).done, [
     true,
     true,
-    true,
+    false,
     true,
     true,
     true,
   ]);
+  assert.equal(getWorkflow(state).statuses[2], "optional");
 });
 
 test("editing an unrelated project preserves saved composition progress", /* 未引用项目的编辑不撤销已经保存的方案状态 */ () => {
@@ -98,6 +99,7 @@ test("typing and recovered server drafts both require a saved revision", /* 验�
   const state = fixture();
   state.edited = true;
   assert.equal(getWorkflow(state).target, "experience-save");
+  assert.equal(getWorkflow(state).step, 2);
   assert.equal(getWorkflow(state).action, "保存并用于当前简历");
   assert.match(getWorkflow(state).text, /草稿已自动保留/);
   assert.deepEqual(getWorkflow(state).done, [
@@ -267,9 +269,11 @@ test("recognized honors must be selected into this resume to complete the honor 
   );
   honors.entries = [];
   state.honors = [{ id: "h1", reviewed: false, fields: { name: "示例奖项" } }];
-  assert.equal(getWorkflow(state).target, "honor-recognize");
+  assert.equal(getWorkflow(state).statuses[3], "optional");
+  assert.equal(getWorkflow(state).done[3], false);
   state.honors[0].reviewed = true;
-  assert.equal(getWorkflow(state).target, "honor-select");
+  assert.equal(getWorkflow(state).statuses[3], "optional");
+  assert.match(getWorkflow(state).guides[3].text, /已核对的资料/);
   assert.deepEqual(getWorkflow(state).substeps[3], [true, false]);
   // 按来源标识识别加入自定义栏目的荣誉
   state.draft.document.sections
@@ -282,6 +286,7 @@ test("recognized honors must be selected into this resume to complete the honor 
     });
   assert.deepEqual(getWorkflow(state).substeps[3], [true, true]);
   assert.equal(getWorkflow(state).done[3], true);
+  assert.equal(getWorkflow(state).statuses[3], "complete");
 });
 
 test("hidden and empty content cannot falsely complete a visible section", /* 检查字段显隐、父栏目显隐对准备状态的影响 */ () => {
@@ -298,7 +303,8 @@ test("hidden and empty content cannot falsely complete a visible section", /* �
   );
   honors.entries = [];
   honors.parent_id = education.id;
-  assert.equal(getWorkflow(state).done[3], true);
+  assert.equal(getWorkflow(state).done[3], false);
+  assert.equal(getWorkflow(state).statuses[3], "skipped");
 });
 
 test("personal edits invalidate saved composition and the previous export", /* 导出进度比较整份简历内容 */ () => {

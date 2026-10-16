@@ -2,6 +2,7 @@ import type { HonorSource } from "@resume-maker/plugin-sdk/shared/types/honors";
 import { getProjectWorkflow } from "./projectState.ts";
 import { getProfileProgress } from "@resume-maker/plugin-sdk/shared/resume/progress";
 import { WORKFLOW_STEPS, type GuideAction } from "./steps.ts";
+import { workflowReadiness } from "./readiness.ts";
 export type { GuideTarget } from "./steps";
 
 /** 汇总模板、个人资料、项目、荣誉、编排及导出的独立准备进度 */
@@ -21,15 +22,18 @@ export function getWorkflow(
       /* 已核对的来源可直接进入筛选 */ (honor) =>
         honor.reviewed && !!honor.fields.name.trim(),
     );
-  const done = [
+  const completed = [
     templateReady,
     personalReady,
-    (!input.projectCount && !input.draft.items.length) ||
-      (project.done[1] && project.step !== 1),
-    profile.honors,
+    project.done[1] && project.step !== 1,
+    profile.selectedHonor,
     project.done[2],
     templateReady && project.done[3],
   ];
+  const statuses = workflowReadiness(input, completed);
+  const done = statuses.map(
+    (status) => status === "complete" || status === "ready",
+  );
   const personalTarget = !profile.basic
     ? "personal-basic"
     : !profile.education
@@ -40,7 +44,7 @@ export function getWorkflow(
       ? {
           text: input.draft.template_id
             ? "模板已用于当前简历，接下来填写个人资料。"
-            : "当前使用内置完整简历，可直接填写资料，也可导入模板并识别版式。",
+            : "已选择内置完整简历，可直接填写资料，也可导入自己的模板。",
           action: "填写资料",
           target: "personal-basic",
         }
@@ -71,26 +75,32 @@ export function getWorkflow(
           target: "projects",
         }
       : project.step < 2
-        ? project
+        ? project.target === "analysis" && !input.analyzing
+          ? {
+              text: "项目经历为可选栏目。可手工填写描述、亮点，再保存并用于当前简历；源码分析可按需使用。",
+              action: "编辑经历",
+              target: "experience-save",
+            }
+          : project
         : {
             text: "经历版本已保存，可继续选择荣誉，或在简历编排时调整引用版本及亮点。",
             action: "选择荣誉",
             target: "honor-select",
           },
-    profile.honors
+    statuses[3] === "optional"
       ? {
-          text: profile.selectedHonor
-            ? "荣誉已加入当前简历，可继续调整栏目顺序与展示内容。"
-            : "当前未展示荣誉栏目，可直接进入组合编排；需要时仍可识别和添加荣誉。",
-          action: "编排简历",
+          text: honorRecognized
+            ? "荣誉为可选栏目，可从已核对的资料中选择条目；也可继续编排当前简历。"
+            : "荣誉为可选栏目，可手动录入或识别证书；也可继续编排当前简历。",
+          action: "继续编排（荣誉可跳过）",
           target: "structure",
         }
       : {
-          text: honorRecognized
-            ? "从已核对的荣誉中选择适合本次求职的条目，加入当前简历。"
-            : "上传证书图片或 PDF，识别并核对荣誉资料，再选择加入当前简历；也可手动录入。",
-          action: honorRecognized ? "选择荣誉" : "识别荣誉",
-          target: honorRecognized ? "honor-select" : "honor-recognize",
+          text: profile.selectedHonor
+            ? "荣誉已加入当前简历，可继续调整栏目顺序与展示内容。"
+            : "荣誉栏目已跳过，可继续编排。需要添加荣誉时，可在栏目编排中重新显示。",
+          action: "编排简历",
+          target: "structure",
         },
     project.step === 2
       ? project
@@ -115,16 +125,22 @@ export function getWorkflow(
     [],
     [],
   ];
-  const pending = done.findIndex(
-    /* 下一步按整份简历流程推荐，用户仍可自由跳转 */ (ready) => !ready,
+  const pending = statuses.findIndex(
+    /* 可选及已隐藏栏目不阻碍下一项必需操作 */ (status) => status === "pending",
   );
   const step = pending < 0 ? WORKFLOW_STEPS.length - 1 : pending;
-  // 已保存的组合仍需提示旧版本引用、未加入的项目
-  const recommendation =
-    step === 5 && project.step === 2 ? project : guides[step];
+  // 已保存方案仍需提示当前项目的旧版本引用
+  const needsReference =
+    step === 5 &&
+    project.step === 2 &&
+    input.draft.items.some(
+      (item) => item.project_id === input.detail?.project.id,
+    );
+  const recommendation = needsReference ? project : guides[step];
   return {
     done,
-    step: step === 5 && project.step === 2 ? 4 : step,
+    statuses,
+    step: needsReference ? 4 : step,
     guides,
     substeps,
     text: recommendation.text,
