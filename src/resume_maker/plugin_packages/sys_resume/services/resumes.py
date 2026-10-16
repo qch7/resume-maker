@@ -72,6 +72,18 @@ class Resumes:
             raise Problem("资料来源未启用。", 409)
         return self.sources.browse(provider, cursor, query, limit)
 
+    def source_usage(self, conn, provider, identifier):
+        """同一事务内统计引用来源的有效保存方案，每份方案只计一次"""
+        return conn.execute(
+            "SELECT count(*) FROM resumes AS r "
+            "WHERE r.id NOT IN (SELECT resume_id FROM resume_deletions) "
+            "AND EXISTS (SELECT 1 FROM json_each(r.document_json,'$.sections') AS s, "
+            "json_each(s.value,'$.entries') AS e "
+            "WHERE json_extract(e.value,'$.source.provider')=? "
+            "AND json_extract(e.value,'$.source.id')=?)",
+            (provider, identifier),
+        ).fetchone()[0]
+
     def preserve_sources(self, conn=None):
         """来源停用或删除前保存最新确认内容，更新版本以保护已有草稿"""
         if conn is None:

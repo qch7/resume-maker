@@ -29,6 +29,7 @@ export interface HonorSource {
 }
 
 export interface Honor {
+  linked_resume_count?: number | null;
   id: string;
   fields: HonorFields;
   attachment: {

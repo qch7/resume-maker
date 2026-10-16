@@ -468,6 +468,7 @@ export default function TemplateAdapter({
       });
       if (isCurrent()) openTask(value);
     } catch (error) {
+      if (isCurrent()) importers.reportError(error);
       if (isCurrent())
         setImportError({
           fileName: path.split(/[\\/]/).pop() || path,

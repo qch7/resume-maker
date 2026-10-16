@@ -17,6 +17,7 @@ import {
   request,
 } from "@resume-maker/plugin-sdk/shared/lib/api";
 import HonorEditor from "./HonorEditor";
+import { honorSaveNotice } from "./saveNotice";
 import ImporterSelect from "@resume-maker/plugin-sdk/shared/components/ImporterSelect";
 import { useDocumentImporters } from "@resume-maker/plugin-sdk/shared/hooks/useDocumentImporters";
 import HonorImage from "./HonorImage";
@@ -124,7 +125,9 @@ export default function HonorLibrary({
       ],
     );
     onSaved(honor);
-    setNotice("已保存，关联简历的信息已同步");
+    setNotice(
+      honorSaveNotice(honor.linked_resume_count, hasHonor(document, honor.id)),
+    );
   }
   /** 逐个上传，每个文件独立报告结果，失败文件不阻断其他证书 */
   async function upload(files: File[]) {
@@ -160,6 +163,7 @@ export default function HonorLibrary({
         );
         success++;
       } catch (reason) {
+        importers.reportError(reason);
         setUploadErrors(
           /* 保留每个失败文件的名称、原因 */ (current) => [
             ...current,

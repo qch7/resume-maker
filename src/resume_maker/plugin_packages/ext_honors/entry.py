@@ -36,6 +36,7 @@ def activate(context):
             dependency(context, "config").data_dir,
             None,
             preserve_sources=dependency(context, "resume").preserve_sources,
+            source_usage=dependency(context, "resume").source_usage,
             assets=dependency(context, "assets"),
             registry=dependency(context, "document.registry"),
             settings=Settings.model_validate(context.config),
