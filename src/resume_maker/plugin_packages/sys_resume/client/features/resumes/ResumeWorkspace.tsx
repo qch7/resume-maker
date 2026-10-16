@@ -1370,6 +1370,12 @@ export default function ResumeWorkspace() {
             revisions={revisionCache}
             previewSources={previewSources}
             previewChanged={previewChanged}
+            exporting={exporting}
+            deleting={deleting}
+            onGenerate={() => {
+              setResumeLibraryOpen(true);
+              run(exportResume);
+            }}
             run={run}
           />
         </div>

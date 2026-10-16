@@ -1,8 +1,9 @@
-import { FileDown, Save } from "lucide-react";
+import { Save } from "lucide-react";
 import TemplatePicker from "@resume-maker/plugin-sdk/shared/components/TemplatePicker";
 import { newDocument } from "@resume-maker/plugin-sdk/shared/resume/document";
 import type { ResumeLibraryProps } from "./ResumeLibrary";
 import { hasPlugin } from "@resume-maker/plugin-sdk/shared/lib/capabilities";
+import GenerateResumeButton from "./GenerateResumeButton";
 
 /** 编辑当前方案的名称、模板并提供保存、导出操作 */
 export default function ResumeSettings(props: ResumeLibraryProps) {
@@ -20,8 +21,8 @@ export default function ResumeSettings(props: ResumeLibraryProps) {
   return (
     <section className="resume-library-settings" aria-label="当前简历设置">
       <p className="subtle">
-        输入自动保留为草稿；“保存简历方案”保存整份方案及固定经历版本；“导出
-        Word”先保存方案，再生成可下载的成品。
+        输入自动保留为草稿；“保存简历方案”保存整份方案及固定经历版本；“生成简历”先保存方案，再生成可下载的
+        Word，排版可用时同时提供 PDF。
       </p>
       <div className="resume-library-controls">
         <div className="resume-library-fields">
@@ -82,20 +83,17 @@ export default function ResumeSettings(props: ResumeLibraryProps) {
             <Save size={15} />
             保存简历方案
           </button>
-          <button
-            className="primary"
-            data-guide="export"
+          <GenerateResumeButton
+            guide="export"
+            exporting={props.exporting}
             disabled={invalid || (!draft.template_id && !draft.document)}
-            onClick={props.onExport}
-          >
-            <FileDown size={15} />
-            {props.exporting ? "正在生成并渲染…" : "导出 Word"}
-          </button>
+            onGenerate={props.onExport}
+          />
         </div>
       </div>
       {props.previewChanged && (
         <p className="warning" role="status">
-          先在经历编辑区点击“保存并用于当前简历”；版本已保存时点击“用于当前简历”，再保存简历方案或导出。
+          先在经历编辑区点击“保存并用于当前简历”；版本已保存时点击“用于当前简历”，再保存简历方案或生成简历。
         </p>
       )}
       {templateUnavailable && (
@@ -106,7 +104,7 @@ export default function ResumeSettings(props: ResumeLibraryProps) {
       {props.exporting && (
         <div className="export-progress" role="status">
           <span />
-          正在生成文档并检查分页，完成后将出现在下方导出记录中…
+          正在生成文档并检查分页，完成后可在下方生成记录中下载…
         </div>
       )}
     </section>

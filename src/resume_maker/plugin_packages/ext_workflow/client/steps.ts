@@ -59,7 +59,7 @@ export const WORKFLOW_STEPS: {
     substeps: [],
   },
   {
-    title: "简历导出",
+    title: "生成简历",
     detail: "预览排版 · 下载文件",
     target: "export",
     substeps: [],

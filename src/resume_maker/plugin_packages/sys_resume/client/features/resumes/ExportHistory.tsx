@@ -1,5 +1,5 @@
 import { Download, FileText, History, RefreshCw } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRemote } from "@resume-maker/plugin-sdk/shared/hooks/useRemote";
 import { download } from "@resume-maker/plugin-sdk/shared/lib/api";
 import type {
@@ -59,7 +59,7 @@ function ExportCard({
         </div>
         <span className="subtle">
           {new Date(result.created_at).toLocaleString()} ·{" "}
-          {result.pages ? `${result.pages} 页` : "Word 已生成"}
+          {result.pages ? `${result.pages} 页` : "Word 可下载；本次未生成 PDF"}
         </span>
         {result.render_error && (
           <p className="warning">{result.render_error}</p>
@@ -73,7 +73,7 @@ function ExportCard({
             }
           >
             <Download size={14} />
-            Word
+            下载 Word
           </button>
           {result.pages && (
             <button
@@ -83,7 +83,7 @@ function ExportCard({
                   void saveFile("resume.pdf", `${name}.pdf`)
               }
             >
-              PDF
+              下载 PDF
             </button>
           )}
           <button
@@ -119,6 +119,14 @@ export default function ExportHistory({
 }) {
   const [attempt, setAttempt] = useState(0);
   const latest = result?.resume_id === draft.id ? result : null;
+  const section = useRef<HTMLElement>(null);
+  const previousResult = useRef(latest?.id);
+  useEffect(() => {
+    // 只定位本轮新成品，打开已有记录时保留阅读位置
+    if (latest && latest.id !== previousResult.current)
+      section.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    previousResult.current = latest?.id;
+  }, [latest]);
   const history = useRemote<Export[]>(
     draft.id ? `/resumes/${draft.id}/exports` : null,
     (latest ? Date.parse(latest.created_at) : 0) + attempt,
@@ -133,11 +141,15 @@ export default function ExportHistory({
       /* 最新成品优先显示 */ (a, b) => b.created_at.localeCompare(a.created_at),
     );
   return (
-    <section className="resume-export-history" aria-label="导出记录">
+    <section
+      ref={section}
+      className="resume-export-history"
+      aria-label="生成记录"
+    >
       <div className="section-heading">
         <div className="row">
           <History size={17} />
-          <h3>导出记录</h3>
+          <h3>生成记录</h3>
           <span className="count-badge">{rows.length}</span>
         </div>
         <button
@@ -153,21 +165,21 @@ export default function ExportHistory({
       </div>
       {history.error && (
         <p className="warning" role="alert">
-          导出记录读取失败：{history.error}
+          生成记录读取失败：{history.error}
         </p>
       )}
       {!!draft.id && !history.ready && !history.error && !rows.length ? (
         <p className="subtle" role="status">
-          正在读取导出记录…
+          正在读取生成记录…
         </p>
       ) : !rows.length && !history.error ? (
         <div className="resume-library-empty">
           <FileText size={36} strokeWidth={1.2} />
           <h3>第一份成品，从这里开始</h3>
           <p>
-            选择喜欢的模板，点击“导出 Word”。
+            确认排版，点击“生成简历”。
             <br />
-            生成的 Word、PDF 和版本清单会保存在这里。
+            Word、可用的 PDF 及版本清单会保存在这里。
           </p>
         </div>
       ) : null}

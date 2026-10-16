@@ -102,7 +102,7 @@ export function getWorkflow(
     project.step === 3 && templateReady
       ? project
       : {
-          text: "在导出面板确认模板和当前内容，生成 Word 后预览排版并下载文件。",
+          text: "在当前简历中确认模板和内容，点击生成简历后下载 Word、可用的 PDF。",
           action: "简历导出",
           target: "export",
         },
