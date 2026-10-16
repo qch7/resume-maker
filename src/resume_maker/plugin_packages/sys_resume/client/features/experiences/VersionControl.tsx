@@ -1,5 +1,5 @@
 import { ArrowUpRight, History, Plus, Save } from "lucide-react";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import HistoryDialog from "./HistoryDialog";
 import type { EditorProps } from "./types";
 
@@ -7,11 +7,10 @@ import type { EditorProps } from "./types";
 export default function VersionControl({ props }: { props: EditorProps }) {
   const { detail, revisionId, run } = props;
   const [dialog, setDialog] = useState<"history" | "create" | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const submission = useRef(false);
   const current = detail.revision;
   const historical = detail.branch.head_revision !== revisionId;
   const pending = props.hasLocalChanges;
+  const applied = props.usedRevision?.id === revisionId && !pending;
   return (
     <>
       <div className="version-control">
@@ -60,43 +59,41 @@ export default function VersionControl({ props }: { props: EditorProps }) {
             <Plus size={18} />
           </button>
         </div>
-        <div className="version-actions">
+        <div className="version-actions" data-guide="experience-use">
           <button
             data-guide="experience-save"
             className="primary"
-            disabled={historical || submitting || !pending}
+            disabled={props.saving || applied || (historical && pending)}
             title={
-              historical ? "先创建分支或回到该分支最新版本再保存" : undefined
+              historical && pending
+                ? "先创建分支或回到该分支最新版本再保存"
+                : "保存经历版本并更新当前简历草稿，其他简历保留原版本"
             }
             onClick={
-              /* 用户明确确认后才把所有草稿合并提交一次 */ () =>
-                run(
-                  /* 阻止重复点击产生并行提交，失败时仍保留草稿 */ async () => {
-                    if (submission.current) return;
-                    submission.current = true;
-                    setSubmitting(true);
-                    try {
-                      await props.onSave();
-                    } finally {
-                      submission.current = false;
-                      setSubmitting(false);
-                    }
-                  },
-                )
+              /* 历史版本直接引用，最新版本先保存再应用本次返回的版本 */ () => {
+                if (historical) run(async () => props.onUseVersion());
+                else void props.onSave(true);
+              }
             }
           >
             <Save size={14} aria-hidden="true" />
-            {submitting ? "正在提交…" : "提交为新版本"}
+            {props.saving
+              ? "正在保存…"
+              : applied
+                ? "已用于当前简历"
+                : pending
+                  ? "保存并用于当前简历"
+                  : "用于当前简历"}
+            {!pending && !applied && (
+              <ArrowUpRight size={14} aria-hidden="true" />
+            )}
           </button>
           <button
-            data-guide="experience-use"
-            onClick={
-              /* 当前简历固定引用所选版本 */ () =>
-                run(/* 使用所选的固定版本 */ async () => props.onUseVersion())
-            }
+            disabled={historical || props.saving || !pending}
+            title="只保存经历版本，当前简历继续引用原版本"
+            onClick={/* 保留独立积累经历版本的入口 */ () => void props.onSave()}
           >
-            用于当前简历
-            <ArrowUpRight size={14} aria-hidden="true" />
+            仅保存版本
           </button>
         </div>
       </div>

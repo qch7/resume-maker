@@ -135,7 +135,7 @@ export default function WorkspaceSidebar({
           aria-label={`导出与模板：${resumeName}，打开简历库`}
           aria-haspopup="dialog"
           aria-expanded={resumeLibraryOpen}
-          title={`导出与模板 · ${resumeName}${unsaved ? " · 组合未保存" : ""}`}
+          title={`导出与模板 · ${resumeName}${unsaved ? " · 草稿已保留 · 简历方案未保存" : ""}`}
           onClick={onOpenResumeLibrary}
         >
           <ResumesIcon size={20} />
@@ -146,8 +146,8 @@ export default function WorkspaceSidebar({
           {unsaved && (
             <span
               className="resume-unsaved-dot"
-              aria-label="组合未保存"
-              title="组合未保存"
+              aria-label="草稿已保留 · 简历方案未保存"
+              title="草稿已保留 · 简历方案未保存"
             />
           )}
         </button>

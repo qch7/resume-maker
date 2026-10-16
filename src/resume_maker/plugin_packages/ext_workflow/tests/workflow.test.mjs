@@ -98,6 +98,8 @@ test("typing and recovered server drafts both require a saved revision", /* 验�
   const state = fixture();
   state.edited = true;
   assert.equal(getWorkflow(state).target, "experience-save");
+  assert.equal(getWorkflow(state).action, "保存并用于当前简历");
+  assert.match(getWorkflow(state).text, /草稿已自动保留/);
   assert.deepEqual(getWorkflow(state).done, [
     true,
     true,
@@ -113,6 +115,7 @@ test("typing and recovered server drafts both require a saved revision", /* 验�
   };
   state.detail.working.drafts = [{ field: "highlight:h1" }];
   assert.equal(getWorkflow(state).target, "experience-save");
+  assert.equal(getWorkflow(state).action, "保存并用于当前简历");
 });
 
 test("恢复原值的草稿记录不阻止制作流程", /* 服务器仍保留并发版本记录时也只比较正文差异 */ () => {
@@ -132,6 +135,7 @@ test("saved experience must be explicitly added or used to replace a pinned revi
   const state = fixture();
   state.draft.items = [];
   assert.equal(getWorkflow(state).target, "experience-use");
+  assert.match(getWorkflow(state).text, /经历版本已保存.*用于当前简历/);
   state.draft.items = [
     { project_id: "p1", revision_id: "r1", highlight_ids: [] },
   ];
@@ -162,6 +166,7 @@ test("changed composition and missing template have actionable steps", /* 验证
   const state = fixture();
   state.draft.name = "投递另一岗位";
   assert.equal(getWorkflow(state).target, "composition-save");
+  assert.equal(getWorkflow(state).action, "保存简历方案");
   state.saved = structuredClone(state.draft);
   state.draft.template_id = null;
   state.saved.template_id = null;

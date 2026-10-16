@@ -20,7 +20,7 @@ export default function ResumeSettings(props: ResumeLibraryProps) {
   return (
     <section className="resume-library-settings" aria-label="当前简历设置">
       <p className="subtle">
-        输入自动保留为草稿；“保存组合”保存整份方案及固定经历版本；“导出
+        输入自动保留为草稿；“保存简历方案”保存整份方案及固定经历版本；“导出
         Word”先保存方案，再生成可下载的成品。
       </p>
       <div className="resume-library-controls">
@@ -71,7 +71,7 @@ export default function ResumeSettings(props: ResumeLibraryProps) {
                 /* 显式接受服务器保存的完整组合 */ () => props.onChange(saved)
               }
             >
-              载入服务器组合
+              载入服务器方案
             </button>
           )}
           <button
@@ -80,7 +80,7 @@ export default function ResumeSettings(props: ResumeLibraryProps) {
             onClick={props.onSave}
           >
             <Save size={15} />
-            保存组合
+            保存简历方案
           </button>
           <button
             className="primary"
@@ -95,7 +95,7 @@ export default function ResumeSettings(props: ResumeLibraryProps) {
       </div>
       {props.previewChanged && (
         <p className="warning" role="status">
-          先提交修改并“用于当前简历”，再保存或导出。
+          先在经历编辑区点击“保存并用于当前简历”；版本已保存时点击“用于当前简历”，再保存简历方案或导出。
         </p>
       )}
       {templateUnavailable && (

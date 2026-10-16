@@ -224,7 +224,12 @@ export default function Editor(props: EditorProps) {
     }
   }
   return (
-    <div className="editor">
+    <fieldset
+      className="editor"
+      disabled={props.saving}
+      aria-label="项目经历编辑"
+      aria-busy={props.saving}
+    >
       <VersionControl props={{ ...props, hasLocalChanges: pendingChanges }} />
       <div className="meta-line">
         <span>正在编辑 r{current.number}</span>
@@ -247,7 +252,7 @@ export default function Editor(props: EditorProps) {
           ) : (
             <CircleCheck size={12} aria-hidden="true" />
           )}
-          {pendingChanges ? "未提交的改动" : "内容已提交"}
+          {pendingChanges ? "经历草稿 · 尚未保存为版本" : "经历版本已保存"}
         </span>
         {pendingChanges && (
           <button
@@ -295,6 +300,7 @@ export default function Editor(props: EditorProps) {
         />
       )}
       <MetaEditor
+        disabled={props.saving}
         definitions={props.definitions}
         value={editor.value}
         visibility={props.visibility}
@@ -365,7 +371,7 @@ export default function Editor(props: EditorProps) {
           id: item.id,
           label: item.title || "未命名亮点",
         }))}
-        disabled={ordering}
+        disabled={ordering || props.saving}
         onMove={
           /* 将排序落点交给当前业务的移动操作 */ (from, to) =>
             run(() => move(from, to))
@@ -539,6 +545,6 @@ export default function Editor(props: EditorProps) {
           保存本人贡献资料
         </button>
       </details>
-    </div>
+    </fieldset>
   );
 }

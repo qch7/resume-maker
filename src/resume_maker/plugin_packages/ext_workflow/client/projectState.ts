@@ -82,23 +82,23 @@ export function getProjectWorkflow(input: {
     if (unsaved)
       return guide(
         1,
-        "当前项目有未提交的改动。确认后点击“提交为新版本”，再用于当前简历。",
-        "去提交修改",
+        "经历草稿已自动保留。确认后点击“保存并用于当前简历”，保存经历版本并更新当前方案的引用。",
+        "保存并用于当前简历",
         "experience-save",
       );
     if (!prepared)
       return guide(
         1,
         input.analyzing
-          ? "AI 正在整理项目，可在项目会话中查看进展；完成后采用建议并保存。"
-          : "先分析项目并采用建议，或手工编辑经历，再保存为版本。",
+          ? "AI 正在整理项目，可在项目会话中查看进展；完成后采用建议，再保存并用于当前简历。"
+          : "先分析项目并采用建议，或手工编辑经历，再点击“保存并用于当前简历”。",
         "整理项目经历",
         "analysis",
       );
     if (!included)
       return guide(
         2,
-        "当前项目经历已保存。点击“用于当前简历”加入组合，再勾选需要的亮点。",
+        "经历版本已保存。点击“用于当前简历”加入当前方案，再选择需要显示的亮点。",
         "去加入简历",
         "experience-use",
       );
@@ -137,8 +137,8 @@ export function getProjectWorkflow(input: {
   if (!compositionSaved)
     return guide(
       2,
-      "项目和亮点已加入组合。确认顺序后保存组合，固定这份简历使用的版本。",
-      "去保存组合",
+      "项目版本、亮点选择已进入当前方案草稿。确认顺序后点击“保存简历方案”，保存整份方案。",
+      "保存简历方案",
       "composition-save",
     );
   if (!draft.template_id && !draft.document)
