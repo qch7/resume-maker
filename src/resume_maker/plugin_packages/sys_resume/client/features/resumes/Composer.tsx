@@ -8,6 +8,7 @@ import type {
 import DocumentPreview from "@resume-maker/plugin-sdk/plugins/DocumentPreview";
 import { templatePreviewInput } from "@resume-maker/plugin-sdk/shared/resume/templatePreviewInput";
 import ContentPreview from "./ContentPreview";
+import LayoutSettings from "./LayoutSettings";
 
 interface Props {
   previewFocused: boolean;
@@ -17,6 +18,7 @@ interface Props {
   revisions: Record<string, Revision>;
   previewSources: Record<string, Revision>;
   previewChanged?: boolean;
+  onLayoutChange?: (value: NonNullable<Resume["document"]>) => void;
   run: (work: () => Promise<void>) => void;
 }
 
@@ -58,6 +60,12 @@ export default function Composer(props: Props) {
                 {props.previewChanged ? "经历预览 · 尚未用于简历" : "简历预览"}
               </strong>
               {!templateUnavailable && draft.document && selector}
+              {draft.document && props.onLayoutChange && (
+                <LayoutSettings
+                  document={draft.document}
+                  onChange={props.onLayoutChange}
+                />
+              )}
               <select
                 aria-label="预览缩放"
                 value={zoom}

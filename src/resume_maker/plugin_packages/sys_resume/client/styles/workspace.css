@@ -307,3 +307,42 @@
 .extension-area .template-area {
   display: none;
 }
+.resume-layout-settings {
+  position: relative;
+  font-size: 12px;
+}
+.resume-layout-settings > summary {
+  cursor: pointer;
+  white-space: nowrap;
+}
+.resume-layout-settings > div {
+  position: absolute;
+  z-index: 5;
+  top: 30px;
+  right: 0;
+  width: min(330px, 75vw);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px #0002;
+}
+.resume-layout-settings label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.resume-layout-settings .resume-layout-inline {
+  flex-direction: row;
+  align-items: center;
+}
+.resume-layout-settings .actions,
+.resume-layout-settings p {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+}

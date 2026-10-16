@@ -13,6 +13,7 @@ from resume_maker.core.errors import Problem
 from resume_maker.domain.resume import ResumeDocument
 from resume_maker.domain.templates import TemplatePlan, TextBinding
 from resume_maker.integrations.word.ooxml import w
+from resume_maker.integrations.word.page_layout import apply_page_layout
 from resume_maker.integrations.word.pdf.geometry import clear_pdf_metadata
 from resume_maker.integrations.word.pdf.header_layout import PDFHeaderLayout
 from resume_maker.integrations.word.pdf.titles import fit_pdf_titles
@@ -437,4 +438,5 @@ def fill_template(
             control.set(w("val"), str(control_id))
     clean_resources(package)
     package.write(output)
+    apply_page_layout(output, document.extensions)
     return [*notices, *layout.notices, *pdf_header.notices]
