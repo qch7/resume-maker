@@ -5,6 +5,7 @@ from pydantic import ValidationError
 from resume_maker.core.errors import Problem
 from resume_maker.domain.templates import TemplatePlan
 from resume_maker.infrastructure.filesystem import replace_file
+from resume_maker.integrations.word.templates.contact_bindings import separate_contact_bindings
 from resume_maker.integrations.word.templates.sections import (
     defer_empty_sections,
     supplement_sections,
@@ -34,7 +35,9 @@ def complete_template(package, plan, document, projects, source=None, *, review=
     except Problem:
         # 重名栏目等冲突留给正式校验处理
         return package, plan, []
-    plan, notices = defer_empty_sections(package, plan, document)
+    package, plan, notices = separate_contact_bindings(package, plan)
+    plan, deferred_notices = defer_empty_sections(package, plan, document)
+    notices.extend(deferred_notices)
     package, plan, section_notices = supplement_sections(package, plan, document, projects)
     notices.extend(section_notices)
     package, plan, personal_notices = supplement_personal_fields(package, plan, document, projects)
