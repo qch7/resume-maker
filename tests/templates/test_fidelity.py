@@ -289,3 +289,33 @@ def test_highlight_keeps_bold_title_and_regular_body_across_styled_spaces():
     assert paragraph.text == "新的标题：这是一段更长的新正文"
     assert next(run for run in paragraph.runs if "新的标题" in run.text).bold
     assert next(run for run in paragraph.runs if "新正文" in run.text).bold is False
+
+
+def test_overflow_highlights_each_keep_title_and_body_styles():
+    """单个位置承接多条亮点时，每条标题继承粗体，正文及前后字段保持独立"""
+    document = Document()
+    paragraph = document.add_paragraph()
+    paragraph.add_run("前置字段 ").italic = True
+    paragraph.add_run("旧标题： ").bold = True
+    paragraph.add_run("旧正文").bold = False
+    paragraph.add_run(" 后置字段").italic = True
+    fill_fields(
+        {"p": paragraph._p},
+        [
+            TextBinding(node="p", quote="前置字段", target="title"),
+            TextBinding(node="p", quote="旧标题： 旧正文", target="highlights"),
+            TextBinding(node="p", quote="后置字段", target="period"),
+        ],
+        {
+            "title": "新前置",
+            "period": "新后置",
+            "_highlight_items": ["第一标题：第一正文", "第二标题：第二正文\n后续说明"],
+        },
+    )
+    assert paragraph.text == "新前置 第一标题：第一正文\n第二标题：第二正文\n后续说明 新后置"
+    for title in ("第一标题", "第二标题"):
+        assert next(run for run in paragraph.runs if title in run.text).bold
+    for body in ("第一正文", "第二正文", "后续说明"):
+        assert next(run for run in paragraph.runs if body in run.text).bold is False
+    for value in ("新前置", "新后置"):
+        assert next(run for run in paragraph.runs if value in run.text).italic

@@ -798,6 +798,12 @@ class Templates:
         projects = self.projects(items)
         with self.previews.allocate() as (preview_id, directory):
             output = directory / "resume.docx"
+            notices = []
+
+            def trial_engine(*args):
+                """把本次实际填充发生的补位、布局调整一并交给试填界面"""
+                notices.extend(fill_template(*args))
+
             generate_docx(
                 output,
                 document.model_dump(),
@@ -805,7 +811,7 @@ class Templates:
                 engine=None,
                 template_data=source.read_bytes(),
                 plan=plan,
-                template_engine=fill_template,
+                template_engine=trial_engine,
             )
             renderer = render_word if self.renderer is DEFAULT_RENDERER else self.renderer
             pages, error = (
@@ -820,7 +826,12 @@ class Templates:
                     f"page-{i}.{ext}" for i in range(1, pages + 1) for ext in ("png", "svg")
                 )
             self.previews.publish(preview_id, directory, files, owner=identifier)
-            return {"id": preview_id, "pages": pages, "render_error": error}
+            return {
+                "id": preview_id,
+                "pages": pages,
+                "render_error": error,
+                "notices": list(dict.fromkeys(notices)),
+            }
 
     def preview_lease(self, identifier, preview_id, filename):
         """核验分析归属并在传输期间保留试填产物"""

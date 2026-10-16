@@ -911,6 +911,13 @@ export default function TemplateAdapter({
                     taskId={taskId}
                     name={name}
                     pending={trialDisabledReason}
+                    notices={[
+                      ...new Set([
+                        ...(analysis?.inventory.notices ?? []),
+                        ...(review?.notices ?? []),
+                        ...(preview?.notices ?? []),
+                      ]),
+                    ]}
                     run={
                       /* 试填文件下载失败时保留当前编辑内容 */ (work) =>
                         void perform(work)

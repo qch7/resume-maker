@@ -1,6 +1,8 @@
 """在单段落内索引文字位置，按倒序替换保留原有运行样式"""
 
 from bisect import bisect_left, bisect_right
+from copy import deepcopy
+from dataclasses import dataclass
 from itertools import pairwise
 
 from lxml import etree
@@ -9,6 +11,44 @@ from resume_maker.integrations.word.ooxml import w
 
 TEXT = w("t")
 CONTROLS = (w("br"), w("cr"), w("tab"))
+
+
+@dataclass
+class StyledText:
+    """为同一引文中的多条内容分别携带标题、正文样式"""
+
+    pieces: list
+
+
+def set_styled_text(node, prefix, value, suffix):
+    """仅拆分命中的文字运行，前后文字、控制节点继续保留原样式"""
+    run = node.getparent()
+    parent, position = run.getparent(), run.getparent().index(run) + 1
+    following = list(run)[run.index(node) + 1 :]
+    original_style = run.find(w("rPr"))
+    for child in following:
+        run.remove(child)
+    run.remove(node)
+    first = None
+    if prefix:
+        first = set_text(etree.SubElement(run, TEXT), prefix)
+    for text, style in value.pieces:
+        added = etree.Element(w("r"))
+        if style is not None:
+            added.append(deepcopy(style))
+        start = set_text(etree.SubElement(added, TEXT), text)
+        first = first if first is not None else start
+        parent.insert(position, added)
+        position += 1
+    if suffix or following:
+        tail = etree.Element(w("r"))
+        if original_style is not None:
+            tail.append(deepcopy(original_style))
+        if suffix:
+            set_text(etree.SubElement(tail, TEXT), suffix)
+        tail.extend(following)
+        parent.insert(position, tail)
+    return first
 
 
 def set_text(node, value):
@@ -84,9 +124,12 @@ class ParagraphTextIndex:
             original = text.text or ""
             prefix = original[: max(0, start - position)]
             suffix = original[max(0, end - position) :]
-            self.texts[index] = set_text(
-                text, prefix + (value if index == preferred else "") + suffix
-            )
+            if index == preferred and isinstance(value, StyledText):
+                self.texts[index] = set_styled_text(text, prefix, value, suffix)
+            else:
+                self.texts[index] = set_text(
+                    text, prefix + (value if index == preferred else "") + suffix
+                )
 
     def apply(self, replacements):
         """非重叠范围共用索引，扩展后的重叠或空范围沿用逐次重读的倒序语义"""

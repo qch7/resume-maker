@@ -583,6 +583,22 @@
   font-size: 12px;
   line-height: 1.6;
 }
+.template-layout-review {
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.template-layout-review summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.template-layout-review p,
+.template-layout-review ul {
+  margin: 8px 0 0;
+}
 .template-adjustments {
   margin-top: 20px;
 }

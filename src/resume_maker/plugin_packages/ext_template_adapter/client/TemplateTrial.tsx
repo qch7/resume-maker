@@ -11,6 +11,7 @@ export default function TemplateTrial({
   name,
   pending,
   run,
+  notices = [],
 }: {
   preview: TemplateTrialPreview | null;
   stale: boolean;
@@ -18,6 +19,7 @@ export default function TemplateTrial({
   name: string;
   pending: string;
   run: (work: () => Promise<void>) => void;
+  notices?: string[];
 }) {
   if (!preview)
     return (
@@ -39,6 +41,22 @@ export default function TemplateTrial({
       )}
       <div className="template-preview-scroll">
         <div className="template-preview">
+          <details className="template-layout-review" open={notices.length > 0}>
+            <summary>
+              版式变化及核对
+              {notices.length ? ` · ${notices.length} 项调整` : ""}
+            </summary>
+            {notices.length > 0 && (
+              <ul>
+                {notices.map((notice) => (
+                  <li key={notice}>{notice}</li>
+                ))}
+              </ul>
+            )}
+            <p>
+              请对照原模板核对联系方式是否同排、换行位置、重复亮点的标题字重。填写位置检查通过后，仍需确认试填排版。
+            </p>
+          </details>
           <div className="actions">
             <button
               disabled={stale}
