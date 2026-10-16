@@ -35,7 +35,16 @@ class Honors:
     """集中保存荣誉资料并校验版本，简历按来源标识读取同一份已核对内容"""
 
     def __init__(
-        self, db, data_dir, provider, *, assets, preserve_sources=None, registry=None, settings=None
+        self,
+        db,
+        data_dir,
+        provider,
+        *,
+        assets,
+        preserve_sources=None,
+        source_usage=None,
+        registry=None,
+        settings=None,
     ):
         """绑定实例资源，构造阶段不启动后台线程"""
         self.db, self.root, self.provider = db, data_dir / "honors", provider
@@ -55,6 +64,7 @@ class Honors:
         self.recognition = None
         self.cleanup_pending = {}
         self.preserve_sources = preserve_sources
+        self.source_usage = source_usage
 
     @internal
     def attach_recognition(self, provider, execution_queue, recognition):
@@ -169,7 +179,13 @@ class Honors:
                 raise Problem("请等待识别完成或先取消识别，再修改信息。", 409)
             item.update(fields=body.fields.model_dump(), reviewed=True, status="ready", error="")
             self._write(conn, item)
-            return item
+            # 只返回当前关联数量，不写入荣誉资料或推进简历方案版本
+            return {
+                **item,
+                "linked_resume_count": self.source_usage(conn, "ext.honors/library", item["id"])
+                if self.source_usage
+                else None,
+            }
 
     def upload(self, raw, filename, importer_id=None):
         """完整校验并保存原件后创建待识别条目，失败上传不留下半条记录"""

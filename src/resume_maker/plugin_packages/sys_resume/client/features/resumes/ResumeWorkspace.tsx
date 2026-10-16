@@ -22,6 +22,7 @@ import { clearLocalDrafts } from "../experiences/useField";
 import { experienceContent } from "@resume-maker/plugin-sdk/shared/resume/visibility";
 import ProjectSidebar from "../projects/ProjectSidebar";
 import DeleteProjectDialog from "../projects/DeleteProjectDialog";
+import CreateProjectDialog from "../projects/CreateProjectDialog";
 import {
   projectDeletionBlocker,
   projectDeletionIds,
@@ -100,6 +101,9 @@ import type {
   SectionEntry,
 } from "@resume-maker/plugin-sdk/shared/types/index";
 import { useWorkspaceLayout } from "./useWorkspaceLayout";
+import { useWorkspaceNavigation } from "./useWorkspaceNavigation";
+import { useWorkspaceScroll } from "./useWorkspaceScroll";
+import { workspaceScrollKey, type WorkspaceArea } from "./workspaceLocation";
 
 const PREVIEW_PROGRESS_POLL_MS = 1600;
 
@@ -125,14 +129,7 @@ export default function ResumeWorkspace() {
   const Workflow = pluginComponent("workflow");
   const activityPreferences = useActivityPreferences();
   const [settingsVersion, setSettingsVersion] = useState(0);
-  const [area, setArea] = useState<
-    | "projects"
-    | "personal"
-    | "structure"
-    | "templates"
-    | "honors"
-    | "recruitment"
-  >("projects");
+  const [area, setArea] = useState<WorkspaceArea>("projects");
   const [defaultsOpen, setDefaultsOpen] = useState(false);
   const [resumeLibraryOpen, setResumeLibraryOpen] = useState(false);
   const [structureTarget, setStructureTarget] = useState<string | null>(null);
@@ -213,6 +210,8 @@ export default function ResumeWorkspace() {
   >({});
   const [creatingConversation, setCreatingConversation] = useState("");
   const [deletingProject, setDeletingProject] = useState<Project | null>(null);
+  const [creatingProject, setCreatingProject] = useState(false);
+  const createdProjectFocus = useRef("");
   const conversationCreationPending = useRef(false);
   const [mode, setMode] = useState<"edit" | "chat">("edit");
   const [folded, setFolded] = useState<Record<string, boolean>>({});
@@ -296,6 +295,20 @@ export default function ResumeWorkspace() {
       : null,
     refresh,
   );
+  useEffect(() => {
+    if (
+      !remoteProject.ready ||
+      activeProject !== createdProjectFocus.current ||
+      mode !== "edit" ||
+      creatingProject
+    )
+      return;
+    const target =
+      document.getElementById("project-meta-description") ??
+      document.getElementById("project-meta-title");
+    createdProjectFocus.current = "";
+    target?.focus();
+  }, [activeProject, creatingProject, mode, remoteProject.ready]);
   const [chatRefresh, setChatRefresh] = useState(0);
   useEffect(() => {
     setChatRefresh((value) => value + 1);
@@ -417,6 +430,58 @@ export default function ResumeWorkspace() {
     run,
     notify: setToast,
   });
+  const location = {
+    area,
+    page,
+    projectId: activeProject,
+    revisionId,
+    mode,
+    conversationId: mode === "chat" ? conversationId : "",
+  };
+  const { ready: navigationReady, cancelPending: cancelPendingNavigation } =
+    useWorkspaceNavigation({
+      loaded,
+      location,
+      state,
+      areas: [
+        "projects",
+        "personal",
+        "structure",
+        ...pluginNavigation().map((item) => item.slot),
+      ],
+      pages: pages.map((item) => item.id),
+      chatAvailable: hasPlugin("ext.ai-conversation"),
+      defaultProjectId: firstProject?.id ?? "",
+      blocked: () => revisionSubmission.current,
+      notify: setToast,
+      /** 恢复已核验的位置，原草稿仍按项目、版本及方案独立保留 */
+      onRestore(value) {
+        ++navigation.current;
+        setArea(value.area);
+        setPage(value.page);
+        setActiveProject(value.projectId);
+        setMode(value.mode);
+        setGuideTarget(null);
+        setResumeLibraryOpen(false);
+        setSelectedRevisions((current) => ({
+          ...current,
+          [value.projectId]: value.revisionId,
+        }));
+        if (value.conversationId)
+          setSelectedConversations((current) => ({
+            ...current,
+            [value.projectId]: value.conversationId,
+          }));
+        setRefresh((current) => current + 1);
+      },
+    });
+  useWorkspaceScroll(
+    workspaceScrollKey(location),
+    navigationReady &&
+      (area === "projects" && !selectedPage && activeProject
+        ? remoteProject.ready && (mode === "edit" || remoteChat.ready)
+        : loaded),
+  );
   const deletingProjectIds = projectDeletionIds(
     state.projects,
     deletingProject?.id ?? "",
@@ -443,7 +508,11 @@ export default function ResumeWorkspace() {
   }, [reload]);
   useEffect(
     /* 首次加载或当前项目被删除时选择有效项目 */ () => {
-      if (!loaded || state.projects.some((item) => item.id === activeProject))
+      if (
+        !loaded ||
+        !navigationReady ||
+        state.projects.some((item) => item.id === activeProject)
+      )
         return;
       if (firstProject) {
         setActiveProject(firstProject.id);
@@ -457,7 +526,7 @@ export default function ResumeWorkspace() {
         setMode("edit");
       }
     },
-    [activeProject, firstProject, loaded, state.projects],
+    [activeProject, firstProject, loaded, navigationReady, state.projects],
   );
   useEffect(() => {
     const revision = remoteProject.data?.revision;
@@ -494,6 +563,7 @@ export default function ResumeWorkspace() {
       return;
     }
     const action = (async () => {
+      await cancelPendingNavigation();
       await flushDrafts();
       await work();
     })();
@@ -524,6 +594,38 @@ export default function ResumeWorkspace() {
   function openProjects() {
     setRefresh((value) => value + 1);
     openArea("projects");
+  }
+  /** 创建已确认的手工项目，原经历草稿必须先完成保存 */
+  async function createProject(name: string) {
+    await cancelPendingNavigation();
+    await flushDrafts();
+    return api<Project>("/projects", "POST", { name, roots: [] });
+  }
+  /** 成功后选中新项目，不改变当前简历的固定项目引用 */
+  function projectCreated(created: Project) {
+    ++navigation.current;
+    ++stateRequests.current;
+    setState((current) => ({
+      ...current,
+      projects: [
+        created,
+        ...current.projects.filter((item) => item.id !== created.id),
+      ],
+    }));
+    setSelectedRevisions((current) => ({
+      ...current,
+      [created.id]: created.head_revision,
+    }));
+    createdProjectFocus.current = created.id;
+    setActiveProject(created.id);
+    setMode("edit");
+    setPage("");
+    setCreatingProject(false);
+    openProjects();
+    closeMobileSidebar();
+    void reload().catch((error) =>
+      setToast({ text: (error as Error).message, error: true }),
+    );
   }
   /** 保存待处理草稿后切换项目或会话，用序号防止旧导航覆盖新选择 */
   function navigate(projectId: string, convId?: string) {
@@ -783,7 +885,7 @@ export default function ResumeWorkspace() {
       }
       openProjects();
       if (target === "projects" || (!project && !projectId)) {
-        setModal("projects");
+        setCreatingProject(true);
         return;
       }
       if (projectId) {
@@ -977,7 +1079,7 @@ export default function ResumeWorkspace() {
             onDelete={setDeletingProject}
             onImport={
               /* 处理 onImport 回调，将变化同步到工作台状态 */ () =>
-                setModal("projects")
+                run(async () => setCreatingProject(true))
             }
           />
         )}
@@ -1042,7 +1144,7 @@ export default function ResumeWorkspace() {
         </div>
         <div className="workbench" ref={workbench}>
           <main className="workspace">
-            {!loaded ? (
+            {!loaded || !navigationReady ? (
               <div className="empty">
                 <LoaderCircle className="spin" />
                 正在读取本机数据…
@@ -1153,7 +1255,7 @@ export default function ResumeWorkspace() {
                 </p>
                 <button
                   className="primary"
-                  onClick={() => setModal("projects")}
+                  onClick={() => run(async () => setCreatingProject(true))}
                 >
                   <FolderPlus size={17} />
                   新建手工项目
@@ -1370,6 +1472,15 @@ export default function ResumeWorkspace() {
             revisions={revisionCache}
             previewSources={previewSources}
             previewChanged={previewChanged}
+            onLayoutChange={(document) =>
+              setDraft((current) => ({ ...current, document }))
+            }
+            exporting={exporting}
+            deleting={deleting}
+            onGenerate={() => {
+              setResumeLibraryOpen(true);
+              run(exportResume);
+            }}
             run={run}
           />
         </div>
@@ -1628,6 +1739,13 @@ export default function ResumeWorkspace() {
             blocker={deletionBlocker}
             onClose={() => setDeletingProject(null)}
             onDelete={deleteProject}
+          />
+        )}
+        {creatingProject && (
+          <CreateProjectDialog
+            onClose={() => setCreatingProject(false)}
+            onCreate={createProject}
+            onCreated={projectCreated}
           />
         )}
         {modal && (

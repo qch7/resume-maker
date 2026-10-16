@@ -13,6 +13,7 @@ from resume_maker.core.errors import Problem
 from resume_maker.domain.resume import ResumeDocument
 from resume_maker.domain.templates import TemplatePlan, TextBinding
 from resume_maker.integrations.word.ooxml import w
+from resume_maker.integrations.word.page_layout import apply_page_layout
 from resume_maker.integrations.word.pdf.geometry import clear_pdf_metadata
 from resume_maker.integrations.word.pdf.header_layout import PDFHeaderLayout
 from resume_maker.integrations.word.pdf.titles import fit_pdf_titles
@@ -36,13 +37,13 @@ from resume_maker.integrations.word.templates.project_order import (
     arrange_project_body,
     empty_project_range,
 )
-from resume_maker.integrations.word.templates.project_slots import prepare_project_slots
+from resume_maker.integrations.word.templates.project_slots import prepare_project_slots, run_style
 from resume_maker.integrations.word.templates.record_columns import (
     RecordColumnWidths,
     metadata_separator,
     prepare_record_columns,
 )
-from resume_maker.integrations.word.templates.text_ranges import ParagraphTextIndex
+from resume_maker.integrations.word.templates.text_ranges import ParagraphTextIndex, StyledText
 from resume_maker.integrations.word.templates.values import (
     missing_targets,
     personal_values,
@@ -103,13 +104,15 @@ def fill_fields(nodes: dict, fields: list[TextBinding], values: dict):
         index = indexes[binding.node]
         start, end = ranges[id(binding)]
         value = str(values.get(binding.target, ""))
+        highlight_items = [value]
         if binding.target == "highlights" and "_highlight_items" in values:
             position = highlight_positions[
                 (binding.node, binding.quote, binding.target, binding.occurrence)
             ]
             # 位置不足时将余下亮点合并到最后一处，位置过多时不重复填充整组内容
             stop = position + 1 if position < len(highlight_fields) - 1 else None
-            value = "\n".join(values["_highlight_items"][position:stop])
+            highlight_items = values["_highlight_items"][position:stop]
+            value = "\n".join(highlight_items)
         if not value.strip():
             start, end = hidden_personal_range(index.text, binding.target, start, end)
             if values.get("_body_ordered"):
@@ -118,16 +121,24 @@ def fill_fields(nodes: dict, fields: list[TextBinding], values: dict):
                 start, end = empty_entry_range(index.text, start, end)
         if value and not binding.quote and binding.target.startswith("personal.custom:"):
             value = binding.target.partition(":")[2] + "：" + value
-        colon = binding.quote.find("：")
-        replacement_colon = value.find("：")
-        if binding.target == "highlights" and 0 < colon < 40 and replacement_colon > 0:
-            # 整条亮点按标题、正文分别继承字重
-            grouped.setdefault(binding.node, []).extend(
-                [
-                    (start, start + colon + 1, value[: replacement_colon + 1]),
-                    (start + colon + 1, end, value[replacement_colon + 1 :]),
-                ]
-            )
+        colon = re.search(r"[:：]", binding.quote)
+        if binding.target == "highlights" and colon and 0 < colon.start() < 40 and value:
+            body_start = start + colon.end()
+            while body_start < end and index.text[body_start].isspace():
+                body_start += 1
+            title_style = run_style(nodes[binding.node], start)
+            body_style = run_style(nodes[binding.node], body_start)
+            pieces = []
+            for number, item in enumerate(highlight_items):
+                if number:
+                    pieces.append(("\n", body_style))
+                separator = re.search(r"[:：]", item)
+                if separator and separator.start() > 0:
+                    pieces.append((item[: separator.end()], title_style))
+                    pieces.append((item[separator.end() :], body_style))
+                else:
+                    pieces.append((item, body_style))
+            grouped.setdefault(binding.node, []).append((start, end, StyledText(pieces)))
         else:
             value += metadata_separator(index, binding, fields, values, ranges)
             grouped.setdefault(binding.node, []).append((start, end, value))
@@ -437,4 +448,5 @@ def fill_template(
             control.set(w("val"), str(control_id))
     clean_resources(package)
     package.write(output)
+    apply_page_layout(output, document.extensions)
     return [*notices, *layout.notices, *pdf_header.notices]

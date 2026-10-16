@@ -13,6 +13,7 @@ export interface TemplateTrialPreview {
   id: string;
   pages: number | null;
   render_error: string | null;
+  notices?: string[];
 }
 export interface TextBinding {
   node: string;

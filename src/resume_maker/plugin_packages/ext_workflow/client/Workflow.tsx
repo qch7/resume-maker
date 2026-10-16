@@ -1,9 +1,14 @@
 import type { WorkflowProps } from "@resume-maker/plugin-sdk/plugins/slots";
 import { ArrowRight, Check, ChevronDown, ChevronUp } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import {
+  loadLocal,
+  storage,
+} from "@resume-maker/plugin-sdk/shared/lib/storage";
 import { getWorkflow, type GuideTarget } from "./state";
 import { WORKFLOW_STEPS as steps } from "./steps";
 import ExtensionSteps from "./ExtensionSteps";
+import { readinessCounts, READINESS_LABELS } from "./readiness";
 
 /** 展示当前制作步骤、下一步操作，支持折叠、目标定位 */
 export default function Workflow({
@@ -14,7 +19,17 @@ export default function Workflow({
   onToggle,
 }: WorkflowProps) {
   const value = getWorkflow(input);
-  const completed = value.done.filter(Boolean).length;
+  const counts = readinessCounts(value.statuses);
+  const introCompleted = useRef(loadLocal("rm.workflow.introCompleted", false));
+  useEffect(
+    /* 首次成功生成成品后压缩指引，之后尊重用户主动展开的偏好 */ () => {
+      if (!input.result || introCompleted.current) return;
+      introCompleted.current = true;
+      storage.setItem("rm.workflow.introCompleted", "true");
+      if (!collapsed) onToggle();
+    },
+    [input.result, collapsed, onToggle],
+  );
   const [selection, setSelection] = useState<{
     step: number;
     target: GuideTarget;
@@ -34,12 +49,17 @@ export default function Workflow({
       aria-label="简历制作指引"
     >
       <div className="workflow-overview">
-        <strong>制作指引</strong>
+        <strong>
+          {collapsed ? `当前：${steps[activeStep].title}` : "制作指引"}
+        </strong>
         <span>
-          {completed} / {steps.length} 步已就绪
+          已完成 {counts.complete} / {steps.length} 项 · 可直接使用{" "}
+          {counts.ready} 项
+          {counts.optional > 0 ? ` · 可跳过 ${counts.optional} 项` : ""}
+          {counts.skipped > 0 ? ` · 已跳过 ${counts.skipped} 项` : ""}
         </span>
         <progress
-          value={completed}
+          value={counts.complete}
           max={steps.length}
           aria-label="简历制作完成进度"
         />
@@ -53,7 +73,7 @@ export default function Workflow({
             >
               <button
                 aria-current={index === activeStep ? "step" : undefined}
-                aria-label={`第 ${index + 1} 步：${step.title}${value.done[index] ? "，已就绪" : ""}`}
+                aria-label={`第 ${index + 1} 步：${step.title}，${READINESS_LABELS[value.statuses[index]]}`}
                 onClick={
                   /* 大步骤直接导航到工作区并重置子步骤选择 */ () => {
                     setSelection(null);
@@ -66,7 +86,11 @@ export default function Workflow({
                 </span>
                 <span>
                   <strong>{step.title}</strong>
-                  <small>{step.detail}</small>
+                  <small>
+                    {value.statuses[index] === "pending"
+                      ? step.detail
+                      : READINESS_LABELS[value.statuses[index]]}
+                  </small>
                 </span>
               </button>
             </li>

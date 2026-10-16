@@ -8,6 +8,8 @@ import type {
 import DocumentPreview from "@resume-maker/plugin-sdk/plugins/DocumentPreview";
 import { templatePreviewInput } from "@resume-maker/plugin-sdk/shared/resume/templatePreviewInput";
 import ContentPreview from "./ContentPreview";
+import LayoutSettings from "./LayoutSettings";
+import GenerateResumeButton from "./GenerateResumeButton";
 
 interface Props {
   previewFocused: boolean;
@@ -17,6 +19,10 @@ interface Props {
   revisions: Record<string, Revision>;
   previewSources: Record<string, Revision>;
   previewChanged?: boolean;
+  onLayoutChange?: (value: NonNullable<Resume["document"]>) => void;
+  exporting: boolean;
+  deleting: boolean;
+  onGenerate: () => void;
   run: (work: () => Promise<void>) => void;
 }
 
@@ -58,6 +64,30 @@ export default function Composer(props: Props) {
                 {props.previewChanged ? "经历预览 · 尚未用于简历" : "简历预览"}
               </strong>
               {!templateUnavailable && draft.document && selector}
+              {draft.document && props.onLayoutChange && (
+                <LayoutSettings
+                  document={draft.document}
+                  onChange={props.onLayoutChange}
+                />
+              )}
+              <GenerateResumeButton
+                exporting={props.exporting}
+                disabled={
+                  props.deleting ||
+                  !!props.previewChanged ||
+                  templateUnavailable ||
+                  !draft.name.trim() ||
+                  (!draft.template_id && !draft.document)
+                }
+                title={
+                  props.previewChanged
+                    ? "先将编辑内容保存并用于当前简历，再生成简历"
+                    : templateUnavailable
+                      ? "请在当前简历中选择可用排版"
+                      : "保存当前方案并生成可下载的简历"
+                }
+                onGenerate={props.onGenerate}
+              />
               <select
                 aria-label="预览缩放"
                 value={zoom}

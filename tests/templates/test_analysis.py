@@ -61,6 +61,16 @@ def test_analysis_snapshot_save_restart_and_export(tmp_path, monkeypatch):
         prefix = f"/api/templates/analyses/{task['id']}"
         preview = client.post(prefix + "/preview", json=body, headers=headers)
         assert preview.status_code == 200
+        body["document"]["personal"]["website"] = "https://example.test/profile"
+        supplemented = client.post(prefix + "/preview", json=body, headers=headers)
+        assert supplemented.status_code == 200
+        assert any("个人主页" in notice for notice in supplemented.json()["notices"])
+        with app.state.services.templates.preview_lease(
+            task["id"], supplemented.json()["id"], "resume.docx"
+        ) as generated:
+            assert "https://example.test/profile" in "".join(
+                paragraph.text for paragraph in Document(generated).paragraphs
+            )
         preview_prefix = prefix + "/previews/" + preview.json()["id"]
         assert client.get(preview_prefix + "/resume.docx", headers=headers).status_code == 200
         assert client.get(preview_prefix + "/original.docx", headers=headers).status_code == 404

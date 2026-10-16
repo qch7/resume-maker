@@ -349,8 +349,44 @@
   padding: 16px 24px 24px;
 }
 .personal-scroll .profile-card {
-  padding: 20px;
-  margin-bottom: 16px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+.personal-fields {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 235px), 1fr));
+  gap: 8px 14px;
+}
+.personal-fields > .visibility-field {
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 6px;
+}
+.personal-more {
+  margin-top: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.personal-more > summary {
+  cursor: pointer;
+  color: var(--subtle);
+  font-size: 12px;
+}
+.personal-more[open] > summary {
+  margin-bottom: 10px;
+}
+/* 保留键盘焦点顺序，触屏持续显示操作；隐藏字段也保留显隐提示 */
+@media (hover: hover) and (pointer: fine) {
+  .personal-fields .field-copy,
+  .personal-fields .visibility-toggle {
+    opacity: 0;
+  }
+  .personal-fields .visibility-field:hover .field-copy,
+  .personal-fields .visibility-field:hover .visibility-toggle,
+  .personal-fields .visibility-field:focus-within .field-copy,
+  .personal-fields .visibility-field:focus-within .visibility-toggle,
+  .personal-fields .visibility-field[data-hidden] .visibility-toggle,
+  .personal-fields .field-copy:not([data-status="idle"]) {
+    opacity: 1;
+  }
 }
 .personal-scroll button:not(.icon-button),
 .personal-heading > button,

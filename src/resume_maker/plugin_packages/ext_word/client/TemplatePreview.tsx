@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { request, download } from "@resume-maker/plugin-sdk/shared/lib/api";
 import PrintedPage from "@resume-maker/plugin-sdk/shared/components/PrintedPage";
 import { createPreviewQueue, type PreviewState } from "./templatePreviewQueue";
+import { pageLayout } from "@resume-maker/plugin-sdk/shared/resume/pageLayout";
+import type { ResumeDocument } from "@resume-maker/plugin-sdk/shared/types/index";
 
 interface PreviewResult {
   id: string;
@@ -70,6 +72,9 @@ export default function TemplatePreview({
     ? state.error || (complete ? result?.render_error : "")
     : "";
   const updated = complete && !!result?.pages;
+  const budget = pageLayout(
+    input ? (JSON.parse(input) as { document: ResumeDocument }).document : null,
+  ).target_pages;
   const status = !input
     ? "正在读取经历版本…"
     : error
@@ -80,6 +85,17 @@ export default function TemplatePreview({
 
   return (
     <div className="template-live-preview" hidden={hidden}>
+      {updated && (
+        <p
+          className={result.pages! > budget ? "warning" : "subtle"}
+          role="status"
+        >
+          实际 {result.pages} 页 · 预算 {budget} 页
+          {result.pages! > budget
+            ? " · 已超出，可在版面设置试用紧凑排版，或自行调整内容。"
+            : " · 预算内"}
+        </p>
+      )}
       {!updated && (
         <div
           className="template-preview-status"

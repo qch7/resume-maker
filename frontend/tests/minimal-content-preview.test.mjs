@@ -75,6 +75,7 @@ function fixture() {
   return {
     state: { templates: [] },
     draft: {
+      name: "合成简历",
       template_id: "disabled-template",
       document,
       items: [
@@ -94,6 +95,9 @@ function fixture() {
     },
     previewFocused: false,
     onFocusPreview() {},
+    exporting: false,
+    deleting: false,
+    onGenerate() {},
     run() {},
   };
 }
@@ -265,4 +269,24 @@ test("未固定的经历内容明确提示尚未采用，应用后恢复简历�
   const applied = module.render(props);
   assert.ok(applied.includes(">简历预览</strong>"));
   assert.ok(!applied.includes("经历预览 · 尚未用于简历"));
+});
+
+test("生成入口保留在预览工具栏，模板缺失、经历未采用及生成期间禁止提交", async () => {
+  const module = await composerPreview();
+  const props = fixture();
+  const unavailable = module.render(props);
+  assert.match(unavailable, /disabled="" title="请在当前简历中选择可用排版"/);
+  props.draft.template_id = null;
+  props.previewChanged = true;
+  assert.match(
+    module.render(props),
+    /disabled="" title="先将编辑内容保存并用于当前简历/,
+  );
+  props.previewChanged = false;
+  const ready = module.render(props);
+  const boundary = ready.indexOf('<div class="composition-scroll">');
+  assert.ok(ready.slice(0, boundary).includes("生成简历"));
+  assert.ok(!ready.slice(boundary).includes("生成简历"));
+  props.exporting = true;
+  assert.ok(module.render(props).includes("正在生成简历…"));
 });

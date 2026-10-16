@@ -16,6 +16,7 @@ from resume_maker.domain.models import (
     ProjectVisibility,
     validate_custom_field_ids,
 )
+from resume_maker.domain.page_layout import layout_options
 
 PersonalField = Literal[
     "name", "job_title", "gender", "age", "phone", "email", "gpa", "location", "website", "photo"
@@ -120,6 +121,7 @@ class ResumeDocument(Model):
     @model_validator(mode="after")
     def validate_hierarchy(self):
         """拒绝重复标识、孤立引用、循环、超过两级的栏目，项目经历保持独立大栏目"""
+        layout_options(self.extensions)
         if any(
             not re.fullmatch(r"[a-z][a-z0-9]*(?:[._-][a-z0-9]+)+", key) for key in self.extensions
         ):

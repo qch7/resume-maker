@@ -21,7 +21,8 @@ def conversations(conn, state):
     state["jobs"] = [
         unpack(row)
         for row in conn.execute(
-            "SELECT id,project_id,conversation_id,kind,status,error,created_at,finished_at "
+            "SELECT id,project_id,conversation_id,kind,status,error,"
+            "created_at,started_at,finished_at "
             "FROM jobs ORDER BY created_at DESC LIMIT 100"
         )
     ]

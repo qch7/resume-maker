@@ -232,13 +232,13 @@
 }
 .template-import-controls > .importer-select {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 4px 8px;
   max-width: none;
 }
 .template-import-controls > .importer-select small {
-  grid-column: 2;
+  grid-column: 1 / -1;
   white-space: normal;
 }
 .template-library-controls {
@@ -582,6 +582,22 @@
   color: var(--warning);
   font-size: 12px;
   line-height: 1.6;
+}
+.template-layout-review {
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.template-layout-review summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.template-layout-review p,
+.template-layout-review ul {
+  margin: 8px 0 0;
 }
 .template-adjustments {
   margin-top: 20px;

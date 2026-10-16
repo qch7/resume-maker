@@ -40,14 +40,14 @@ export default function RecognitionSummary({
             {!review
               ? "正在检查识别结果"
               : review.ready
-                ? "当前模板已准备好"
+                ? "填写位置检查已通过"
                 : `还需处理 ${problems.length} 项问题`}
           </h3>
           <p>
             {!review
               ? "检查通过后将自动生成试填预览。"
               : review.ready
-                ? "当前模板检查已通过，可查看试填效果，也可以随时调整。"
+                ? "请查看试填效果，核对换行、联系方式及重复条目的样式后保存。"
                 : "以下问题解决后即可试填和保存，已识别的资料和栏目保留在下方。"}
           </p>
         </div>

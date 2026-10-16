@@ -155,6 +155,7 @@ export function useResumeComposition({
     [exporting, setExporting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const savingResume = useRef(false);
+  const generatingResume = useRef(false);
   useEffect(() => {
     if (!draft.id) {
       setExported(null);
@@ -476,6 +477,9 @@ export function useResumeComposition({
   }
   /** 先保存组合再导出文档，始终在完成或失败后清除导出中状态 */
   async function exportResume() {
+    // 工具栏、方案面板可能在草稿提交后同时进入，生成期间只接受一次请求
+    if (generatingResume.current) return;
+    generatingResume.current = true;
     setExporting(true);
     try {
       const saved = await saveComposition();
@@ -486,10 +490,11 @@ export function useResumeComposition({
       if (currentDraft.current.id === saved.id) setExported(result);
       notify({
         text: result.pages
-          ? `Word 已生成，共 ${result.pages} 页。`
-          : "Word 已生成，可在顶部“导出与模板”的简历库中下载。",
+          ? `简历已生成，共 ${result.pages} 页，可在当前简历中下载 Word、PDF。`
+          : "简历已生成，可在当前简历中下载 Word；本次未生成 PDF。",
       });
     } finally {
+      generatingResume.current = false;
       setExporting(false);
     }
   }

@@ -3,10 +3,12 @@
 from resume_maker.core.errors import Problem
 from resume_maker.domain.experience import displayed_experience
 from resume_maker.domain.models import CustomInfoField
+from resume_maker.domain.page_layout import layout_options
 from resume_maker.domain.project_layout import project_body_entries
 from resume_maker.domain.resume import ResumeDocument
 from resume_maker.domain.templates import TemplatePlan
 from resume_maker.integrations.word.full_resume import displayed_entries, visible_custom_fields
+from resume_maker.integrations.word.page_layout import inline_honor
 
 
 def custom_text(fields) -> str:
@@ -73,10 +75,22 @@ def section_records(document: ResumeDocument, title: str, projects: list[dict]) 
                 }
             )
         return records
-    return [
-        {**entry.model_dump(), "custom_fields": custom_text(entry.custom_fields)}
-        for entry in displayed_entries(section)
-    ]
+    records = []
+    for entry in displayed_entries(section):
+        inline = inline_honor(entry, section, layout_options(document.extensions).honors_inline)
+        records.append(
+            {
+                **entry.model_dump(),
+                "title": inline,
+                "subtitle": "",
+                "period": "",
+                "details": "",
+                "custom_fields": "",
+            }
+            if inline is not None
+            else {**entry.model_dump(), "custom_fields": custom_text(entry.custom_fields)}
+        )
+    return records
 
 
 def personal_values(document: ResumeDocument) -> dict[str, str]:
