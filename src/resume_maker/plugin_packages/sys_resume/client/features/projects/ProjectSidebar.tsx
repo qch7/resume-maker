@@ -233,7 +233,7 @@ export default function ProjectSidebar({
       </nav>
       <button className="sidebar-footer" onClick={onImport}>
         <FolderPlus size={17} />
-        {hasPlugin("ext.source-code") ? "导入项目" : "新建项目"}
+        新建项目
       </button>
     </aside>
   );
