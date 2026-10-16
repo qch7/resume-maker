@@ -1,20 +1,25 @@
 import { useEffect, useState } from "react";
 import { request } from "@resume-maker/plugin-sdk/shared/lib/api";
 import type { Job } from "@resume-maker/plugin-sdk/shared/types/index";
+import {
+  appendProgress,
+  progressDuration,
+  type ProgressEntry,
+} from "./progress";
 
 /** 消费当前任务的 SSE 事件，展示最近进度并在卸载时取消连接 */
 export default function JobProgress({ job }: { job: Job }) {
-  const [events, setEvents] = useState<
-    {
-      kind: string;
-      data: {
-        text?: string;
-        type?: string;
-        input_tokens?: number;
-        output_tokens?: number;
-      };
-    }[]
-  >([]);
+  const [events, setEvents] = useState<ProgressEntry[]>([]);
+  const [sourceProgress, setSourceProgress] = useState<{
+    files: number;
+    calls: number;
+  } | null>(null);
+  const [openedAt] = useState(Date.now);
+  const [clock, setClock] = useState(Date.now);
+  useEffect(() => {
+    const timer = setInterval(() => setClock(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
   useEffect(() => {
     const controller = new AbortController();
     void (async () => {
@@ -38,41 +43,65 @@ export default function JobProgress({ job }: { job: Job }) {
               .find((line) => line.startsWith("data: "));
             if (data) {
               const event = JSON.parse(data.slice(6));
-              setEvents((previous) => [...previous.slice(-19), event]);
+              setEvents((previous) => appendProgress(previous, event));
+              if (
+                event.data.type === "source_progress" &&
+                Number.isSafeInteger(event.data.files_read) &&
+                event.data.files_read >= 0 &&
+                Number.isSafeInteger(event.data.tool_calls) &&
+                event.data.tool_calls >= 0
+              )
+                setSourceProgress({
+                  files: event.data.files_read,
+                  calls: event.data.tool_calls,
+                });
             }
           }
         }
-      } catch (error) {
+      } catch {
         if (!controller.signal.aborted)
-          setEvents((previous) => [
-            ...previous,
-            { kind: "error", data: { text: (error as Error).message } },
-          ]);
+          setEvents((previous) =>
+            appendProgress(previous, {
+              kind: "error",
+              data: {},
+            }),
+          );
       }
     })();
     return () => controller.abort();
   }, [job.id]);
-  const last = [...events].reverse().find((e) => e.data.text);
+  const last = events.at(-1);
+  const timestamp = Date.parse(job.started_at ?? job.created_at ?? "");
+  const startedAt = Number.isFinite(timestamp) ? timestamp : openedAt;
   return (
     <div className="job-progress">
       <div className="row">
         <span className="pulse" />
-        <span>
+        <span role="status">
+          当前阶段：
           {job.status === "queued"
             ? "任务排队中"
-            : (last?.data.text ?? "正在连接 Codex")}
+            : (last?.text ?? "正在准备分析")}
         </span>
       </div>
+      {sourceProgress && (
+        <p className="subtle">
+          已读取 {sourceProgress.files} 个源码文件 · 完成 {sourceProgress.calls}{" "}
+          次源码工具调用
+        </p>
+      )}
+      <p className="subtle" aria-live="off">
+        已用 {progressDuration(startedAt, clock)} ·{" "}
+        {last?.at !== null && last?.at !== undefined
+          ? `最近进展：${progressDuration(last.at, clock)}前`
+          : "等待首条进展"}
+      </p>
       <details>
-        <summary>查看执行过程</summary>
+        <summary>查看最近进展（最多 20 条）</summary>
         {events.map((event, index) => (
           <div className="activity" key={index}>
-            {event.data.text ??
-              (event.kind === "usage"
-                ? `输入 ${event.data.input_tokens ?? "未知"} / 输出 ${event.data.output_tokens ?? "未知"} token`
-                : event.kind === "thread"
-                  ? "会话已连接"
-                  : (event.data.type ?? event.kind))}
+            {event.text}
+            {event.count > 1 ? `（连续 ${event.count} 次）` : ""}
           </div>
         ))}
       </details>

@@ -145,6 +145,8 @@ export interface Proposal {
 }
 export interface Job {
   id: string;
+  created_at?: string;
+  started_at?: string | null;
   project_id: string;
   conversation_id: string;
   kind: string;

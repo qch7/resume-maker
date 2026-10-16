@@ -28,6 +28,9 @@ from resume_maker.plugin_packages.ext_provider_codex.integrations.providers.conn
 from resume_maker.plugin_packages.ext_provider_codex.integrations.providers.model_catalog import (
     write_catalog,
 )
+from resume_maker.plugin_packages.ext_provider_codex.integrations.providers.progress import (
+    SourceProgress,
+)
 from resume_maker.sdk.model import ProviderError
 
 
@@ -173,10 +176,11 @@ def run_cli(
     policy = policy or Settings()
     selected, env = connection(settings, environment)
     protect_secrets(env.get(PROVIDER_KEY), env.get("OPENAI_API_KEY"))
+    progress = SourceProgress(emit)
     with (
         sandbox.session() if sandbox else workspace() as root,
         credential_session(credentials, root, env, cancelled) as env,
-        source_broker(source_access) as endpoint,
+        source_broker(source_access, on_read=progress.read) as endpoint,
     ):
         selected["cli_auth_credentials_store"] = "file"
         executable = native_executable(settings.executable)
@@ -245,7 +249,7 @@ def run_cli(
         state = {"completed": False, "message": ""}
 
         def event(value):
-            """在本机保存 CLI 消息、工具轨迹，既有进度界面仍使用通用活动摘要"""
+            """保留本机工具轨迹，公开进度只发布固定工具摘要及真实阶段"""
             item = value.get("item", {})
             item_type = item.get("type", "")
             is_tool = item_type in {
@@ -308,12 +312,28 @@ def run_cli(
                     raise ProviderError("CLI 出现不允许的外部工具活动，本次任务已停止。")
                 if kind == "item.completed" and item_type == "agent_message":
                     state["message"] = item.get("text", "")
+                    emit("status", {"text": "模型结果已返回，正在校验结构化内容"})
                 elif item_type == "mcp_tool_call":
                     if item.get("server") != "resume_materials" or item.get("tool") not in {
                         tool["name"] for tool in TOOLS + (SOURCE_TOOLS if endpoint else [])
                     }:
                         raise ProviderError("CLI 使用了未登记的工具，本次请求已停止。")
-                    emit("activity", {"type": "material_read", "text": "CLI 正在检查脱敏副本"})
+                    if kind == "item.started":
+                        labels = {
+                            "read_material": "正在读取脱敏材料",
+                            "search_materials": "正在检索脱敏材料",
+                            "list_source_files": "正在查看源码目录",
+                            "search_sources": "正在搜索脱敏源码",
+                            "read_source": "正在读取脱敏源码",
+                        }
+                        emit("activity", {"type": "material_read", "text": labels[item["tool"]]})
+                    elif kind == "item.completed" and item["tool"] in {
+                        "read_material",
+                        "search_materials",
+                    }:
+                        emit(
+                            "activity", {"type": "material_complete", "text": "材料工具调用已结束"}
+                        )
 
         record("ai", "system", "CLI 系统指令及材料入口", {"prompt": prompt}, source="codex-cli")
         emit("status", {"text": "正在使用 CLI 和只读工具分析脱敏副本"})
