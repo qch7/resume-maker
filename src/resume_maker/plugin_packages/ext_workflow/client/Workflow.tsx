@@ -1,6 +1,10 @@
 import type { WorkflowProps } from "@resume-maker/plugin-sdk/plugins/slots";
 import { ArrowRight, Check, ChevronDown, ChevronUp } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import {
+  loadLocal,
+  storage,
+} from "@resume-maker/plugin-sdk/shared/lib/storage";
 import { getWorkflow, type GuideTarget } from "./state";
 import { WORKFLOW_STEPS as steps } from "./steps";
 import ExtensionSteps from "./ExtensionSteps";
@@ -16,6 +20,16 @@ export default function Workflow({
 }: WorkflowProps) {
   const value = getWorkflow(input);
   const counts = readinessCounts(value.statuses);
+  const introCompleted = useRef(loadLocal("rm.workflow.introCompleted", false));
+  useEffect(
+    /* 首次成功生成成品后压缩指引，之后尊重用户主动展开的偏好 */ () => {
+      if (!input.result || introCompleted.current) return;
+      introCompleted.current = true;
+      storage.setItem("rm.workflow.introCompleted", "true");
+      if (!collapsed) onToggle();
+    },
+    [input.result, collapsed, onToggle],
+  );
   const [selection, setSelection] = useState<{
     step: number;
     target: GuideTarget;
@@ -35,7 +49,9 @@ export default function Workflow({
       aria-label="简历制作指引"
     >
       <div className="workflow-overview">
-        <strong>制作指引</strong>
+        <strong>
+          {collapsed ? `当前：${steps[activeStep].title}` : "制作指引"}
+        </strong>
         <span>
           已完成 {counts.complete} / {steps.length} 项 · 可直接使用{" "}
           {counts.ready} 项

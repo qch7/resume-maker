@@ -29,23 +29,26 @@ const FIELDS: {
   key: Exclude<PersonalField, "photo">;
   label: string;
   placeholder: string;
+  secondary?: boolean;
 }[] = [
   { key: "name", label: "姓名", placeholder: "你的姓名" },
   { key: "job_title", label: "求职意向", placeholder: "如：Agent 开发工程师" },
-  { key: "gender", label: "性别", placeholder: "选填" },
-  { key: "age", label: "年龄", placeholder: "如：21" },
+  { key: "gender", label: "性别", placeholder: "选填", secondary: true },
+  { key: "age", label: "年龄", placeholder: "如：21", secondary: true },
   { key: "phone", label: "电话", placeholder: "联系电话" },
   { key: "email", label: "邮箱", placeholder: "用于接收招聘信息" },
   {
     key: "gpa",
     label: "专业成绩",
     placeholder: "如：GPA 4.2 / 5 · 专业前 10%",
+    secondary: true,
   },
   { key: "location", label: "所在地", placeholder: "如：杭州" },
   {
     key: "website",
     label: "个人主页",
     placeholder: "GitHub、作品集或个人网站",
+    secondary: true,
   },
 ];
 
@@ -190,6 +193,55 @@ export default function ProfileEditor({
           item.id === section.id ? section : item,
       ),
     });
+  }
+  const personalFields = FIELDS.filter(
+    /* 删除的内置项不再出现在填写表单 */ (field) =>
+      hasDefault(value.personal.field_definitions, field.key),
+  );
+  /** 复用同一字段绑定，折叠次要资料时保留输入及显隐状态 */
+  function renderPersonalField(field: (typeof FIELDS)[number]) {
+    return (
+      <VisibilityField
+        key={field.key}
+        id={`personal-${field.key}`}
+        copyText={value.personal[field.key]}
+        label={defaultLabel(
+          value.personal.field_definitions,
+          field.key,
+          field.label,
+        )}
+        hidden={value.personal.hidden_fields.includes(field.key)}
+        disabled={!editing || saving}
+        onToggle={
+          /* 编辑时切换当前字段在简历中的显隐 */ () =>
+            togglePersonalField(field.key)
+        }
+      >
+        <input
+          id={`personal-${field.key}`}
+          readOnly={!editing || saving}
+          value={value.personal[field.key]}
+          placeholder={editing ? field.placeholder : "未填写"}
+          maxLength={
+            field.key === "website"
+              ? 500
+              : field.key === "age" || field.key === "gender"
+                ? 30
+                : 100
+          }
+          onChange={
+            /* 只修改当前字段 */ (event) =>
+              onChange({
+                ...value,
+                personal: {
+                  ...value.personal,
+                  [field.key]: event.target.value,
+                },
+              })
+          }
+        />
+      </VisibilityField>
+    );
   }
   const ordered = siblings(value.sections).flatMap(
     /* 子栏目紧跟所属大栏目 */ (section) => [
@@ -345,53 +397,9 @@ export default function ProfileEditor({
             </p>
           )}
           <div className="profile-fields personal-fields">
-            {FIELDS.filter(
-              /* 删除的内置项不再出现在填写表单 */ (field) =>
-                hasDefault(value.personal.field_definitions, field.key),
-            ).map(
-              /* 将基本信息字段映射到对应输入 */ (field) => (
-                <VisibilityField
-                  key={field.key}
-                  id={`personal-${field.key}`}
-                  copyText={value.personal[field.key]}
-                  label={defaultLabel(
-                    value.personal.field_definitions,
-                    field.key,
-                    field.label,
-                  )}
-                  hidden={value.personal.hidden_fields.includes(field.key)}
-                  disabled={!editing || saving}
-                  onToggle={
-                    /* 编辑时切换当前字段在简历中的显隐 */ () =>
-                      togglePersonalField(field.key)
-                  }
-                >
-                  <input
-                    id={`personal-${field.key}`}
-                    readOnly={!editing || saving}
-                    value={value.personal[field.key]}
-                    placeholder={editing ? field.placeholder : "未填写"}
-                    maxLength={
-                      field.key === "website"
-                        ? 500
-                        : field.key === "age" || field.key === "gender"
-                          ? 30
-                          : 100
-                    }
-                    onChange={
-                      /* 只修改当前字段 */ (event) =>
-                        onChange({
-                          ...value,
-                          personal: {
-                            ...value.personal,
-                            [field.key]: event.target.value,
-                          },
-                        })
-                    }
-                  />
-                </VisibilityField>
-              ),
-            )}
+            {personalFields
+              .filter((field) => !field.secondary)
+              .map(renderPersonalField)}
             <CustomFields
               fields={value.personal.custom_fields}
               definitions={value.personal.field_definitions}
@@ -409,6 +417,16 @@ export default function ProfileEditor({
               }
             />
           </div>
+          {personalFields.some((field) => field.secondary) && (
+            <details className="personal-more">
+              <summary>更多基本信息</summary>
+              <div className="profile-fields personal-fields">
+                {personalFields
+                  .filter((field) => field.secondary)
+                  .map(renderPersonalField)}
+              </div>
+            </details>
+          )}
         </section>
         <ExtensionFields value={value} onChange={onChange} />
         <div className="section-heading profile-section-intro">
