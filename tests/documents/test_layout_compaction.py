@@ -15,6 +15,23 @@ from resume_maker.integrations.word.ooxml import NS, w
 from resume_maker.integrations.word.page_layout import apply_page_layout
 from resume_maker.integrations.word.templates.mapping import TemplatePackage
 
+WP = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+
+
+def drawing_paragraph(doc, *, floating=False, offset=0, bottom=0):
+    """构造只含独立绘图的段落，图形尺寸及效果占位可分别核对"""
+    paragraph = doc.add_paragraph()
+    drawing = OxmlElement("w:drawing")
+    graphic = etree.SubElement(drawing, f"{{{WP}}}{'anchor' if floating else 'inline'}")
+    if floating:
+        graphic.set("behindDoc", "0")
+        position = etree.SubElement(graphic, f"{{{WP}}}positionV", relativeFrom="page")
+        etree.SubElement(position, f"{{{WP}}}posOffset").text = str(offset)
+    etree.SubElement(graphic, f"{{{WP}}}extent", cx="6000000", cy="400000")
+    etree.SubElement(graphic, f"{{{WP}}}effectExtent", l="0", t="0", r="0", b=str(bottom))
+    paragraph.add_run()._r.append(drawing)
+    return paragraph, graphic
+
 
 def compact(doc, tmp_path, **options):
     """从真实 DOCX 原件执行正式后处理，返回保留全部部件的解析结果"""
@@ -212,3 +229,101 @@ def test_same_geometry_sections_can_flow_but_different_page_size_stays_separate(
         sections[2].find(w("type")) is None
         or sections[2].find(w("type")).get(w("val")) != "continuous"
     )
+
+
+@pytest.mark.parametrize("scale,expected", [(1, 6), (0.5, 3)])
+def test_standalone_inline_drawing_reserves_scaled_following_text_clearance(
+    tmp_path, scale, expected
+):
+    """图形下缘按紧邻文字的实际字号占位，保留原尺寸及已经更大的阴影范围"""
+    doc = Document()
+    drawing_paragraph(doc)
+    doc.add_paragraph("紧邻图形的完整正文").runs[0].font.size = Pt(12)
+    drawing_paragraph(doc, bottom=250000)
+    doc.add_paragraph("已有阴影下的完整正文").runs[0].font.size = Pt(12)
+    package = compact(doc, tmp_path, spacing_factor=0, font_scale=scale)
+    root = package.parts["word/document.xml"]
+    graphics = root.findall(f".//{{{WP}}}inline")
+    assert graphics[0].find(f"{{{WP}}}effectExtent").get("b") == str(expected * 12700)
+    assert graphics[1].find(f"{{{WP}}}effectExtent").get("b") == "250000"
+    assert all(graphic.find(f"{{{WP}}}extent").get("cy") == "400000" for graphic in graphics)
+    assert "紧邻图形的完整正文" in "".join(root.itertext())
+
+
+def test_inline_clearance_resolves_inherited_font_and_does_not_accumulate(tmp_path):
+    """手工间距也保留图形边界，继承字号参与计算且重复后处理不累计留白"""
+    doc = Document()
+    paragraph, graphic = drawing_paragraph(doc)
+    graphic.remove(graphic.find(f"{{{WP}}}effectExtent"))
+    style = doc.styles.add_style("FollowingBody", WD_STYLE_TYPE.PARAGRAPH)
+    style.font.size = Pt(14)
+    doc.add_paragraph("继承字号的正文", style=style)
+    path = tmp_path / "manual.docx"
+    doc.save(path)
+    options = {LAYOUT_KEY: {"options": {"space_after": 0}}}
+    for _ in range(2):
+        apply_page_layout(path, options)
+        root = TemplatePackage(path).parts["word/document.xml"]
+        inline = root.find(f".//{{{WP}}}inline")
+        assert inline.find(f"{{{WP}}}effectExtent").get("b") == str(7 * 12700)
+        assert inline.find(f"{{{WP}}}extent").get("cy") == "400000"
+
+
+def test_inline_images_in_text_and_images_without_following_text_keep_effect_bounds(tmp_path):
+    """正文内的图标、已有完整空段让位的绘图及尾图不增加独立绘图留白"""
+    doc = Document()
+    paragraph, _ = drawing_paragraph(doc)
+    paragraph.add_run("段内图标")
+    doc.add_paragraph("下一段正文")
+    drawing_paragraph(doc)
+    doc.add_paragraph()
+    doc.add_paragraph("已有空段让位")
+    drawing_paragraph(doc)
+    package = compact(doc, tmp_path)
+    root = package.parts["word/document.xml"]
+    assert root.xpath(".//*[local-name()='effectExtent']/@b") == ["0", "0", "0"]
+
+
+def test_top_positioned_graphic_protects_prefix_but_releases_following_flow(tmp_path):
+    """页顶图形及前后让位段落保留原值，后续长链、空段、正文标记可通用压缩"""
+    doc = Document()
+    doc.add_paragraph("页首已有文字").runs[0].font.size = Pt(14)
+    anchor_paragraph, graphic = drawing_paragraph(doc, floating=True)
+    anchor_paragraph.add_run("图形锚点上的文字")
+    doc.add_paragraph().paragraph_format.space_after = Pt(30)
+    style = doc.styles.add_style("BodyChain", WD_STYLE_TYPE.PARAGRAPH)
+    style.paragraph_format.keep_with_next = True
+    style.paragraph_format.page_break_before = True
+    style.paragraph_format.space_before = Pt(8)
+    style.font.size = Pt(12)
+    for index in range(4):
+        doc.add_paragraph(f"完整正文 {index}", style=style)
+    doc.add_paragraph()
+    original = etree.tostring(graphic)
+    package = compact(doc, tmp_path, spacing_factor=0, font_scale=0.5, relax_pagination=True)
+    root = package.parts["word/document.xml"]
+    paragraphs = root.findall("w:body/w:p", NS)
+    assert sz(paragraphs[0], "w:pPr/w:rPr/w:sz") >= 11
+    assert paragraphs[2].find("w:pPr/w:spacing", NS).get(w("after")) == "600"
+    assert sz(paragraphs[2], "w:pPr/w:rPr/w:sz") >= 11
+    assert sz(paragraphs[-1], "w:pPr/w:rPr/w:sz") == 1
+    for paragraph in paragraphs[3:7]:
+        assert sz(paragraph, "w:pPr/w:rPr/w:sz") == 6
+        assert paragraph.find("w:pPr/w:spacing", NS).get(w("before")) == "0"
+        assert paragraph.find("w:pPr/w:pageBreakBefore", NS).get(w("val")) == "0"
+    assert etree.tostring(root.find(f".//{{{WP}}}anchor")) == original
+
+
+@pytest.mark.parametrize("offset", [12700, -12700])
+def test_non_top_positioned_objects_keep_full_geometry_protection(tmp_path, offset):
+    """非页顶定位仍可能依赖正文留白，不放松其前后段落及分页规则"""
+    doc = Document()
+    drawing_paragraph(doc, floating=True, offset=offset)
+    paragraph = doc.add_paragraph("定位对象旁的完整正文")
+    paragraph.paragraph_format.space_before = Pt(40)
+    paragraph.paragraph_format.page_break_before = True
+    package = compact(doc, tmp_path, spacing_factor=0, font_scale=0.5, relax_pagination=True)
+    paragraph = package.parts["word/document.xml"].findall("w:body/w:p", NS)[1]
+    assert paragraph.find("w:pPr/w:spacing", NS).get(w("before")) == "800"
+    assert paragraph.find("w:pPr/w:pageBreakBefore", NS).get(w("val"), "1") == "1"
+    assert sz(paragraph, "w:pPr/w:rPr/w:sz") >= 11

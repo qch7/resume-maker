@@ -7,7 +7,12 @@ from copy import deepcopy
 from lxml import etree
 
 from resume_maker.domain.page_layout import item_key, item_kind, item_style
-from resume_maker.integrations.word.compact_flow import compact_flow, positioned_content, text_only
+from resume_maker.integrations.word.compact_flow import (
+    compact_flow,
+    positioned_content,
+    text_only,
+    top_positioned_boundary,
+)
 from resume_maker.integrations.word.ooxml import NS, w
 
 ITEM = "{urn:resume-maker:item-layout}item"
@@ -144,6 +149,77 @@ def fit_textboxes(root, options):
                     )
 
 
+def reserve_inline_clearance(root, definitions, base_size):
+    """独立绘图按后段文字的半字号保留下缘占位，紧行距及自然换页时不让字形侵入图形"""
+    default = next(
+        (
+            key
+            for key, style in definitions.items()
+            if style.get(w("type")) == "paragraph" and style.get(w("default")) == "1"
+        ),
+        "Normal",
+    )
+    for paragraph in root.iter(w("p")):
+        runs = [
+            run
+            for run in paragraph.iter(w("r"))
+            if next(run.iterancestors(w("p")), None) is paragraph
+        ]
+        if any((node.text or "").strip() for run in runs for node in run.findall(w("t"))):
+            continue
+        inlines = [
+            inline
+            for run in runs
+            for inline in run.xpath("./w:drawing/*[local-name()='inline']", namespaces=NS)
+        ]
+        if not inlines:
+            continue
+        following = paragraph.getnext()
+        while following is not None and not isinstance(following.tag, str):
+            following = following.getnext()
+        if following is None or following.tag != w("p"):
+            continue
+        style = following.find("w:pPr/w:pStyle", NS)
+        identifier = style.get(w("val")) if style is not None else default
+        inherited = style_properties(definitions, identifier, "w:rPr/w:sz")
+        size = float(inherited.get(w("val"), base_size * 2)) / 2
+        sizes = []
+        for run in following.iter(w("r")):
+            if next(run.iterancestors(w("p")), None) is not following or not any(
+                (node.text or "").strip() for node in run.findall(w("t"))
+            ):
+                continue
+            character = run.find("w:rPr/w:rStyle", NS)
+            inherited = (
+                style_properties(definitions, character.get(w("val")), "w:rPr/w:sz")
+                if character is not None
+                else {}
+            )
+            actual = run.find("w:rPr/w:sz", NS)
+            sizes.append(
+                float(
+                    actual.get(w("val"))
+                    if actual is not None
+                    else inherited.get(w("val"), size * 2)
+                )
+                / 2
+            )
+        if not sizes:
+            continue
+        padding = math.ceil(max(sizes) * 0.5 * 12700)
+        for inline in inlines:
+            extent = inline.find("{*}extent")
+            if extent is None:
+                continue
+            effect = inline.find("{*}effectExtent")
+            if effect is None:
+                effect = etree.Element(f"{{{etree.QName(inline).namespace}}}effectExtent")
+                inline.insert(inline.index(extent) + 1, effect)
+                effect.attrib.update(dict.fromkeys(("l", "t", "r", "b"), "0"))
+            # 图形自身尺寸不变；占位取最大值以保留已有阴影，重复处理也不累加
+            effect.set("b", str(max(int(effect.get("b", "0")), padding)))
+
+
 def apply_items(root, styles, options):
     """按运行身份设置字号，共段显式间距取最大值，最后执行有界压缩"""
     definitions = (
@@ -162,9 +238,14 @@ def apply_items(root, styles, options):
     )
     split_items(root, options)
     positioned = positioned_content(root)
+    boundary = top_positioned_boundary(root) if positioned else None
+    past_boundary = False
+    flow_started = False
     if options.auto_fit and options.auto_fit.relax_pagination:
         compact_flow(root, definitions)
     for paragraph in root.iter(w("p")):
+        if paragraph is boundary:
+            past_boundary = True
         pstyle = paragraph.find("w:pPr/w:pStyle", NS)
         identifier = pstyle.get(w("val")) if pstyle is not None else "Normal"
         inherited = style_properties(definitions, identifier, "w:rPr/w:sz")
@@ -183,7 +264,17 @@ def apply_items(root, styles, options):
             if next(run.iterancestors(w("p")), None) is paragraph
         ]
         has_text = any((node.text or "").strip() for run in runs for node in run.findall(w("t")))
-        plain = not positioned and text_only(paragraph)
+        eligible = (
+            past_boundary
+            and paragraph is not boundary
+            and not any(
+                ancestor.tag in {w("txbxContent"), w("drawing"), w("pict"), w("object")}
+                for ancestor in paragraph.iterancestors()
+            )
+        )
+        if eligible and has_text:
+            flow_started = True
+        plain = (not positioned or eligible and flow_started) and text_only(paragraph)
         for run in runs:
             ref = json.loads(run.get(ITEM)) if run.get(ITEM) else None
             explicit = item_style(options, ref["key"], ref["kind"]) if ref else {}
@@ -266,6 +357,7 @@ def apply_items(root, styles, options):
                 spacing.set(w("line"), str(round(line * 240)))
                 spacing.set(w("lineRule"), "auto")
     fit_textboxes(root, options)
+    reserve_inline_clearance(root, definitions, base_size)
     for node in root.iter():
         node.attrib.pop(ITEM, None)
         node.attrib.pop(BREAK, None)
