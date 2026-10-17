@@ -13,6 +13,7 @@ export interface LayoutItem {
   key: string;
   type: string;
   label: string;
+  searchText?: string;
 }
 export type LayoutPreviewItem = ResumeItem & { content: Experience };
 export const ITEM_TYPE_LABELS: Record<string, string> = {
@@ -106,6 +107,7 @@ export function layoutItems(
         key: itemKey(...parts),
         type,
         label: `${label} · ${text.slice(0, 36)}`,
+        searchText: text,
       });
   }
   const personal = document.personal;

@@ -1,5 +1,5 @@
-import { Link2, Unlink2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Link2, Unlink2, X } from "lucide-react";
+import { useContext, useEffect, useRef, useState } from "react";
 import type { ResumeDocument } from "@resume-maker/plugin-sdk/shared/types/index";
 import {
   pageLayout,
@@ -15,9 +15,11 @@ import {
   layoutItems,
   setItemLinked,
   updateItemStyle,
-  validItemStyleNumber,
   type LayoutPreviewItem,
 } from "@resume-maker/plugin-sdk/shared/resume/itemLayout";
+import LayoutItemPicker from "./LayoutItemPicker";
+import LayoutNumber from "./LayoutNumber";
+import { LayoutSelectionContext } from "./layoutSelection";
 import {
   currentFitResult,
   fitResultSucceeded,
@@ -25,61 +27,41 @@ import {
   type LayoutFitTicket,
 } from "./layoutFit";
 
-const ITEM_CONTROLS: {
-  field: keyof ItemStyle;
-  title: string;
-  min: number;
-  max: number;
-  step: number;
-}[] = [
-  { field: "font_size", title: "字号（磅）", min: 6, max: 72, step: 0.5 },
-  { field: "space_before", title: "段前（磅）", min: 0, max: 48, step: 0.5 },
-  { field: "space_after", title: "段后（磅）", min: 0, max: 48, step: 0.5 },
-  { field: "line_spacing", title: "行距（倍）", min: 0.8, max: 3, step: 0.05 },
-];
-
-/** 保留数字输入过程，越界值不写入草稿，离开时恢复最后有效值 */
-function ItemNumber({
-  value,
-  field,
-  title,
-  min,
-  max,
-  step,
-  onChange,
-}: {
-  value?: number;
-  field: keyof ItemStyle;
-  title: string;
-  min: number;
-  max: number;
-  step: number;
-  onChange: (value: number | undefined) => void;
-}) {
-  const [text, setText] = useState(value === undefined ? "" : String(value));
-  useEffect(() => {
-    setText(value === undefined ? "" : String(value));
-  }, [value]);
-  return (
-    <input
-      type="number"
-      aria-label={`所选项${title}`}
-      min={min}
-      max={max}
-      step={step}
-      placeholder="沿用全局或模板"
-      value={text}
-      onChange={(event) => {
-        const raw = event.target.value;
-        setText(raw);
-        const number = raw ? Number(raw) : undefined;
-        if (number === undefined || validItemStyleNumber(field, number))
-          onChange(number);
-      }}
-      onBlur={() => setText(value === undefined ? "" : String(value))}
-    />
-  );
-}
+const ITEM_CONTROLS = {
+  font_size: {
+    title: "字号",
+    unit: "磅",
+    min: 6,
+    max: 72,
+    step: 0.5,
+    fallback: 10.5,
+    halfPoints: true,
+  },
+  line_spacing: {
+    title: "行距",
+    unit: "倍",
+    min: 0.8,
+    max: 3,
+    step: 0.05,
+    fallback: 1.2,
+  },
+  space_before: {
+    title: "段前",
+    unit: "磅",
+    min: 0,
+    max: 48,
+    step: 0.5,
+    fallback: 0,
+  },
+  space_after: {
+    title: "段后",
+    unit: "磅",
+    min: 0,
+    max: 48,
+    step: 0.5,
+    fallback: 3,
+  },
+};
 
 /** 当前方案按文字项联动调整格式，自动压页使用实际 Word 分页 */
 export default function LayoutSettings({
@@ -100,8 +82,46 @@ export default function LayoutSettings({
     ? (JSON.parse(previewInput) as { items: LayoutPreviewItem[] })
     : null;
   const items = layoutItems(document, input?.items ?? []);
-  const [selectedKey, setSelectedKey] = useState("");
+  const selection = useContext(LayoutSelectionContext);
+  const [localKey, setLocalKey] = useState("");
+  const selectedKey = selection?.key ?? localKey;
   const selected = items.find((item) => item.key === selectedKey) ?? items[0];
+  const [scope, setScope] = useState<"overall" | "items">(
+    selection?.key ? "items" : "overall",
+  );
+  const [choosing, setChoosing] = useState(!selection?.key);
+  const selectionExists = items.some((item) => item.key === selectedKey);
+  const showPicker = choosing || !selectionExists;
+  const panel = useRef<HTMLDetailsElement>(null);
+  const linkedCount = selected
+    ? items.filter(
+        (item) => item.type === selected.type && itemLinked(value, item),
+      ).length
+    : 0;
+
+  useEffect(() => {
+    if (!selection?.request) return;
+    setScope("items");
+    setChoosing(false);
+    if (panel.current) panel.current.open = true;
+  }, [selection?.request]);
+
+  useEffect(() => {
+    /** 点击其他区域时收起设置，内容点选先交给共享选择处理 */
+    function closeOutside(event: PointerEvent) {
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        !panel.current?.contains(target) &&
+        !target.closest(".content-layout-target") &&
+        panel.current
+      )
+        panel.current.open = false;
+    }
+    window.document.addEventListener("pointerdown", closeOutside);
+    return () =>
+      window.document.removeEventListener("pointerdown", closeOutside);
+  }, []);
   const linked = selected ? itemLinked(value, selected) : true;
   const selectedStyle = selected ? declaredItemStyle(value, selected) : {};
   const [fitting, setFitting] = useState(false);
@@ -214,173 +234,233 @@ export default function LayoutSettings({
     }
   }
 
+  /** 关闭面板后将键盘焦点交回入口 */
+  function closePanel() {
+    if (panel.current) panel.current.open = false;
+    panel.current?.querySelector("summary")?.focus();
+  }
+
+  /** 文字选择只改变当前工具目标，不写入简历或触发重新排版 */
+  function selectItem(key: string) {
+    setChoosing(false);
+    if (selection) selection.select(key);
+    else setLocalKey(key);
+  }
+
+  /** 逐项控件共用输入及继承规则 */
+  function itemControl(field: keyof ItemStyle) {
+    if (!selected) return null;
+    const control = ITEM_CONTROLS[field];
+    return (
+      <LayoutNumber
+        key={`${selected.key}:${linked}:${field}`}
+        title={control.title}
+        label={`所选项${control.title}（${control.unit}）`}
+        unit={control.unit}
+        value={selectedStyle[field]}
+        options={control}
+        onChange={(number) =>
+          changeLayout(updateItemStyle(value, selected, field, number))
+        }
+      />
+    );
+  }
+
   return (
-    <details className="resume-layout-settings">
+    <details
+      ref={panel}
+      className="resume-layout-settings"
+      onKeyDown={(event) => {
+        if (event.key !== "Escape") return;
+        event.stopPropagation();
+        event.preventDefault();
+        closePanel();
+      }}
+    >
       <summary>版面设置</summary>
-      <div role="group" aria-label="当前简历版面设置">
-        <label>
-          页数预算
-          <select
-            aria-label="页数预算"
-            value={value.target_pages}
-            onChange={(event) =>
-              changeLayout(
-                { ...value, target_pages: Number(event.target.value) },
-                false,
-              )
-            }
-          >
-            {[1, 2, 3].map((count) => (
-              <option key={count} value={count}>
-                {count} 页
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          正文字号
-          <select
-            aria-label="正文字号"
-            value={value.font_size ?? ""}
-            onChange={(event) =>
-              update({
-                font_size: event.target.value
-                  ? Number(event.target.value)
-                  : undefined,
-              })
-            }
-          >
-            <option value="">沿用模板</option>
-            {[9, 9.5, 10, 10.5, 11, 11.5, 12].map((size) => (
-              <option key={size} value={size}>
-                {size} 磅
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          段落间距
-          <select
-            aria-label="段落间距"
-            value={value.space_after ?? ""}
-            onChange={(event) =>
-              update({
-                space_after: event.target.value
-                  ? Number(event.target.value)
-                  : undefined,
-              })
-            }
-          >
-            <option value="">沿用模板</option>
-            {[0, 1, 2, 3, 4, 6, 8].map((space) => (
-              <option key={space} value={space}>
-                {space} 磅
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          行距
-          <select
-            aria-label="行距"
-            value={value.line_spacing ?? ""}
-            onChange={(event) =>
-              update({
-                line_spacing: event.target.value
-                  ? Number(event.target.value)
-                  : undefined,
-              })
-            }
-          >
-            <option value="">沿用模板</option>
-            {[1, 1.05, 1.1, 1.2, 1.3, 1.5].map((space) => (
-              <option key={space} value={space}>
-                {space} 倍
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="resume-layout-item-picker">
-          调整文字项
-          <select
-            aria-label="调整文字项"
-            value={selected?.key ?? ""}
-            disabled={!items.length}
-            onChange={(event) => setSelectedKey(event.target.value)}
-          >
-            {!items.length && <option value="">暂无可见文字</option>}
-            {items.map((item) => (
-              <option key={item.key} value={item.key}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        {selected && (
-          <>
-            <button
-              className="resume-layout-link"
-              aria-label={linked ? "断开同类联动" : "恢复同类联动"}
-              aria-pressed={linked}
-              title={
-                linked
-                  ? "默认同类一起调整，点击后仅调整本项"
-                  : "仅调整本项，点击后恢复同类样式"
-              }
-              onClick={() =>
-                changeLayout(setItemLinked(value, selected, !linked))
-              }
-            >
-              {linked ? <Link2 size={16} /> : <Unlink2 size={16} />}
-              {linked
-                ? `同类联动 · ${ITEM_TYPE_LABELS[selected.type]}`
-                : "仅调整本项"}
-            </button>
-            {ITEM_CONTROLS.map(({ field, title, min, max, step }) => (
-              <label key={field}>
-                {title}
-                <ItemNumber
-                  key={`${selected.key}:${linked}`}
-                  field={field}
-                  title={title}
-                  min={min}
-                  max={max}
-                  step={step}
-                  value={selectedStyle[field]}
-                  onChange={(number) => {
-                    changeLayout(
-                      updateItemStyle(value, selected, field, number),
-                    );
-                  }}
-                />
-              </label>
-            ))}
-          </>
-        )}
-        <div className="actions">
+      <div
+        className="layout-settings-panel"
+        role="group"
+        aria-label="当前简历版面设置"
+      >
+        <div className="layout-settings-heading">
+          <strong>调整排版</strong>
           <button
-            disabled={!previewInput || unavailable}
-            onClick={() => (fitting ? cancelFit() : void fitLayout())}
+            type="button"
+            className="icon-button"
+            aria-label="关闭版面设置"
+            onClick={closePanel}
           >
-            {fitting ? "取消自动压页" : "试用紧凑排版"}
-          </button>
-          <button onClick={() => changeLayout(resetPageLayout(value))}>
-            恢复模板排版
+            <X size={17} />
           </button>
         </div>
-        {message && <p role="status">{message}</p>}
-        {value.auto_fit && (
-          <p>已应用自动压页。上方显示基础设置，手工调整会解除本次自动压缩。</p>
-        )}
-        <p>
-          链条连接时同类文字一起调整，断开后只改本项。清空数值可恢复继承。同一
-          Word 段落内可分别设字号，段前、段后及行距取各项显式值的最大值。
-        </p>
-        <p>
-          紧凑排版按实际 Word
-          页数收紧间距、调整通用分页约束，再按统一比例缩字，最低 6
-          磅；仍超预算时会明确提示。保存方案后保留设置。
-        </p>
+        <div className="layout-scope" role="group" aria-label="调整范围">
+          <button
+            type="button"
+            aria-pressed={scope === "overall"}
+            onClick={() => setScope("overall")}
+          >
+            整体排版
+          </button>
+          <button
+            type="button"
+            aria-pressed={scope === "items"}
+            onClick={() => setScope("items")}
+          >
+            文字样式
+          </button>
+        </div>
+        <div className="layout-settings-body">
+          {scope === "overall" ? (
+            <>
+              <div className="layout-budget-row">
+                <span>页数预算</span>
+                <div
+                  className="layout-page-budget"
+                  role="group"
+                  aria-label="页数预算"
+                >
+                  {[1, 2, 3].map((count) => (
+                    <button
+                      type="button"
+                      key={count}
+                      aria-pressed={value.target_pages === count}
+                      onClick={() =>
+                        changeLayout({ ...value, target_pages: count }, false)
+                      }
+                    >
+                      {count} 页
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <LayoutNumber
+                title="正文字号"
+                unit="磅"
+                value={value.font_size}
+                options={{
+                  min: 9,
+                  max: 12,
+                  step: 0.5,
+                  fallback: 10.5,
+                  halfPoints: true,
+                }}
+                onChange={(number) => update({ font_size: number })}
+              />
+              <LayoutNumber
+                title="段落间距"
+                unit="磅"
+                value={value.space_after}
+                options={{ min: 0, max: 8, step: 0.5, fallback: 3 }}
+                onChange={(number) => update({ space_after: number })}
+              />
+              <LayoutNumber
+                title="行距"
+                unit="倍"
+                value={value.line_spacing}
+                options={{ min: 1, max: 1.5, step: 0.05, fallback: 1.2 }}
+                onChange={(number) => update({ line_spacing: number })}
+              />
+              <p className="subtle">
+                数值可直接输入，也可用 − / ＋
+                微调。留空或点击重置图标可沿用模板。
+              </p>
+            </>
+          ) : (
+            <>
+              {showPicker ? (
+                <>
+                  <div className="layout-picker-heading">
+                    <span>选择要调整的文字</span>
+                    {selectionExists && (
+                      <button type="button" onClick={() => setChoosing(false)}>
+                        返回调整
+                      </button>
+                    )}
+                  </div>
+                  <LayoutItemPicker
+                    document={document}
+                    items={items}
+                    selectedKey={selected?.key ?? ""}
+                    onSelect={selectItem}
+                  />
+                  <p className="subtle">
+                    可搜索栏目、字段或内容；内容预览中也可直接点击文字。
+                  </p>
+                </>
+              ) : (
+                selected && (
+                  <div className="layout-selected-controls">
+                    <div className="layout-selected-heading">
+                      <div
+                        className="layout-selected-label"
+                        title={selected.label}
+                      >
+                        <small>
+                          正在调整 · {ITEM_TYPE_LABELS[selected.type]}
+                        </small>
+                        <strong>{selected.label}</strong>
+                      </div>
+                      <button
+                        type="button"
+                        className="layout-change-item"
+                        onClick={() => setChoosing(true)}
+                      >
+                        更换文字
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      className="resume-layout-link"
+                      aria-label={linked ? "断开同类联动" : "恢复同类联动"}
+                      aria-pressed={linked}
+                      title={linked ? "点击后仅调整本项" : "点击后恢复同类样式"}
+                      onClick={() =>
+                        changeLayout(setItemLinked(value, selected, !linked))
+                      }
+                    >
+                      {linked ? <Link2 size={15} /> : <Unlink2 size={15} />}
+                      {linked
+                        ? `同类联动 · ${linkedCount} 项一起调整`
+                        : "仅调整本项"}
+                    </button>
+                    {itemControl("font_size")}
+                    {itemControl("line_spacing")}
+                    <details className="layout-paragraph-controls">
+                      <summary>段落间距</summary>
+                      {itemControl("space_before")}
+                      {itemControl("space_after")}
+                      <p className="subtle">
+                        同一 Word 段落的间距共用，取显式设置的最大值。
+                      </p>
+                    </details>
+                  </div>
+                )
+              )}
+            </>
+          )}
+        </div>
+        <div className="layout-settings-footer">
+          <div className="actions">
+            <button
+              type="button"
+              disabled={!previewInput || unavailable}
+              onClick={() => (fitting ? cancelFit() : void fitLayout())}
+            >
+              {fitting ? "取消自动压页" : "试用紧凑排版"}
+            </button>
+            <button
+              type="button"
+              onClick={() => changeLayout(resetPageLayout(value))}
+            >
+              恢复模板排版
+            </button>
+          </div>
+          {message && <p role="status">{message}</p>}
+          {value.auto_fit && (
+            <p className="subtle">已启用自动压页；手工调整会解除本次压缩。</p>
+          )}
+        </div>
       </div>
     </details>
   );

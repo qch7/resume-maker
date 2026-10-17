@@ -1,3 +1,4 @@
+import LayoutText from "./LayoutText";
 import type {
   DefaultField,
   Experience,
@@ -12,6 +13,7 @@ import {
   itemKey,
   itemType,
   paragraphCss,
+  layoutItems,
 } from "@resume-maker/plugin-sdk/shared/resume/itemLayout";
 
 /** 内容预览遵守显隐、固定引用，不依赖 Word 或远端模型 */
@@ -23,9 +25,16 @@ export default function ContentPreview({ input }: { input: string | null }) {
   };
   const personal = document.personal;
   const layout = pageLayout(document);
-  /** 预览使用与 Word 相同的语义键及样式覆盖顺序 */
-  function style(type: string, ...parts: string[]) {
-    return itemCss(layout, itemKey(...parts), type);
+  const selectableKeys = new Set(
+    layoutItems(document, items).map((item) => item.key),
+  );
+  /** 预览使用 Word 的同一语义键及样式覆盖顺序，选择不参与样式寻址 */
+  function textProps(type: string, ...parts: string[]) {
+    const key = itemKey(...parts);
+    return {
+      layoutKey: selectableKeys.has(key) ? key : undefined,
+      style: itemCss(layout, key, type),
+    };
   }
   const sections = document.sections.filter(
     (section) =>
@@ -73,18 +82,22 @@ export default function ContentPreview({ input }: { input: string | null }) {
       {visible("photo", personal.hidden_fields, personal.field_definitions) &&
         personal.photo && <img src={personal.photo} alt="简历照片" />}
       {visible("name", personal.hidden_fields, personal.field_definitions) && (
-        <h1 style={style("name", "personal", "name")}>{personal.name}</h1>
+        <LayoutText as="h1" {...textProps("name", "personal", "name")}>
+          {personal.name}
+        </LayoutText>
       )}
       {contacts.length > 0 && (
         <div style={paragraphCss(layout, contacts)}>
           {contacts.map(({ field, key, type }) => (
-            <span
+            <LayoutText
+              as="span"
+              layoutKey={key}
               className="content-contact"
               key={key}
               style={{ fontSize: itemCss(layout, key, type).fontSize }}
             >
               {personal[field]}
-            </span>
+            </LayoutText>
           ))}
         </div>
       )}
@@ -93,18 +106,22 @@ export default function ContentPreview({ input }: { input: string | null }) {
           (field) => field.visible && field.label.trim() && field.value.trim(),
         )
         .map((field) => (
-          <p
+          <LayoutText
+            as="p"
             key={field.id}
-            style={style("custom", "personal", "custom", field.id)}
+            {...textProps("custom", "personal", "custom", field.id)}
           >
             {field.label}：{field.value}
-          </p>
+          </LayoutText>
         ))}
       {sections.map((section) => (
         <section key={section.id}>
-          <h2 style={style("section_title", "section", section.id, "title")}>
+          <LayoutText
+            as="h2"
+            {...textProps("section_title", "section", section.id, "title")}
+          >
             {section.title}
-          </h2>
+          </LayoutText>
           {section.kind === "projects"
             ? items.map((item) => {
                 const content = item.content;
@@ -125,8 +142,9 @@ export default function ContentPreview({ input }: { input: string | null }) {
                 return (
                   <div key={item.project_id}>
                     {show("title") && (
-                      <h3
-                        style={style(
+                      <LayoutText
+                        as="h3"
+                        {...textProps(
                           "title",
                           "project",
                           item.project_id,
@@ -134,11 +152,12 @@ export default function ContentPreview({ input }: { input: string | null }) {
                         )}
                       >
                         {content.title}
-                      </h3>
+                      </LayoutText>
                     )}
                     {show("period") && (
-                      <p
-                        style={style(
+                      <LayoutText
+                        as="p"
+                        {...textProps(
                           "period",
                           "project",
                           item.project_id,
@@ -146,7 +165,7 @@ export default function ContentPreview({ input }: { input: string | null }) {
                         )}
                       >
                         {content.period}
-                      </p>
+                      </LayoutText>
                     )}
                     {projectBodyOrder(content, visibility).map((key) => {
                       if (key === "highlights")
@@ -157,9 +176,10 @@ export default function ContentPreview({ input }: { input: string | null }) {
                                 item.highlight_ids.includes(point.id),
                               )
                               .map((point) => (
-                                <li
+                                <LayoutText
+                                  as="li"
                                   key={point.id}
-                                  style={style(
+                                  {...textProps(
                                     "highlight",
                                     "project",
                                     item.project_id,
@@ -168,7 +188,7 @@ export default function ContentPreview({ input }: { input: string | null }) {
                                   )}
                                 >
                                   <b>{point.title}</b> {point.text}
-                                </li>
+                                </LayoutText>
                               ))}
                           </ul>
                         );
@@ -181,9 +201,10 @@ export default function ContentPreview({ input }: { input: string | null }) {
                           field.value.trim() &&
                           (visibility.custom_fields?.[field.id] ??
                             field.visible) ? (
-                          <p
+                          <LayoutText
+                            as="p"
                             key={key}
-                            style={style(
+                            {...textProps(
                               "custom",
                               "project",
                               item.project_id,
@@ -192,7 +213,7 @@ export default function ContentPreview({ input }: { input: string | null }) {
                             )}
                           >
                             {field.label}：{field.value}
-                          </p>
+                          </LayoutText>
                         ) : null;
                       }
                       if (
@@ -201,9 +222,10 @@ export default function ContentPreview({ input }: { input: string | null }) {
                         key === "description"
                       )
                         return show(key) ? (
-                          <p
+                          <LayoutText
+                            as="p"
                             key={key}
-                            style={style(
+                            {...textProps(
                               itemType("project", key),
                               "project",
                               item.project_id,
@@ -213,7 +235,7 @@ export default function ContentPreview({ input }: { input: string | null }) {
                             {key === "stack"
                               ? content.stack.join(" · ")
                               : content[key]}
-                          </p>
+                          </LayoutText>
                         ) : null;
                       return null;
                     })}
@@ -233,9 +255,10 @@ export default function ContentPreview({ input }: { input: string | null }) {
                         ),
                       )
                       .map((key) => (
-                        <p
+                        <LayoutText
+                          as="p"
                           key={key}
-                          style={style(
+                          {...textProps(
                             itemType("entry", key),
                             "entry",
                             section.id,
@@ -244,7 +267,7 @@ export default function ContentPreview({ input }: { input: string | null }) {
                           )}
                         >
                           {entry[key]}
-                        </p>
+                        </LayoutText>
                       ))}
                     {entry.custom_fields
                       .filter(
@@ -254,9 +277,10 @@ export default function ContentPreview({ input }: { input: string | null }) {
                           field.value.trim(),
                       )
                       .map((field) => (
-                        <p
+                        <LayoutText
+                          as="p"
                           key={field.id}
-                          style={style(
+                          {...textProps(
                             "custom",
                             "entry",
                             section.id,
@@ -266,7 +290,7 @@ export default function ContentPreview({ input }: { input: string | null }) {
                           )}
                         >
                           {field.label}：{field.value}
-                        </p>
+                        </LayoutText>
                       ))}
                   </div>
                 ))}
