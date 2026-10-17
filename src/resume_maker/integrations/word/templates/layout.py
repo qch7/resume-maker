@@ -392,7 +392,7 @@ class TemplateLayout:
             etree.SubElement(marker, w("pPr")).append(properties)
             groups[title].append(marker)
         for title, node in self.shared_headings:
-            heading = flow_paragraph(paragraph_text(node), node)
+            heading = flow_paragraph(paragraph_text(node), node, preserve_runs=True)
             inline_heading(heading)
             groups[title].insert(0, heading)
             for text in paragraph_texts(node):

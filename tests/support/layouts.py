@@ -184,8 +184,18 @@ def visible_text(path):
 
 
 def template_body_text(path):
-    """读取文档正文顺序，包含表格、图形内的文字"""
-    return "\n".join(Document(path).element.body.xpath(".//w:t/text()"))
+    """保留段落、手工换行及制表符，字号拆分运行不应产生额外换行"""
+    paragraphs = []
+    for paragraph in Document(path).element.body.iter(w("p")):
+        parts = []
+        for node in paragraph.iter(w("t"), w("br"), w("cr"), w("tab")):
+            if next(node.iterancestors(w("p")), None) is not paragraph:
+                continue
+            parts.append(
+                (node.text or "") if node.tag == w("t") else "\t" if node.tag == w("tab") else "\n"
+            )
+        paragraphs.append("".join(parts))
+    return "\n".join(paragraphs)
 
 
 def section_template(path, table=False):

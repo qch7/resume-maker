@@ -3,12 +3,15 @@
 from resume_maker.core.errors import Problem
 from resume_maker.domain.experience import displayed_experience
 from resume_maker.domain.models import CustomInfoField
-from resume_maker.domain.page_layout import layout_options
 from resume_maker.domain.project_layout import project_body_entries
 from resume_maker.domain.resume import ResumeDocument
 from resume_maker.domain.templates import TemplatePlan
 from resume_maker.integrations.word.full_resume import displayed_entries, visible_custom_fields
-from resume_maker.integrations.word.page_layout import inline_honor
+from resume_maker.integrations.word.templates.item_values import (
+    entry_fragments,
+    personal_fragments,
+    project_fragments,
+)
 
 
 def custom_text(fields) -> str:
@@ -74,26 +77,22 @@ def section_records(document: ResumeDocument, title: str, projects: list[dict]) 
                     or bool(settings and settings.order),
                 }
             )
+            records[-1]["_layout"] = project_fragments(
+                project,
+                records[-1],
+                visible_custom_fields(
+                    [CustomInfoField.model_validate(field) for field in value["custom_fields"]]
+                ),
+            )
         return records
     records = []
     for entry in displayed_entries(section):
-        inline = inline_honor(entry, section, layout_options(document.extensions).honors_inline)
-        records.append(
-            {
-                **entry.model_dump(),
-                "title": inline,
-                "subtitle": "",
-                "period": "",
-                "details": "",
-                "custom_fields": "",
-            }
-            if inline is not None
-            else {**entry.model_dump(), "custom_fields": custom_text(entry.custom_fields)}
-        )
+        records.append({**entry.model_dump(), "custom_fields": custom_text(entry.custom_fields)})
+        records[-1]["_layout"] = entry_fragments(section, entry)
     return records
 
 
-def personal_values(document: ResumeDocument) -> dict[str, str]:
+def personal_values(document: ResumeDocument) -> dict:
     """将资料字段转为替换值，隐藏字段清空，照片由独立图片映射处理"""
     personal = document.personal
     values = {
@@ -120,6 +119,7 @@ def personal_values(document: ResumeDocument) -> dict[str, str]:
             for section in document.sections
         }
     )
+    values["_layout"] = personal_fragments(document, values)
     return values
 
 

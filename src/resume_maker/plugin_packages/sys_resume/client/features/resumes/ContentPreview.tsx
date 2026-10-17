@@ -1,3 +1,4 @@
+import LayoutText from "./LayoutText";
 import type {
   DefaultField,
   Experience,
@@ -6,6 +7,14 @@ import type {
 } from "@resume-maker/plugin-sdk/shared/types/index";
 import { fieldVisible } from "@resume-maker/plugin-sdk/shared/resume/visibility";
 import { projectBodyOrder } from "@resume-maker/plugin-sdk/shared/resume/bodyOrder";
+import { pageLayout } from "@resume-maker/plugin-sdk/shared/resume/pageLayout";
+import {
+  itemCss,
+  itemKey,
+  itemType,
+  paragraphCss,
+  layoutItems,
+} from "@resume-maker/plugin-sdk/shared/resume/itemLayout";
 
 /** 内容预览遵守显隐、固定引用，不依赖 Word 或远端模型 */
 export default function ContentPreview({ input }: { input: string | null }) {
@@ -15,6 +24,18 @@ export default function ContentPreview({ input }: { input: string | null }) {
     items: (ResumeItem & { content: Experience })[];
   };
   const personal = document.personal;
+  const layout = pageLayout(document);
+  const selectableKeys = new Set(
+    layoutItems(document, items).map((item) => item.key),
+  );
+  /** 预览使用 Word 的同一语义键及样式覆盖顺序，选择不参与样式寻址 */
+  function textProps(type: string, ...parts: string[]) {
+    const key = itemKey(...parts);
+    return {
+      layoutKey: selectableKeys.has(key) ? key : undefined,
+      style: itemCss(layout, key, type),
+    };
+  }
   const sections = document.sections.filter(
     (section) =>
       section.visible &&
@@ -33,44 +54,74 @@ export default function ContentPreview({ input }: { input: string | null }) {
       (!definitions || !!definitions.find((field) => field.id === key)?.visible)
     );
   }
+  const contacts = (
+    [
+      "job_title",
+      "gender",
+      "age",
+      "phone",
+      "email",
+      "gpa",
+      "location",
+      "website",
+    ] as const
+  )
+    .filter(
+      (field) =>
+        personal[field].trim() &&
+        visible(field, personal.hidden_fields, personal.field_definitions),
+    )
+    .map((field) => ({
+      field,
+      key: itemKey("personal", field),
+      type: itemType("personal", field),
+    }));
   return (
     <article className="content-preview" aria-label="简历内容预览">
       <p className="subtle">内容预览 · 精确分页可选装 Word</p>
       {visible("photo", personal.hidden_fields, personal.field_definitions) &&
         personal.photo && <img src={personal.photo} alt="简历照片" />}
       {visible("name", personal.hidden_fields, personal.field_definitions) && (
-        <h1>{personal.name}</h1>
+        <LayoutText as="h1" {...textProps("name", "personal", "name")}>
+          {personal.name}
+        </LayoutText>
       )}
-      {(
-        [
-          "job_title",
-          "gender",
-          "age",
-          "phone",
-          "email",
-          "gpa",
-          "location",
-          "website",
-        ] as const
-      )
-        .filter((key) =>
-          visible(key, personal.hidden_fields, personal.field_definitions),
-        )
-        .map((key) => (
-          <span className="content-contact" key={key}>
-            {personal[key]}
-          </span>
-        ))}
+      {contacts.length > 0 && (
+        <div style={paragraphCss(layout, contacts)}>
+          {contacts.map(({ field, key, type }) => (
+            <LayoutText
+              as="span"
+              layoutKey={key}
+              className="content-contact"
+              key={key}
+              style={{ fontSize: itemCss(layout, key, type).fontSize }}
+            >
+              {personal[field]}
+            </LayoutText>
+          ))}
+        </div>
+      )}
       {personal.custom_fields
-        .filter((field) => field.visible)
+        .filter(
+          (field) => field.visible && field.label.trim() && field.value.trim(),
+        )
         .map((field) => (
-          <p key={field.id}>
+          <LayoutText
+            as="p"
+            key={field.id}
+            {...textProps("custom", "personal", "custom", field.id)}
+          >
             {field.label}：{field.value}
-          </p>
+          </LayoutText>
         ))}
       {sections.map((section) => (
         <section key={section.id}>
-          <h2>{section.title}</h2>
+          <LayoutText
+            as="h2"
+            {...textProps("section_title", "section", section.id, "title")}
+          >
+            {section.title}
+          </LayoutText>
           {section.kind === "projects"
             ? items.map((item) => {
                 const content = item.content;
@@ -90,8 +141,32 @@ export default function ContentPreview({ input }: { input: string | null }) {
                 }
                 return (
                   <div key={item.project_id}>
-                    {show("title") && <h3>{content.title}</h3>}
-                    {show("period") && <p>{content.period}</p>}
+                    {show("title") && (
+                      <LayoutText
+                        as="h3"
+                        {...textProps(
+                          "title",
+                          "project",
+                          item.project_id,
+                          "title",
+                        )}
+                      >
+                        {content.title}
+                      </LayoutText>
+                    )}
+                    {show("period") && (
+                      <LayoutText
+                        as="p"
+                        {...textProps(
+                          "period",
+                          "project",
+                          item.project_id,
+                          "period",
+                        )}
+                      >
+                        {content.period}
+                      </LayoutText>
+                    )}
                     {projectBodyOrder(content, visibility).map((key) => {
                       if (key === "highlights")
                         return (
@@ -101,9 +176,19 @@ export default function ContentPreview({ input }: { input: string | null }) {
                                 item.highlight_ids.includes(point.id),
                               )
                               .map((point) => (
-                                <li key={point.id}>
+                                <LayoutText
+                                  as="li"
+                                  key={point.id}
+                                  {...textProps(
+                                    "highlight",
+                                    "project",
+                                    item.project_id,
+                                    "highlight",
+                                    point.id,
+                                  )}
+                                >
                                   <b>{point.title}</b> {point.text}
-                                </li>
+                                </LayoutText>
                               ))}
                           </ul>
                         );
@@ -112,11 +197,23 @@ export default function ContentPreview({ input }: { input: string | null }) {
                           (value) => `custom:${value.id}` === key,
                         );
                         return field &&
+                          field.label.trim() &&
+                          field.value.trim() &&
                           (visibility.custom_fields?.[field.id] ??
                             field.visible) ? (
-                          <p key={key}>
+                          <LayoutText
+                            as="p"
+                            key={key}
+                            {...textProps(
+                              "custom",
+                              "project",
+                              item.project_id,
+                              "custom",
+                              field.id,
+                            )}
+                          >
                             {field.label}：{field.value}
-                          </p>
+                          </LayoutText>
                         ) : null;
                       }
                       if (
@@ -125,11 +222,20 @@ export default function ContentPreview({ input }: { input: string | null }) {
                         key === "description"
                       )
                         return show(key) ? (
-                          <p key={key}>
+                          <LayoutText
+                            as="p"
+                            key={key}
+                            {...textProps(
+                              itemType("project", key),
+                              "project",
+                              item.project_id,
+                              key,
+                            )}
+                          >
                             {key === "stack"
                               ? content.stack.join(" · ")
                               : content[key]}
-                          </p>
+                          </LayoutText>
                         ) : null;
                       return null;
                     })}
@@ -149,14 +255,42 @@ export default function ContentPreview({ input }: { input: string | null }) {
                         ),
                       )
                       .map((key) => (
-                        <p key={key}>{entry[key]}</p>
+                        <LayoutText
+                          as="p"
+                          key={key}
+                          {...textProps(
+                            itemType("entry", key),
+                            "entry",
+                            section.id,
+                            entry.id,
+                            key,
+                          )}
+                        >
+                          {entry[key]}
+                        </LayoutText>
                       ))}
                     {entry.custom_fields
-                      .filter((field) => field.visible)
+                      .filter(
+                        (field) =>
+                          field.visible &&
+                          field.label.trim() &&
+                          field.value.trim(),
+                      )
                       .map((field) => (
-                        <p key={field.id}>
+                        <LayoutText
+                          as="p"
+                          key={field.id}
+                          {...textProps(
+                            "custom",
+                            "entry",
+                            section.id,
+                            entry.id,
+                            "custom",
+                            field.id,
+                          )}
+                        >
                           {field.label}：{field.value}
-                        </p>
+                        </LayoutText>
                       ))}
                   </div>
                 ))}

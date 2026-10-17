@@ -1,11 +1,13 @@
 """只调整输出副本的正文及段落，不修改模板、姓名抬头或经历事实"""
 
+from io import BytesIO
 from zipfile import ZipFile
 
 from lxml import etree
 
 from resume_maker.domain.page_layout import layout_options
 from resume_maker.infrastructure.filesystem import replace_file
+from resume_maker.integrations.word.item_layout import BREAK, ITEM, apply_items
 from resume_maker.integrations.word.ooxml import NS, w
 
 
@@ -35,12 +37,23 @@ def half_points(node, default):
 def apply_page_layout(output, extensions):
     """完整保留压缩包其他部件，字号及间距只作用于正文大小的段落"""
     options = layout_options(extensions)
-    if all(
+    global_layout = not all(
         value is None for value in (options.font_size, options.space_after, options.line_spacing)
-    ):
-        return
+    )
     with ZipFile(output) as archive:
         entries = [(entry, archive.read(entry.filename)) for entry in archive.infolist()]
+    if (
+        not global_layout
+        and not options.auto_fit
+        and not options.item_styles.types
+        and not options.item_styles.items
+        and not any(
+            b"urn:resume-maker:item-layout" in data
+            for entry, data in entries
+            if entry.filename.endswith(".xml")
+        )
+    ):
+        return
     parser = etree.XMLParser(resolve_entities=False, no_network=True)
     files = dict((entry.filename, data) for entry, data in entries)
     document = etree.fromstring(files["word/document.xml"], parser)
@@ -72,6 +85,8 @@ def apply_page_layout(output, extensions):
         return half_points(definition.find("w:rPr/w:sz", NS), inherited)
 
     for paragraph in document.iter(w("p")):
+        if not global_layout:
+            break
         style = paragraph.find("w:pPr/w:pStyle", NS)
         default = style_size(style.get(w("val")) if style is not None else "Normal", base_size)
         default = half_points(paragraph.find("w:pPr/w:rPr/w:sz", NS), default)
@@ -111,9 +126,30 @@ def apply_page_layout(output, extensions):
         if options.line_spacing is not None:
             spacing.set(w("line"), str(round(options.line_spacing * 240)))
             spacing.set(w("lineRule"), "auto")
-    files["word/document.xml"] = etree.tostring(
-        document, xml_declaration=True, encoding="UTF-8", standalone=True
-    )
+    for name, data in list(files.items()):
+        if not name.startswith("word/") or not name.endswith(".xml"):
+            continue
+        root = document if name == "word/document.xml" else etree.fromstring(data, parser)
+        if root.tag not in {w(tag) for tag in ("document", "hdr", "ftr", "footnotes", "endnotes")}:
+            continue
+        marked = any(ITEM in node.attrib or BREAK in node.attrib for node in root.iter())
+        if (
+            not marked
+            and not options.auto_fit
+            and not (name == "word/document.xml" and global_layout)
+        ):
+            continue
+        apply_items(root, styles, options)
+        files[name] = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+    if isinstance(output, BytesIO):
+        temporary = BytesIO()
+        with ZipFile(temporary, "w") as archive:
+            for entry, _ in entries:
+                archive.writestr(entry, files[entry.filename])
+        output.seek(0)
+        output.truncate()
+        output.write(temporary.getvalue())
+        return
     temporary = output.with_name("layout-" + output.name)
     try:
         with ZipFile(temporary, "w") as archive:
@@ -122,26 +158,3 @@ def apply_page_layout(output, extensions):
         replace_file(temporary, output)
     finally:
         temporary.unlink(missing_ok=True)
-
-
-def inline_honor(entry, section, enabled):
-    """仅把明确的荣誉条目排成紧凑行，所有可见字段仍完整保留"""
-    honor = (
-        bool(entry.source and entry.source.provider == "ext.honors/library")
-        or entry.id.startswith("honor:")
-        or section.id == "honors"
-        or any(label in section.title for label in ("荣誉", "获奖", "证书"))
-    )
-    if not enabled or not honor:
-        return None
-    return " · ".join(
-        value.replace("\n", "；")
-        for value in [
-            entry.title,
-            entry.subtitle,
-            entry.period,
-            *(f"{field.label}：{field.value}" for field in entry.custom_fields),
-            entry.details,
-        ]
-        if value
-    )

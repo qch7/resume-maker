@@ -51,7 +51,7 @@ def continuous_block(block):
         continuous_section(properties)
 
 
-def flow_paragraph(text, donor, align="left"):
+def flow_paragraph(text, donor, align="left", *, preserve_runs=False):
     """继承样本字体、文字样式，清除绝对段落定位，允许内容自然换行"""
     paragraph = etree.Element(w("p"))
     properties = donor.find(w("pPr")) if donor is not None else None
@@ -77,6 +77,14 @@ def flow_paragraph(text, donor, align="left"):
     spacing.set(w("line"), "240")
     spacing.set(w("lineRule"), "auto")
     paragraph.append(properties)
+    if preserve_runs and donor is not None:
+        # 已填充标题搬出共享锚点时，保留各运行的语义身份及原样式
+        for node in donor:
+            if node.tag in {w("r"), w("hyperlink")} and not node.xpath(
+                ".//w:drawing | .//w:pict | .//w:object", namespaces=NS
+            ):
+                paragraph.append(deepcopy(node))
+        return paragraph
     style = donor.find(".//w:rPr", NS) if donor is not None else None
     run = etree.SubElement(paragraph, w("r"))
     if style is not None:

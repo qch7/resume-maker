@@ -12,6 +12,7 @@ from resume_maker.api.dependencies import service
 from resume_maker.api.resources import AssetResponse, LeasedFileResponse
 from resume_maker.api.schemas import ResumePreviewInput
 from resume_maker.core.errors import Problem, need
+from resume_maker.domain.layout_fit import FIT_TIMEOUT_SECONDS
 from resume_maker.infrastructure.assets import Assets
 from resume_maker.infrastructure.database import Database
 from resume_maker.sdk.model import Cancelled
@@ -30,10 +31,32 @@ async def preview_resume(
     renderer_id: str | None = None,
 ):
     """用当前模板为未保存资料生成临时预览"""
+    return await preview_request(
+        dep_resume_previews, body, request, engine_id, renderer_id, fitting=False
+    )
+
+
+@router.post("/resume-previews/fit")
+async def fit_resume(
+    dep_resume_previews: Annotated[ResumePreviews, Depends(service("resume_previews"))],
+    body: ResumePreviewInput,
+    request: Request,
+    engine_id: str | None = None,
+    renderer_id: str | None = None,
+):
+    """使用本轮冻结资料实测紧凑候选，返回格式选择供当前草稿采用"""
+    return await preview_request(
+        dep_resume_previews, body, request, engine_id, renderer_id, fitting=True
+    )
+
+
+async def preview_request(service, body, request, engine_id, renderer_id, *, fitting):
+    """预览及自动排版共用断开、取消及实际清理屏障"""
     cancelled = threading.Event()
     result, failure, monitor_failure = None, None, None
     finished = anyio.Event()
-    with dep_resume_previews.request_work(cancelled) as work:
+    timeout = {"timeout": FIT_TIMEOUT_SECONDS} if fitting else {}
+    with service.request_work(cancelled, **timeout) as work:
 
         async def watch_request(waiting):
             """过期及断开取消池外等待，框架取消也立即通知真实生成器"""
@@ -61,7 +84,7 @@ async def preview_resume(
                 task_status.started(waiting)
                 try:
                     result = await run_in_threadpool(
-                        dep_resume_previews.render,
+                        service.fit if fitting else service.render,
                         body.template_id,
                         body.document.model_dump(),
                         [item.model_dump() for item in body.items],
