@@ -6,6 +6,7 @@ from contextlib import contextmanager, nullcontext
 from contextvars import ContextVar
 from copy import deepcopy
 from dataclasses import dataclass, replace
+from zipfile import BadZipFile, ZipFile
 
 from resume_maker.core.content import digest
 from resume_maker.core.errors import Problem
@@ -31,6 +32,16 @@ class FrozenPreview:
     renderer: object
     engine_stamp: list
     template_id: str | None
+
+
+def document_signature(output):
+    """忽略 ZIP 容器时间戳，比对实际部件内容以跳过已落到同一字号的候选"""
+    try:
+        with ZipFile(output) as archive:
+            parts = [(name, digest(archive.read(name))) for name in sorted(archive.namelist())]
+        return digest(dump(parts).encode())
+    except BadZipFile:
+        return digest(output.read_bytes())
 
 
 class ResumePreviews:
@@ -207,7 +218,7 @@ class ResumePreviews:
         )
 
     @contextmanager
-    def measure(self, frozen, document, force=False):
+    def measure(self, frozen, document, force=False, measurements=None):
         """从冻结原件生成独立候选，未选中的临时文件在作用域结束时回收"""
         check_document_work()
         key = digest(
@@ -256,14 +267,21 @@ class ResumePreviews:
             if not output.is_file():
                 raise Problem("文档引擎未生成声明的 DOCX 文件。", 409)
             check_document_work(directory)
-            pages, error = (
-                frozen.renderer(output, directory / "resume.pdf")
-                if frozen.renderer
-                else (None, "Word 精确渲染未启用，可使用内容预览。")
-            )
+            signature = document_signature(output) if measurements is not None else None
+            duplicate = measurements is not None and signature in measurements
+            if duplicate:
+                pages, error = measurements[signature]
+            else:
+                pages, error = (
+                    frozen.renderer(output, directory / "resume.pdf")
+                    if frozen.renderer
+                    else (None, "Word 精确渲染未启用，可使用内容预览。")
+                )
+                if measurements is not None:
+                    measurements[signature] = pages, error
             check_document_work(directory)
             result = {"id": identifier, "pages": pages, "render_error": error}
-            yield {"key": key, "result": result, "directory": directory}
+            yield {"key": key, "result": result, "directory": directory, "duplicate": duplicate}
 
     def publish(self, frozen, measured):
         """发布前再次核验截止，只登记最终候选并复用普通预览缓存"""

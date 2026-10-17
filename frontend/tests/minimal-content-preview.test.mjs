@@ -3,6 +3,7 @@ import test from "node:test";
 import { buildSync } from "esbuild";
 import { fileURLToPath } from "node:url";
 import { newDocument } from "../src/shared/resume/document.ts";
+import { currentFitResult } from "../../src/resume_maker/plugin_packages/sys_resume/client/features/resumes/layoutFit.ts";
 
 /** 渲染实际简历预览、注册表，验证模板缺席时仍能展示资料 */
 async function composerPreview() {
@@ -11,9 +12,26 @@ async function composerPreview() {
       contents: `import { createElement } from "react";
         import { renderToStaticMarkup } from "react-dom/server";
         import Composer from "../src/resume_maker/plugin_packages/sys_resume/client/features/resumes/Composer";
+        import LayoutSettings from "../src/resume_maker/plugin_packages/sys_resume/client/features/resumes/LayoutSettings";
         export { default as ContentPreview } from "../src/resume_maker/plugin_packages/sys_resume/client/features/resumes/ContentPreview";
         export { clientExtensions } from "./src/plugins/extensions";
-        export function render(props) { return renderToStaticMarkup(createElement(Composer, props)); }`,
+        export function render(props) { return renderToStaticMarkup(createElement(Composer, props)); }
+        export function layoutSettingsProps(props) {
+          let captured;
+          function Inspect() {
+            const preview = Composer(props);
+            function visit(node) {
+              if (Array.isArray(node)) { node.forEach(visit); return; }
+              if (!node || typeof node !== "object") return;
+              if (node.type === LayoutSettings) captured = node.props;
+              visit(node.props?.children);
+            }
+            visit(preview.props.renderLayout(null, null));
+            return null;
+          }
+          renderToStaticMarkup(createElement(Inspect));
+          return captured;
+        }`,
       resolveDir: fileURLToPath(new URL("../", import.meta.url)),
     },
     bundle: true,
@@ -301,6 +319,7 @@ test("内容预览逐项应用格式，版面设置显示同类联动及四种�
       options: {
         target_pages: 1,
         font_size: 10,
+        honors_inline: true,
         item_styles: {
           types: {
             name: { font_size: 18 },
@@ -328,4 +347,39 @@ test("内容预览逐项应用格式，版面设置显示同类联动及四种�
   assert.match(html, /aria-label="所选项段前（磅）"/);
   assert.match(html, /aria-label="所选项段后（磅）"/);
   assert.match(html, /aria-label="所选项行距（倍）"/);
+  assert.doesNotMatch(html, /荣誉紧凑行|resume-layout-inline/);
+});
+
+test("恢复相同内容的另一份未保存稿会使旧压页响应失效", async () => {
+  const module = await composerPreview();
+  const props = fixture();
+  props.onLayoutChange = () => {};
+  props.draft.id = "";
+  props.draft.draft_id = "draft-a";
+  const original = module.layoutSettingsProps(props);
+  props.draft = { ...props.draft, draft_id: "draft-b" };
+  const restored = module.layoutSettingsProps(props);
+  assert.equal(original.previewInput, restored.previewInput);
+  assert.notEqual(original.resumeIdentity, restored.resumeIdentity);
+  const active = {
+    identity: JSON.stringify([
+      original.resumeIdentity,
+      original.previewInput,
+      original.unavailable,
+    ]),
+    controller: new AbortController(),
+  };
+  assert.equal(currentFitResult(active, active, active.identity), true);
+  assert.equal(
+    currentFitResult(
+      active,
+      active,
+      JSON.stringify([
+        restored.resumeIdentity,
+        restored.previewInput,
+        restored.unavailable,
+      ]),
+    ),
+    false,
+  );
 });

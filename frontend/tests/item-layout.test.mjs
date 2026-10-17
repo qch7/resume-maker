@@ -18,6 +18,7 @@ import {
   itemCss,
   validItemStyleNumber,
   paragraphCss,
+  autoFitFontSize,
 } from "../src/shared/resume/itemLayout.ts";
 
 test("字号只接受 Word 支持的半磅步长，段距及行距保留有效精度", () => {
@@ -29,6 +30,38 @@ test("字号只接受 Word 支持的半磅步长，段距及行距保留有效�
   assert.equal(validItemStyleNumber("line_spacing", 1.05), true);
   assert.equal(validItemStyleNumber("space_before", -1), false);
   assert.equal(validItemStyleNumber("line_spacing", Number.NaN), false);
+});
+
+test("新压页按统一比例缩字，兼容旧减字结果且不放大更小的原文字", () => {
+  assert.equal(autoFitFontSize(20, { font_scale: 0.8 }), 16);
+  assert.equal(autoFitFontSize(10, { font_scale: 0.8 }), 8);
+  assert.equal(autoFitFontSize(10, { font_delta: 2 }), 9);
+  assert.equal(autoFitFontSize(8, { font_delta: 2 }), 8);
+  assert.equal(autoFitFontSize(10, { font_delta: 2, font_scale: 0.8 }), 7);
+  assert.equal(autoFitFontSize(8, { font_scale: 0.5 }), 6);
+  assert.equal(autoFitFontSize(72, { font_scale: 0 }), 6);
+  assert.equal(autoFitFontSize(5, { font_scale: 0 }), 5);
+  assert.equal(autoFitFontSize(10, {}), 10);
+  assert.equal(autoFitFontSize(10, { font_scale: 0.925 }), 9);
+  assert.equal(autoFitFontSize(9.75, { font_scale: 1 }), 9.75);
+  assert.equal(autoFitFontSize(5.25, { font_scale: 0.5 }), 5.25);
+});
+
+test("内容预览对标题及正文使用相同比例，分页约束参数不伪造预览页数", () => {
+  const options = {
+    target_pages: 1,
+    auto_fit: { font_scale: 0.8, relax_pagination: true },
+    item_styles: {
+      types: { name: { font_size: 20 }, body: { font_size: 10 } },
+      items: {},
+    },
+  };
+  assert.equal(
+    itemCss(options, itemKey("personal", "name"), "name").fontSize,
+    "16pt",
+  );
+  assert.equal(itemCss(options, first.key, "body").fontSize, "8pt");
+  assert.equal(itemCss(options, first.key, "body").lineHeight, 1.6);
 });
 
 test("共行显式段距取最大值，未设置项的全局继承不抢占显式覆盖", () => {

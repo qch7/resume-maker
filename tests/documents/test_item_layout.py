@@ -179,7 +179,7 @@ def test_auto_fit_preserves_hierarchy_small_manual_sizes_and_fixed_spacing(tmp_p
     output = tmp_path / "auto.docx"
     document = Document()
     document.styles["Normal"].font.size = Pt(18)
-    paragraph = document.add_paragraph("继承段落直接字号")
+    paragraph = document.add_paragraph("正文继承样式字号，段落标记单独设置")
     props = paragraph._p.get_or_add_pPr()
     etree.SubElement(etree.SubElement(props, w("rPr")), w("sz")).set(w("val"), "28")
     paragraph.paragraph_format.line_spacing = Pt(22)
@@ -192,8 +192,8 @@ def test_auto_fit_preserves_hierarchy_small_manual_sizes_and_fixed_spacing(tmp_p
         output, {LAYOUT_KEY: {"options": {"auto_fit": {"spacing_factor": 0, "font_delta": 2}}}}
     )
     actual = Document(output)
-    assert actual.paragraphs[0].runs[0].font.size.pt == 12
-    assert actual.paragraphs[0].paragraph_format.line_spacing.pt == 14.4
+    assert actual.paragraphs[0].runs[0].font.size.pt == 16
+    assert actual.paragraphs[0].paragraph_format.line_spacing.pt == 19.2
     assert actual.paragraphs[1].runs[0].font.size.pt == 8
     assert actual.paragraphs[1].paragraph_format.line_spacing == 0.8
     assert actual.paragraphs[1].paragraph_format.space_after.pt == 0

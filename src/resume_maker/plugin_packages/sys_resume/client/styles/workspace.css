@@ -339,10 +339,6 @@
   flex-direction: column;
   gap: 5px;
 }
-.resume-layout-settings .resume-layout-inline {
-  flex-direction: row;
-  align-items: center;
-}
 .resume-layout-settings .actions,
 .resume-layout-settings .resume-layout-item-picker,
 .resume-layout-settings .resume-layout-link,

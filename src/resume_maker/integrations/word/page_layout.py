@@ -158,26 +158,3 @@ def apply_page_layout(output, extensions):
         replace_file(temporary, output)
     finally:
         temporary.unlink(missing_ok=True)
-
-
-def inline_honor(entry, section, enabled):
-    """仅把明确的荣誉条目排成紧凑行，所有可见字段仍完整保留"""
-    honor = (
-        bool(entry.source and entry.source.provider == "ext.honors/library")
-        or entry.id.startswith("honor:")
-        or section.id == "honors"
-        or any(label in section.title for label in ("荣誉", "获奖", "证书"))
-    )
-    if not enabled or not honor:
-        return None
-    return " · ".join(
-        value.replace("\n", "；")
-        for value in [
-            entry.title,
-            entry.subtitle,
-            entry.period,
-            *(f"{field.label}：{field.value}" for field in entry.custom_fields),
-            entry.details,
-        ]
-        if value
-    )

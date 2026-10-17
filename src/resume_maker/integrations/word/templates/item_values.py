@@ -65,27 +65,14 @@ def detail_fragments(record, layout, targets):
     return result
 
 
-def entry_fragments(section, entry, *, inline=False):
-    """普通栏目及荣誉沿用同一身份模型，紧凑行保留各字段的运行样式"""
+def entry_fragments(section, entry):
+    """所有栏目条目沿用同一身份模型，保留各字段的独立运行样式"""
     prefix = ("entry", section.id, entry.id)
     layout = {
         key: [fragment(getattr(entry, key), (*prefix, key))]
         for key in ("title", "subtitle", "period", "details")
     }
     layout["custom_fields"] = custom_fragments(entry.custom_fields, prefix)
-    if inline:
-        pieces = [
-            item
-            for key in ("title", "subtitle", "period", "custom_fields", "details")
-            for item in layout[key]
-            if item["text"]
-        ]
-        layout = {
-            "title": [
-                {**item, "text": (" · " if index else "") + item["text"].replace("\n", "；")}
-                for index, item in enumerate(pieces)
-            ]
-        }
     return layout
 
 

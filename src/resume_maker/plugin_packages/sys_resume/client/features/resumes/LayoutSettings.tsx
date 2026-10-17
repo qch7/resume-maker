@@ -84,13 +84,13 @@ function ItemNumber({
 /** 当前方案按文字项联动调整格式，自动压页使用实际 Word 分页 */
 export default function LayoutSettings({
   document,
-  resumeId,
+  resumeIdentity,
   previewInput,
   unavailable,
   onChange,
 }: {
   document: ResumeDocument;
-  resumeId: string;
+  resumeIdentity: string;
   previewInput: string | null;
   unavailable: boolean;
   onChange: (value: ResumeDocument) => void;
@@ -107,7 +107,7 @@ export default function LayoutSettings({
   const [fitting, setFitting] = useState(false);
   const [message, setMessage] = useState("");
   const ticket = useRef<LayoutFitTicket | null>(null);
-  const identity = JSON.stringify([resumeId, previewInput, unavailable]);
+  const identity = JSON.stringify([resumeIdentity, previewInput, unavailable]);
   const latestIdentity = useRef(identity);
   const messageIdentity = useRef(identity);
   latestIdentity.current = identity;
@@ -141,7 +141,7 @@ export default function LayoutSettings({
     const changed = withPageLayout(document, next);
     // 已采用结果对应的新输入可以继续展示实测消息，之后编辑时再清除
     messageIdentity.current = JSON.stringify([
-      resumeId,
+      resumeIdentity,
       previewInput
         ? JSON.stringify({ ...JSON.parse(previewInput), document: changed })
         : null,
@@ -357,16 +357,6 @@ export default function LayoutSettings({
             ))}
           </>
         )}
-        <label className="resume-layout-inline">
-          <input
-            type="checkbox"
-            checked={!!value.honors_inline}
-            onChange={(event) =>
-              update({ honors_inline: event.target.checked })
-            }
-          />
-          荣誉紧凑行
-        </label>
         <div className="actions">
           <button
             disabled={!previewInput || unavailable}
@@ -387,8 +377,9 @@ export default function LayoutSettings({
           Word 段落内可分别设字号，段前、段后及行距取各项显式值的最大值。
         </p>
         <p>
-          紧凑排版按实际 Word 页数逐轮收紧间距、缩小字号，自动缩字最低 9
-          磅；内容过多时会明确提示仍超预算。保存方案后保留设置。
+          紧凑排版按实际 Word
+          页数收紧间距、调整通用分页约束，再按统一比例缩字，最低 6
+          磅；仍超预算时会明确提示。保存方案后保留设置。
         </p>
       </div>
     </details>

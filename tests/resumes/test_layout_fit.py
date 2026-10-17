@@ -9,7 +9,6 @@ from types import SimpleNamespace
 
 import anyio
 import pytest
-from docx import Document
 
 from resume_maker.api.schemas import ResumePreviewInput
 from resume_maker.domain.layout_fit import (
@@ -19,8 +18,7 @@ from resume_maker.domain.layout_fit import (
     saved_options,
     with_fit_options,
 )
-from resume_maker.domain.page_layout import LAYOUT_KEY, item_key
-from resume_maker.integrations.word.full_resume import write_full_resume
+from resume_maker.domain.page_layout import LAYOUT_KEY
 from resume_maker.plugin_packages.sys_documents.routes.resumes import fit_resume
 from resume_maker.plugin_packages.sys_documents.services.resume_previews import ResumePreviews
 from resume_maker.sdk import documents
@@ -104,8 +102,8 @@ def test_multiple_candidates_freeze_once_preserve_styles_and_publish_only_final(
     document["extensions"][LAYOUT_KEY]["display"]["future_display"] = "保留显示元数据"
     original = deepcopy(document)
     result = service.fit(None, document, [])
-    assert result["status"] == "fit" and result["attempts"] == 7
-    assert result["options"]["auto_fit"] == {"spacing_factor": 0, "font_delta": 2}
+    assert result["status"] == "fit" and 7 <= result["attempts"] <= MAX_FIT_ATTEMPTS
+    assert result["options"]["auto_fit"] == saved_options(calls[6])["auto_fit"]
     assert result["options"]["item_styles"] == saved_options(original)["item_styles"]
     assert result["options"]["future"] == [1]
     assert document == original and service.catalog.reads == 1
@@ -117,7 +115,7 @@ def test_multiple_candidates_freeze_once_preserve_styles_and_publish_only_final(
     assert len(list(service.pool.workspace.rglob("resume.docx"))) == 1
     final = with_fit_options(document, result["options"])
     assert service.render(None, final, []) == result["preview"]
-    assert len(calls) == 7
+    assert len(calls) == result["attempts"]
     with service.lease(result["preview"]["id"], "resume.docx") as path:
         assert json.loads(path.read_text(encoding="utf-8")) == final
 
@@ -128,7 +126,7 @@ def test_unfit_keeps_best_observed_candidate_without_monotonic_assumption(make_p
     result = service.fit(None, resume_content().model_dump(), [])
     assert result["status"] == "unfit" and result["pages"] == 3
     assert result["attempts"] == MAX_FIT_ATTEMPTS
-    assert result["options"]["auto_fit"] == {"spacing_factor": 0, "font_delta": 0}
+    assert result["options"]["auto_fit"] == {"spacing_factor": 0}
     stored = json.loads(service.file(result["preview"]["id"], "resume.docx").read_text("utf-8"))
     assert stored == calls[2]
     assert len(service.pool.entries) == 1
@@ -146,7 +144,7 @@ def test_large_custom_font_reaches_final_readable_candidate(make_preview):
     """手动大字号也测到可读下限，不能只减三磅就判断无法压页"""
     service, _ = make_preview(
         lambda document, _: (
-            1 if (saved_options(document).get("auto_fit") or {}).get("font_delta") == 63 else 2,
+            1 if (saved_options(document).get("auto_fit") or {}).get("font_scale") == 0 else 2,
             None,
         )
     )
@@ -155,95 +153,31 @@ def test_large_custom_font_reaches_final_readable_candidate(make_preview):
     )
     result = service.fit(None, document, [])
     assert result["status"] == "fit" and result["attempts"] == MAX_FIT_ATTEMPTS
-    assert result["options"]["auto_fit"]["font_delta"] == 63
+    assert result["options"]["auto_fit"]["font_scale"] == 0
 
 
-def honor_document():
-    """构造确有多字段可合并的可见荣誉，身份不依赖栏目中文名"""
+@pytest.mark.parametrize("title", ["普通经历", "荣誉", "获奖证书"])
+def test_compaction_candidates_ignore_section_names_and_retired_setting(make_preview, title):
+    """栏目名称、来源及旧开关不改变通用候选，用户内容继续保留"""
     document = resume_content().model_dump()
-    document["sections"].append(
-        {
-            "id": "awards",
-            "title": "成果",
-            "kind": "text",
-            "visible": True,
-            "entries": [
-                {
-                    "id": "award1",
-                    "title": "合成竞赛",
-                    "period": "2026-10",
-                    "details": "核实成果",
-                    "visible": True,
-                    "source": {"provider": "ext.honors/library", "id": "award1", "version": "1"},
-                    "custom_fields": [{"id": "award", "label": "奖项", "value": "合成一等奖"}],
-                }
-            ],
-        }
-    )
-    return document
-
-
-def test_honor_compaction_precedes_smaller_fonts_and_preserves_field_styles(tmp_path):
-    """完整 DOCX 流程先合并荣誉再测页数，紧凑行保留各字段独立字号及事实"""
-    calls = []
-
-    def renderer(source, output):
-        """用真实 DOCX 段落确认合并效果，只替代外部 Word 分页"""
-        paragraphs = Document(source).paragraphs
-        compact = any(
-            all(value in paragraph.text for value in ("合成竞赛", "核实成果", "合成一等奖"))
-            for paragraph in paragraphs
-        )
-        calls.append(compact)
-        pages = 1 if compact else 2
-        output.write_bytes(b"pdf")
-        for index in range(1, pages + 1):
-            for extension in ("png", "svg"):
-                (output.parent / f"page-{index}.{extension}").write_bytes(b"page")
-        return pages, None
-
-    styles = {
-        item_key("entry", "awards", "award1", "title"): {"font_size": 8},
-        item_key("entry", "awards", "award1", "period"): {"font_size": 12},
-        item_key("entry", "awards", "award1", "details"): {"font_size": 9},
-        item_key("entry", "awards", "award1", "custom", "award"): {"font_size": 10},
+    section = document["sections"][0]
+    section["title"] = title
+    section["entries"][0]["source"] = {
+        "provider": "ext.honors/library",
+        "id": "same",
+        "version": "1",
     }
-    document = with_fit_options(honor_document(), {"item_styles": {"items": styles}})
-    service = ResumePreviews(Catalog(), tmp_path, engine=write_full_resume, render=renderer)
-    try:
-        result = service.fit(None, document, [])
-        assert result["status"] == "fit" and result["attempts"] == 4
-        assert calls == [False, False, False, True]
-        assert result["options"]["honors_inline"] is True
-        assert result["options"]["auto_fit"]["font_delta"] == 0
-        assert service.catalog.reads == 1
-        final = Document(service.file(result["preview"]["id"], "resume.docx"))
-        paragraph = next(value for value in final.paragraphs if "合成竞赛" in value.text)
-        for text, size in (("合成竞赛", 8), ("2026-10", 12), ("核实成果", 9), ("合成一等奖", 10)):
-            assert next(run for run in paragraph.runs if text in run.text).font.size.pt == size
-    finally:
-        service.stop()
-
-
-@pytest.mark.parametrize("case", ["hidden", "parent_hidden", "single", "already_inline", "visible"])
-def test_honor_extra_attempt_requires_visible_mergeable_content(make_preview, case):
-    """隐藏、仅有单字段或已经紧凑的荣誉不额外消耗排版次数"""
-    document = honor_document()
-    section = document["sections"][-1]
-    if case == "hidden":
-        section["visible"] = False
-    elif case == "parent_hidden":
-        section["parent_id"] = "parent"
-        document["sections"].append({"id": "parent", "title": "隐藏父栏目", "visible": False})
-    elif case == "single":
-        section["entries"][0].update({"period": "", "details": "", "custom_fields": []})
-    elif case == "already_inline":
-        document = with_fit_options(document, {"honors_inline": True})
+    document["extensions"] = {
+        LAYOUT_KEY: {"display": {"hidden": True}, "options": {"honors_inline": True, "future": 1}}
+    }
+    before = deepcopy(document)
     service, calls = make_preview(lambda *_: (2, None))
     result = service.fit(None, document, [])
-    assert result["status"] == "unfit"
-    assert len(calls) == MAX_FIT_ATTEMPTS + (case == "visible")
-    assert result["attempts"] == len(calls)
+    assert result["status"] == "unfit" and len(calls) == MAX_FIT_ATTEMPTS
+    assert "honors_inline" not in result["options"]
+    assert result["options"]["future"] == 1
+    assert all(value["sections"] == before["sections"] for value in calls)
+    assert document == before
 
 
 def test_existing_fit_only_tightens_and_respects_half_point_floor():
@@ -255,9 +189,101 @@ def test_existing_fit_only_tightens_and_respects_half_point_floor():
     for previous, current in pairwise(candidates):
         assert current["auto_fit"]["spacing_factor"] <= previous["auto_fit"]["spacing_factor"]
         assert current["auto_fit"]["font_delta"] >= previous["auto_fit"]["font_delta"]
-    assert list(fit_candidates({"auto_fit": {"spacing_factor": 0, "font_delta": 63}})) == [
-        {"auto_fit": {"spacing_factor": 0, "font_delta": 63}}
+        assert current["auto_fit"].get("font_scale", 1) <= previous["auto_fit"].get("font_scale", 1)
+    minimum = {"auto_fit": {"spacing_factor": 0, "font_scale": 0, "relax_pagination": True}}
+    assert list(fit_candidates(minimum)) == [minimum]
+
+
+def test_page_feedback_finds_and_refines_largest_measured_success(make_preview):
+    """按实际页数收紧后继续上探较大字号，最终采用实测达标的最少压缩结果"""
+    service, calls = make_preview(
+        lambda document, _: (
+            1 if (saved_options(document).get("auto_fit") or {}).get("font_scale", 1) <= 0.8 else 2,
+            None,
+        )
+    )
+    result = service.fit(None, resume_content().model_dump(), [])
+    assert result["status"] == "fit"
+    scale = result["options"]["auto_fit"]["font_scale"]
+    assert 0.79 <= scale <= 0.8 and len(calls) <= MAX_FIT_ATTEMPTS
+    larger = [
+        saved_options(value)["auto_fit"]["font_scale"]
+        for value in calls
+        if "font_scale" in (saved_options(value).get("auto_fit") or {})
     ]
+    assert any(right > left for left, right in pairwise(larger))
+
+
+def test_larger_overflow_uses_stronger_first_font_scale():
+    """页数反馈进入比例估计，较大超预算不会重复同一档缩字"""
+    scales = []
+    for pages in (2, 8):
+        search = fit_candidates({"target_pages": 1})
+        candidate = next(search)
+        while "font_scale" not in (candidate.get("auto_fit") or {}):
+            candidate = search.send(pages)
+        scales.append(candidate["auto_fit"]["font_scale"])
+    assert 0 < scales[1] < scales[0] < 1
+
+
+def test_identical_generated_documents_skip_repeated_word_measurement(make_preview):
+    """文档已落到相同格式时不再反复调用 Word，最终仍保留完整实测文件"""
+    service, _ = make_preview(lambda *_: (2, None))
+    calls = []
+
+    def engine(output, *_):
+        """模拟字体下限或不可回流模板，所有候选输出相同"""
+        output.write_bytes(b"same document")
+
+    def renderer(source, output):
+        """记录实际测量次数并输出完整分页文件"""
+        calls.append(1)
+        output.write_bytes(b"pdf")
+        for index in (1, 2):
+            for extension in ("png", "svg"):
+                (output.parent / f"page-{index}.{extension}").write_bytes(b"page")
+        return 2, None
+
+    service.engine, service.renderer = engine, renderer
+    result = service.fit(None, resume_content().model_dump(), [])
+    assert result["status"] == "unfit" and calls == [1]
+    assert result["options"] == {} and result["attempts"] == MAX_FIT_ATTEMPTS
+    assert service.file(result["preview"]["id"], "page-2.svg").is_file()
+
+
+def test_verified_success_is_published_before_refinement_runs_out_of_budget(
+    make_preview, monkeypatch
+):
+    """已有达标结果时按实际耗时预留结束预算，精修不能拖到总截止丢失成功"""
+    from resume_maker.plugin_packages.sys_documents.services import preview_fit
+
+    clock = [0.0]
+    timing = SimpleNamespace(monotonic=lambda: clock[0])
+    monkeypatch.setattr(documents, "time", timing)
+    monkeypatch.setattr(preview_fit, "time", timing)
+
+    def pages(_, number):
+        """首次缩放测量完成后只剩二十秒，不足再运行同样耗时的精修"""
+        clock[0] = 190 if number == 5 else number * 20
+        return (1 if number >= 5 else 2), None
+
+    service, calls = make_preview(pages)
+    result = service.fit(None, resume_content().model_dump(), [])
+    assert result["status"] == "fit" and result["attempts"] == len(calls) == 5
+    assert service.file(result["preview"]["id"], "resume.pdf").is_file()
+
+
+def test_optional_refinement_failure_keeps_prior_verified_success(make_preview):
+    """非必要精修的渲染错误不丢弃已经达标的完整文件，取消仍由原屏障传播"""
+    service, calls = make_preview(
+        lambda _, number: (None, "后续精修失败") if number == 6 else (1 if number == 5 else 2, None)
+    )
+    result = service.fit(None, resume_content().model_dump(), [])
+    assert result["status"] == "fit" and result["pages"] == 1 and len(calls) == 6
+    assert result["options"] == saved_options(calls[4])
+    with service.lease(result["preview"]["id"], "page-1.svg") as path:
+        assert path.read_bytes() == b"page"
+    assert len(service.pool.entries) == 1
 
 
 @pytest.mark.parametrize("failed_at", [1, 3])

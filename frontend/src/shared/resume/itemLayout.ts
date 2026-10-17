@@ -5,7 +5,7 @@ import type {
   ResumeDocument,
   ResumeItem,
 } from "../types/index.ts";
-import type { ItemStyle, PageLayout } from "./pageLayout.ts";
+import type { AutoFit, ItemStyle, PageLayout } from "./pageLayout.ts";
 import { fieldVisible } from "./visibility.ts";
 import { projectBodyOrder } from "./bodyOrder.ts";
 
@@ -311,7 +311,15 @@ export function updateItemStyle(
   return { ...layout, item_styles: styles };
 }
 
-/** 内容预览保留字号层级，并应用自动压页保存的最终压缩参数 */
+/** 兼容旧减字结果，新比例向下量化到半磅，原本更小的文字不会被放大 */
+export function autoFitFontSize(size: number, fit: AutoFit): number {
+  const legacy = Math.min(size, Math.max(9, size - (fit.font_delta ?? 0)));
+  const scale = fit.font_scale ?? 1;
+  if (scale === 1 || legacy < 6) return legacy;
+  return Math.floor(Math.min(legacy, Math.max(6, legacy * scale)) * 2) / 2;
+}
+
+/** 内容预览按自身字号层级应用通用压缩，实际分页继续由 Word 测量 */
 export function itemCss(
   layout: PageLayout,
   key: string,
@@ -319,7 +327,7 @@ export function itemCss(
 ): CSSProperties {
   const style = effectiveItemStyle(layout, { key, type, label: "" });
   if (layout.auto_fit) {
-    const { spacing_factor: factor, font_delta: delta } = layout.auto_fit;
+    const factor = layout.auto_fit.spacing_factor ?? 1;
     const scope = (JSON.parse(key) as string[])[0];
     const heading =
       type === "name" ||
@@ -337,7 +345,7 @@ export function itemCss(
           : heading
             ? 11.25
             : 9.75);
-    style.font_size = Math.min(size, Math.max(9, size - delta));
+    style.font_size = autoFitFontSize(size, layout.auto_fit);
     style.space_before =
       (style.space_before ??
         (type === "name" ? 7.5 : type === "section_title" ? 16.5 : 0)) * factor;
@@ -384,7 +392,7 @@ export function paragraphCss(
       style[field] = layout[field];
   }
   if (layout.auto_fit) {
-    const factor = layout.auto_fit.spacing_factor;
+    const factor = layout.auto_fit.spacing_factor ?? 1;
     style.space_before = (style.space_before ?? 0) * factor;
     style.space_after = (style.space_after ?? 0) * factor;
     const line = style.line_spacing ?? 1.2;

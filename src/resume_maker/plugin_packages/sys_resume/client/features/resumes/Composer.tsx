@@ -41,6 +41,8 @@ export default function Composer(props: Props) {
     revisions,
     props.previewSources,
   );
+  // 未保存方案按草稿标识隔离，恢复相同内容也会作废旧排版请求
+  const resumeIdentity = JSON.stringify([draft.id, draft.draft_id ?? null]);
   return (
     <DocumentPreview
       format="resume/v1"
@@ -67,7 +69,7 @@ export default function Composer(props: Props) {
               {draft.document && props.onLayoutChange && (
                 <LayoutSettings
                   document={draft.document}
-                  resumeId={draft.id}
+                  resumeIdentity={resumeIdentity}
                   previewInput={previewInput}
                   unavailable={templateUnavailable}
                   onChange={props.onLayoutChange}

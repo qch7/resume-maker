@@ -30,6 +30,8 @@ class AutoFit(Model):
 
     spacing_factor: float = Field(default=1, ge=0, le=1)
     font_delta: float = Field(default=0, ge=0, le=63)
+    font_scale: float = Field(default=1, ge=0, le=1)
+    relax_pagination: bool = False
 
 
 class ResumeLayout(Model):
@@ -41,7 +43,6 @@ class ResumeLayout(Model):
     font_size: float | None = Field(default=None, ge=9, le=12)
     space_after: float | None = Field(default=None, ge=0, le=8)
     line_spacing: float | None = Field(default=None, ge=1, le=1.5)
-    honors_inline: bool = False
     item_styles: ItemStyles = Field(default_factory=ItemStyles)
     auto_fit: AutoFit | None = None
 
@@ -64,9 +65,16 @@ def item_style(options, key, kind):
     return styles.items.get(key, styles.types.get(kind, ItemStyle())).model_dump(exclude_none=True)
 
 
+def current_layout_options(options):
+    """忽略已撤销的版面开关，其余未知扩展继续保留"""
+    if not isinstance(options, dict):
+        raise ValueError("版面设置格式无效。")
+    return {key: value for key, value in options.items() if key != "honors_inline"}
+
+
 def layout_options(extensions):
     """读取独立命名空间，未知扩展及未设置的方案保持原样"""
     value = extensions.get(LAYOUT_KEY, {})
     if not isinstance(value, dict):
         raise ValueError("版面设置格式无效。")
-    return ResumeLayout.model_validate(value.get("options", {}))
+    return ResumeLayout.model_validate(current_layout_options(value.get("options", {})))

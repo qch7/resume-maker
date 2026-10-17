@@ -13,11 +13,10 @@ from docx.shared import Cm, Pt, RGBColor
 
 from resume_maker.core.errors import Problem
 from resume_maker.domain.experience import displayed_experience
-from resume_maker.domain.page_layout import layout_options
 from resume_maker.domain.project_layout import project_body_entries
 from resume_maker.domain.resume import CustomInfoField, ResumeDocument, ResumeSection
 from resume_maker.integrations.word.item_layout import mark_run, reference
-from resume_maker.integrations.word.page_layout import apply_page_layout, inline_honor
+from resume_maker.integrations.word.page_layout import apply_page_layout
 
 BLUE = "718DB5"
 
@@ -174,7 +173,6 @@ def displayed_entries(section: ResumeSection):
 def write_full_resume(output: Path, content: dict, projects: list[dict]):
     """按保存顺序生成 A4 Word 简历，隐藏父栏目时同时隐藏子栏目"""
     resume = ResumeDocument.model_validate(content)
-    layout = layout_options(resume.extensions)
     document = Document()
     page = document.sections[0]
     page.page_width, page.page_height = Cm(21), Cm(29.7)
@@ -266,27 +264,6 @@ def write_full_resume(output: Path, content: dict, projects: list[dict]):
                 )
             for entry in entries:
                 entry_ref = ("entry", member.id, entry.id)
-                inline = inline_honor(entry, member, layout.honors_inline)
-                if inline is not None:
-                    paragraph = document.add_paragraph()
-                    pieces = [
-                        (field, getattr(entry, field)) for field in ("title", "subtitle", "period")
-                    ]
-                    pieces.extend(
-                        (("custom", field.id), f"{field.label}：{field.value}")
-                        for field in entry.custom_fields
-                    )
-                    pieces.append(("details", entry.details))
-                    for index, (field, value) in enumerate(pair for pair in pieces if pair[1]):
-                        parts = field if isinstance(field, tuple) else (field,)
-                        add_text(
-                            paragraph,
-                            (" · " if index else "") + value.replace("\n", "；"),
-                            ref=reference(
-                                (*entry_ref, *parts), "custom" if isinstance(field, tuple) else None
-                            ),
-                        )
-                    continue
                 if entry.title or entry.subtitle or entry.period:
                     paragraph = document.add_paragraph()
                     paragraph.paragraph_format.keep_with_next = bool(

@@ -8,7 +8,7 @@ from docx import Document
 from docx.enum.style import WD_STYLE_TYPE
 from docx.shared import Pt
 
-from resume_maker.domain.page_layout import LAYOUT_KEY
+from resume_maker.domain.page_layout import LAYOUT_KEY, layout_options
 from resume_maker.domain.resume import ResumeDocument
 from resume_maker.domain.templates import RepeatBinding, TemplatePlan, TextBinding
 from resume_maker.integrations.word.full_resume import write_full_resume
@@ -55,7 +55,6 @@ def compact(document):
                 "font_size": 9.5,
                 "space_after": 1,
                 "line_spacing": 1.05,
-                "honors_inline": True,
             },
         }
     }
@@ -63,7 +62,7 @@ def compact(document):
 
 
 def test_builtin_compact_keeps_visible_facts_and_large_header(tmp_path):
-    """荣誉合并成行后仍保留每条事实，姓名字号及另一份方案保持原样"""
+    """通用正文参数保留每条事实及字段结构，姓名字号及另一份方案保持原样"""
     document = content()
     original = deepcopy(document)
     output = tmp_path / "compact.docx"
@@ -74,7 +73,9 @@ def test_builtin_compact_keeps_visible_facts_and_large_header(tmp_path):
         assert text.count(value) == 1
     assert "隐藏单位" not in text
     honor = next(paragraph for paragraph in rendered.paragraphs if "合成竞赛" in paragraph.text)
-    assert "一等奖" in honor.text and "经过核实的成果" in honor.text
+    assert "一等奖" not in honor.text and "经过核实的成果" not in honor.text
+    assert any(paragraph.text == "经过核实的成果" for paragraph in rendered.paragraphs)
+    assert any(paragraph.text == "奖项：一等奖" for paragraph in rendered.paragraphs)
     assert honor.runs[0].font.size.pt == 9.5
     assert honor.paragraph_format.space_after.pt == 1
     name = next(
@@ -90,11 +91,14 @@ def test_builtin_compact_keeps_visible_facts_and_large_header(tmp_path):
     assert document == original
 
 
-def test_adaptive_honor_inline_retains_all_content_and_template(tmp_path):
-    """同一紧凑选项作用于模板重复区，原映射、源文件保持不变"""
+@pytest.mark.parametrize("retired", [True, False, "ignored"])
+@pytest.mark.parametrize("minimal", [False, True])
+def test_adaptive_retired_option_keeps_normal_fields_and_template(tmp_path, retired, minimal):
+    """旧开关不再合并模板字段，原映射、源文件及逐字段内容保持不变"""
     source, output = tmp_path / "source.docx", tmp_path / "output.docx"
     doc = Document()
-    for value in ("成果", "旧标题", "旧时间", "旧正文", "旧奖项"):
+    samples = ("成果", "旧标题") if minimal else ("成果", "旧标题", "旧时间", "旧正文", "旧奖项")
+    for value in samples:
         doc.add_paragraph(value)
     doc.save(source)
     package = TemplatePackage(source)
@@ -102,7 +106,9 @@ def test_adaptive_honor_inline_retains_all_content_and_template(tmp_path):
     fields = [
         TextBinding(node=node["id"], quote=node["text"], target=target)
         for node, target in zip(
-            rows[1:], ("title", "period", "details", "custom_fields"), strict=True
+            rows[1:],
+            ("title",) if minimal else ("title", "period", "details", "custom_fields"),
+            strict=True,
         )
     ]
     plan = TemplatePlan(
@@ -124,14 +130,40 @@ def test_adaptive_honor_inline_retains_all_content_and_template(tmp_path):
         warnings=[],
     )
     original, mapping = source.read_bytes(), plan.model_dump()
-    fill_template(source, output, plan, compact(content()), [])
+    document = compact(content())
+    baseline = tmp_path / "baseline.docx"
+    fill_template(source, baseline, plan, document, [])
+    document["extensions"][LAYOUT_KEY]["options"]["honors_inline"] = retired
+    fill_template(source, output, plan, document, [])
     paragraphs = [paragraph.text for paragraph in Document(output).paragraphs if paragraph.text]
-    assert paragraphs[-2] == "成果"
-    assert len([value for value in paragraphs if "合成竞赛" in value]) == 1
-    for value in ("合成竞赛", "2026-10", "一等奖", "经过核实的成果"):
-        assert value in paragraphs[-1]
-    assert "隐藏单位" not in paragraphs[-1]
+    for value in ("合成竞赛", "2026-10", "经过核实的成果", "奖项：一等奖"):
+        assert "\n".join(paragraphs).count(value) == 1
+    if not minimal:
+        assert paragraphs[-5:] == ["成果", "合成竞赛", "2026-10", "经过核实的成果", "奖项：一等奖"]
+    assert "隐藏单位" not in "\n".join(paragraphs)
+    with ZipFile(baseline) as before, ZipFile(output) as after:
+        assert before.read("word/document.xml") == after.read("word/document.xml")
     assert source.read_bytes() == original and plan.model_dump() == mapping
+
+
+@pytest.mark.parametrize("retired", [True, False, "ignored"])
+def test_builtin_retired_option_is_ignored_without_losing_other_extensions(tmp_path, retired):
+    """旧数据可以继续恢复及导出，废弃开关无效，未知选项及用户内容不变"""
+    document = compact(content())
+    baseline, output = tmp_path / "baseline.docx", tmp_path / "legacy.docx"
+    write_full_resume(baseline, document, [])
+    options = document["extensions"][LAYOUT_KEY]["options"]
+    options.update({"honors_inline": retired, "future": {"retained": True}})
+    before = deepcopy(document)
+    restored = ResumeDocument.model_validate(document).model_dump()
+    assert restored["extensions"] == before["extensions"]
+    effective = layout_options(restored["extensions"]).model_dump()
+    assert "honors_inline" not in effective
+    assert effective["future"] == {"retained": True}
+    write_full_resume(output, restored, [])
+    with ZipFile(baseline) as original, ZipFile(output) as actual:
+        assert original.read("word/document.xml") == actual.read("word/document.xml")
+    assert document == before
 
 
 def test_postprocess_retains_unrelated_parts_and_default_is_noop(tmp_path):
